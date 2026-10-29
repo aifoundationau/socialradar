@@ -1,0 +1,148 @@
+# Ad Radar Data Contracts
+
+> Single source of truth for every schema and payload. The runtime enforcement lives in
+> [`src/lib/contracts.ts`](src/lib/contracts.ts) (Zod, `.strict()` ≡ `additionalProperties: false`).
+> Any change here MUST be mirrored there in the same commit.
+
+## Global Rules
+
+- **Strict objects:** every schema rejects unknown keys (`additionalProperties: false`).
+- **Integers only:** all token values (`tokenBalance`, `delta`, `balanceAfter`, costs) are integers. Server code wraps every computed value with `Math.round()` and validates with `z.number().int()`.
+- **Timestamps:** ISO-8601 UTC strings (`new Date().toISOString()`).
+- **Sanitization:** user-supplied free text is trimmed, control characters are stripped, and length is capped. URLs must be `https://`.
+- **Australian Privacy Act 1988 (APPs):** collect only what the feature needs (APP 3). No sensitive information (APP 3.3) is stored. Email is the only PII on `UserDoc`. Users can request deletion (APP 13), which cascades to `brands`, `remixes`, and anonymises `token_transactions` (`uid` replaced with a hash, kept for financial record keeping).
+- **Write authority:** `users/*`, `users/{uid}/brands/*`, `token_transactions/*`, `radar_cache/*`, `normalized_ads/*` and `remixes/*` are written **only** by the Firebase Admin SDK on the server. Client SDK access is read-only and scoped to the owner via Firestore rules (`firestore.rules`); `radar_cache` and `normalized_ads` are not client-readable at all.
+- **Idempotency:** every mutating API call accepts an `x-idempotency-key` header (`^[A-Za-z0-9_-]{8,128}$`). The key becomes the deterministic `txId`, so a retried request never double-charges.
+
+## 1. UserAuth & Token Ledger (`users/{uid}` & `token_transactions/{txId}`)
+
+### Custom Claims (Firebase Admin)
+```json
+{ "role": "admin" | "user", "tier": "starter" | "growth" | "agency" }
+```
+If claims are missing, the server treats the caller as `{ role: "user", tier: "starter" }`.
+
+### `UserDoc`
+| Field | Type | Rules |
+|---|---|---|
+| `uid` | string | `^[A-Za-z0-9]{1,128}$` |
+| `email` | string | RFC email, max 254, lower-cased |
+| `tokenBalance` | integer | `>= 0`, mutated ONLY via server-side `runTransaction` |
+| `activeBrandId` | string | `""` or brandId |
+| `stripeCustomerId` | string | `""` or `^cus_[A-Za-z0-9]+$` |
+| `updatedAt` | ISO-8601 | |
+
+### `TokenTransactionDoc`
+| Field | Type | Rules |
+|---|---|---|
+| `txId` | string | idempotency key / deterministic id |
+| `uid` | string | |
+| `type` | enum | `"TOPUP" \| "RADAR_SEARCH" \| "AI_REMIX" \| "REFUND"` |
+| `delta` | integer | non-zero (e.g. `-2`, `-5`, `+100`) |
+| `balanceAfter` | integer | `>= 0` |
+| `referenceId` | string | queryHash, adId, stripeSessionId, or refunded txId; max 256 |
+| `createdAt` | ISO-8601 | |
+
+### Token packs (server constants, `src/lib/pricing.ts`)
+One-off Stripe Checkout purchases, AUD, tokens never expire.
+| Pack id | Tokens | Price |
+|---|---|---|
+| `PACK_100` | 100 | A$19.00 |
+| `PACK_500` | 500 | A$79.00 |
+| `PACK_2000` | 2000 | A$249.00 |
+
+### `TopupMetadata` (Checkout Session `metadata`, also copied to the PaymentIntent)
+| Field | Type | Rules |
+|---|---|---|
+| `uid` | string | same as `UserDoc.uid`; must equal the session's `client_reference_id` |
+| `packId` | enum | `PACK_100 \| PACK_500 \| PACK_2000` |
+| `tokens` | string | integer `1–1000000` (Stripe metadata values are strings) |
+
+The webhook credits `tokens` to `uid` with `txId = referenceId = <Checkout Session id>`, so redelivered events are no-ops.
+
+### Action costs (server constants, `src/lib/pricing.ts`)
+| Action | Cost |
+|---|---|
+| `RADAR_SEARCH` | 2 tokens (cache hit and miss) |
+| `AI_REMIX` | 5 tokens |
+
+## 2. Normalized Ad Contract (`normalized_ads/{adId}`)
+
+| Field | Type | Rules |
+|---|---|---|
+| `adId` | string | `^(meta\|tiktok\|google)_[A-Za-z0-9_-]{1,200}$` |
+| `platform` | enum | `"META" \| "TIKTOK" \| "GOOGLE"` |
+| `advertiserName` | string | max 300 |
+| `advertiserId` | string | max 200 |
+| `mediaType` | enum | `"VIDEO" \| "IMAGE" \| "CAROUSEL"` |
+| `mediaUrls` | string[] | https URLs, max 20 |
+| `thumbnailUrl` | string | https URL or `""` |
+| `primaryCopy` | string | max 5000 |
+| `headline` | string | max 500 |
+| `ctaText` | string | max 100 |
+| `landingPageUrl` | string | https URL or `""` |
+| `countryCode` | string | ISO 3166-1 alpha-2, upper-case |
+| `firstSeenDate` | ISO-8601 | |
+| `lastSeenDate` | ISO-8601 | |
+| `activeDaysCount` | integer | `>= 1` |
+| `winningScore` | integer | `0–100` |
+
+## 3. Brand Profile Contract (`users/{uid}/brands/{brandId}`)
+
+| Field | Type | Rules |
+|---|---|---|
+| `brandId` | string | server-generated |
+| `brandName` | string | 1–100 |
+| `productServiceDescription` | string | 1–2000 |
+| `targetAudienceAvatar` | string | 1–2000 |
+| `corePainPoints` | string[] | 1–10 items, each 1–300 |
+| `uniqueMechanismOrOffer` | string | 1–1000 |
+| `toneOfVoice` | enum | `"DIRECT_RESPONSE" \| "AUTHORITATIVE" \| "UGC_CASUAL" \| "URGENT"` |
+| `destinationUrl` | string | https URL |
+
+## 4. AI Deconstruction & Remix Contract (`remixes/{remixId}`)
+
+| Field | Type |
+|---|---|
+| `remixId` | string |
+| `uid` | string |
+| `sourceAdId` | string |
+| `brandId` | string |
+| `deconstruction.hookAnalysis` | string (0–3s visual & verbal pattern interrupt) |
+| `deconstruction.pacingStructure` | string[] (timestamped beat breakdown) |
+| `deconstruction.persuasionFramework` | `"PAS" \| "AIDA" \| "UGC_STORY" \| "US_VS_THEM" \| "SOCIAL_PROOF_STACK"` |
+| `deconstruction.whyItWorks` | string |
+| `variations` | exactly 3 × `{ angleName, primaryCopy, headline, ctaButton, videoStoryboard[], imageGenerationPrompt }` |
+| `variations[].videoStoryboard[]` | `{ timestamp, visualAction, spokenAudio, onScreenText }` |
+
+## 5. API Request Payloads
+
+### `POST /api/radar/search`
+```json
+{ "platform": "META|TIKTOK|GOOGLE", "query": "string 2-100", "country": "AU", "mediaType": "ALL|VIDEO|IMAGE", "provenWinnersOnly": false }
+```
+
+### `POST /api/radar/remix`
+```json
+{ "adId": "meta_123", "brandId": "string" }
+```
+
+### `POST|PUT|DELETE|PATCH /api/brands`
+Body for POST: Brand Profile without `brandId` (→ `201 { brand }`; replaying the same `x-idempotency-key` returns `200` with the same brand). PUT: full Brand Profile (`404 NOT_FOUND` if missing). DELETE: `{ "brandId": "string" }`. PATCH: `{ "activeBrandId": "" | brandId }` selects the active brand. Max 25 brands per user. The first brand created becomes active; deleting the active brand clears `activeBrandId`. Reads use the client's Firestore listener, so there is no GET.
+
+### `POST /api/me`
+No body. Creates `users/{uid}` on first sign-in (balance 0) and returns `{ user, claims }`.
+
+### `POST /api/wallet/checkout`
+```json
+{ "packId": "PACK_100|PACK_500|PACK_2000" }
+```
+Requires `x-idempotency-key` (reused as the Stripe idempotency key). Returns `{ "url": "https://checkout.stripe.com/..." }`.
+
+### `POST /api/webhooks/stripe`
+Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles `checkout.session.completed` and `checkout.session.async_payment_succeeded` when `payment_status = "paid"`. Returns `500` only when the ledger write fails, so Stripe retries.
+
+### Standard Error Envelope
+```json
+{ "error": { "code": "UNAUTHENTICATED|FORBIDDEN|NOT_FOUND|INVALID_INPUT|INSUFFICIENT_TOKENS|UPSTREAM_FAILURE|INTERNAL", "message": "string" } }
+```
