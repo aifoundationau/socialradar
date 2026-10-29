@@ -6,6 +6,13 @@
       "indexes": "firestore.indexes.json"
     }
   ],
+  "apphosting": [
+    {
+      "backendId": "ad-radar",
+      "rootDir": "/",
+      "ignore": ["node_modules", ".git", ".next", ".env*", "firebase-debug.log*", "firestore-debug.log*", "tsconfig.tsbuildinfo"]
+    }
+  ],
   "emulators": {
     "auth": { "host": "127.0.0.1", "port": 9099 },
     "ui": { "enabled": false },
