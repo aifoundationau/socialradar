@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { signInWithGoogle } from "./SessionProvider";
 import { errorMessage } from "@/lib/api-client";
+import { Logo } from "@/components/ui/Logo";
 import { alertError, btnPrimary, card } from "@/components/ui/styles";
 
-export function SignInCard({ title = "Sign in to Ad Radar" }: { title?: string }) {
+export function SignInCard({ title = "Sign in to AdRadar" }: { title?: string }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,11 +23,14 @@ export function SignInCard({ title = "Sign in to Ad Radar" }: { title?: string }
   }
 
   return (
-    <div className={`${card} mx-auto w-full max-w-sm space-y-4 text-center`}>
-      <h1 className="text-lg font-semibold">{title}</h1>
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        Find ads that have been running for weeks, then remix them for your brand.
-      </p>
+    <div className={`${card} relative mx-auto w-full max-w-sm space-y-5 text-center shadow-[0_12px_32px_-4px_rgba(0,0,0,0.6)]`}>
+      <div className="flex justify-center">
+        <Logo />
+      </div>
+      <div className="space-y-1">
+        <h1 className="text-headline-md font-semibold">{title}</h1>
+        <p className="text-body text-on-surface-variant">Find ads that have been running for weeks, then remix them for your brand.</p>
+      </div>
       <button type="button" className={`${btnPrimary} w-full`} onClick={handleSignIn} disabled={pending}>
         {pending ? "Opening Google…" : "Continue with Google"}
       </button>

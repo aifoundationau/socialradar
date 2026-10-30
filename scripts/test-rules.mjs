@@ -1,9 +1,9 @@
 // npm run test:rules — checks firestore.rules with the Firebase Rules :test API (the console's Rules
-// Playground). Nothing is deployed and no data is read; needs a gcloud login with access to ad-radar-au.
+// Playground). Nothing is deployed and no data is read; needs a gcloud login with access to ai-foundation-firebase.
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-const PROJECT = "ad-radar-au";
+const PROJECT = "ai-foundation-firebase";
 const rules = readFileSync(process.argv[2] ?? "firestore.rules", "utf8");
 const token = execSync("gcloud auth print-access-token", { encoding: "utf8" }).trim();
 const P = (p) => `/databases/ad-radar/documents/${p}`;

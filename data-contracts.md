@@ -12,7 +12,7 @@
 - **Sanitization:** user-supplied free text is trimmed, control characters are stripped, and length is capped. URLs must be `https://`.
 - **Australian Privacy Act 1988 (APPs):** collect only what the feature needs (APP 3). No sensitive information (APP 3.3) is stored. Email is the only PII on `UserDoc`. Users can request deletion (APP 13), which cascades to `brands`, `remixes`, and anonymises `token_transactions` (`uid` replaced with a hash, kept for financial record keeping).
 - **Write authority:** `users/*`, `users/{uid}/brands/*`, `token_transactions/*`, `radar_cache/*`, `normalized_ads/*` and `remixes/*` are written **only** by the Firebase Admin SDK on the server. Client SDK access is read-only and scoped to the owner via Firestore rules (`firestore.rules`); `radar_cache` and `normalized_ads` are not client-readable at all.
-- **Idempotency:** every mutating API call accepts an `x-idempotency-key` header (`^[A-Za-z0-9_-]{8,128}$`). The key becomes the deterministic `txId`, so a retried request never double-charges.
+- **Idempotency:** every mutating API call accepts an `x-idempotency-key` header (`^[A-Za-z0-9_-]{8,128}$`). The key becomes the deterministic `txId`, so a retried request never double-charges. A key only replays the identical charge (same uid, action type and `referenceId`); reusing it for anything else, or replaying a refunded key, returns `409`.
 
 ## 1. UserAuth & Token Ledger (`users/{uid}` & `token_transactions/{txId}`)
 
@@ -61,10 +61,12 @@ One-off Stripe Checkout purchases, AUD, tokens never expire.
 The webhook credits `tokens` to `uid` with `txId = referenceId = <Checkout Session id>`, so redelivered events are no-ops.
 
 ### Action costs (server constants, `src/lib/pricing.ts`)
-| Action | Cost |
-|---|---|
-| `RADAR_SEARCH` | 2 tokens (cache hit and miss) |
-| `AI_REMIX` | 5 tokens |
+| Action | Cost now | Paid price |
+|---|---|---|
+| `RADAR_SEARCH` | 0 (free) | 2 tokens (cache hit and miss) |
+| `AI_REMIX` | 0 (free) | 5 tokens |
+
+A cost of `0` makes the action free: the caller must still be signed in and send an idempotency key, but nothing is written to the ledger and no balance check is made.
 
 ## 2. Normalized Ad Contract (`normalized_ads/{adId}`)
 
@@ -74,7 +76,7 @@ The webhook credits `tokens` to `uid` with `txId = referenceId = <Checkout Sessi
 | `platform` | enum | `"META" \| "TIKTOK" \| "GOOGLE"` |
 | `advertiserName` | string | max 300 |
 | `advertiserId` | string | max 200 |
-| `mediaType` | enum | `"VIDEO" \| "IMAGE" \| "CAROUSEL"` |
+| `mediaType` | enum | `"VIDEO" \| "IMAGE" \| "CAROUSEL" \| "TEXT"` (TEXT = Google Search text ads) |
 | `mediaUrls` | string[] | https URLs, max 20 |
 | `thumbnailUrl` | string | https URL or `""` |
 | `primaryCopy` | string | max 5000 |
@@ -86,6 +88,20 @@ The webhook credits `tokens` to `uid` with `txId = referenceId = <Checkout Sessi
 | `lastSeenDate` | ISO-8601 | |
 | `activeDaysCount` | integer | `>= 1` |
 | `winningScore` | integer | `0–100` |
+
+- **Winning score:** `raw = activeDaysCount × 2.5 + duplicateCreativeCount × 10` (duplicates = Meta `collation_count − 1`, 0 elsewhere). Results are sorted by `raw` descending; the stored value is `min(100, round(raw))`.
+- **countryCode** is the searched country, or `EU` when TikTok (whose library only covers Europe) was searched for a country outside it.
+- Written by `/api/radar/search` to `normalized_ads/{adId}`; `/api/radar/remix` reads the ad from there and never accepts ad content from the client.
+
+### `RadarCacheDoc` (`radar_cache/{queryHash}`)
+`queryHash` = SHA-256 of `platform`, lower-cased `query`, `country` and `mediaType` (`provenWinnersOnly` is applied when serving). Served for 24 hours from `createdAt`.
+| Field | Type | Rules |
+|---|---|---|
+| `queryHash` | string | 64 hex chars |
+| `platform`, `query`, `country`, `mediaType` | as in the search request | |
+| `ads` | `NormalizedAd[]` | max 100, ranked |
+| `notice` | string | max 500, `""` if none |
+| `createdAt`, `expiresAt` | ISO-8601 | `expiresAt = createdAt + 24h` |
 
 ## 3. Brand Profile Contract (`users/{uid}/brands/{brandId}`)
 
@@ -121,11 +137,14 @@ The webhook credits `tokens` to `uid` with `txId = referenceId = <Checkout Sessi
 ```json
 { "platform": "META|TIKTOK|GOOGLE", "query": "string 2-100", "country": "AU", "mediaType": "ALL|VIDEO|IMAGE", "provenWinnersOnly": false }
 ```
+Requires `x-idempotency-key`; the body is validated before any charge. `provenWinnersOnly` keeps ads with `activeDaysCount >= 30`. Engines: Meta `meta_ad_library` (active ads); TikTok `tiktok_ads_library` (sorted by reach); Google `google_ads_transparency_center` (Search, YouTube and Display). Google is searched by advertiser: a query that isn't a domain goes through `..._advertiser_search` (the whole query, then its longest word; a matching domain is used when no advertiser matches). Credits per search: Meta 1, TikTok 1, Google by domain 1, Google by keyword 2 (3 when the whole phrase matches nothing), cache hits 0. Google results carry no creative or copy; `/api/radar/remix` fetches `..._ad_details` once (1 credit) and saves it to `normalized_ads`. The cache key includes a version that is bumped whenever normalization changes.
+Returns `{ ads: NormalizedAd[], unfilteredCount, cached, queryHash, fetchedAt, notice, balanceAfter }` (`unfilteredCount` = ads before the proven-winners filter). The UI shows 9 per page.
 
 ### `POST /api/radar/remix`
 ```json
 { "adId": "meta_123", "brandId": "string" }
 ```
+Requires `x-idempotency-key`. Sends the stored ad (with its creative inline, or a YouTube link by reference) and the brand profile to Gemini (`GEMINI_MODEL`, default `gemini-flash-latest`) with `responseMimeType: "application/json"` and the `AdRemixBlueprint` schema, validates the reply, and stores it at `remixes/{txId}`. Returns `{ remix: RemixDoc, ad?: NormalizedAd, balanceAfter }` (`ad` is the source ad as remixed, so the client can show a Google ad's newly loaded creative). Upstream failures return `502 UPSTREAM_FAILURE` and refund any charge.
 
 ### `POST|PUT|DELETE|PATCH /api/brands`
 Body for POST: Brand Profile without `brandId` (→ `201 { brand }`; replaying the same `x-idempotency-key` returns `200` with the same brand). PUT: full Brand Profile (`404 NOT_FOUND` if missing). DELETE: `{ "brandId": "string" }`. PATCH: `{ "activeBrandId": "" | brandId }` selects the active brand. Max 25 brands per user. The first brand created becomes active; deleting the active brand clears `activeBrandId`. Reads use the client's Firestore listener, so there is no GET.

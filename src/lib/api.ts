@@ -21,7 +21,10 @@ export function jsonError(code: ErrorCode, message: string, status: number) {
 
 /** Maps any thrown value to the standard error envelope. Never leaks internals. */
 export function errorResponse(err: unknown) {
-  if (err instanceof AuthError) return jsonError(err.code, err.message, err.code === "FORBIDDEN" ? 403 : 401);
+  if (err instanceof AuthError) {
+    const status = { UNAUTHENTICATED: 401, FORBIDDEN: 403, UPSTREAM_FAILURE: 502 }[err.code];
+    return jsonError(err.code, err.message, status);
+  }
   if (err instanceof ApiError) return jsonError(err.code, err.message, err.status);
   if (err instanceof ZodError) {
     const msg = err.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; ");

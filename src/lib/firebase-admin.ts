@@ -49,13 +49,23 @@ export interface VerifiedCaller {
 
 export class AuthError extends Error {
   constructor(
-    public readonly code: "UNAUTHENTICATED" | "FORBIDDEN",
+    public readonly code: "UNAUTHENTICATED" | "FORBIDDEN" | "UPSTREAM_FAILURE",
     message: string,
   ) {
     super(message);
     this.name = "AuthError";
   }
 }
+
+/** verifyIdToken codes that mean the caller's token is bad, not that the server failed to check it. */
+const TOKEN_REJECTED_CODES = new Set([
+  "auth/argument-error",
+  "auth/invalid-id-token",
+  "auth/id-token-expired",
+  "auth/id-token-revoked",
+  "auth/user-disabled",
+  "auth/user-not-found",
+]);
 
 /**
  * Step 1 of the gate: verify the Bearer ID token (revocation checked) and
@@ -72,8 +82,18 @@ export async function verifyRequest(
   let token: DecodedIdToken;
   try {
     token = await adminAuth.verifyIdToken(match[1], true);
-  } catch {
-    throw new AuthError("UNAUTHENTICATED", "Invalid or expired session");
+  } catch (err) {
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === "string" && TOKEN_REJECTED_CODES.has(code)) {
+      throw new AuthError("UNAUTHENTICATED", "Invalid or expired session");
+    }
+    // The token may be fine: the server couldn't check it (expired ADC, network failure).
+    console.error("[auth] could not verify ID token", err);
+    const credentialHint =
+      process.env.NODE_ENV !== "production" && /invalid-credential/.test(String(code))
+        ? " Server credentials need refreshing: run `gcloud auth application-default login`, then restart the dev server."
+        : "";
+    throw new AuthError("UPSTREAM_FAILURE", `Couldn't verify your session right now.${credentialHint}`);
   }
 
   const parsed = CustomClaimsSchema.safeParse({ role: token.role, tier: token.tier });

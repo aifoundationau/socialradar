@@ -1,26 +1,117 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* "Obsidian Precision" design tokens. The app is dark-only. */
+@theme {
+  --color-background: #0f131c;
+  --color-surface-container-lowest: #0a0e17;
+  --color-surface-container-low: #181b25;
+  --color-surface-container: #1c1f29;
+  --color-surface-container-high: #262a34;
+  --color-surface-container-highest: #31353f;
+  --color-on-surface: #dfe2ef;
+  --color-on-surface-variant: #c7c4d7;
+  --color-outline: #908fa0;
+  --color-outline-variant: #464554;
+
+  --color-primary: #c0c1ff;
+  --color-on-primary: #1000a9;
+  --color-primary-container: #8083ff;
+  --color-on-primary-container: #0d0096;
+  --color-primary-fixed: #e1e0ff;
+  --color-secondary: #7bd0ff;
+  --color-secondary-container: #00a6e0;
+  --color-tertiary-container: #7c87f3;
+  --color-error: #ffb4ab;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+
+  /* Channel and status accents */
+  --color-meta: #a855f7;
+  --color-meta-soft: #d8b4fe;
+  --color-tiktok: #06b6d4;
+  --color-tiktok-soft: #67e8f9;
+  --color-google: #3b82f6;
+  --color-google-soft: #93c5fd;
+  --color-winner: #10b981;
+  --color-winner-soft: #34d399;
+  --color-hot: #f43f5e;
+  --color-hot-soft: #fb7185;
+  --color-warm: #fb923c;
+  --color-warm-soft: #fdba74;
+
+  --text-display: 2.25rem;
+  --text-display--line-height: 2.75rem;
+  --text-display--letter-spacing: -0.03em;
+  --text-display--font-weight: 600;
+  --text-headline-lg: 1.75rem;
+  --text-headline-lg--line-height: 2.25rem;
+  --text-headline-lg--letter-spacing: -0.025em;
+  --text-headline-lg--font-weight: 600;
+  --text-headline-md: 1.25rem;
+  --text-headline-md--line-height: 1.75rem;
+  --text-headline-md--letter-spacing: -0.015em;
+  --text-title-sm: 0.9375rem;
+  --text-title-sm--line-height: 1.375rem;
+  --text-title-sm--letter-spacing: -0.01em;
+  /* Body sizes step up one pixel on phones for readability (see :root below). */
+  --text-body: var(--fs-body);
+  --text-body--line-height: 1.25rem;
+  --text-body--letter-spacing: -0.005em;
+  --text-compact: var(--fs-compact);
+  --text-compact--line-height: 1.125rem;
+  --text-mono-label: 0.6875rem;
+  --text-mono-label--line-height: 0.875rem;
+  --text-mono-label--letter-spacing: 0.04em;
+  --text-mono-label--font-weight: 500;
+  --text-mono-code: 0.75rem;
+  --text-mono-code--line-height: 1.125rem;
+  --text-mono-metric: 1.375rem;
+  --text-mono-metric--line-height: 1.625rem;
+  --text-mono-metric--letter-spacing: -0.02em;
+  --text-mono-metric--font-weight: 500;
 }
 
+/* next/font sets these variables on <html>. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
+:root {
+  --fs-body: 0.875rem;
+  --fs-compact: 0.8125rem;
+}
+
+@media (width >= 40rem) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --fs-body: 0.8125rem;
+    --fs-compact: 0.75rem;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    letter-spacing: var(--text-body--letter-spacing);
+  }
+
+  ::selection {
+    background: var(--color-primary-container);
+    color: var(--color-on-primary-container);
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

@@ -34,6 +34,7 @@ const load = (p) => jiti.import(`${SRC}/${p}`);
 
 const { adminAuth, db } = await load("lib/firebase-admin.ts");
 const ledger = await load("lib/token-ledger.ts");
+const pricing = await load("lib/pricing.ts");
 const routes = {
   me: await load("app/api/me/route.ts"),
   brands: await load("app/api/brands/route.ts"),
@@ -233,10 +234,14 @@ try {
   );
 
   // ---------- Phase 1 ledger gate (used by Phase 3/4 routes) ----------
+  // The app may run with free actions; the paid path is exercised with fixed costs.
+  const liveCosts = { ...pricing.ACTION_COSTS };
+  Object.assign(pricing.ACTION_COSTS, { RADAR_SEARCH: 2, AI_REMIX: 5 });
   const okReq = (k) => new Request("http://localhost/api/x", { headers: { Authorization: `Bearer ${token}`, "x-idempotency-key": k } });
   const g1 = await ledger.withTokenGate(okReq(key("gate_ok")), "RADAR_SEARCH", "q", async (ctx) => Response.json({ balanceAfter: ctx.balanceAfter }));
   check("gate: successful search charges 2 (500 → 498)", g1.status === 200 && (await userDoc(UID)).tokenBalance === 498);
-  const g2 = await ledger.withTokenGate(okReq(key("gate_fail")), "AI_REMIX", "ad", async () => {
+  const failKey = key("gate_fail");
+  const g2 = await ledger.withTokenGate(okReq(failKey), "AI_REMIX", "ad", async () => {
     throw new ledger.UpstreamError("Gemini 503");
   });
   check("gate: upstream failure → 502 + auto-refund (stays 498)", g2.status === 502 && (await userDoc(UID)).tokenBalance === 498, await g2.clone().json());
@@ -251,6 +256,27 @@ try {
   await db.doc(`users/${UID}`).update({ tokenBalance: 1 });
   const g4 = await ledger.withTokenGate(okReq(key("gate_poor")), "AI_REMIX", "ad", async () => Response.json({}));
   check("gate: insufficient balance → 402 INSUFFICIENT_TOKENS", g4.status === 402 && (await g4.json()).error.code === "INSUFFICIENT_TOKENS");
+  await db.doc(`users/${UID}`).update({ tokenBalance: 50 });
+  const g5 = await ledger.withTokenGate(okReq(`${failKey}_refund`), "AI_REMIX", "ad", async () => Response.json({}));
+  check("gate: key matching a refund record → 409, not a free replay", g5.status === 409 && (await userDoc(UID)).tokenBalance === 50);
+  const g6 = await ledger.withTokenGate(okReq(failKey), "AI_REMIX", "ad", async () => Response.json({}));
+  check("gate: replaying a refunded key → 409", g6.status === 409 && (await userDoc(UID)).tokenBalance === 50);
+  const g7 = await ledger.withTokenGate(okReq(gk), "AI_REMIX", "other-ad", async () => Response.json({}));
+  check("gate: paid key reused for another reference → 409", g7.status === 409 && (await userDoc(UID)).tokenBalance === 50);
+
+  Object.assign(pricing.ACTION_COSTS, { RADAR_SEARCH: 0, AI_REMIX: 0 });
+  const freeKey = key("gate_free");
+  const g8 = await ledger.withTokenGate(okReq(freeKey), "RADAR_SEARCH", "q", async (ctx) => Response.json({ balanceAfter: ctx.balanceAfter }));
+  check(
+    "gate: free action runs with no charge and no ledger entry",
+    g8.status === 200 &&
+      (await g8.json()).balanceAfter === 50 &&
+      (await userDoc(UID)).tokenBalance === 50 &&
+      !(await db.doc(`token_transactions/${UID}_${freeKey}`).get()).exists,
+  );
+  const g9 = await ledger.withTokenGate(new Request("http://localhost/api/x", { headers: { "x-idempotency-key": key("gate_anon") } }), "RADAR_SEARCH", "q", async () => Response.json({}));
+  check("gate: free action still requires sign-in → 401", g9.status === 401);
+  Object.assign(pricing.ACTION_COSTS, liveCosts);
 } catch (err) {
   failures.push(`harness crashed: ${err.stack ?? err}`);
   console.log("CRASH", err);

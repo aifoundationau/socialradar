@@ -188,7 +188,7 @@ export function BrandForm({ brand, onDone, onCancel }: { brand?: BrandProfile; o
 
       {submitError && <p className={alertError}>{submitError}</p>}
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-3">
         <button type="submit" className={btnPrimary} disabled={pending}>
           {pending ? "Saving…" : brand ? "Save changes" : "Create brand"}
         </button>

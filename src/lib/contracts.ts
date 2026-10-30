@@ -68,7 +68,7 @@ export const NormalizedAdSchema = z
     platform: PlatformSchema,
     advertiserName: z.string().max(300),
     advertiserId: z.string().max(200),
-    mediaType: z.enum(["VIDEO", "IMAGE", "CAROUSEL"]),
+    mediaType: z.enum(["VIDEO", "IMAGE", "CAROUSEL", "TEXT"]),
     mediaUrls: z.array(httpsUrl).max(20),
     thumbnailUrl: z.union([z.literal(""), httpsUrl]),
     primaryCopy: z.string().max(5000),
@@ -155,19 +155,62 @@ export const RemixDocSchema = AdRemixBlueprintSchema.extend({
 export type RemixDoc = z.infer<typeof RemixDocSchema>;
 
 // ---------- 5. API Request Payloads ----------
+/** "Proven winners" are ads that have been running for at least this many days. */
+export const PROVEN_WINNER_DAYS = 30;
+
+export const MediaFilterSchema = z.enum(["ALL", "VIDEO", "IMAGE"]);
+export type MediaFilter = z.infer<typeof MediaFilterSchema>;
+
 export const RadarSearchRequestSchema = z
   .object({
     platform: PlatformSchema,
     query: safeText(2, 100),
     country: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/),
-    mediaType: z.enum(["ALL", "VIDEO", "IMAGE"]),
+    mediaType: MediaFilterSchema,
     provenWinnersOnly: z.boolean().default(false),
   })
   .strict();
+export type RadarSearchRequest = z.infer<typeof RadarSearchRequestSchema>;
+
+export interface RadarSearchResponse {
+  ads: NormalizedAd[];
+  /** How many ads matched before the "proven winners" filter. */
+  unfilteredCount: number;
+  cached: boolean;
+  queryHash: string;
+  fetchedAt: string;
+  /** Plain-language caveat about the results (e.g. TikTok only covers Europe), or "". */
+  notice: string;
+  balanceAfter: number;
+}
+
+/** `radar_cache/{queryHash}`: the normalized results of one upstream search, served for 24 hours. */
+export const RadarCacheDocSchema = z
+  .object({
+    queryHash: z.string().regex(/^[a-f0-9]{64}$/),
+    platform: PlatformSchema,
+    query: z.string().max(100),
+    country: z.string().regex(/^[A-Z]{2}$/),
+    mediaType: MediaFilterSchema,
+    ads: z.array(NormalizedAdSchema).max(100),
+    notice: z.string().max(500),
+    createdAt: isoDate,
+    expiresAt: isoDate,
+  })
+  .strict();
+export type RadarCacheDoc = z.infer<typeof RadarCacheDocSchema>;
 
 export const RemixRequestSchema = z
   .object({ adId: NormalizedAdSchema.shape.adId, brandId: BrandIdSchema })
   .strict();
+export type RemixRequest = z.infer<typeof RemixRequestSchema>;
+
+export interface RemixResponse {
+  remix: RemixDoc;
+  /** The source ad as remixed (Google ads gain their creative and copy here). Absent on replays. */
+  ad?: NormalizedAd;
+  balanceAfter: number;
+}
 
 export const BrandDeleteRequestSchema = z.object({ brandId: BrandIdSchema }).strict();
 

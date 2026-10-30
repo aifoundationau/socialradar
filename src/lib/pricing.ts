@@ -4,9 +4,18 @@
  */
 import type { TokenPackId } from "./contracts";
 
-/** Server-authoritative action costs (integers only). */
-export const ACTION_COSTS = { RADAR_SEARCH: 2, AI_REMIX: 5 } as const;
+/**
+ * Server-authoritative action costs (integers only). 0 makes an action free: it still needs a
+ * signed-in user but writes nothing to the ledger. Both are free for now; the paid prices are 2 and 5.
+ */
+export const ACTION_COSTS: Record<"RADAR_SEARCH" | "AI_REMIX", number> = { RADAR_SEARCH: 0, AI_REMIX: 0 };
 export type ChargeableAction = keyof typeof ACTION_COSTS;
+
+/** "Free", "1 token" or "5 tokens". */
+export const costLabel = (action: ChargeableAction) => {
+  const cost = ACTION_COSTS[action];
+  return cost === 0 ? "Free" : `${cost} ${cost === 1 ? "token" : "tokens"}`;
+};
 
 export const TOKEN_PACK_CURRENCY = "aud";
 

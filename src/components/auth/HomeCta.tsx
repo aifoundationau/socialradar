@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { signInWithGoogle, useSession } from "./SessionProvider";
 import { errorMessage } from "@/lib/api-client";
+import { Icon } from "@/components/ui/Icon";
 import { alertError, btnPrimary } from "@/components/ui/styles";
 
 export function HomeCta() {
@@ -13,11 +14,12 @@ export function HomeCta() {
 
   if (status === "signed-in") {
     return (
-      <div className="flex flex-wrap items-center gap-3">
-        <Link href="/brands" className={btnPrimary}>
-          Open dashboard
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Link href="/radar" className={btnPrimary}>
+          <Icon name="radar" />
+          Open Radar
         </Link>
-        <span className="text-sm text-zinc-500">Signed in as {user?.email}</span>
+        <span className="truncate text-body text-on-surface-variant">Signed in as {user?.email}</span>
       </div>
     );
   }
@@ -36,7 +38,12 @@ export function HomeCta() {
 
   return (
     <div className="space-y-3">
-      <button type="button" className={btnPrimary} onClick={handleSignIn} disabled={status === "loading" || pending}>
+      <button
+        type="button"
+        className={`${btnPrimary} w-full sm:w-auto`}
+        onClick={handleSignIn}
+        disabled={status === "loading" || pending}
+      >
         {pending ? "Opening Google…" : "Continue with Google"}
       </button>
       {error && <p className={`${alertError} max-w-md`}>{error}</p>}

@@ -2,7 +2,7 @@ import "server-only";
 import { FieldValue } from "firebase-admin/firestore";
 import { db, verifyRequest, type VerifiedCaller } from "./firebase-admin";
 import type { TokenTransactionDoc, TokenTxType, UserDoc } from "./contracts";
-import { ApiError, errorResponse, requireIdempotencyKey } from "./api";
+import { ApiError, errorResponse, jsonError, requireIdempotencyKey } from "./api";
 import { ACTION_COSTS, type ChargeableAction } from "./pricing";
 
 export { ACTION_COSTS, type ChargeableAction };
@@ -75,7 +75,14 @@ export async function deductTokens(params: {
     const [txSnap, userSnap] = await Promise.all([t.get(txRef), t.get(userRef)]);
     if (txSnap.exists) {
       const prev = txSnap.data() as TokenTransactionDoc;
-      if (prev.uid !== params.uid) throw new ApiError("FORBIDDEN", "Idempotency key conflict", 409);
+      // A key only replays the identical charge, so e.g. "<key>_refund" can't pass as an earlier deduction
+      // and one paid key can't be reused for a different query.
+      if (prev.uid !== params.uid || prev.type !== params.type || prev.referenceId !== params.referenceId.slice(0, 256)) {
+        throw new ApiError("FORBIDDEN", "Idempotency key conflict", 409);
+      }
+      if ((await t.get(txCol().doc(`${params.txId}_refund`))).exists) {
+        throw new ApiError("FORBIDDEN", "That request was refunded. Send it again with a new idempotency key.", 409);
+      }
       return { txId: params.txId, balanceAfter: prev.balanceAfter, replayed: true };
     }
 
@@ -209,6 +216,7 @@ export interface GateContext {
 /**
  * The three-step gate every paid API route uses:
  * 1. verify session & claims  2. atomic pre-flight deduction  3. auto-refund on failure.
+ * Actions whose cost is 0 skip steps 2 and 3.
  */
 export async function withTokenGate(
   req: Request,
@@ -221,6 +229,12 @@ export async function withTokenGate(
     const caller = await verifyRequest(req);
     const key = requireIdempotencyKey(req);
     const ref = typeof referenceId === "function" ? referenceId(caller) : referenceId;
+
+    if (ACTION_COSTS[action] === 0) {
+      // Free action: nothing to charge, refund or replay.
+      const balance = toInt(Number((await usersCol().doc(caller.uid).get()).get("tokenBalance") ?? 0));
+      return await handler({ caller, txId: buildTxId(caller.uid, key), balanceAfter: balance, replayed: false });
+    }
 
     charged = await deductTokens({
       uid: caller.uid,
@@ -237,6 +251,8 @@ export async function withTokenGate(
     if (charged && !charged.replayed) {
       try {
         await refundTokens(charged.txId);
+        // Only say "refunded" when it actually happened (free actions never charge).
+        if (err instanceof ApiError) return jsonError(err.code, `${err.message} Your tokens were refunded.`, err.status);
       } catch (refundErr) {
         console.error("[token-ledger] REFUND FAILED — manual reconciliation required", charged.txId, refundErr);
       }
