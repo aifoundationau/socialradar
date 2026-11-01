@@ -3,6 +3,7 @@ import { AmbientGlow } from "@/components/ui/AmbientGlow";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { Logo } from "@/components/ui/Logo";
 import { ACTION_COSTS } from "@/lib/pricing";
+import { AppFooter } from "@/components/layout/AppFooter";
 
 const STEPS: { title: string; body: string; icon: IconName }[] = [
   {
@@ -69,9 +70,7 @@ export default function Home() {
         </ol>
       </main>
 
-      <footer className="relative border-t border-white/[0.06] px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6">
-        <p className="mx-auto max-w-5xl font-mono text-mono-label text-outline">AdRadar · Prices in AUD · Tokens never expire</p>
-      </footer>
+      <AppFooter />
     </div>
   );
 }

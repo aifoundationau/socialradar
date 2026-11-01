@@ -54,12 +54,16 @@
 | `createdAt` | ISO-8601 | |
 
 ### Token packs (server constants, `src/lib/pricing.ts`)
-One-off Stripe Checkout purchases, AUD, tokens never expire.
-| Pack id | Tokens | Price |
-|---|---|---|
-| `PACK_100` | 100 | A$19.00 |
-| `PACK_500` | 500 | A$79.00 |
-| `PACK_2000` | 2000 | A$249.00 |
+One-off Stripe Checkout purchases. Tokens never expire.
+- **Base Rate:** Default base rate is 1 Token = USD $1.00 (`100 cents USD`), adjustable by Superadmin in system configuration.
+- **Australian Settlement:** People purchase tokens denominated in USD, and amounts at checkout are currency converted to AUD as AI Foundation is an Australian registered business.
+- **Geolocation Filter:** If geolocation is detected in Australia or New Zealand (`AU` or `NZ`), Australians and New Zealanders exclusively see the AUD currency converted price (USD is hidden). All other visitors see USD with converted AUD checkout disclosure.
+
+| Pack id | Tokens | USD Base | AUD Converted (Checkout) |
+|---|---|---|---|
+| `PACK_100` | 100 | US$100.00 | A$154.00 |
+| `PACK_500` | 500 | US$500.00 | A$769.00 |
+| `PACK_2000` | 2000 | US$2,000.00 | A$3,077.00 |
 
 ### `TopupMetadata` (Checkout Session `metadata`, also copied to the PaymentIntent)
 | Field | Type | Rules |
@@ -318,5 +322,21 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 - `POST /api/admin/faqs`: Requires `superadmin` role. Creates a new FAQ item.
 - `PUT /api/admin/faqs`: Requires `superadmin` role. Updates an existing FAQ item.
 - `DELETE /api/admin/faqs`: Requires `superadmin` role. Deletes a FAQ item (requires confirmation).
+
+## 10. Platform Governance, Footer & Geolocation
+
+### Mandatory Footer Elements
+- **Copyright:** `Copyright © 2026 AI Foundation · All rights reserved.`
+- **Founder Welcome:** David Robertson welcome briefing detailing democratic access and redistributive token economics.
+- **Privacy Policy:** Australian Privacy Principles (APPs) and Privacy Act 1988 (Cth) compliance, 7-year statutory data retention on financial logs, zero selling of personal data.
+- **Terms of Service:** Commercial contract specifying that tokens are priced in USD (default 1 Token = USD $1.00, adjustable by Superadmin), converted to AUD at checkout for Australian business settlement. Australians and New Zealanders exclusively view AUD prices.
+- **AI Policy (ISO/IEC 42001):** Artificial Intelligence Management System compliance, model ethics, bias mitigations, and human-in-the-loop oversight.
+- **Security Policy (ISO/IEC 27001):** Information Security Management System standards, defense-in-depth, RBAC matrix, and encrypted storage.
+
+### Geo & Time Widget Specifications
+- **Display:** Embedded thin bar displaying user suburb, state, weather temperature & condition, active currency indicator, and live real-time clock.
+- **Interactive Configuration:** Clicking the widget opens a centered popup dialog (with no scrollbar) enabling the user to configure suburb, state/region, country, date format, and clock mode (12h / 24h).
+- **Geolocation Currency Gate:** When country is Australia (`AU`) or New Zealand (`NZ`), visitors strictly view AUD currency converted prices. International visitors view USD base prices.
+
 
 

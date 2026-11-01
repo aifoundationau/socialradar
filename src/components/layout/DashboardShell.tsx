@@ -7,6 +7,7 @@ import { AmbientGlow } from "@/components/ui/AmbientGlow";
 import { alertError } from "@/components/ui/styles";
 import { MobileTabBar } from "./MobileTabBar";
 import { TopNavWallet } from "./TopNavWallet";
+import { AppFooter } from "./AppFooter";
 
 /** Client-side gate: dashboard routes render only for a signed-in user. */
 export function DashboardShell({ children }: { children: ReactNode }) {
@@ -39,6 +40,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         )}
         {children}
       </main>
+      <AppFooter />
       <MobileTabBar />
     </>
   );
