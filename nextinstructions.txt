@@ -19,12 +19,19 @@
 2. **Supporters (Default for All Other Users):**
    - Everyone else starts at supporter level with default claims: `{ role: "supporter", tier: "supporter", isSuperAdmin: false, admin: false }`.
    - On sign-in, `/api/me` ensures non-admin accounts are normalized to supporter level.
-3. **Interactive RBAC Matrix & Role Management:**
-   - Full 2D Permission-Role matrix tab in Super Admin Panel (`SuperAdminModal.tsx`).
-   - Superadmin permissions are immutable and locked `[✔] Locked`.
-   - Admin, Moderator, Agency, and Supporter feature permissions are toggleable and savable to Firestore `system_config/rbac`.
+3. **Interactive RBAC Matrix & Responsive Superadmin Navbar:**
+   - SuperAdmin navbar rebuilt into a clean, responsive, fluid grid (4x2 on tablet/desktop, 2x4 on mobile) with **zero scrollbars**.
+   - Symmetrically displays all 8 tabs clearly:
+     1. Currency Controls
+     2. Service Pricing
+     3. Token Packs (CRUD)
+     4. Redistributive Ledger
+     5. User Messages (with unread count)
+     6. RBAC Matrix & Roles
+     7. Help & FAQs (with total count)
+     8. Developer Diagnostics
+   - Full 2D Permission-Role matrix tab with locked Superadmin capabilities and toggleable permissions for all other roles.
    - User Accounts Table allows Superadmin to inspect all users and assign roles via Firebase custom claims with instant update.
-   - Quick role assignment card allows assigning roles directly by email address.
 4. **Navbar Menu Order, Hover Popups & Mobile Tab Bar:**
    - Desktop & Mobile Navigation: "My Brands" is first, followed by "Radar Feed", then "Wallet".
    - Rich hover popup tooltips on desktop explaining both My Brands and Radar Feed.

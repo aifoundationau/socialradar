@@ -3,7 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { apiFetch, errorMessage } from "@/lib/api-client";
-import { Icon } from "@/components/ui/Icon";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import { alertError, alertInfo, btnDanger, btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
 import { formatAud, formatPrice, formatTokenEstimateHover, formatUsd } from "@/lib/pricing";
 import type {
@@ -701,32 +701,57 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex border-b border-white/[0.08] bg-surface-container px-6 no-scrollbar overflow-x-auto">
-          {[
-            { id: "CURRENCY", label: "Currency Controls" },
-            { id: "PRICING", label: "Service Pricing" },
-            { id: "PACKS", label: "Token Packs (CRUD)" },
-            { id: "LEDGER", label: "Redistributive Ledger" },
-            { id: "MESSAGES", label: `User Messages (${adminMessages.filter((m) => m.status === "unread").length})` },
-            { id: "RBAC", label: "RBAC Matrix & Roles" },
-            { id: "FAQS", label: `Help & FAQs (${faqs.length})` },
-            { id: "DEV", label: "Developer Diagnostics" },
-          ].map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id as TabKey)}
-              className={`flex h-12 items-center gap-2 border-b-2 px-4 font-mono text-[12px] font-semibold whitespace-nowrap transition ${
-                tab === t.id
-                  ? "border-primary text-primary"
-                  : "border-transparent text-on-surface-variant hover:text-on-surface"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        {/* Responsive Navbar (Zero Scrollbars, Fluid 2x4 / 4x2 Grid) */}
+        <nav
+          aria-label="Superadmin Navigation"
+          data-testid="superadmin-navbar"
+          className="border-b border-white/[0.08] bg-surface-container p-2.5 sm:px-6 sm:py-3 shrink-0"
+        >
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
+            {[
+              { id: "CURRENCY" as const, label: "Currency Controls", icon: "sliders" as IconName },
+              { id: "PRICING" as const, label: "Service Pricing", icon: "zap" as IconName },
+              { id: "PACKS" as const, label: "Token Packs (CRUD)", icon: "plus" as IconName },
+              { id: "LEDGER" as const, label: "Redistributive Ledger", icon: "wallet" as IconName },
+              {
+                id: "MESSAGES" as const,
+                label: `User Messages (${adminMessages.filter((m) => m.status === "unread").length})`,
+                icon: "user" as IconName,
+              },
+              { id: "RBAC" as const, label: "RBAC Matrix & Roles", icon: "shield" as IconName },
+              {
+                id: "FAQS" as const,
+                label: `Help & FAQs (${faqs.length})`,
+                icon: "sparkles" as IconName,
+              },
+              { id: "DEV" as const, label: "Developer Diagnostics", icon: "flask" as IconName },
+            ].map((t) => {
+              const active = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTab(t.id)}
+                  data-testid={`superadmin-tab-${t.id.toLowerCase()}`}
+                  data-agent-id={`superadmin-tab-${t.id.toLowerCase()}`}
+                  className={`group relative flex items-center gap-2 rounded-xl border px-3 py-2 text-left font-mono text-[11px] font-semibold transition-all duration-150 ${
+                    active
+                      ? "border-primary/50 bg-primary/15 text-primary shadow-sm ring-1 ring-primary/30"
+                      : "border-white/[0.06] bg-surface-container-high/60 text-on-surface-variant hover:border-white/15 hover:bg-surface-container-high hover:text-on-surface"
+                  }`}
+                >
+                  <Icon
+                    name={t.icon}
+                    className={`size-3.5 shrink-0 transition-colors ${
+                      active ? "text-primary" : "text-on-surface-variant group-hover:text-on-surface"
+                    }`}
+                  />
+                  <span className="truncate">{t.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
 
         {/* Body Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
