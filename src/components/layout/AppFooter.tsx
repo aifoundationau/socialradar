@@ -2,21 +2,41 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
-import { type GeoConfig, loadGeoConfig } from "@/lib/geo";
+import {
+  type GeoConfig,
+  DEFAULT_AU_GEO,
+  loadGeoConfig,
+  autofindUserLocation,
+} from "@/lib/geo";
 import { PolicyModal } from "@/components/legal/PolicyModal";
 import { GeoTimeModal } from "@/components/geo/GeoTimeModal";
 
 export function AppFooter() {
-  const [geoConfig, setGeoConfig] = useState<GeoConfig>(loadGeoConfig());
+  // Use identical initial state on server and client to avoid hydration mismatch
+  const [geoConfig, setGeoConfig] = useState<GeoConfig>(DEFAULT_AU_GEO);
   const [activePolicy, setActivePolicy] = useState<string | null>(null);
   const [isGeoModalOpen, setIsGeoModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
 
   useEffect(() => {
+    // 1. Initial client-side load from localStorage
+    const saved = loadGeoConfig();
+    setGeoConfig(saved);
+
+    // 2. Automatic background autofind for real user location and weather
+    autofindUserLocation()
+      .then((detected) => {
+        setGeoConfig(detected);
+      })
+      .catch(() => {
+        // preserve current config if offline
+      });
+
+    // 3. Live clock
     function updateClock() {
       const now = new Date();
       const timeStr = now.toLocaleTimeString("en-AU", {
-        hour12: geoConfig.timeFormat === "12h",
+        hour12: saved.timeFormat === "12h",
         hour: "numeric",
         minute: "2-digit",
         second: "2-digit",
@@ -38,49 +58,80 @@ export function AppFooter() {
       >
         {/* Thin Geo & Time Widget Bar */}
         <div
-          onClick={() => setIsGeoModalOpen(true)}
-          title="Click to configure suburb, state, date and clock formats"
-          className="group cursor-pointer border-b border-white/[0.06] bg-surface-container-low/60 px-4 py-2 backdrop-blur-md transition hover:bg-surface-container-low"
+          data-testid="geo-time-bar"
+          data-agent-id="geo-time-bar"
+          className="border-b border-white/[0.06] bg-surface-container-low/70 px-4 py-2.5 backdrop-blur-md"
         >
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 font-mono text-[11px]">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5 text-on-surface group-hover:text-primary transition-colors">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2.5 font-mono text-xs">
+            {/* Left chips: Location & Weather */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsGeoModalOpen(true)}
+                data-testid="geo-chip-location"
+                title="Click to change location or autofind"
+                className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container px-3 py-1 text-on-surface transition-all hover:border-primary/40 hover:text-primary active:scale-95"
+              >
                 <Icon name="mapPin" className="size-3.5 text-primary" />
-                <span className="font-semibold">{geoConfig.suburb}, {geoConfig.state}</span>
-                <span className="rounded bg-white/10 px-1.5 py-0.2 text-[10px] text-outline">
+                <span suppressHydrationWarning className="font-semibold">
+                  {geoConfig.suburb}, {geoConfig.state}
+                </span>
+                <span
+                  suppressHydrationWarning
+                  className="rounded bg-white/10 px-1.5 py-0.2 text-[10px] font-bold text-outline"
+                >
                   {geoConfig.country}
                 </span>
-              </span>
+              </button>
 
-              <span className="hidden sm:inline text-white/20">|</span>
-
-              <span className="flex items-center gap-1.5 text-on-surface-variant">
+              <button
+                type="button"
+                onClick={() => setIsGeoModalOpen(true)}
+                data-testid="geo-chip-weather"
+                title="Live weather for detected location"
+                className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container px-3 py-1 text-on-surface-variant transition-all hover:border-amber-400/40 hover:text-amber-300 active:scale-95"
+              >
                 <Icon name="sun" className="size-3.5 text-amber-400" />
-                <span>{geoConfig.weatherTemp}°C {geoConfig.weatherCondition}</span>
-              </span>
+                <span suppressHydrationWarning>
+                  {geoConfig.weatherTemp}°C {geoConfig.weatherCondition}
+                </span>
+              </button>
             </div>
 
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5 text-secondary">
+            {/* Right chips: Currency Gate, Live Clock & Settings Button */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                data-testid="geo-chip-currency"
+                className="flex items-center gap-1.5 rounded-full border border-secondary/30 bg-secondary/10 px-3 py-1 text-[11px] font-medium text-secondary"
+              >
                 <span className="size-1.5 rounded-full bg-secondary animate-pulse" />
-                <span>
-                  {geoConfig.isAuNz ? "AUD Price (AU/NZ Geolocation)" : "USD Price (Converted at Checkout)"}
+                <span suppressHydrationWarning>
+                  {geoConfig.isAuNz
+                    ? "AUD Price (AU/NZ Geolocation)"
+                    : "USD Price (Converted at Checkout)"}
                 </span>
-              </span>
+              </div>
 
-              <span className="hidden sm:inline text-white/20">|</span>
-
-              <span className="flex items-center gap-1.5 text-on-surface font-semibold tabular-nums">
+              <button
+                type="button"
+                onClick={() => setIsGeoModalOpen(true)}
+                data-testid="geo-chip-clock"
+                title="Click to configure clock, date format, and location"
+                className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container px-3 py-1 text-on-surface tabular-nums transition-all hover:border-primary/40 hover:text-primary active:scale-95"
+              >
                 <Icon name="clock" className="size-3.5 text-primary" />
-                <span>{currentTime || "12:00:00"}</span>
-              </span>
+                <span suppressHydrationWarning>{currentTime || "12:00:00"}</span>
+                <span className="text-white/20">|</span>
+                <Icon name="sliders" className="size-3 text-outline" />
+                <span className="text-[11px] text-outline font-normal">Configure</span>
+              </button>
             </div>
           </div>
         </div>
 
         {/* Main Footer Links & Copyright */}
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-6 sm:flex-row sm:px-6">
-          <div className="flex flex-col items-center sm:items-start gap-1">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-5 px-4 py-6 sm:px-6 lg:flex-row pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-6">
+          <div className="flex flex-col items-center gap-1 text-center lg:items-start lg:text-left">
             <p className="font-mono text-xs text-on-surface">
               Copyright © 2026 AI Foundation · All rights reserved.
             </p>
@@ -89,41 +140,59 @@ export function AppFooter() {
             </p>
           </div>
 
-          <nav aria-label="Legal & Governance" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 font-mono text-xs">
+          <nav
+            aria-label="Platform Policies & Governance"
+            className="flex flex-wrap items-center justify-center gap-2 font-mono text-xs"
+          >
             <button
               type="button"
+              data-testid="policy-btn-founder"
+              data-agent-id="policy-btn-founder"
               onClick={() => setActivePolicy("founder")}
-              className="text-on-surface-variant hover:text-primary transition"
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1.5 text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
             >
-              Founder Welcome (David Robertson)
+              <Icon name="user" className="size-3 text-primary" />
+              <span>Founder Welcome (David Robertson)</span>
             </button>
             <button
               type="button"
+              data-testid="policy-btn-privacy"
+              data-agent-id="policy-btn-privacy"
               onClick={() => setActivePolicy("privacy")}
-              className="text-on-surface-variant hover:text-primary transition"
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1.5 text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
             >
-              Privacy Policy
+              <Icon name="shield" className="size-3 text-primary" />
+              <span>Privacy Policy</span>
             </button>
             <button
               type="button"
+              data-testid="policy-btn-terms"
+              data-agent-id="policy-btn-terms"
               onClick={() => setActivePolicy("terms")}
-              className="text-on-surface-variant hover:text-primary transition"
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1.5 text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
             >
-              Terms of Service
+              <Icon name="tag" className="size-3 text-primary" />
+              <span>Terms of Service</span>
             </button>
             <button
               type="button"
+              data-testid="policy-btn-aipolicy"
+              data-agent-id="policy-btn-aipolicy"
               onClick={() => setActivePolicy("aiPolicy")}
-              className="text-on-surface-variant hover:text-primary transition"
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1.5 text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
             >
-              AI Policy (ISO/IEC 42001)
+              <Icon name="sparkles" className="size-3 text-primary" />
+              <span>AI Policy (ISO/IEC 42001)</span>
             </button>
             <button
               type="button"
+              data-testid="policy-btn-securitypolicy"
+              data-agent-id="policy-btn-securitypolicy"
               onClick={() => setActivePolicy("securityPolicy")}
-              className="text-on-surface-variant hover:text-primary transition"
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1.5 text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
             >
-              Security Policy (ISO/IEC 27001)
+              <Icon name="shield" className="size-3 text-primary" />
+              <span>Security Policy (ISO/IEC 27001)</span>
             </button>
           </nav>
         </div>

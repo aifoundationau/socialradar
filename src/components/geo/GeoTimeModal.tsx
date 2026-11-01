@@ -4,7 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/Icon";
 import { btnPrimary, btnSecondary, field, label } from "@/components/ui/styles";
-import { type GeoConfig, saveGeoConfig } from "@/lib/geo";
+import { type GeoConfig, autofindUserLocation, saveGeoConfig } from "@/lib/geo";
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -25,6 +25,7 @@ interface GeoTimeModalProps {
 export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalProps) {
   const isClient = useIsClient();
   const [formData, setFormData] = useState<GeoConfig>(config);
+  const [isAutofinding, setIsAutofinding] = useState(false);
 
   useEffect(() => {
     setFormData(config);
@@ -49,6 +50,16 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
   }, [isOpen, onClose]);
 
   if (!isOpen || !isClient) return null;
+
+  async function handleAutofind() {
+    setIsAutofinding(true);
+    try {
+      const detected = await autofindUserLocation();
+      setFormData(detected);
+    } finally {
+      setIsAutofinding(false);
+    }
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,6 +113,37 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
 
         {/* Content Form */}
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4">
+          {/* Autofind Trigger Button */}
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/10 p-3">
+            <div className="text-xs">
+              <p className="font-semibold text-primary flex items-center gap-1.5">
+                <Icon name="zap" className="size-3.5" />
+                <span>Auto-Detect Location</span>
+              </p>
+              <p className="text-[11px] text-on-surface-variant mt-0.5">
+                Automatically finds your suburb, state & live weather.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAutofind}
+              disabled={isAutofinding}
+              className="shrink-0 flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/20 px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary hover:text-on-primary disabled:opacity-50"
+            >
+              {isAutofinding ? (
+                <>
+                  <span className="size-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span>Locating...</span>
+                </>
+              ) : (
+                <>
+                  <Icon name="refresh" className="size-3.5" />
+                  <span>Autofind</span>
+                </>
+              )}
+            </button>
+          </div>
+
           {/* Currency Geolocation Notice */}
           <div className="rounded-xl border border-secondary/30 bg-secondary/10 p-3 text-[12px] text-on-surface-variant leading-relaxed">
             <p className="font-semibold text-secondary flex items-center gap-1.5">
@@ -123,7 +165,7 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
                 value={formData.suburb}
                 onChange={(e) => setFormData({ ...formData, suburb: e.target.value })}
                 className={field}
-                placeholder="e.g. Sydney"
+                placeholder="e.g. Brisbane"
               />
             </div>
             <div>
@@ -135,7 +177,7 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
                 value={formData.state}
                 onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                 className={field}
-                placeholder="e.g. NSW"
+                placeholder="e.g. QLD"
               />
             </div>
           </div>

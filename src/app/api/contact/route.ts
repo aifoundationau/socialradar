@@ -4,7 +4,6 @@ import { errorResponse, readJson } from "@/lib/api";
 import { CreateAdminMessageRequestSchema } from "@/lib/contracts";
 import { createAdminMessage, getUserMessages } from "@/lib/admin";
 
-export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
