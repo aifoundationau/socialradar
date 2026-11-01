@@ -1,7 +1,7 @@
 # AdRadar - Next Instructions
 
 Current Status:
-- Committed and pushed to GitHub main (commit `0cac461`).
+- Committed and pushed to GitHub main (commit `556db48`).
 - Dev server running on http://localhost:3001 (Status 200 OK).
 - All features implemented & verified:
   1. Superadmin Redistributive Ledger with Stripe purchase tracking, equity partner percentage allocations, and 2-step confirm delete.
