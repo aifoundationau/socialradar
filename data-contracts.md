@@ -181,8 +181,8 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 | Field | Type | Rules |
 |---|---|---|
 | `partnerId` | string | Unique partner identifier |
-| `name` | string | Partner name, max 100 |
-| `email` | string | Partner email, RFC format |
+| `name` | string | Optional partner name / display label, max 100 (defaults to email username) |
+| `email` | string | Partner email address (required), RFC format |
 | `percentage` | number | Percentage share (0.01 - 100), total across all active partners <= 100% |
 | `notes` | string | Optional description or account reference, max 500 |
 | `status` | enum | `"active" | "inactive"` |
@@ -201,12 +201,19 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 | `createdAt` | ISO-8601 | |
 
 ### Redistributive Calculation Rules
-- **Total Revenue Pool**: Sum of `amountCents` across all recorded Stripe purchases.
-- **Total Tokens Pool**: Sum of `tokens` across all recorded Stripe purchases.
+- **Total Tokens Pool**: Sum of `tokens` across all recorded Stripe purchases (`totalTokens`). Strict integers only (`Math.round`).
+- **Total Revenue Pool (Dual Currency)**:
+  - `totalGrossAudCents`: Sum of all Stripe purchases in AUD cents (USD amounts converted at standard FX `0.65`).
+  - `totalGrossUsdCents`: Sum of all Stripe purchases in USD cents (AUD amounts converted at standard FX `0.65`).
 - **Partner Entitlement**:
   - `ownedTokens = Math.round(totalTokens * (percentage / 100))` (Strict integer)
-  - `ownedCents = Math.round(totalGrossCents * (percentage / 100))`
-- **Treasury Retained**: `100% - sum(active partners percentage)`.
+  - `ownedAudCents = Math.round(totalGrossAudCents * (percentage / 100))`
+  - `ownedUsdCents = Math.round(totalGrossUsdCents * (percentage / 100))`
+- **Treasury Retained**:
+  - `treasuryPercentage = 100% - sum(active partners percentage)`.
+  - `treasuryTokens = Math.round(totalTokens * (treasuryPercentage / 100))`
+  - `treasuryAudCents = Math.round(totalGrossAudCents * (treasuryPercentage / 100))`
+  - `treasuryUsdCents = Math.round(totalGrossUsdCents * (treasuryPercentage / 100))`
 
 ## 7. Admin Messaging (7-Year Plain Text Retention)
 

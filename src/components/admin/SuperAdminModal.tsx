@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { Icon } from "@/components/ui/Icon";
 import { alertError, alertInfo, btnDanger, btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
-import { formatPrice, formatTokenEstimateHover } from "@/lib/pricing";
+import { formatAud, formatPrice, formatTokenEstimateHover, formatUsd } from "@/lib/pricing";
 import type {
   AdminMessage,
   EquityPartner,
@@ -248,8 +248,9 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
   // Equity Partners CRUD
   async function handleAddPartner(e: React.FormEvent) {
     e.preventDefault();
-    if (!newPartner.name.trim() || !newPartner.email.trim()) {
-      setErrorMsg("Partner name and email are required.");
+    const cleanEmail = newPartner.email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setErrorMsg("Partner email address is required.");
       return;
     }
     const pct = Number(newPartner.percentage);
@@ -257,6 +258,8 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
       setErrorMsg("Percentage must be between 0.01 and 100.");
       return;
     }
+
+    const cleanName = newPartner.name.trim() || cleanEmail.split("@")[0] || cleanEmail;
 
     setSaving(true);
     setErrorMsg(null);
@@ -271,8 +274,8 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
         body: {
           action: "ADD_EQUITY_PARTNER",
           partner: {
-            name: newPartner.name.trim(),
-            email: newPartner.email.trim().toLowerCase(),
+            name: cleanName,
+            email: cleanEmail,
             percentage: pct,
             notes: newPartner.notes.trim(),
             status: newPartner.status,
@@ -286,7 +289,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
       setLedger(data.ledger);
       setShowAddPartner(false);
       setNewPartner({ name: "", email: "", percentage: 10, notes: "", status: "active" });
-      setStatusMsg(`Added equity partner ${newPartner.name}.`);
+      setStatusMsg(`Added equity partner ${cleanEmail} (${pct}%).`);
     } catch (err) {
       setErrorMsg(errorMessage(err));
     } finally {
@@ -797,12 +800,21 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                     </div>
                   </div>
 
-                  {/* Top Stats Cards */}
+                  {/* Top Stats Cards: Total Tokens and Sum in USD & AUD */}
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <div className={`${card} p-4`}>
-                      <span className="text-[11px] font-mono text-on-surface-variant uppercase">Gross Stripe Revenue</span>
+                      <span className="text-[11px] font-mono text-on-surface-variant uppercase">Total Tokens Purchased</span>
+                      <p className="mt-1 text-title-md font-bold text-primary flex items-center gap-1.5">
+                        <Icon name="zap" className="size-5" />
+                        {(ledger?.totalTokens ?? 0).toLocaleString("en-AU")}
+                      </p>
+                      <span className="text-[11px] text-on-surface-variant">Stripe payments · Integers only</span>
+                    </div>
+
+                    <div className={`${card} p-4`}>
+                      <span className="text-[11px] font-mono text-on-surface-variant uppercase">Sum Amount (AUD)</span>
                       <p className="mt-1 text-title-md font-bold text-on-surface">
-                        {formatPrice(ledger?.totalGrossCents ?? 0)}
+                        {formatAud(ledger?.totalGrossAudCents ?? ledger?.totalGrossCents ?? 0)}
                       </p>
                       <span className="text-[11px] text-on-surface-variant">
                         {ledger?.totalPurchasesCount ?? 0} Stripe transaction(s)
@@ -810,31 +822,22 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                     </div>
 
                     <div className={`${card} p-4`}>
-                      <span className="text-[11px] font-mono text-on-surface-variant uppercase">Total Tokens Sold</span>
-                      <p className="mt-1 text-title-md font-bold text-primary flex items-center gap-1.5">
-                        <Icon name="zap" className="size-5" />
-                        {(ledger?.totalTokens ?? 0).toLocaleString("en-AU")}
-                      </p>
-                      <span className="text-[11px] text-on-surface-variant">Strict integers only</span>
-                    </div>
-
-                    <div className={`${card} p-4`}>
-                      <span className="text-[11px] font-mono text-on-surface-variant uppercase">Allocated Equity</span>
-                      <p className="mt-1 text-title-md font-bold text-secondary">
-                        {(ledger?.allocatedPercentage ?? 0).toFixed(2)}%
+                      <span className="text-[11px] font-mono text-on-surface-variant uppercase">Sum Amount (USD)</span>
+                      <p className="mt-1 text-title-md font-bold text-on-surface">
+                        {formatUsd(ledger?.totalGrossUsdCents ?? Math.round((ledger?.totalGrossCents ?? 0) * 0.65))}
                       </p>
                       <span className="text-[11px] text-on-surface-variant">
-                        {config.equityPartners?.filter((p) => p.status === "active").length ?? 0} active partner(s)
+                        Dual currency standard
                       </span>
                     </div>
 
                     <div className={`${card} p-4`}>
-                      <span className="text-[11px] font-mono text-on-surface-variant uppercase">Treasury Retained</span>
-                      <p className="mt-1 text-title-md font-bold text-on-surface">
-                        {(ledger?.treasuryPercentage ?? 0).toFixed(2)}%
+                      <span className="text-[11px] font-mono text-on-surface-variant uppercase">Owner Redistribution</span>
+                      <p className="mt-1 text-title-md font-bold text-secondary">
+                        {(ledger?.allocatedPercentage ?? 0).toFixed(2)}% Allocated
                       </p>
                       <span className="text-[11px] text-on-surface-variant">
-                        {formatPrice(ledger?.treasuryCents ?? 0)} • {(ledger?.treasuryTokens ?? 0).toLocaleString("en-AU")} ⚡
+                        Treasury retains {(ledger?.treasuryPercentage ?? 100).toFixed(2)}% ({formatAud(ledger?.treasuryAudCents ?? ledger?.treasuryCents ?? 0)} / {formatUsd(ledger?.treasuryUsdCents ?? Math.round((ledger?.treasuryCents ?? 0) * 0.65))})
                       </span>
                     </div>
                   </div>
@@ -842,22 +845,17 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                   {/* Add Partner Form */}
                   {showAddPartner && (
                     <form onSubmit={handleAddPartner} className={`${card} p-5 border border-primary/30 space-y-4`}>
-                      <h4 className="text-compact font-semibold text-on-surface">Add Equity Partner</h4>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-compact font-semibold text-on-surface">Add Owner to Redistributive Ledger</h4>
+                          <p className="text-[12px] text-on-surface-variant mt-0.5">
+                            Simply add their email address and percentage allocation to redistribute Stripe token proceeds.
+                          </p>
+                        </div>
+                      </div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                         <div>
-                          <label className={label}>Partner Name</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="e.g. Jane Doe"
-                            value={newPartner.name}
-                            onChange={(e) => setNewPartner({ ...newPartner, name: e.target.value })}
-                            className={field}
-                            data-testid="partner-name-input"
-                          />
-                        </div>
-                        <div>
-                          <label className={label}>Partner Email</label>
+                          <label className={label}>Owner Email Address *</label>
                           <input
                             type="email"
                             required
@@ -869,26 +867,37 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                           />
                         </div>
                         <div>
-                          <label className={label}>Equity Percentage (0.01 - 100%)</label>
+                          <label className={label}>Equity Percentage (0.01 - 100%) *</label>
                           <input
                             type="number"
                             step="0.01"
                             min="0.01"
                             max="100"
                             required
-                            placeholder="20"
+                            placeholder="25"
                             value={newPartner.percentage}
                             onChange={(e) => setNewPartner({ ...newPartner, percentage: parseFloat(e.target.value) || 0 })}
                             className={field}
                             data-testid="partner-percentage-input"
                           />
                         </div>
+                        <div>
+                          <label className={label}>Display Name / Role (Optional)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Jane Doe (Co-founder)"
+                            value={newPartner.name}
+                            onChange={(e) => setNewPartner({ ...newPartner, name: e.target.value })}
+                            className={field}
+                            data-testid="partner-name-input"
+                          />
+                        </div>
                       </div>
                       <div>
-                        <label className={label}>Notes / Account Reference</label>
+                        <label className={label}>Notes / Agreement Reference (Optional)</label>
                         <input
                           type="text"
-                          placeholder="e.g. Co-founder allocation, agreement dated Jan 2026"
+                          placeholder="e.g. Equity partner agreement dated 2026"
                           value={newPartner.notes}
                           onChange={(e) => setNewPartner({ ...newPartner, notes: e.target.value })}
                           className={field}
@@ -900,7 +909,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                           Cancel
                         </button>
                         <button type="submit" disabled={saving} className={btnPrimary} data-testid="save-partner-button">
-                          Save Partner
+                          Add to Ledger
                         </button>
                       </div>
                     </form>
@@ -908,21 +917,22 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
 
                   {/* Equity Partners Breakdown Table */}
                   <div className="space-y-3">
-                    <h4 className="text-compact font-semibold text-on-surface">Partner Distribution Calculations</h4>
+                    <h4 className="text-compact font-semibold text-on-surface">Owner Redistribution Breakdown</h4>
                     {config.equityPartners?.length === 0 ? (
                       <div className={`${card} p-8 text-center text-on-surface-variant`}>
-                        <p>No equity partners registered yet.</p>
-                        <p className="text-[12px] mt-1">Click &ldquo;Add Equity Partner&rdquo; to configure redistributive shares.</p>
+                        <p>No owners or equity partners added yet.</p>
+                        <p className="text-[12px] mt-1">Click &ldquo;Add Equity Partner&rdquo; to add someone by email address and configure their percentage.</p>
                       </div>
                     ) : (
                       <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-surface-container-low">
                         <table className="w-full text-left text-[13px]">
                           <thead className="border-b border-white/[0.08] bg-surface-container-high/40 font-mono text-mono-label text-on-surface-variant">
                             <tr>
-                              <th className="px-4 py-3">Partner</th>
+                              <th className="px-4 py-3">Owner / Email</th>
                               <th className="px-4 py-3">Equity %</th>
                               <th className="px-4 py-3">Owned Tokens</th>
-                              <th className="px-4 py-3">Owned Gross (AUD)</th>
+                              <th className="px-4 py-3">Owned (AUD)</th>
+                              <th className="px-4 py-3">Owned (USD)</th>
                               <th className="px-4 py-3">Status</th>
                               <th className="px-4 py-3 text-right">Actions</th>
                             </tr>
@@ -934,8 +944,10 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                               return (
                                 <tr key={dist.partnerId} className="hover:bg-white/[0.02] transition">
                                   <td className="px-4 py-3">
-                                    <div className="font-semibold text-on-surface">{dist.name}</div>
-                                    <div className="text-[11px] text-on-surface-variant font-mono">{dist.email}</div>
+                                    <div className="font-semibold text-on-surface font-mono">{dist.email}</div>
+                                    {dist.name && dist.name !== dist.email && (
+                                      <div className="text-[11px] text-on-surface-variant">{dist.name}</div>
+                                    )}
                                   </td>
                                   <td className="px-4 py-3 font-mono font-bold text-secondary">
                                     {dist.percentage}%
@@ -944,7 +956,10 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                                     ⚡ {dist.ownedTokens.toLocaleString("en-AU")}
                                   </td>
                                   <td className="px-4 py-3 font-mono font-semibold text-on-surface">
-                                    {formatPrice(dist.ownedCents)}
+                                    {formatAud(dist.ownedAudCents ?? dist.ownedCents)}
+                                  </td>
+                                  <td className="px-4 py-3 font-mono font-semibold text-on-surface-variant">
+                                    {formatUsd(dist.ownedUsdCents ?? Math.round(dist.ownedCents * 0.65))}
                                   </td>
                                   <td className="px-4 py-3">
                                     <button

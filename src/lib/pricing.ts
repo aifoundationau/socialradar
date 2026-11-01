@@ -42,6 +42,7 @@ export const costLabel = (action: ChargeableAction) => {
 };
 
 export const TOKEN_PACK_CURRENCY = "aud";
+export const FX_AUD_TO_USD = 0.65;
 
 export interface TokenPack {
   id: TokenPackId;
@@ -56,5 +57,10 @@ export const TOKEN_PACKS: Record<TokenPackId, TokenPack> = {
   PACK_2000: { id: "PACK_2000", tokens: 2000, priceCents: 24900 },
 };
 
-export const formatPrice = (cents: number) =>
-  new Intl.NumberFormat("en-AU", { style: "currency", currency: TOKEN_PACK_CURRENCY.toUpperCase() }).format(cents / 100);
+export const formatAud = (cents: number) =>
+  new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(cents / 100);
+
+export const formatUsd = (cents: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+
+export const formatPrice = (cents: number) => formatAud(cents);

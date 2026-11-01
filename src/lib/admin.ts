@@ -133,12 +133,27 @@ export async function getRedistributiveLedger(): Promise<RedistributiveLedgerSum
   ]);
 
   let totalTokens = 0;
-  let totalGrossCents = 0;
+  let totalGrossAudCents = 0;
+  let totalGrossUsdCents = 0;
+
   for (const doc of purchasesSnap.docs) {
     const data = doc.data() as StripePurchaseRecord;
-    totalTokens += Math.round(Number(data.tokens || 0));
-    totalGrossCents += Math.round(Number(data.amountCents || 0));
+    const tokens = Math.round(Number(data.tokens || 0));
+    const rawCents = Math.round(Number(data.amountCents || 0));
+    const curr = (data.currency || "aud").toLowerCase();
+
+    totalTokens += tokens;
+
+    if (curr === "usd") {
+      totalGrossUsdCents += rawCents;
+      totalGrossAudCents += Math.round(rawCents / 0.65);
+    } else {
+      totalGrossAudCents += rawCents;
+      totalGrossUsdCents += Math.round(rawCents * 0.65);
+    }
   }
+
+  const totalGrossCents = totalGrossAudCents;
 
   const partners = config.equityPartners || [];
   const activePartners = partners.filter((p) => p.status === "active");
@@ -146,20 +161,26 @@ export async function getRedistributiveLedger(): Promise<RedistributiveLedgerSum
   const treasuryPercentage = Math.max(0, 100 - allocatedPercentage);
 
   const treasuryTokens = Math.round(totalTokens * (treasuryPercentage / 100));
-  const treasuryCents = Math.round(totalGrossCents * (treasuryPercentage / 100));
+  const treasuryAudCents = Math.round(totalGrossAudCents * (treasuryPercentage / 100));
+  const treasuryUsdCents = Math.round(totalGrossUsdCents * (treasuryPercentage / 100));
+  const treasuryCents = treasuryAudCents;
 
   const distributions: PartnerDistribution[] = partners.map((p) => {
     const pct = Number(p.percentage) || 0;
     const isActive = p.status === "active";
     const ownedTokens = isActive ? Math.round(totalTokens * (pct / 100)) : 0;
-    const ownedCents = isActive ? Math.round(totalGrossCents * (pct / 100)) : 0;
+    const ownedAudCents = isActive ? Math.round(totalGrossAudCents * (pct / 100)) : 0;
+    const ownedUsdCents = isActive ? Math.round(totalGrossUsdCents * (pct / 100)) : 0;
+    const ownedCents = ownedAudCents;
     return {
       partnerId: p.partnerId,
-      name: p.name,
+      name: p.name || p.email.split("@")[0] || p.email,
       email: p.email,
       percentage: pct,
       ownedTokens,
       ownedCents,
+      ownedAudCents,
+      ownedUsdCents,
       status: p.status,
     };
   });
@@ -167,11 +188,15 @@ export async function getRedistributiveLedger(): Promise<RedistributiveLedgerSum
   return {
     totalTokens,
     totalGrossCents,
+    totalGrossAudCents,
+    totalGrossUsdCents,
     totalPurchasesCount: purchasesSnap.size,
     allocatedPercentage,
     treasuryPercentage,
     treasuryTokens,
     treasuryCents,
+    treasuryAudCents,
+    treasuryUsdCents,
     distributions,
   };
 }
@@ -191,8 +216,13 @@ export async function addEquityPartner(
     throw new Error(`Total active partner allocation cannot exceed 100%. Currently allocated: ${activeTotal}%.`);
   }
 
+  const cleanEmail = partner.email.trim().toLowerCase();
+  const cleanName = partner.name?.trim() || cleanEmail.split("@")[0] || cleanEmail;
+
   const newPartner: EquityPartner = {
     ...partner,
+    name: cleanName,
+    email: cleanEmail,
     partnerId: `eq_${Date.now()}_${randomBytes(4).toString("hex")}`,
     createdAt: new Date().toISOString(),
   };

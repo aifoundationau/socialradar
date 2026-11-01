@@ -291,7 +291,7 @@ export type SystemConfig = z.infer<typeof SystemConfigSchema>;
 export const EquityPartnerSchema = z
   .object({
     partnerId: z.string().min(1).max(64),
-    name: z.string().trim().min(1).max(100),
+    name: z.string().trim().max(100).default(""),
     email: z.string().trim().toLowerCase().email().max(254),
     percentage: z.number().min(0.01).max(100),
     notes: z.string().trim().max(500).default(""),
@@ -323,6 +323,8 @@ export const PartnerDistributionSchema = z
     percentage: z.number(),
     ownedTokens: tokenInt,
     ownedCents: z.number().int(),
+    ownedAudCents: z.number().int(),
+    ownedUsdCents: z.number().int(),
     status: z.enum(["active", "inactive"]),
   })
   .strict();
@@ -332,11 +334,15 @@ export const RedistributiveLedgerSummarySchema = z
   .object({
     totalTokens: tokenInt,
     totalGrossCents: z.number().int(),
+    totalGrossAudCents: z.number().int(),
+    totalGrossUsdCents: z.number().int(),
     totalPurchasesCount: z.number().int(),
     allocatedPercentage: z.number(),
     treasuryPercentage: z.number(),
     treasuryTokens: tokenInt,
     treasuryCents: z.number().int(),
+    treasuryAudCents: z.number().int(),
+    treasuryUsdCents: z.number().int(),
     distributions: z.array(PartnerDistributionSchema),
   })
   .strict();

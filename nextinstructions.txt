@@ -1,10 +1,14 @@
 # AdRadar - Next Instructions
 
 Current Status:
-- Committed and pushed to GitHub main (commit `556db48`).
+- Committed and pushed to GitHub main.
 - Dev server running on http://localhost:3001 (Status 200 OK).
 - All features implemented & verified:
-  1. Superadmin Redistributive Ledger with Stripe purchase tracking, equity partner percentage allocations, and 2-step confirm delete.
+  1. Superadmin Redistributive Ledger with Stripe purchase tracking:
+     - Shows Total Tokens Purchased (strict integers).
+     - Shows Sum Amount in AUD and Sum Amount in USD.
+     - Redistributive owner equity calculation where owners can be simply added by email address and percentage.
+     - 2-step confirm delete for equity partners and token packs.
   2. User-to-Superadmin 7-year statutory audit plain-text messaging (centered responsive portal modal).
   3. Superadmin Token Exemption rule (superadmin pays 0 tokens across all operations).
   4. Brand Matrix Radar Engine Agent Skill upgraded with Total Views scale ($S_{scale}$) and resonant Highlight Keywords engine.
@@ -12,4 +16,4 @@ Current Status:
 - Verification checks passed: TypeScript (0 errors), ESLint (0 errors), Firestore Security Rules (25/25 passed).
 
 Next Instruction for Testing & Verification:
-1. Open http://localhost:3001 in your browser, select an active brand in the Brands Manager, run a Radar search, and verify that the Ad Winner cards display the "Est. views" metric chip, the resonant keyword badges in the Matrix breakdown, and the ambient keyword highlights in the ad copy.
+1. Open http://localhost:3001 in your browser, click the gear/admin icon in the top navigation bar to open the SuperAdmin panel, navigate to the "Redistributive Ledger" tab, verify the Total Tokens and Sum in AUD and USD stat cards, then click "Add Equity Partner" and add an owner by entering their email address and percentage allocation.
