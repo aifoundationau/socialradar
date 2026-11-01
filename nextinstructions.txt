@@ -1,24 +1,23 @@
 # Next Instructions for Social Radar (ad-radar)
 
-## Current Status (November 1, 2026)
-1. **Global Brand Card Copy Token Fee (Customizable via Service Pricing):**
-   - Added `brandClone` to `ServiceCosts` in `contracts.ts`, `DEFAULT_CONFIG` in `admin.ts`, and `ACTION_COSTS` in `pricing.ts`. Default is 5 tokens.
-   - Integrated into SuperAdmin Control Panel Tab 2 (Service Pricing):
-     - Interactive card with `+` / `-` steppers, integer validation, AU/NZ AUD price hover, and international USD price hover.
-     - Included in "Set All Free" (0 tok) and "Standard Paid Rates" (5 tok) quick preset buttons.
-   - Atomic token deduction via `withTokenGate` on `POST /api/brands/clone`:
-     - Checks user balance, deducts tokens atomically, and writes an immutable `BRAND_CLONE` record to `token_transactions`.
-     - Superadmin exemption rule strictly enforced (0 tokens charged for superadmin).
-     - Returns `INSUFFICIENT_TOKENS` error if user balance is too low.
-   - Display on Global Brand Library card:
-     - Shows token badge (`⚡ {cloneFee} tok`) on the "Make a copy for myself" button.
-     - Strictly shows converted AUD/USD price on hover via `formatTokenEstimateHover`.
-     - Displays live copy fee banner in the library toolbar and on the wallet token packs comparison.
-2. **All Tests & Verifications Passing:**
+## Current Status (November 2, 2026)
+1. **AUD Default, Zero-Decimal Whole Numbers & Currency Standard:**
+   - Default currency is AUD (`aud`) for all tokens, products, and services across the app.
+   - Base token price is AUD $1 (`DEFAULT_AUD_CENTS_PER_TOKEN = 100`).
+   - Zero-decimal policy strictly applied: only whole numbers, with all amounts rounded up via `Math.ceil` (no decimals anywhere).
+   - SuperAdmin can customize the token amount for all services and products via Tab 2 in the SuperAdmin Modal.
+   - Geolocation sets user's default region (`AU`/`NZ` view pure AUD; outside AU/NZ view USD conversion rounded up).
+   - Full disclaimers on all purchase cards and policies stating all invoices are strictly issued in Australian Dollars (AUD).
+   - Terms of Service Section 2 includes exact token definition: *"You exchange money for a token, tokens mean more flexible payment options, as a payment may be distributed to multiple service providers."*
+2. **Global Brand Card Copy Token Fee:**
+   - SuperAdmin can set `brandClone` token fee under Service Pricing (defaults to 5 tokens).
+   - Users can clone global brand cards for this token fee with atomic deduction and superadmin exemption.
+3. **All Tests & Verifications Passing:**
    - `npm run test:rules` (40/40 tests passing).
    - `npx tsc --noEmit` (0 errors).
    - `npm run build` (Next.js 16.4.3 Turbopack build succeeded).
+   - Git repository synced with `origin/main` (commit `e639f69`).
 
 ## Next Priority Actions
-1. Have user test copying a global brand card and customize the token fee in SuperAdmin > Service Pricing at http://localhost:3001.
+1. Have user verify the token pricing, zero decimals, and Terms of Service at http://localhost:3001/wallet.
 2. Await next user directive.

@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { Icon } from "@/components/ui/Icon";
-import { alertError, alertInfo, btnPrimary, btnSecondary, field, label } from "@/components/ui/styles";
+import { alertError, btnPrimary, btnSecondary, field, label } from "@/components/ui/styles";
 import { LINK_URL_PATTERN, type AdminMessage } from "@/lib/contracts";
 
 const emptySubscribe = () => () => {};
@@ -32,12 +32,22 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  const switchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const clearTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const hasLinks = LINK_URL_PATTERN.test(subject) || LINK_URL_PATTERN.test(body);
+
+  useEffect(() => {
+    return () => {
+      if (switchTimerRef.current) clearTimeout(switchTimerRef.current);
+      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape" && isOpen) {
-        onClose();
+        handleModalClose();
       }
     }
     if (isOpen) {
@@ -51,7 +61,15 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
       document.body.style.overflow = "";
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
+
+  function handleModalClose() {
+    if (switchTimerRef.current) clearTimeout(switchTimerRef.current);
+    if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    onClose();
+  }
 
   async function loadHistory() {
     setLoadingHistory(true);
@@ -87,7 +105,7 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
     setSuccessMsg(null);
 
     try {
-      const res = await apiFetch<{ success: boolean; message: string; messageId: string }>(
+      await apiFetch<{ success: boolean; message: string; messageId: string }>(
         "/api/contact",
         {
           method: "POST",
@@ -97,10 +115,21 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
           },
         }
       );
-      setSuccessMsg(res.message);
+      setSuccessMsg("Message Sent");
       setSubject("");
       setBody("");
       await loadHistory();
+
+      // Show quick 'Message Sent' confirmation, then navigate to 'My Messages' panel
+      if (switchTimerRef.current) clearTimeout(switchTimerRef.current);
+      switchTimerRef.current = setTimeout(() => {
+        setActiveTab("HISTORY");
+      }, 800);
+
+      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+      clearTimerRef.current = setTimeout(() => {
+        setSuccessMsg(null);
+      }, 5000);
     } catch (err) {
       setErrorMsg(errorMessage(err));
     } finally {
@@ -120,7 +149,7 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity"
-        onClick={onClose}
+        onClick={handleModalClose}
         aria-hidden="true"
       />
 
@@ -143,7 +172,7 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleModalClose}
             aria-label="Close message window"
             data-testid="close-contact-modal-button"
             className="flex size-9 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-white/[0.08] hover:text-on-surface"
@@ -156,7 +185,12 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
         <div className="flex border-b border-white/[0.08] bg-surface-container-low px-5 pt-2">
           <button
             type="button"
-            onClick={() => setActiveTab("COMPOSE")}
+            data-testid="tab-compose-message"
+            data-agent-id="tab-compose-message"
+            onClick={() => {
+              setActiveTab("COMPOSE");
+              setErrorMsg(null);
+            }}
             className={`border-b-2 px-4 py-2 font-mono text-xs font-semibold transition ${
               activeTab === "COMPOSE"
                 ? "border-primary text-primary"
@@ -167,7 +201,12 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("HISTORY")}
+            data-testid="tab-my-messages"
+            data-agent-id="tab-my-messages"
+            onClick={() => {
+              setActiveTab("HISTORY");
+              setErrorMsg(null);
+            }}
             className={`flex items-center gap-1.5 border-b-2 px-4 py-2 font-mono text-xs font-semibold transition ${
               activeTab === "HISTORY"
                 ? "border-primary text-primary"
@@ -187,7 +226,17 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
         {activeTab === "COMPOSE" ? (
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
             {errorMsg && <p className={alertError}>{errorMsg}</p>}
-            {successMsg && <p className={alertInfo}>{successMsg}</p>}
+            {successMsg && (
+              <div
+                role="status"
+                aria-live="polite"
+                data-testid="compose-message-sent-banner"
+                className="flex items-center gap-2 rounded-xl border border-secondary/40 bg-secondary/15 px-3.5 py-2.5 text-xs font-semibold text-secondary animate-fadeIn"
+              >
+                <Icon name="checkCircle" className="size-4 shrink-0 text-secondary" />
+                <span>{successMsg}</span>
+              </div>
+            )}
 
             {/* Compliance & Policy Notice */}
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-[12px] text-on-surface-variant leading-relaxed">
@@ -253,7 +302,7 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.08]">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleModalClose}
                 className={btnSecondary}
                 data-testid="contact-cancel-button"
               >
@@ -281,7 +330,22 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
             </div>
           </form>
         ) : (
-          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
+          <div
+            data-testid="my-messages-panel"
+            data-agent-id="my-messages-panel"
+            className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3"
+          >
+            {successMsg && (
+              <div
+                role="status"
+                aria-live="polite"
+                data-testid="my-messages-sent-banner"
+                className="flex items-center gap-2 rounded-xl border border-secondary/40 bg-secondary/15 px-3.5 py-2.5 text-xs font-semibold text-secondary animate-fadeIn"
+              >
+                <Icon name="checkCircle" className="size-4 shrink-0 text-secondary" />
+                <span>{successMsg}</span>
+              </div>
+            )}
             {loadingHistory ? (
               <div className="flex h-40 items-center justify-center text-on-surface-variant font-mono text-xs">
                 <Icon name="refresh" className="size-4 animate-spin mr-2" />
