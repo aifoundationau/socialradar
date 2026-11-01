@@ -9,6 +9,7 @@ import { formatAud, formatPrice, formatTokenEstimateHover, formatUsd } from "@/l
 import type {
   AdminMessage,
   EquityPartner,
+  FaqItem,
   RbacMatrix,
   RbacPermission,
   RbacRole,
@@ -80,7 +81,7 @@ interface SuperAdminModalProps {
   onClose: () => void;
 }
 
-type TabKey = "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "DEV";
+type TabKey = "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV";
 
 export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
   const isClient = useIsClient();
@@ -99,6 +100,22 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [quickAssignEmail, setQuickAssignEmail] = useState("");
   const [quickAssignRole, setQuickAssignRole] = useState<Exclude<RbacRole, "superadmin">>("supporter");
+
+  // FAQ Management state
+  const [faqs, setFaqs] = useState<FaqItem[]>([]);
+  const [faqsLoading, setFaqsLoading] = useState(false);
+  const [faqsSaving, setFaqsSaving] = useState(false);
+  const [showAddFaq, setShowAddFaq] = useState(false);
+  const [confirmDeleteFaqId, setConfirmDeleteFaqId] = useState<string | null>(null);
+  const [newFaq, setNewFaq] = useState({
+    question: "",
+    answer: "",
+    category: "General",
+    order: 1,
+    enabled: true,
+  });
+  const [editingFaqId, setEditingFaqId] = useState<string | null>(null);
+  const [editFaqData, setEditFaqData] = useState<Partial<FaqItem>>({});
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -207,6 +224,103 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
     }
   }
 
+  async function reloadFaqs() {
+    setFaqsLoading(true);
+    try {
+      const data = await apiFetch<{ faqs: FaqItem[] }>("/api/admin/faqs");
+      if (data.faqs) setFaqs(data.faqs);
+    } catch (err) {
+      console.warn("[faqs] failed to load faqs", err);
+    } finally {
+      setFaqsLoading(false);
+    }
+  }
+
+  async function handleCreateFaq(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newFaq.question.trim() || !newFaq.answer.trim()) return;
+    setFaqsSaving(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{ success: boolean; faqs: FaqItem[] }>("/api/admin/faqs", {
+        method: "POST",
+        body: newFaq,
+      });
+      if (data.faqs) setFaqs(data.faqs);
+      setShowAddFaq(false);
+      setNewFaq({
+        question: "",
+        answer: "",
+        category: "General",
+        order: (data.faqs?.length || 0) + 1,
+        enabled: true,
+      });
+      setStatusMsg("New FAQ item successfully published.");
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setFaqsSaving(false);
+    }
+  }
+
+  async function handleUpdateFaq(faqId: string) {
+    setFaqsSaving(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{ success: boolean; faqs: FaqItem[] }>("/api/admin/faqs", {
+        method: "PUT",
+        body: { faqId, patch: editFaqData },
+      });
+      if (data.faqs) setFaqs(data.faqs);
+      setEditingFaqId(null);
+      setEditFaqData({});
+      setStatusMsg("FAQ item updated.");
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setFaqsSaving(false);
+    }
+  }
+
+  async function handleDeleteFaq(faqId: string) {
+    setFaqsSaving(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{ success: boolean; faqs: FaqItem[] }>("/api/admin/faqs", {
+        method: "DELETE",
+        body: { faqId },
+      });
+      if (data.faqs) setFaqs(data.faqs);
+      setConfirmDeleteFaqId(null);
+      setStatusMsg("FAQ item deleted.");
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setFaqsSaving(false);
+    }
+  }
+
+  async function handleResetDefaultFaqs() {
+    setFaqsSaving(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{ success: boolean; faqs: FaqItem[] }>("/api/admin/faqs", {
+        method: "POST",
+        body: { action: "RESET_DEFAULTS" },
+      });
+      if (data.faqs) setFaqs(data.faqs);
+      setStatusMsg("Reset to standard seed FAQs (Brands, Radar Feed, Token Ledger).");
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setFaqsSaving(false);
+    }
+  }
+
   async function reloadConfig() {
     setLoading(true);
     setErrorMsg(null);
@@ -229,7 +343,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
         // Non-admin or messages not accessible
       }
 
-      await reloadRbac();
+      await Promise.all([reloadRbac(), reloadFaqs()]);
     } catch (err) {
       setErrorMsg(errorMessage(err));
     } finally {
@@ -268,8 +382,9 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
         roles: RbacRole[];
         permissions: RbacPermission[];
       }>("/api/admin/rbac").catch(() => null),
+      apiFetch<{ faqs: FaqItem[] }>("/api/admin/faqs").catch(() => null),
     ])
-      .then(([adminData, msgData, rbacData]) => {
+      .then(([adminData, msgData, rbacData, faqData]) => {
         if (active) {
           setConfig(adminData.config);
           if (adminData.ledger) setLedger(adminData.ledger);
@@ -278,6 +393,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
           if (msgData?.messages) setAdminMessages(msgData.messages);
           if (rbacData?.matrix) setRbacMatrix(rbacData.matrix);
           if (rbacData?.users) setRbacUsers(rbacData.users);
+          if (faqData?.faqs) setFaqs(faqData.faqs);
           setLoading(false);
         }
       })
@@ -594,6 +710,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
             { id: "LEDGER", label: "Redistributive Ledger" },
             { id: "MESSAGES", label: `User Messages (${adminMessages.filter((m) => m.status === "unread").length})` },
             { id: "RBAC", label: "RBAC Matrix & Roles" },
+            { id: "FAQS", label: `Help & FAQs (${faqs.length})` },
             { id: "DEV", label: "Developer Diagnostics" },
           ].map((t) => (
             <button
@@ -1570,7 +1687,258 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                 </div>
               )}
 
-              {/* TAB 7: DEVELOPER DIAGNOSTICS */}
+              {/* TAB 7: FAQS MANAGEMENT */}
+              {tab === "FAQS" && (
+                <div className="space-y-6">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-title-sm font-semibold text-on-surface">Help & FAQ Management</h3>
+                      <p className="mt-1 text-compact text-on-surface-variant">
+                        Manage platform knowledge base FAQs explaining My Brands, Radar Feed, and Token Ledger mechanics.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleResetDefaultFaqs}
+                        disabled={faqsSaving}
+                        className="rounded-lg border border-white/10 px-3 py-1.5 text-compact text-on-surface-variant hover:bg-white/[0.04] hover:text-on-surface transition"
+                      >
+                        Reset Defaults
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddFaq((v) => !v)}
+                        data-testid="add-faq-button"
+                        className={btnPrimary}
+                      >
+                        <Icon name="plus" className="size-4" />
+                        {showAddFaq ? "Cancel" : "Add FAQ"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Add New FAQ Form */}
+                  {showAddFaq && (
+                    <form onSubmit={handleCreateFaq} className={`${card} p-5 space-y-4`}>
+                      <h4 className="text-compact font-semibold text-on-surface">Create New FAQ Item</h4>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="sm:col-span-2">
+                          <label className={label}>Question</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. How does AI Remix generate ad hooks?"
+                            value={newFaq.question}
+                            onChange={(e) => setNewFaq({ ...newFaq, question: e.target.value })}
+                            className={field}
+                          />
+                        </div>
+                        <div>
+                          <label className={label}>Category</label>
+                          <input
+                            type="text"
+                            placeholder="Brands, Radar, General"
+                            value={newFaq.category}
+                            onChange={(e) => setNewFaq({ ...newFaq, category: e.target.value })}
+                            className={field}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className={label}>Answer</label>
+                        <textarea
+                          required
+                          rows={4}
+                          placeholder="Provide a detailed, clear explanation..."
+                          value={newFaq.answer}
+                          onChange={(e) => setNewFaq({ ...newFaq, answer: e.target.value })}
+                          className={field}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <label className="flex items-center gap-2 text-compact text-on-surface cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={newFaq.enabled}
+                            onChange={(e) => setNewFaq({ ...newFaq, enabled: e.target.checked })}
+                            className="size-4 rounded border-white/20 bg-surface-container-lowest text-primary"
+                          />
+                          Enabled (Visible to Users)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowAddFaq(false)}
+                            className={btnSecondary}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={faqsSaving || !newFaq.question.trim() || !newFaq.answer.trim()}
+                            data-testid="save-new-faq-button"
+                            className={btnPrimary}
+                          >
+                            Publish FAQ
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* FAQ Items List */}
+                  {faqsLoading ? (
+                    <div className="flex h-32 items-center justify-center text-on-surface-variant">
+                      <Icon name="refresh" className="size-5 animate-spin" />
+                    </div>
+                  ) : faqs.length === 0 ? (
+                    <div className={`${card} p-8 text-center text-on-surface-variant space-y-3`}>
+                      <p>No FAQs available in the system.</p>
+                      <button
+                        type="button"
+                        onClick={handleResetDefaultFaqs}
+                        className={btnPrimary}
+                      >
+                        Load Seed FAQs (Brands & Radar Feed)
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {faqs.map((faq) => {
+                        const isEditing = editingFaqId === faq.faqId;
+                        return (
+                          <div
+                            key={faq.faqId}
+                            className={`${card} p-4 space-y-2 border border-white/[0.08] transition`}
+                          >
+                            {isEditing ? (
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                  <input
+                                    type="text"
+                                    value={editFaqData.question ?? faq.question}
+                                    onChange={(e) => setEditFaqData({ ...editFaqData, question: e.target.value })}
+                                    className={`sm:col-span-2 ${field}`}
+                                  />
+                                  <input
+                                    type="text"
+                                    value={editFaqData.category ?? faq.category}
+                                    onChange={(e) => setEditFaqData({ ...editFaqData, category: e.target.value })}
+                                    className={field}
+                                  />
+                                </div>
+                                <textarea
+                                  rows={3}
+                                  value={editFaqData.answer ?? faq.answer}
+                                  onChange={(e) => setEditFaqData({ ...editFaqData, answer: e.target.value })}
+                                  className={field}
+                                />
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingFaqId(null)}
+                                    className={btnSecondary}
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateFaq(faq.faqId)}
+                                    disabled={faqsSaving}
+                                    className={btnPrimary}
+                                  >
+                                    Save Changes
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="rounded bg-primary/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary uppercase">
+                                        {faq.category}
+                                      </span>
+                                      <span className="text-[11px] font-mono text-on-surface-variant">
+                                        Order #{faq.order}
+                                      </span>
+                                      {!faq.enabled && (
+                                        <span className="rounded bg-error/20 px-2 py-0.5 font-mono text-[10px] text-error">
+                                          Draft / Hidden
+                                        </span>
+                                      )}
+                                    </div>
+                                    <h4 className="text-body font-semibold text-on-surface">{faq.question}</h4>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingFaqId(faq.faqId);
+                                        setEditFaqData({
+                                          question: faq.question,
+                                          answer: faq.answer,
+                                          category: faq.category,
+                                          order: faq.order,
+                                          enabled: faq.enabled,
+                                        });
+                                      }}
+                                      className="rounded p-1 text-on-surface-variant hover:bg-white/[0.08] hover:text-on-surface transition"
+                                      title="Edit FAQ"
+                                      aria-label={`Edit ${faq.question}`}
+                                    >
+                                      <Icon name="sliders" className="size-3.5" />
+                                    </button>
+
+                                    {confirmDeleteFaqId === faq.faqId ? (
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteFaq(faq.faqId)}
+                                          disabled={faqsSaving}
+                                          data-testid={`confirm-delete-faq-${faq.faqId}`}
+                                          className="rounded bg-error px-2 py-0.5 text-[11px] font-medium text-white hover:bg-error/90 transition"
+                                        >
+                                          Confirm Delete
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setConfirmDeleteFaqId(null)}
+                                          className="rounded bg-surface-container-highest px-1.5 py-0.5 text-[11px] text-on-surface-variant"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmDeleteFaqId(faq.faqId)}
+                                        className="rounded p-1 text-error/70 hover:bg-error/20 hover:text-error transition"
+                                        title="Delete FAQ"
+                                        aria-label={`Delete ${faq.question}`}
+                                      >
+                                        <Icon name="trash" className="size-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                <p className="mt-2 text-compact leading-relaxed text-on-surface-variant">
+                                  {faq.answer}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 8: DEVELOPER DIAGNOSTICS */}
               {tab === "DEV" && (
                 <div className="space-y-6">
                   <div>

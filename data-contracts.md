@@ -277,3 +277,25 @@ Requires authenticated user. Strips HTML, validates plain text only, rejects fil
   - Action `UPDATE_ROLE_PERMISSIONS`: `{ "action": "UPDATE_ROLE_PERMISSIONS", "role": "admin"|"moderator"|"agency"|"supporter", "permissions": RbacPermission[] }`
   - Action `ASSIGN_USER_ROLE`: `{ "action": "ASSIGN_USER_ROLE", "email": "valid-email", "role": "admin"|"moderator"|"agency"|"supporter" }`
 
+## 9. Frequently Asked Questions (FAQs) (`system_config/faqs`)
+
+### `FaqItem`
+| Field | Type | Rules |
+|---|---|---|
+| `faqId` | string | `^[A-Za-z0-9_-]{1,64}$` |
+| `question` | string | Question text, max 200 chars |
+| `answer` | string | Answer text, max 2000 chars |
+| `category` | string | Category label (e.g. "Brands", "Radar", "General") |
+| `order` | integer | Display sorting integer |
+| `enabled` | boolean | Toggle whether shown to users |
+| `createdAt` | ISO-8601 | Creation timestamp |
+| `updatedAt` | ISO-8601 | Last updated timestamp |
+
+### API Endpoints
+- `GET /api/faqs`: Open to all authenticated users. Returns enabled FAQs sorted by `order`.
+- `GET /api/admin/faqs`: Requires `superadmin` role. Returns all FAQs (including disabled).
+- `POST /api/admin/faqs`: Requires `superadmin` role. Creates a new FAQ item.
+- `PUT /api/admin/faqs`: Requires `superadmin` role. Updates an existing FAQ item.
+- `DELETE /api/admin/faqs`: Requires `superadmin` role. Deletes a FAQ item (requires confirmation).
+
+

@@ -13,21 +13,38 @@ import { SuperAdminModal } from "@/components/admin/SuperAdminModal";
 import { ContactAdminModal } from "@/components/contact/ContactAdminModal";
 
 function NavItems({ pathname }: { pathname: string | null }) {
-  return NAV.map(({ href, label }) => {
+  return NAV.map(({ href, label, tooltipTitle, tooltipDesc }) => {
     const active = isActivePath(pathname, href);
     return (
-      <Link
-        key={href}
-        href={href}
-        aria-current={active ? "page" : undefined}
-        className={`rounded px-3 py-1.5 text-body transition-colors ${
-          active
-            ? "bg-surface-container font-medium text-on-surface shadow-sm ring-1 ring-white/[0.08]"
-            : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-        }`}
-      >
-        {label}
-      </Link>
+      <div key={href} className="group relative flex items-center">
+        <Link
+          href={href}
+          aria-current={active ? "page" : undefined}
+          data-testid={`nav-link-${href.replace("/", "")}`}
+          className={`rounded px-3 py-1.5 text-body transition-colors ${
+            active
+              ? "bg-surface-container font-medium text-on-surface shadow-sm ring-1 ring-white/[0.08]"
+              : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+          }`}
+        >
+          {label}
+        </Link>
+        {tooltipDesc && (
+          <div
+            role="tooltip"
+            className="pointer-events-none absolute top-full left-1/2 z-50 mt-2.5 w-64 -translate-x-1/2 rounded-xl border border-white/[0.14] bg-surface-container-highest p-3 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100"
+          >
+            <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-primary">
+              <Icon name="sparkles" className="size-3 shrink-0" />
+              <span>{tooltipTitle}</span>
+            </div>
+            <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant font-normal">
+              {tooltipDesc}
+            </p>
+            <div className="absolute -top-1 left-1/2 -translate-x-1/2 size-2 rotate-45 border-t border-l border-white/[0.14] bg-surface-container-highest" />
+          </div>
+        )}
+      </div>
     );
   });
 }

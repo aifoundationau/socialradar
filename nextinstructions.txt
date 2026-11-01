@@ -25,12 +25,19 @@
    - Admin, Moderator, Agency, and Supporter feature permissions are toggleable and savable to Firestore `system_config/rbac`.
    - User Accounts Table allows Superadmin to inspect all users and assign roles via Firebase custom claims with instant update.
    - Quick role assignment card allows assigning roles directly by email address.
-4. **UI Protection Gate:**
+4. **Navbar Menu Order & Hover Popups:**
+   - Navbar order: "My Brands" is first, followed by "Radar Feed", then "Wallet".
+   - Rich hover popup tooltips on desktop explaining both My Brands and Radar Feed with titles, icons, and descriptions.
+5. **Knowledge Base FAQs Management:**
+   - Super Admin Panel includes dedicated "Help & FAQs" tab.
+   - Superadmin can add, edit, reorder, toggle, and delete FAQs (with confirmation).
+   - Seeded with comprehensive FAQs explaining "What is My Brands?", "What is Radar Feed?", and "How do Token Deductions Work?".
+6. **UI Protection Gate:**
    - The TopNav Account Menu shows a "Super Admin" badge for database admins and a "Supporter" badge for standard users.
    - The "Super Admin Panel" action is rendered strictly for the database admin. Standard users only see "Message Super Admin".
-5. **API Route Protection:**
-   - `/api/admin/config` (GET, PUT, POST), `/api/admin/messages` (GET, PATCH), and `/api/admin/rbac` (GET, PUT) enforce `requireRole: "superadmin"` and reject unauthorized users with 403 Forbidden.
+7. **API Route Protection:**
+   - `/api/admin/config` (GET, PUT, POST), `/api/admin/messages` (GET, PATCH), `/api/admin/rbac` (GET, PUT), and `/api/admin/faqs` (GET, POST, PUT, DELETE) enforce `requireRole: "superadmin"`.
 
 ## 3. Next Tasks & Instructions
-1. Test opening the **Super Admin Panel** -> **RBAC Matrix & Roles** tab to test permission toggling, saving role permissions, and assigning user roles.
-2. Verify brand creation in Firestore: Brands are stored under `users/{uid}/brands/{brandId}`.
+1. Hover over "My Brands" and "Radar Feed" in the top navbar to verify the explanatory hover popup tooltips.
+2. Open Super Admin Panel -> "Help & FAQs" tab to test managing FAQs and reviewing the seed FAQs.

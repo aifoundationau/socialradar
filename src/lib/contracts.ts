@@ -446,3 +446,45 @@ export const AssignUserRoleRequestSchema = z
   })
   .strict();
 export type AssignUserRoleRequest = z.infer<typeof AssignUserRoleRequestSchema>;
+
+// ---------- 10. Frequently Asked Questions (FAQs) ----------
+export const FaqItemSchema = z
+  .object({
+    faqId: z.string().min(1).max(64),
+    question: z.string().trim().min(1, "Question is required").max(200),
+    answer: z.string().trim().min(1, "Answer is required").max(2000),
+    category: z.string().trim().max(64).default("General"),
+    order: z.number().int().default(0),
+    enabled: z.boolean().default(true),
+    createdAt: isoDate,
+    updatedAt: isoDate,
+  })
+  .strict();
+export type FaqItem = z.infer<typeof FaqItemSchema>;
+
+export const CreateFaqRequestSchema = z
+  .object({
+    question: z.string().trim().min(1).max(200),
+    answer: z.string().trim().min(1).max(2000),
+    category: z.string().trim().max(64).default("General"),
+    order: z.number().int().default(0),
+    enabled: z.boolean().default(true),
+  })
+  .strict();
+export type CreateFaqRequest = z.infer<typeof CreateFaqRequestSchema>;
+
+export const UpdateFaqRequestSchema = z
+  .object({
+    faqId: z.string().min(1).max(64),
+    patch: z
+      .object({
+        question: z.string().trim().min(1).max(200).optional(),
+        answer: z.string().trim().min(1).max(2000).optional(),
+        category: z.string().trim().max(64).optional(),
+        order: z.number().int().optional(),
+        enabled: z.boolean().optional(),
+      })
+      .strict(),
+  })
+  .strict();
+export type UpdateFaqRequest = z.infer<typeof UpdateFaqRequestSchema>;
