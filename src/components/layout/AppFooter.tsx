@@ -60,9 +60,9 @@ export function AppFooter() {
         <div
           data-testid="geo-time-bar"
           data-agent-id="geo-time-bar"
-          className="border-b border-white/[0.06] bg-surface-container-low/70 px-4 py-2.5 backdrop-blur-md"
+          className="border-b border-white/[0.06] bg-surface-container-low/70 px-4 py-2 backdrop-blur-md min-h-[46px] flex items-center"
         >
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2.5 font-mono text-xs">
+          <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-y-2 gap-x-3 font-mono text-xs">
             {/* Left chips: Location & Weather */}
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -72,13 +72,13 @@ export function AppFooter() {
                 title="Click to change location or autofind"
                 className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container px-3 py-1 text-on-surface transition-all hover:border-primary/40 hover:text-primary active:scale-95"
               >
-                <Icon name="mapPin" className="size-3.5 text-primary" />
+                <Icon name="mapPin" className="size-3.5 text-primary shrink-0" />
                 <span suppressHydrationWarning className="font-semibold">
                   {geoConfig.suburb}, {geoConfig.state}
                 </span>
                 <span
                   suppressHydrationWarning
-                  className="rounded bg-white/10 px-1.5 py-0.2 text-[10px] font-bold text-outline"
+                  className="rounded bg-white/10 px-1.5 py-0.2 text-[10px] font-bold text-outline shrink-0"
                 >
                   {geoConfig.country}
                 </span>
@@ -91,7 +91,7 @@ export function AppFooter() {
                 title="Live weather for detected location"
                 className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container px-3 py-1 text-on-surface-variant transition-all hover:border-amber-400/40 hover:text-amber-300 active:scale-95"
               >
-                <Icon name="sun" className="size-3.5 text-amber-400" />
+                <Icon name="sun" className="size-3.5 text-amber-400 shrink-0" />
                 <span suppressHydrationWarning>
                   {geoConfig.weatherTemp}°C {geoConfig.weatherCondition}
                 </span>
@@ -104,7 +104,7 @@ export function AppFooter() {
                 data-testid="geo-chip-currency"
                 className="flex items-center gap-1.5 rounded-full border border-secondary/30 bg-secondary/10 px-3 py-1 text-[11px] font-medium text-secondary"
               >
-                <span className="size-1.5 rounded-full bg-secondary animate-pulse" />
+                <span className="size-1.5 rounded-full bg-secondary shrink-0 shadow-[0_0_6px_rgba(74,222,128,0.6)]" />
                 <span suppressHydrationWarning>
                   {geoConfig.isAuNz
                     ? "AUD $1.00 / Token (AU/NZ Local Currency)"
@@ -117,12 +117,17 @@ export function AppFooter() {
                 onClick={() => setIsGeoModalOpen(true)}
                 data-testid="geo-chip-clock"
                 title="Click to configure clock, date format, and location"
-                className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container px-3 py-1 text-on-surface tabular-nums transition-all hover:border-primary/40 hover:text-primary active:scale-95"
+                className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container px-3 py-1 text-on-surface transition-all hover:border-primary/40 hover:text-primary active:scale-95"
               >
-                <Icon name="clock" className="size-3.5 text-primary" />
-                <span suppressHydrationWarning>{currentTime || "12:00:00"}</span>
-                <span className="text-white/20">|</span>
-                <Icon name="sliders" className="size-3 text-outline" />
+                <Icon name="clock" className="size-3.5 text-primary shrink-0" />
+                <span
+                  suppressHydrationWarning
+                  className="inline-block w-[78px] text-center font-mono tabular-nums tracking-tight"
+                >
+                  {currentTime || "12:00:00"}
+                </span>
+                <span className="text-white/20 select-none">|</span>
+                <Icon name="sliders" className="size-3 text-outline shrink-0" />
                 <span className="text-[11px] text-outline font-normal">Configure</span>
               </button>
             </div>
