@@ -31,7 +31,32 @@ const DEFAULT_FILTERS: RadarFilters = {
   eliteWinnersOnly: false,
   brandId: "",
 };
-const EXAMPLES = ["skincare", "protein powder", "pet food", "meal kit", "running shoes"];
+const EXAMPLES = [
+  "skincare",
+  "protein powder",
+  "pet food",
+  "meal kit",
+  "running shoes",
+  "activewear",
+  "wireless earbuds",
+  "smart watch",
+  "air purifier",
+  "reusable water bottle",
+  "sunscreen",
+  "hair oil",
+  "teeth whitening",
+  "mushroom coffee",
+  "collagen peptides",
+  "magnesium spray",
+  "massage gun",
+  "weighted blanket",
+  "phone case",
+  "dog harness",
+  "yoga mat",
+  "travel backpack",
+  "blue light glasses",
+  "heatless curler",
+];
 /** Results per page: a 3 × 3 grid on desktop. */
 const PAGE_SIZE = 9;
 
@@ -348,13 +373,16 @@ export function RadarView() {
                 for {activeBrand?.brandName ?? "your brand"}.
               </p>
             </div>
-            <div className="flex max-w-lg flex-wrap justify-center gap-2">
+            <div className="flex max-w-3xl flex-wrap justify-center gap-2">
               {EXAMPLES.map((q) => (
                 <button
                   key={q}
                   type="button"
+                  data-agent-id={`radar-example-${q.replace(/\s+/g, "-")}`}
+                  data-testid={`radar-example-${q.replace(/\s+/g, "-")}`}
+                  aria-label={`Search ads for ${q}`}
                   onClick={() => setFilters((f) => ({ ...f, query: q }))}
-                  className="h-10 rounded-full border border-white/10 bg-surface-container-low px-4 font-mono text-mono-code text-on-surface-variant transition-colors hover:border-primary-container hover:text-on-surface sm:h-8"
+                  className="h-10 rounded-full border border-white/10 bg-surface-container-low px-3.5 font-mono text-mono-code text-on-surface-variant transition-colors hover:border-primary-container hover:text-on-surface sm:h-8"
                 >
                   {q}
                 </button>

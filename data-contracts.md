@@ -147,6 +147,35 @@ From the SuperAdmin Control Panel, all rates can be dynamically set to free (`0 
 | `notice` | string | max 500, `""` if none |
 | `createdAt`, `expiresAt` | ISO-8601 | `expiresAt = createdAt + 24h` |
 
+### Radar Search Quick Recommendations (Top 24 Most Searched Items)
+The empty radar view presents a curated, interactive tag cloud of the top 24 most searched consumer & ecommerce items across internet ad libraries (Meta, TikTok, Google):
+1. `skincare`
+2. `protein powder`
+3. `pet food`
+4. `meal kit`
+5. `running shoes`
+6. `activewear`
+7. `wireless earbuds`
+8. `smart watch`
+9. `air purifier`
+10. `reusable water bottle`
+11. `sunscreen`
+12. `hair oil`
+13. `teeth whitening`
+14. `mushroom coffee`
+15. `collagen peptides`
+16. `magnesium spray`
+17. `massage gun`
+18. `weighted blanket`
+19. `phone case`
+20. `dog harness`
+21. `yoga mat`
+22. `travel backpack`
+23. `blue light glasses`
+24. `heatless curler`
+
+Every interactive pill binds `data-agent-id="radar-example-<item>"`, `data-testid="radar-example-<item>"`, and `aria-label="Search ads for <item>"`.
+
 ## 3. Brand Profile Contract (`users/{uid}/brands/{brandId}` and `global_brands/{brandId}`)
 
 | Field | Type | Rules |

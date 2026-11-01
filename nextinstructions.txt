@@ -13,11 +13,14 @@
    - Foreign exchange currency conversion (AUD to USD) displays up to 2 decimal places (e.g. 1 Token = $1 AUD ≈ $0.65 USD, 10 Tokens = $10 AUD ≈ $6.50 USD, 50 Tokens = $50 AUD ≈ $32.50 USD, 100 Tokens = $100 AUD ≈ $65 USD).
 4. **Standard Paid Rates Standardized to 1 Token:**
    - Standard Paid Rates for all services, products, and surcharges across the application are strictly **1 Token** each.
-5. **All Tests & Verifications Passing:**
+5. **Top 24 Most Searched Items (Radar Quick Search Pills):**
+   - Implemented the top 24 most searched consumer & ad-library items on the internet on the empty Radar state.
+   - Fluid responsive wrapping in `max-w-3xl` container with full DOM automation attributes (`data-agent-id`, `data-testid`, `aria-label`).
+6. **All Tests & Verifications Passing:**
    - `npm run test:rules` (40/40 tests passing).
    - `npx tsc --noEmit` (0 errors).
    - `npm run build` (Next.js 16.4.3 Turbopack build succeeded).
 
 ## Next Priority Actions
-1. Have user open http://localhost:3000 in their browser to verify that the app loads cleanly with valid session credentials.
+1. Check that the 24 search pills on http://localhost:3000 look clean and work when clicked.
 2. Await next user directive.
