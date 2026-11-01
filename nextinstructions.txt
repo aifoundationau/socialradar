@@ -1,0 +1,19 @@
+# AdRadar - Next Instructions
+
+Current Status:
+- Dev server running on http://localhost:3001
+- Brand Matrix Radar Engine Agent Skill upgraded:
+  - Total Views Measurement: Computes verified views and velocity-derived estimates based on active days and win score.
+  - Scale & Reach Pillar ($S_{scale}$): Combines active running longevity (60%) with total views volume (40%) on logarithmic scaling.
+  - Highlight Keywords Engine: Identifies matching keywords between ad copy/headline and brand avatar, pain points, and unique mechanism.
+  - UI Visualization:
+    - 4-metric grid on every Ad Winner card displaying "Est. views" (e.g. `245K`, `1.2M`).
+    - Resonant keyword chips inside the Matrix Match card.
+    - Automatic ambient keyword highlighting inside primary ad copy.
+  - Universal Model Compatibility: Validated with strict integers (`Math.round`) and strict Zod schemas for Gemini 2.5 Flash-Lite, Claude Haiku 4.5, and gpt-6-luna.
+- Verification passed: TypeScript (0 errors), ESLint (0 errors), Firestore Security Rules (25/25 tests pass).
+
+Next Steps for Testing & Verification:
+1. Open http://localhost:3001:
+   - Run a radar search with an active brand selected.
+   - Inspect the Ad Winner cards to verify the "Est. views" metric, the "Resonant Keywords" chips in the Matrix Match breakdown, and the highlighted keywords in the primary ad copy.

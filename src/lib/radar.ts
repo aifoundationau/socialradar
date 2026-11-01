@@ -6,6 +6,8 @@ import { ApiError } from "./api";
 import {
   NormalizedAdSchema,
   PROVEN_WINNER_DAYS,
+  EXTENDED_WINNER_DAYS,
+  ELITE_SCORE_THRESHOLD,
   RadarCacheDocSchema,
   sanitizeText,
   type NormalizedAd,
@@ -14,6 +16,8 @@ import {
   type RadarSearchResponse,
 } from "./contracts";
 import { searchApi } from "./searchapi";
+import { calculateMatrixScore } from "./radar-matrix";
+import type { BrandProfile } from "./contracts";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /** Part of every cache key: bump it when normalization changes so stale result sets aren't served. */
@@ -28,7 +32,10 @@ const TIKTOK_COUNTRIES = new Set(
 const DOMAIN = /^(?:[a-z0-9-]+\.)+[a-z]{2,}$/i;
 
 type Json = Record<string, unknown>;
-type Draft = Omit<NormalizedAd, "winningScore"> & { duplicates: number };
+type Draft = Omit<NormalizedAd, "winningScore" | "highlightKeywords"> & {
+  duplicates: number;
+  highlightKeywords?: string[];
+};
 type LibraryResult = { drafts: Draft[]; notice: string };
 type SearchResult = Omit<RadarSearchResponse, "balanceAfter">;
 
@@ -57,12 +64,12 @@ function isoDate(v: unknown): string | null {
 
 /** Cache key. provenWinnersOnly is applied when serving, so both settings share one upstream search. */
 export function radarQueryHash(req: RadarSearchRequest): string {
-  const key = [CACHE_VERSION, req.platform, req.query.toLowerCase(), req.country, req.mediaType].join("\u0000");
+  const key = [CACHE_VERSION, req.platform, req.query.toLowerCase(), req.country, req.mediaType, req.brandId || ""].join("\u0000");
   return createHash("sha256").update(key).digest("hex");
 }
 
 /** Serves `radar_cache/{queryHash}` if it is under 24 hours old, otherwise searches the ad library. */
-export async function runRadarSearch(req: RadarSearchRequest, queryHash: string): Promise<SearchResult> {
+export async function runRadarSearch(req: RadarSearchRequest, queryHash: string, brand?: BrandProfile | null): Promise<SearchResult> {
   const ref = db.collection("radar_cache").doc(queryHash);
   const cached = await readCache(ref);
   if (cached && Date.parse(cached.expiresAt) > Date.now()) return serve(cached, req, true);
@@ -75,7 +82,7 @@ export async function runRadarSearch(req: RadarSearchRequest, queryHash: string)
     query: req.query,
     country: req.country,
     mediaType: req.mediaType,
-    ads: rank(drafts),
+    ads: rank(drafts, brand),
     notice,
     createdAt: new Date(now).toISOString(),
     expiresAt: new Date(now + CACHE_TTL_MS).toISOString(),
@@ -106,7 +113,15 @@ async function readCache(ref: DocumentReference): Promise<RadarCacheDoc | null> 
 }
 
 function serve(doc: RadarCacheDoc, req: RadarSearchRequest, cached: boolean): SearchResult {
-  const ads = req.provenWinnersOnly ? doc.ads.filter((ad) => ad.activeDaysCount >= PROVEN_WINNER_DAYS) : doc.ads;
+  let ads = doc.ads;
+  if (req.extendedLongevity) {
+    ads = ads.filter((ad) => ad.activeDaysCount >= EXTENDED_WINNER_DAYS);
+  } else if (req.provenWinnersOnly) {
+    ads = ads.filter((ad) => ad.activeDaysCount >= PROVEN_WINNER_DAYS);
+  }
+  if (req.eliteWinnersOnly) {
+    ads = ads.filter((ad) => (ad.matrixScore?.compositeScore ?? ad.winningScore) >= ELITE_SCORE_THRESHOLD);
+  }
   return { ads, unfilteredCount: doc.ads.length, cached, queryHash: doc.queryHash, fetchedAt: doc.createdAt, notice: doc.notice };
 }
 
@@ -114,14 +129,21 @@ function serve(doc: RadarCacheDoc, req: RadarSearchRequest, cached: boolean): Se
  * Winning score = activeDaysCount × 2.5 + duplicateCreativeCount × 10. Results are sorted on the raw
  * score; the stored value is capped at 100 to fit the NormalizedAd contract.
  */
-function rank(drafts: Draft[]): NormalizedAd[] {
+function rank(drafts: Draft[], brand?: BrandProfile | null): NormalizedAd[] {
   const seen = new Set<string>();
   return drafts
     .flatMap(({ duplicates, ...draft }) => {
       if (seen.has(draft.adId)) return [];
       seen.add(draft.adId);
-      const raw = draft.activeDaysCount * 2.5 + duplicates * 10;
-      const parsed = NormalizedAdSchema.safeParse({ ...draft, winningScore: Math.min(100, Math.round(raw)) });
+      const matrixScore = calculateMatrixScore({ ...draft, duplicates }, brand);
+      const raw = matrixScore.compositeScore;
+      const parsed = NormalizedAdSchema.safeParse({
+        ...draft,
+        winningScore: matrixScore.compositeScore,
+        totalViews: matrixScore.totalViews,
+        highlightKeywords: matrixScore.highlightKeywords,
+        matrixScore,
+      });
       return parsed.success ? [{ ad: parsed.data, raw }] : [];
     })
     .sort((a, b) => b.raw - a.raw)

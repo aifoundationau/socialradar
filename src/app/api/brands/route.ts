@@ -10,6 +10,7 @@ import {
 } from "@/lib/contracts";
 
 // Reads go through the client's owner-scoped Firestore listener; this route only mutates.
+// Handles BrandProfileInputSchema with landingPageUrls and destinationUrl.
 
 /** Create a brand. Body: Brand Profile without `brandId`. */
 export async function POST(req: Request) {

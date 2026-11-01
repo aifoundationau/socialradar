@@ -11,6 +11,30 @@ import type { TokenPackId } from "./contracts";
 export const ACTION_COSTS: Record<"RADAR_SEARCH" | "AI_REMIX", number> = { RADAR_SEARCH: 0, AI_REMIX: 0 };
 export type ChargeableAction = keyof typeof ACTION_COSTS;
 
+export const SERVICE_SURCHARGES = {
+  EXTENDED_DAYS: 1,
+  ELITE_SCORE: 2,
+};
+
+/** Calculates total token charge for a search including longevity and score filter surcharges. */
+export function calculateSearchCost(req?: { extendedLongevity?: boolean; eliteWinnersOnly?: boolean }): number {
+  let cost = ACTION_COSTS.RADAR_SEARCH;
+  if (req?.extendedLongevity) cost += SERVICE_SURCHARGES.EXTENDED_DAYS;
+  if (req?.eliteWinnersOnly) cost += SERVICE_SURCHARGES.ELITE_SCORE;
+  return cost;
+}
+
+/** Approximate price per token in AUD cents and USD cents for tooltips/hover. */
+export const TOKEN_ESTIMATE_AUD_CENTS = 19;
+export const TOKEN_ESTIMATE_USD_CENTS = 13;
+
+export function formatTokenEstimateHover(tokens: number): string {
+  if (tokens <= 0) return "Free";
+  const aud = (tokens * (TOKEN_ESTIMATE_AUD_CENTS / 100)).toFixed(2);
+  const usd = (tokens * (TOKEN_ESTIMATE_USD_CENTS / 100)).toFixed(2);
+  return `~$${aud} AUD / ~$${usd} USD`;
+}
+
 /** "Free", "1 token" or "5 tokens". */
 export const costLabel = (action: ChargeableAction) => {
   const cost = ACTION_COSTS[action];

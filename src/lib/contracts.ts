@@ -62,6 +62,19 @@ export type TokenTransactionDoc = z.infer<typeof TokenTransactionDocSchema>;
 export const PlatformSchema = z.enum(["META", "TIKTOK", "GOOGLE"]);
 export type Platform = z.infer<typeof PlatformSchema>;
 
+export const MatrixScoreBreakdownSchema = z
+  .object({
+    brandFitScore: tokenInt.min(0).max(100),
+    hookStrengthScore: tokenInt.min(0).max(100),
+    longevityScore: tokenInt.min(0).max(100),
+    compositeScore: tokenInt.min(0).max(100),
+    resonanceReason: z.string().max(500),
+    totalViews: tokenInt.min(0).optional(),
+    highlightKeywords: z.array(z.string().max(60)).max(20).default([]),
+  })
+  .strict();
+export type MatrixScoreBreakdown = z.infer<typeof MatrixScoreBreakdownSchema>;
+
 export const NormalizedAdSchema = z
   .object({
     adId: z.string().regex(/^(meta|tiktok|google)_[A-Za-z0-9_-]{1,200}$/),
@@ -80,6 +93,9 @@ export const NormalizedAdSchema = z
     lastSeenDate: isoDate,
     activeDaysCount: tokenInt.min(1),
     winningScore: tokenInt.min(0).max(100),
+    totalViews: tokenInt.min(0).optional(),
+    highlightKeywords: z.array(z.string().max(60)).max(20).default([]),
+    matrixScore: MatrixScoreBreakdownSchema.optional(),
   })
   .strict();
 export type NormalizedAd = z.infer<typeof NormalizedAdSchema>;
@@ -96,6 +112,7 @@ export const BrandProfileInputSchema = z
     uniqueMechanismOrOffer: safeText(1, 1000),
     toneOfVoice: ToneOfVoiceSchema,
     destinationUrl: httpsUrl,
+    landingPageUrls: z.array(httpsUrl).max(50).default([]),
   })
   .strict();
 export const BrandIdSchema = z.string().regex(/^[A-Za-z0-9]{1,128}$/);
@@ -156,7 +173,9 @@ export type RemixDoc = z.infer<typeof RemixDocSchema>;
 
 // ---------- 5. API Request Payloads ----------
 /** "Proven winners" are ads that have been running for at least this many days. */
-export const PROVEN_WINNER_DAYS = 30;
+export const PROVEN_WINNER_DAYS = 28;
+export const EXTENDED_WINNER_DAYS = 60;
+export const ELITE_SCORE_THRESHOLD = 90;
 
 export const MediaFilterSchema = z.enum(["ALL", "VIDEO", "IMAGE"]);
 export type MediaFilter = z.infer<typeof MediaFilterSchema>;
@@ -167,7 +186,10 @@ export const RadarSearchRequestSchema = z
     query: safeText(2, 100),
     country: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/),
     mediaType: MediaFilterSchema,
-    provenWinnersOnly: z.boolean().default(false),
+    provenWinnersOnly: z.boolean().default(true),
+    extendedLongevity: z.boolean().default(false),
+    eliteWinnersOnly: z.boolean().default(false),
+    brandId: z.string().trim().max(128).default(""),
   })
   .strict();
 export type RadarSearchRequest = z.infer<typeof RadarSearchRequestSchema>;
@@ -242,3 +264,103 @@ export const ErrorCodeSchema = z.enum([
   "INTERNAL",
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
+
+// ---------- 6. Super Admin & System Config ----------
+export const ServiceCostsSchema = z
+  .object({
+    searchStandard: tokenInt.min(0),
+    searchExtendedDays: tokenInt.min(0),
+    searchEliteScore: tokenInt.min(0),
+    aiRemix: tokenInt.min(0),
+  })
+  .strict();
+export type ServiceCosts = z.infer<typeof ServiceCostsSchema>;
+
+export const SystemConfigSchema = z
+  .object({
+    isTokenSystemEnabled: z.boolean(),
+    isAudEnabled: z.boolean(),
+    isUsdEnabled: z.boolean(),
+    serviceCosts: ServiceCostsSchema,
+    updatedAt: isoDate,
+  })
+  .strict();
+export type SystemConfig = z.infer<typeof SystemConfigSchema>;
+
+// ---------- 7. Redistributive Ledger & Equity Partners ----------
+export const EquityPartnerSchema = z
+  .object({
+    partnerId: z.string().min(1).max(64),
+    name: z.string().trim().min(1).max(100),
+    email: z.string().trim().toLowerCase().email().max(254),
+    percentage: z.number().min(0.01).max(100),
+    notes: z.string().trim().max(500).default(""),
+    status: z.enum(["active", "inactive"]).default("active"),
+    createdAt: isoDate,
+  })
+  .strict();
+export type EquityPartner = z.infer<typeof EquityPartnerSchema>;
+
+export const StripePurchaseRecordSchema = z
+  .object({
+    purchaseId: z.string().min(1).max(128),
+    uid: z.string().min(1).max(128),
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
+    packId: z.string().min(1).max(64),
+    tokens: tokenInt.positive(),
+    amountCents: z.number().int().nonnegative(),
+    currency: z.string().trim().toLowerCase().min(3).max(4).default("aud"),
+    createdAt: isoDate,
+  })
+  .strict();
+export type StripePurchaseRecord = z.infer<typeof StripePurchaseRecordSchema>;
+
+export const PartnerDistributionSchema = z
+  .object({
+    partnerId: z.string(),
+    name: z.string(),
+    email: z.string(),
+    percentage: z.number(),
+    ownedTokens: tokenInt,
+    ownedCents: z.number().int(),
+    status: z.enum(["active", "inactive"]),
+  })
+  .strict();
+export type PartnerDistribution = z.infer<typeof PartnerDistributionSchema>;
+
+export const RedistributiveLedgerSummarySchema = z
+  .object({
+    totalTokens: tokenInt,
+    totalGrossCents: z.number().int(),
+    totalPurchasesCount: z.number().int(),
+    allocatedPercentage: z.number(),
+    treasuryPercentage: z.number(),
+    treasuryTokens: tokenInt,
+    treasuryCents: z.number().int(),
+    distributions: z.array(PartnerDistributionSchema),
+  })
+  .strict();
+export type RedistributiveLedgerSummary = z.infer<typeof RedistributiveLedgerSummarySchema>;
+
+// ---------- 8. Admin Messaging (7-Year Plain Text Retention) ----------
+export const AdminMessageSchema = z
+  .object({
+    messageId: z.string().min(1).max(128),
+    uid: z.string().min(1).max(128),
+    senderEmail: z.string().trim().toLowerCase().email().max(254),
+    subject: z.string().trim().min(1).max(150),
+    body: z.string().trim().min(1).max(2000), // strictly plain text only, no attachments
+    status: z.enum(["unread", "read", "archived"]).default("unread"),
+    createdAt: isoDate,
+    retentionUntil: isoDate, // strictly 7 years from createdAt for statutory compliance
+  })
+  .strict();
+export type AdminMessage = z.infer<typeof AdminMessageSchema>;
+
+export const CreateAdminMessageRequestSchema = z
+  .object({
+    subject: z.string().trim().min(1, "Subject is required").max(150),
+    body: z.string().trim().min(1, "Message text is required").max(2000),
+  })
+  .strict();
+export type CreateAdminMessageRequest = z.infer<typeof CreateAdminMessageRequestSchema>;

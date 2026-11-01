@@ -37,7 +37,10 @@ export async function createBrand(
       throw new ApiError("INVALID_INPUT", `You can keep up to ${MAX_BRANDS_PER_USER} brands`, 409);
     }
 
-    const brand: BrandProfile = { brandId: ref.id, ...input };
+    const landingPageUrls =
+      input.landingPageUrls && input.landingPageUrls.length > 0 ? input.landingPageUrls : [input.destinationUrl];
+    const destinationUrl = input.destinationUrl || landingPageUrls[0];
+    const brand: BrandProfile = { brandId: ref.id, ...input, destinationUrl, landingPageUrls };
     t.create(ref, brand);
     if (!userSnap.get("activeBrandId")) {
       t.update(userRef(caller.uid), { activeBrandId: ref.id, updatedAt: new Date().toISOString() });
@@ -49,11 +52,15 @@ export async function createBrand(
 /** Full replace of an existing brand (PUT semantics). */
 export async function updateBrand(uid: string, brand: BrandProfile): Promise<BrandProfile> {
   const ref = brandsCol(uid).doc(brand.brandId);
+  const landingPageUrls =
+    brand.landingPageUrls && brand.landingPageUrls.length > 0 ? brand.landingPageUrls : [brand.destinationUrl];
+  const destinationUrl = brand.destinationUrl || landingPageUrls[0];
+  const normalizedBrand: BrandProfile = { ...brand, destinationUrl, landingPageUrls };
   await db.runTransaction(async (t) => {
     if (!(await t.get(ref)).exists) throw notFound(brand.brandId);
-    t.set(ref, brand);
+    t.set(ref, normalizedBrand);
   });
-  return brand;
+  return normalizedBrand;
 }
 
 /** Deletes a brand and clears it from `activeBrandId` if it was selected. */
@@ -67,6 +74,13 @@ export async function deleteBrand(uid: string, brandId: string): Promise<void> {
       t.update(userRef(uid), { activeBrandId: "", updatedAt: new Date().toISOString() });
     }
   });
+}
+
+/** Fetches a single brand profile by ID for a user. */
+export async function getBrand(uid: string, brandId: string): Promise<BrandProfile | null> {
+  if (!brandId) return null;
+  const snap = await brandsCol(uid).doc(brandId).get();
+  return snap.exists ? (snap.data() as BrandProfile) : null;
 }
 
 /** Selects the brand used by Radar and Studio. `""` clears the selection. */

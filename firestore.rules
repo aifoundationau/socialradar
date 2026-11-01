@@ -38,6 +38,20 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Admin messages: sender user can read their own message, admin can read all.
+    // Mutations are server-only via Firebase Admin SDK (plain text & 7-year retention enforcement).
+    match /admin_messages/{messageId} {
+      allow read: if signedIn() && (resource.data.uid == request.auth.uid || request.auth.token.role == 'admin');
+      allow write: if false;
+    }
+
+    // Stripe purchase records: admin-only read for redistributive ledger tracking.
+    // Mutations are server-only via Firebase Admin SDK webhook processing.
+    match /stripe_purchases/{purchaseId} {
+      allow read: if signedIn() && request.auth.token.role == 'admin';
+      allow write: if false;
+    }
+
     // normalized_ads/* and radar_cache/* are server-only: clients reach them through
     // the token-gated /api routes, so direct reads would bypass the ledger.
     match /{document=**} {

@@ -51,3 +51,8 @@ next-env.d.ts
 safetyprotocols.txt
 *-service-account*.json
 
+# sync / duplicate conflicts
+* (1).*
+*(1).*
+
+

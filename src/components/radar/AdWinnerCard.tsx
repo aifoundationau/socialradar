@@ -1,124 +1,171 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import Image from "next/image";
 import { PROVEN_WINNER_DAYS, type NormalizedAd } from "@/lib/contracts";
 import { Icon } from "@/components/ui/Icon";
-import { MEDIA_LABELS, PLATFORMS, formatDay } from "./options";
+import { MEDIA_LABELS, PLATFORMS } from "./options";
 
-const isYouTube = (url: string) => /^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//.test(url);
-const hostname = (url: string) => {
+function formatDay(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "–";
+  return d.toLocaleDateString("en-AU", { month: "short", day: "numeric" });
+}
+
+function hostname(url: string) {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
   } catch {
-    return url;
+    return "";
   }
-};
+}
 
-const playButton =
-  "flex size-9 items-center justify-center rounded-full bg-white/90 text-surface-container-lowest transition-transform hover:scale-110 sm:size-7";
+function formatViews(views: number): string {
+  if (views >= 1_000_000) return `${(views / 1_000_000).toFixed(1)}M`;
+  if (views >= 1_000) return `${Math.round(views / 1_000)}K`;
+  return views.toLocaleString("en-AU");
+}
 
-/** Poster first; the native <video> element (and its download) only exists once the user taps play. */
-function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
-  const [playing, setPlaying] = useState(false);
-  const [imageFailed, setImageFailed] = useState(false);
-  const video = ad.mediaType === "VIDEO" ? ad.mediaUrls[0] : undefined;
-  const hook = ad.headline || ad.primaryCopy;
+function HighlightedText({ text, keywords }: { text: string; keywords: string[] }) {
+  if (!keywords || keywords.length === 0 || !text) {
+    return <span>{text}</span>;
+  }
+
+  const escaped = keywords
+    .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .filter(Boolean)
+    .join("|");
+  if (!escaped) return <span>{text}</span>;
+
+  const regex = new RegExp(`(${escaped})`, "gi");
+  const parts = text.split(regex);
 
   return (
-    <div className="group relative aspect-[4/5] overflow-hidden rounded-lg border border-white/[0.06] bg-gradient-to-br from-surface-container-high via-surface-container-low to-surface-container-lowest sm:aspect-[9/13] lg:aspect-[9/14]">
-      {playing && video ? (
-        <video
-          src={video}
-          poster={ad.thumbnailUrl || undefined}
-          controls
-          autoPlay
-          playsInline
-          preload="none"
-          className="size-full bg-black object-contain"
+    <span>
+      {parts.map((part, i) => {
+        const isMatch = keywords.some((k) => k.toLowerCase() === part.toLowerCase());
+        return isMatch ? (
+          <mark
+            key={i}
+            className="rounded bg-primary/25 px-1 font-semibold text-primary not-italic"
+          >
+            {part}
+          </mark>
+        ) : (
+          part
+        );
+      })}
+    </span>
+  );
+}
+
+function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
+  const [playing, setPlaying] = useState(false);
+  const [errored, setErrored] = useState(false);
+  const video = useRef<HTMLVideoElement>(null);
+
+  const isVideo = ad.mediaType === "VIDEO" && Boolean(ad.mediaUrls[0]);
+  const isImage = (ad.mediaType === "IMAGE" || ad.mediaType === "CAROUSEL") && Boolean(ad.mediaUrls[0] || ad.thumbnailUrl);
+  const isText = ad.mediaType === "TEXT" || (!isVideo && !isImage);
+  const topRank = rank <= 3;
+
+  function toggle() {
+    if (!video.current) return;
+    if (playing) {
+      video.current.pause();
+      setPlaying(false);
+    } else {
+      video.current.play().then(() => setPlaying(true)).catch(() => setErrored(true));
+    }
+  }
+
+  return (
+    <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-surface-container-lowest">
+      {topRank && (
+        <span
+          data-testid="ad-winner-badge"
+          className="absolute top-2 left-2 z-10 flex items-center gap-1 rounded bg-secondary px-2 py-0.5 font-mono text-mono-label font-bold text-on-secondary shadow-md"
+        >
+          <Icon name="flame" className="size-3" />
+          Top #{rank}
+        </span>
+      )}
+
+      {isVideo && !errored ? (
+        <>
+          <video
+            ref={video}
+            src={ad.mediaUrls[0]}
+            poster={ad.thumbnailUrl || undefined}
+            playsInline
+            loop
+            muted
+            preload="metadata"
+            onEnded={() => setPlaying(false)}
+            onError={() => setErrored(true)}
+            className="size-full object-contain bg-black"
+          />
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label={playing ? "Pause ad video" : "Play ad video"}
+            className="group absolute inset-0 flex items-center justify-center bg-black/25 transition hover:bg-black/40 focus:outline-none"
+          >
+            <span className="flex size-11 items-center justify-center rounded-full bg-surface-container-lowest/85 text-on-surface shadow-lg backdrop-blur-sm transition group-hover:scale-105 group-hover:bg-primary group-hover:text-on-primary">
+              <Icon name={playing ? "play" : "play"} className={`size-5 ${playing ? "opacity-75" : "translate-x-0.5"}`} />
+            </span>
+          </button>
+        </>
+      ) : isImage && !errored ? (
+        <Image
+          src={ad.mediaUrls[0] || ad.thumbnailUrl}
+          alt={ad.headline || ad.advertiserName || "Ad creative"}
+          fill
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          className="object-cover"
+          onError={() => setErrored(true)}
         />
       ) : (
-        <>
-          {ad.thumbnailUrl && !imageFailed ? (
-            // eslint-disable-next-line @next/next/no-img-element -- creatives come from many ad-library CDNs
-            <img
-              src={ad.thumbnailUrl}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              referrerPolicy="no-referrer"
-              onError={() => setImageFailed(true)}
-              className="size-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105"
-            />
-          ) : (
-            <div className="flex size-full flex-col items-center justify-center gap-2 text-outline">
-              <Icon name={ad.mediaType === "VIDEO" ? "film" : ad.mediaType === "TEXT" ? "search" : "image"} className="size-8" />
-              <span className="font-mono text-mono-label uppercase">
-                {ad.platform === "GOOGLE" && !ad.headline
-                  ? "Creative loads when modelled"
-                  : ad.mediaType === "TEXT"
-                    ? "Search text ad"
-                    : "Preview unavailable"}
-              </span>
-            </div>
-          )}
-
-          {rank <= 3 && (
-            <span className="absolute top-2.5 left-2.5 flex items-center gap-1.5 rounded border border-hot/30 bg-surface-container-lowest/80 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-hot uppercase backdrop-blur-md">
-              <span className="size-1.5 rounded-full bg-hot motion-safe:animate-ping" />
-              #{rank} winner
-            </span>
-          )}
-          <span className="absolute top-2.5 right-2.5 rounded bg-surface-container-lowest/80 px-2 py-0.5 font-mono text-[11px] text-on-surface backdrop-blur-md">
-            {MEDIA_LABELS[ad.mediaType]}
+        <div className="flex size-full flex-col items-center justify-center gap-1.5 p-4 text-center">
+          <span className="flex size-10 items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant">
+            <Icon name={isText ? "layers" : "film"} />
           </span>
-
-          {hook && (
-            <div className="absolute inset-x-3 bottom-14 rounded-lg border border-white/10 bg-surface-container-lowest/85 p-2.5 backdrop-blur-md">
-              <p className="mb-0.5 flex items-center gap-1 font-mono text-[10px] font-bold text-hot-soft uppercase">
-                <Icon name="alert" className="size-3" />
-                {ad.headline ? "Headline" : "Opening line"}
-              </p>
-              <p className="line-clamp-3 text-[13px] leading-snug font-semibold text-white">“{hook}”</p>
-            </div>
-          )}
-
-          <div className="absolute inset-x-0 bottom-0 flex h-12 items-center justify-between gap-2 bg-gradient-to-t from-surface-container-lowest via-surface-container-lowest/80 to-transparent px-3">
-            {video ? (
-              isYouTube(video) ? (
-                <a href={video} target="_blank" rel="noopener noreferrer" aria-label="Watch on YouTube" className={playButton}>
-                  <Icon name="play" className="size-4" />
-                </a>
-              ) : (
-                <button type="button" onClick={() => setPlaying(true)} aria-label="Play video" className={playButton}>
-                  <Icon name="play" className="size-4" />
-                </button>
-              )
-            ) : (
-              <span />
-            )}
-            <span className="font-mono text-[10px] text-on-surface-variant">
-              {formatDay(ad.firstSeenDate)} – {formatDay(ad.lastSeenDate)}
-            </span>
-          </div>
-        </>
+          <p className="font-mono text-[11px] text-outline">
+            {isText ? "Search text ad · creative shown on Google" : "Creative unavailable upstream"}
+          </p>
+          <span className="font-mono text-[10px] text-outline-variant">
+            {formatDay(ad.firstSeenDate)} – {formatDay(ad.lastSeenDate)}
+          </span>
+        </div>
       )}
     </div>
   );
 }
 
-function Metric({ label, value, sub, tone, divided }: { label: string; value: string | number; sub: string; tone: string; divided?: boolean }) {
+function Metric({
+  label,
+  value,
+  sub,
+  tone,
+  divided,
+}: {
+  label: string;
+  value: string | number;
+  sub: string;
+  tone: string;
+  divided?: boolean;
+}) {
   return (
     <div className={`flex flex-col ${divided ? "border-x border-white/[0.06]" : ""}`}>
       <dt className="text-[10px] text-outline uppercase">{label}</dt>
-      <dd className={`text-[15px] font-bold ${tone}`}>{value}</dd>
-      <dd className="text-[10px] text-outline">{sub}</dd>
+      <dd className={`text-[14px] font-bold ${tone}`}>{value}</dd>
+      <dd className="text-[10px] text-outline truncate px-0.5">{sub}</dd>
     </div>
   );
 }
 
 /**
- * One search result: longevity badge, lazy video, expandable copy and the "Model this ad" trigger.
- * `rank` is the position by raw winning score (the server's order); the top 3 get a badge.
+ * One search result: longevity badge, total views metric, highlight keywords, expandable copy and the "Model this ad" trigger.
  */
 export function AdWinnerCard({
   ad,
@@ -134,6 +181,8 @@ export function AdWinnerCard({
   const [expanded, setExpanded] = useState(false);
   const platform = PLATFORMS[ad.platform];
   const proven = ad.activeDaysCount >= PROVEN_WINNER_DAYS;
+  const views = ad.totalViews ?? ad.matrixScore?.totalViews ?? 0;
+  const keywords = ad.matrixScore?.highlightKeywords ?? ad.highlightKeywords ?? [];
 
   return (
     <article
@@ -153,7 +202,9 @@ export function AdWinnerCard({
         <header className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-1.5">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className={`rounded border px-2 py-0.5 font-mono text-[10px] font-semibold ${platform.chip}`}>{platform.label}</span>
+              <span className={`rounded border px-2 py-0.5 font-mono text-[10px] font-semibold ${platform.chip}`}>
+                {platform.label}
+              </span>
               <span className="rounded bg-surface-container-highest px-1.5 py-0.5 font-mono text-[10px] text-on-surface-variant">
                 {ad.countryCode}
               </span>
@@ -164,16 +215,18 @@ export function AdWinnerCard({
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
             <span
-              className={`flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] font-bold whitespace-nowrap ${
+              className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] font-medium ${
                 proven
-                  ? "border-winner/40 bg-winner/15 text-winner-soft shadow-[0_0_8px_rgba(16,185,129,0.2)]"
+                  ? "border-winner-soft/30 bg-winner-soft/10 text-winner-soft"
                   : "border-white/10 bg-surface-container-highest text-on-surface-variant"
               }`}
             >
               <Icon name="flame" className="size-3" />
               Active {ad.activeDaysCount}d
             </span>
-            <span className="font-mono text-[11px] text-secondary">Score {ad.winningScore}</span>
+            <span className="font-mono text-[11px] font-semibold text-secondary">
+              Matrix {ad.matrixScore ? ad.matrixScore.compositeScore : ad.winningScore}
+            </span>
           </div>
         </header>
 
@@ -186,7 +239,9 @@ export function AdWinnerCard({
               {ad.ctaText && <span className="truncate text-secondary">CTA · {ad.ctaText}</span>}
             </div>
             {ad.primaryCopy && (
-              <p className={`text-compact whitespace-pre-line text-on-surface ${expanded ? "" : "line-clamp-2"}`}>{ad.primaryCopy}</p>
+              <p className={`text-compact whitespace-pre-line text-on-surface ${expanded ? "" : "line-clamp-2"}`}>
+                <HighlightedText text={ad.primaryCopy} keywords={keywords} />
+              </p>
             )}
             {ad.primaryCopy.length > 110 && (
               <button
@@ -212,11 +267,69 @@ export function AdWinnerCard({
           </div>
         )}
 
-        <dl className="grid grid-cols-3 rounded-lg border border-white/[0.06] bg-surface-container-lowest py-2 text-center font-mono">
+        {/* 4-Metric Grid with Total Views */}
+        <dl className="grid grid-cols-4 rounded-lg border border-white/[0.06] bg-surface-container-lowest py-2 text-center font-mono">
           <Metric label="Days live" value={ad.activeDaysCount} sub={`since ${formatDay(ad.firstSeenDate)}`} tone="text-winner-soft" />
           <Metric label="Win score" value={ad.winningScore} sub="of 100" tone="text-on-surface" divided />
-          <Metric label="Format" value={MEDIA_LABELS[ad.mediaType]} sub={platform.label} tone="text-secondary" />
+          <Metric label="Est. views" value={formatViews(views)} sub="reach" tone="text-primary" divided />
+          <Metric label="Format" value={MEDIA_LABELS[ad.mediaType]} sub={platform.label} tone="text-secondary" divided />
         </dl>
+
+        {ad.matrixScore && (
+          <div
+            data-testid={`matrix-score-box-${ad.adId}`}
+            className="rounded-lg border border-primary-container/30 bg-primary-container/10 p-2.5 space-y-2"
+          >
+            <div className="flex items-center justify-between font-mono text-[11px]">
+              <span className="font-bold flex items-center gap-1.5 text-primary">
+                <Icon name="radar" className="size-3.5" />
+                Matrix Match: {ad.matrixScore.compositeScore}/100
+              </span>
+              <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                Authentic
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-1 pt-1 text-center font-mono text-[10px] border-t border-white/[0.08]">
+              <div>
+                <span className="text-outline block uppercase text-[9px]">Brand Fit</span>
+                <span className="font-bold text-on-surface">{ad.matrixScore.brandFitScore}%</span>
+              </div>
+              <div className="border-x border-white/[0.08]">
+                <span className="text-outline block uppercase text-[9px]">Hook Power</span>
+                <span className="font-bold text-secondary">{ad.matrixScore.hookStrengthScore}%</span>
+              </div>
+              <div>
+                <span className="text-outline block uppercase text-[9px]">Scale & Reach</span>
+                <span className="font-bold text-winner-soft">{ad.matrixScore.longevityScore}%</span>
+              </div>
+            </div>
+
+            {/* Highlighted Keywords Badges */}
+            {keywords.length > 0 && (
+              <div className="pt-1.5 border-t border-white/[0.06] space-y-1">
+                <span className="font-mono text-[9px] uppercase tracking-wider text-outline block">
+                  Resonant Keywords
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {keywords.map((kw, i) => (
+                    <span
+                      key={i}
+                      className="rounded bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-primary ring-1 ring-primary/20"
+                    >
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {ad.matrixScore.resonanceReason && (
+              <p className="text-[11px] leading-tight text-on-surface-variant font-sans pt-1 border-t border-white/[0.06]">
+                {ad.matrixScore.resonanceReason}
+              </p>
+            )}
+          </div>
+        )}
 
         <button
           type="button"

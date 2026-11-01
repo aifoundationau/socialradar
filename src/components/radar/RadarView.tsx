@@ -27,6 +27,9 @@ const DEFAULT_FILTERS: RadarFilters = {
   country: "AU",
   mediaType: "ALL",
   provenWinnersOnly: true,
+  extendedLongevity: false,
+  eliteWinnersOnly: false,
+  brandId: "",
 };
 const EXAMPLES = ["skincare", "protein powder", "pet food", "meal kit", "running shoes"];
 /** Results per page: a 3 × 3 grid on desktop. */
@@ -144,6 +147,8 @@ export function RadarView() {
     }
   }, [uid, filters, searched, result, selectedAdId, remixes]);
 
+  const selectedBrandId = filters.brandId || activeBrand?.brandId || brands?.[0]?.brandId || "";
+
   const ads = useMemo(() => (result ? [...result.ads].sort(SORTERS[sort]) : []), [result, sort]);
   // The server returns ads ranked by raw winning score, which the capped 0-100 score can't show.
   const ranks = useMemo(() => new Map(result?.ads.map((ad, i) => [ad.adId, i + 1])), [result]);
@@ -164,9 +169,11 @@ export function RadarView() {
     setSearching(true);
     setSearchError(null);
     try {
-      const res = await apiFetch<RadarSearchResponse>("/api/radar/search", { body: next });
+      const effectiveBrandId = next.brandId || selectedBrandId;
+      const searchPayload = { ...next, brandId: effectiveBrandId };
+      const res = await apiFetch<RadarSearchResponse>("/api/radar/search", { body: searchPayload });
       setResult(res);
-      setSearched(next);
+      setSearched(searchPayload);
       setSelectedAdId(res.ads[0]?.adId ?? null);
       setPage(0);
     } catch (err) {
@@ -215,7 +222,7 @@ export function RadarView() {
     <div className="relative">
       <AmbientGlow />
       <RadarFilterBar
-        filters={filters}
+        filters={{ ...filters, brandId: selectedBrandId }}
         onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
         onSearch={() => search()}
         searching={searching}
@@ -225,6 +232,7 @@ export function RadarView() {
           setPage(0);
         }}
         summary={result ? { total: result.ads.length, winners } : null}
+        brands={brands}
       />
 
       <div className="relative mx-auto w-full max-w-[1600px] space-y-5 px-3 py-5 sm:space-y-6 sm:px-6 sm:py-6">
@@ -252,7 +260,8 @@ export function RadarView() {
               </h1>
               <p className="font-mono text-mono-code text-on-surface-variant">
                 {PLATFORMS[searched.platform].library} · {searched.country}
-                {searched.provenWinnersOnly && ` · ${PROVEN_WINNER_DAYS}+ days`} · {result.cached ? "cached" : "fetched"}{" "}
+                {searched.extendedLongevity ? " · 60+ days" : searched.provenWinnersOnly ? ` · ${PROVEN_WINNER_DAYS}+ days` : ""}
+                {searched.eliteWinnersOnly ? " · 90%+ match" : ""} · {result.cached ? "cached" : "fetched"}{" "}
                 {new Date(result.fetchedAt).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" })}
                 {pageCount > 1 && ` · showing ${pageStart + 1}–${pageStart + pageAds.length}`}
               </p>

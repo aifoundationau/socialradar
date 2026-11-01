@@ -1,11 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore, type FormEvent } from "react";
-import { PROVEN_WINNER_DAYS, type RadarSearchRequest } from "@/lib/contracts";
-import { ACTION_COSTS, costLabel } from "@/lib/pricing";
+import {
+  PROVEN_WINNER_DAYS,
+  EXTENDED_WINNER_DAYS,
+  ELITE_SCORE_THRESHOLD,
+  type BrandProfile,
+  type RadarSearchRequest,
+} from "@/lib/contracts";
+import {
+  SERVICE_SURCHARGES,
+  calculateSearchCost,
+  formatTokenEstimateHover,
+} from "@/lib/pricing";
 import { CostTag } from "@/components/ui/CostTag";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { btnPrimary } from "@/components/ui/styles";
+import { useSession } from "@/components/auth/SessionProvider";
 import { COUNTRIES, MEDIA_FILTERS, PLATFORMS, PLATFORM_ORDER, SORTS, type SortKey } from "./options";
 
 export type RadarFilters = RadarSearchRequest;
@@ -51,6 +62,43 @@ function SelectPill<T extends string>({
  * search, "Proven winners" switch, country, format and sort. Searching costs tokens, so filters
  * apply when the user presses Search; sorting is instant and free.
  */
+function BrandSelectPill({
+  brands,
+  selectedBrandId,
+  onChange,
+}: {
+  brands?: BrandProfile[] | null;
+  selectedBrandId: string;
+  onChange: (brandId: string) => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center">
+      <label htmlFor="radar-brand-select" className="sr-only">Target Brand</label>
+      <div className="relative flex items-center">
+        <Icon name="tag" className="pointer-events-none absolute left-2.5 size-3.5 text-primary" />
+        <select
+          id="radar-brand-select"
+          data-testid="radar-brand-select"
+          data-agent-id="radar-brand-select"
+          value={selectedBrandId}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-10 appearance-none rounded-lg border border-white/[0.12] bg-surface-container pr-7 pl-8 font-mono text-base font-medium text-on-surface transition hover:border-primary-container focus:border-primary-container focus:outline-none sm:h-9 sm:text-mono-code"
+        >
+          {brands && brands.length > 0 ? (
+            brands.map((b) => (
+              <option key={b.brandId} value={b.brandId}>
+                Brand: {b.brandName}
+              </option>
+            ))
+          ) : (
+            <option value="">No brand selected</option>
+          )}
+        </select>
+        <Icon name="chevronDown" className="pointer-events-none absolute right-2 size-3.5 text-on-surface-variant" />
+      </div>
+    </div>
+  );
+}
 export function RadarFilterBar({
   filters,
   onChange,
@@ -59,6 +107,7 @@ export function RadarFilterBar({
   sort,
   onSort,
   summary,
+  brands,
 }: {
   filters: RadarFilters;
   onChange: (patch: Partial<RadarFilters>) => void;
@@ -67,9 +116,12 @@ export function RadarFilterBar({
   sort: SortKey;
   onSort: (sort: SortKey) => void;
   summary: { total: number; winners: number } | null;
+  brands?: BrandProfile[] | null;
 }) {
+  const { isAdmin } = useSession();
   const input = useRef<HTMLInputElement>(null);
   const apple = useSyncExternalStore(noSubscribe, isApple, () => false);
+  const totalCost = calculateSearchCost(filters);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -96,8 +148,15 @@ export function RadarFilterBar({
     >
       <form role="search" onSubmit={submit} className="mx-auto flex w-full max-w-[1600px] flex-col gap-3 px-3 py-3 sm:px-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          {/* Search first on phones, centre stage on desktop */}
-          <div className="flex gap-2 lg:order-2 lg:max-w-2xl lg:flex-1">
+          {/* Brand selector */}
+          <div className="flex shrink-0 items-center lg:order-1">
+            <BrandSelectPill
+              brands={brands}
+              selectedBrandId={filters.brandId || ""}
+              onChange={(brandId) => onChange({ brandId })}
+            />
+          </div>
+                    <div className="flex gap-2 lg:order-2 lg:max-w-2xl lg:flex-1">
             <div className="relative min-w-0 flex-1">
               <Icon name="search" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-on-surface-variant" />
               <input
@@ -119,7 +178,7 @@ export function RadarFilterBar({
               type="submit"
               className={`${btnPrimary} shrink-0`}
               disabled={searching}
-              aria-label={ACTION_COSTS.RADAR_SEARCH ? `Search (${costLabel("RADAR_SEARCH")})` : "Search"}
+              aria-label={isAdmin ? "Search (0 tokens • Superadmin Free)" : totalCost > 0 ? `Search (${totalCost} tokens)` : "Search (Free)"}
             >
               {searching ? (
                 <span className="size-4 animate-spin rounded-full border-2 border-on-primary/30 border-t-on-primary" />
@@ -127,7 +186,23 @@ export function RadarFilterBar({
                 <Icon name="search" />
               )}
               <span className="hidden sm:inline">Search</span>
-              <CostTag action="RADAR_SEARCH" />
+              {isAdmin ? (
+                <span
+                  title="Superadmin Token Exemption: 0 tokens"
+                  className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary"
+                >
+                  0 tokens (Admin)
+                </span>
+              ) : totalCost > 0 ? (
+                <span
+                  title={formatTokenEstimateHover(totalCost)}
+                  className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary"
+                >
+                  {totalCost} {totalCost === 1 ? "token" : "tokens"}
+                </span>
+              ) : (
+                <CostTag action="RADAR_SEARCH" />
+              )}
             </button>
           </div>
 
@@ -156,29 +231,86 @@ export function RadarFilterBar({
             </div>
           </div>
 
-          <button
-            type="button"
-            role="switch"
-            aria-checked={filters.provenWinnersOnly}
-            onClick={() => onChange({ provenWinnersOnly: !filters.provenWinnersOnly })}
-            className="flex items-center gap-3 self-start text-left lg:order-3 lg:ml-auto lg:self-auto"
-          >
-            <span
-              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors sm:h-5 sm:w-10 ${
-                filters.provenWinnersOnly ? "bg-winner shadow-[0_0_14px_rgba(16,185,129,0.55)]" : "bg-surface-container-high"
-              }`}
+          <div className="flex flex-wrap items-center gap-2.5 self-start lg:order-3 lg:ml-auto lg:self-auto">
+            {/* 1. Default 28+ days switch */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={filters.provenWinnersOnly}
+              data-testid="radar-proven-winners-toggle"
+              data-agent-id="radar-proven-winners-toggle"
+              onClick={() => onChange({ provenWinnersOnly: !filters.provenWinnersOnly })}
+              className="flex items-center gap-2.5 text-left"
             >
               <span
-                className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-white transition-transform sm:size-4 ${
-                  filters.provenWinnersOnly ? "translate-x-5" : ""
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors sm:h-5 sm:w-10 ${
+                  filters.provenWinnersOnly ? "bg-winner shadow-[0_0_14px_rgba(16,185,129,0.55)]" : "bg-surface-container-high"
                 }`}
-              />
-            </span>
-            <span className="flex flex-col">
-              <span className="text-body font-semibold text-on-surface">Proven winners only</span>
-              <span className="font-mono text-[10px] text-winner-soft">Active {PROVEN_WINNER_DAYS}+ days</span>
-            </span>
-          </button>
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-white transition-transform sm:size-4 ${
+                    filters.provenWinnersOnly ? "translate-x-5" : ""
+                  }`}
+                />
+              </span>
+              <span className="flex flex-col">
+                <span className="text-body font-semibold text-on-surface">Proven winners</span>
+                <span className="font-mono text-[10px] text-winner-soft">Active {PROVEN_WINNER_DAYS}+ days</span>
+              </span>
+            </button>
+
+            {/* 2. Extended 60+ days toggle */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={filters.extendedLongevity}
+              data-testid="radar-extended-days-toggle"
+              data-agent-id="radar-extended-days-toggle"
+              onClick={() => onChange({ extendedLongevity: !filters.extendedLongevity })}
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
+                filters.extendedLongevity
+                  ? "border-secondary/50 bg-secondary/15 text-on-surface shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+                  : "border-white/[0.08] bg-surface-container-low text-on-surface-variant hover:border-white/20"
+              }`}
+            >
+              <Icon name="layers" className="size-3.5 text-secondary" />
+              <div className="flex flex-col text-left">
+                <span className="text-compact font-medium text-on-surface">Extended ({EXTENDED_WINNER_DAYS}+d)</span>
+              </div>
+              <span
+                title={formatTokenEstimateHover(SERVICE_SURCHARGES.EXTENDED_DAYS)}
+                className="ml-1 rounded bg-secondary/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-secondary"
+              >
+                +{SERVICE_SURCHARGES.EXTENDED_DAYS}
+              </span>
+            </button>
+
+            {/* 3. Top Winners (90%+ Score) toggle */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={filters.eliteWinnersOnly}
+              data-testid="radar-elite-score-toggle"
+              data-agent-id="radar-elite-score-toggle"
+              onClick={() => onChange({ eliteWinnersOnly: !filters.eliteWinnersOnly })}
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
+                filters.eliteWinnersOnly
+                  ? "border-hot/50 bg-hot/15 text-on-surface shadow-[0_0_12px_rgba(239,68,68,0.2)]"
+                  : "border-white/[0.08] bg-surface-container-low text-on-surface-variant hover:border-white/20"
+              }`}
+            >
+              <Icon name="flame" className="size-3.5 text-hot" />
+              <div className="flex flex-col text-left">
+                <span className="text-compact font-medium text-on-surface">Top Winners ({ELITE_SCORE_THRESHOLD}%+)</span>
+              </div>
+              <span
+                title={formatTokenEstimateHover(SERVICE_SURCHARGES.ELITE_SCORE)}
+                className="ml-1 rounded bg-hot/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-hot"
+              >
+                +{SERVICE_SURCHARGES.ELITE_SCORE}
+              </span>
+            </button>
+          </div>
         </div>
 
         <div className="-mx-3 flex items-center gap-2 overflow-x-auto border-t border-white/[0.04] px-3 pt-3 no-scrollbar sm:mx-0 sm:flex-wrap sm:px-0">

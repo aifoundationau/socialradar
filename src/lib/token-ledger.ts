@@ -223,6 +223,7 @@ export async function withTokenGate(
   action: ChargeableAction,
   referenceId: string | ((caller: VerifiedCaller) => string),
   handler: (ctx: GateContext) => Promise<Response>,
+  customCost?: number,
 ): Promise<Response> {
   let charged: LedgerResult | null = null;
   try {
@@ -230,15 +231,20 @@ export async function withTokenGate(
     const key = requireIdempotencyKey(req);
     const ref = typeof referenceId === "function" ? referenceId(caller) : referenceId;
 
-    if (ACTION_COSTS[action] === 0) {
-      // Free action: nothing to charge, refund or replay.
+    // Superadmin Token Exemption: Superadmin pays 0 tokens for any action on the platform
+    const isSuperadmin = caller.claims.role === "admin";
+    const rawCost = customCost !== undefined ? customCost : ACTION_COSTS[action];
+    const effectiveCost = isSuperadmin ? 0 : rawCost;
+
+    if (effectiveCost === 0) {
+      // Free action or superadmin exemption: nothing to charge, refund or replay.
       const balance = toInt(Number((await usersCol().doc(caller.uid).get()).get("tokenBalance") ?? 0));
       return await handler({ caller, txId: buildTxId(caller.uid, key), balanceAfter: balance, replayed: false });
     }
 
     charged = await deductTokens({
       uid: caller.uid,
-      cost: ACTION_COSTS[action],
+      cost: effectiveCost,
       type: action,
       referenceId: ref,
       txId: buildTxId(caller.uid, key),

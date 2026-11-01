@@ -68,6 +68,11 @@ The webhook credits `tokens` to `uid` with `txId = referenceId = <Checkout Sessi
 
 A cost of `0` makes the action free: the caller must still be signed in and send an idempotency key, but nothing is written to the ledger and no balance check is made.
 
+### Superadmin Token Exemption Rule
+- If the authenticated caller has custom claim `{ "role": "admin" }` (Superadmin), the effective token cost for **all actions** (`RADAR_SEARCH`, extended longevity filters, elite winner filters, and `AI_REMIX`) is strictly **0 tokens**.
+- Superadmin pays **no tokens** under any circumstance.
+- Superadmin incurs zero balance deductions and is never blocked by insufficient token balances.
+
 ## 2. Normalized Ad Contract (`normalized_ads/{adId}`)
 
 | Field | Type | Rules |
@@ -88,6 +93,9 @@ A cost of `0` makes the action free: the caller must still be signed in and send
 | `lastSeenDate` | ISO-8601 | |
 | `activeDaysCount` | integer | `>= 1` |
 | `winningScore` | integer | `0–100` |
+| `totalViews` | integer | optional, `>= 0` (total verified views or velocity-derived impressions) |
+| `highlightKeywords` | string[] | max 20, resonant keywords overlapping brand profile |
+| `matrixScore` | object | optional `{ brandFitScore, hookStrengthScore, longevityScore, compositeScore, resonanceReason, totalViews, highlightKeywords }` |
 
 - **Winning score:** `raw = activeDaysCount × 2.5 + duplicateCreativeCount × 10` (duplicates = Meta `collation_count − 1`, 0 elsewhere). Results are sorted by `raw` descending; the stored value is `min(100, round(raw))`.
 - **countryCode** is the searched country, or `EU` when TikTok (whose library only covers Europe) was searched for a country outside it.
@@ -114,7 +122,8 @@ A cost of `0` makes the action free: the caller must still be signed in and send
 | `corePainPoints` | string[] | 1–10 items, each 1–300 |
 | `uniqueMechanismOrOffer` | string | 1–1000 |
 | `toneOfVoice` | enum | `"DIRECT_RESPONSE" \| "AUTHORITATIVE" \| "UGC_CASUAL" \| "URGENT"` |
-| `destinationUrl` | string | https URL |
+| `destinationUrl` | string | https URL (primary landing page) |
+| `landingPageUrls` | string[] | array of https URLs, max 50 (defaults to `[destinationUrl]`) |
 
 ## 4. AI Deconstruction & Remix Contract (`remixes/{remixId}`)
 
@@ -135,9 +144,9 @@ A cost of `0` makes the action free: the caller must still be signed in and send
 
 ### `POST /api/radar/search`
 ```json
-{ "platform": "META|TIKTOK|GOOGLE", "query": "string 2-100", "country": "AU", "mediaType": "ALL|VIDEO|IMAGE", "provenWinnersOnly": false }
+{ "platform": "META|TIKTOK|GOOGLE", "query": "string 2-100", "country": "AU", "mediaType": "ALL|VIDEO|IMAGE", "provenWinnersOnly": true, "extendedLongevity": false, "eliteWinnersOnly": false, "brandId": "string" }
 ```
-Requires `x-idempotency-key`; the body is validated before any charge. `provenWinnersOnly` keeps ads with `activeDaysCount >= 30`. Engines: Meta `meta_ad_library` (active ads); TikTok `tiktok_ads_library` (sorted by reach); Google `google_ads_transparency_center` (Search, YouTube and Display). Google is searched by advertiser: a query that isn't a domain goes through `..._advertiser_search` (the whole query, then its longest word; a matching domain is used when no advertiser matches). Credits per search: Meta 1, TikTok 1, Google by domain 1, Google by keyword 2 (3 when the whole phrase matches nothing), cache hits 0. Google results carry no creative or copy; `/api/radar/remix` fetches `..._ad_details` once (1 credit) and saves it to `normalized_ads`. The cache key includes a version that is bumped whenever normalization changes.
+Requires `x-idempotency-key`; the body is validated before any charge. `provenWinnersOnly` keeps ads with `activeDaysCount >= 28` (default). `extendedLongevity` filters for `activeDaysCount >= 60`. `eliteWinnersOnly` filters for `compositeScore >= 90`. Engines: Meta `meta_ad_library` (active ads); TikTok `tiktok_ads_library` (sorted by reach); Google `google_ads_transparency_center` (Search, YouTube and Display). Google is searched by advertiser: a query that isn't a domain goes through `..._advertiser_search` (the whole query, then its longest word; a matching domain is used when no advertiser matches). Credits per search: Meta 1, TikTok 1, Google by domain 1, Google by keyword 2 (3 when the whole phrase matches nothing), cache hits 0. Google results carry no creative or copy; `/api/radar/remix` fetches `..._ad_details` once (1 credit) and saves it to `normalized_ads`. The cache key includes a version that is bumped whenever normalization changes.
 Returns `{ ads: NormalizedAd[], unfilteredCount, cached, queryHash, fetchedAt, notice, balanceAfter }` (`unfilteredCount` = ads before the proven-winners filter). The UI shows 9 per page.
 
 ### `POST /api/radar/remix`
@@ -165,3 +174,54 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 ```json
 { "error": { "code": "UNAUTHENTICATED|FORBIDDEN|NOT_FOUND|INVALID_INPUT|INSUFFICIENT_TOKENS|UPSTREAM_FAILURE|INTERNAL", "message": "string" } }
 ```
+
+## 6. Redistributive Ledger & Equity Partners
+
+### `EquityPartner` (`system_config/global.equityPartners` or `equity_partners/{partnerId}`)
+| Field | Type | Rules |
+|---|---|---|
+| `partnerId` | string | Unique partner identifier |
+| `name` | string | Partner name, max 100 |
+| `email` | string | Partner email, RFC format |
+| `percentage` | number | Percentage share (0.01 - 100), total across all active partners <= 100% |
+| `notes` | string | Optional description or account reference, max 500 |
+| `status` | enum | `"active" | "inactive"` |
+| `createdAt` | ISO-8601 | |
+
+### `StripePurchaseRecord` (`stripe_purchases/{purchaseId}`)
+| Field | Type | Rules |
+|---|---|---|
+| `purchaseId` | string | Stripe Checkout Session id |
+| `uid` | string | Buyer User ID |
+| `email` | string | Optional buyer email |
+| `packId` | string | Token pack id purchased |
+| `tokens` | integer | Tokens purchased (positive integer) |
+| `amountCents` | integer | Amount paid in cents (AUD/USD) |
+| `currency` | string | `"aud" | "usd"` |
+| `createdAt` | ISO-8601 | |
+
+### Redistributive Calculation Rules
+- **Total Revenue Pool**: Sum of `amountCents` across all recorded Stripe purchases.
+- **Total Tokens Pool**: Sum of `tokens` across all recorded Stripe purchases.
+- **Partner Entitlement**:
+  - `ownedTokens = Math.round(totalTokens * (percentage / 100))` (Strict integer)
+  - `ownedCents = Math.round(totalGrossCents * (percentage / 100))`
+- **Treasury Retained**: `100% - sum(active partners percentage)`.
+
+## 7. Admin Messaging (7-Year Plain Text Retention)
+
+### `AdminMessage` (`admin_messages/{messageId}`)
+| Field | Type | Rules |
+|---|---|---|
+| `messageId` | string | Unique message identifier |
+| `uid` | string | Sender user ID |
+| `senderEmail` | string | Sender email |
+| `subject` | string | Message subject, max 150 chars |
+| `body` | string | Plain text message body, max 2000 chars. **STRICTLY NO ATTACHMENTS OR FILES ALLOWED**. |
+| `status` | enum | `"unread" | "read" | "archived"` |
+| `createdAt` | ISO-8601 | Date message sent |
+| `retentionUntil` | ISO-8601 | **Strict 7-year statutory compliance date** (`createdAt + 7 years`). Messages are preserved for 7 years in database backup. |
+
+### `POST /api/contact`
+Body: `{ "subject": "string (1-150)", "body": "string (1-2000)" }`.
+Requires authenticated user. Strips HTML, validates plain text only, rejects file payloads, sets `retentionUntil = now + 7 years`.

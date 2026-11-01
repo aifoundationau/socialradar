@@ -15,6 +15,8 @@ export interface Session {
   /** Live `users/{uid}/brands`, sorted by name; null until the first snapshot arrives. */
   brands: BrandProfile[] | null;
   activeBrand: BrandProfile | null;
+  isAdmin: boolean;
+  claims: Record<string, unknown> | null;
   error: string | null;
 }
 
@@ -29,6 +31,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Owned<UserDoc | null> | null>(null);
   const [brands, setBrands] = useState<Owned<BrandProfile[]> | null>(null);
   const [error, setError] = useState<Owned<string> | null>(null);
+  const [claims, setClaims] = useState<Owned<Record<string, unknown>> | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const currentUid = user.uid;
+    user.getIdTokenResult().then((res) => {
+      setClaims({ uid: currentUid, value: res.claims || {} });
+    }).catch(() => {
+      setClaims({ uid: currentUid, value: {} });
+    });
+  }, [user]);
+
+  const myClaims = user && claims?.uid === user.uid ? claims.value : null;
+  const isAdmin = myClaims?.role === "admin";
 
   useEffect(() => onAuthStateChanged(clientAuth(), setUser), []);
 
@@ -70,9 +86,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       profile: myProfile,
       brands: myBrands,
       activeBrand: myBrands?.find((b) => b.brandId === myProfile?.activeBrandId) ?? null,
+      isAdmin,
+      claims: myClaims,
       error: mine(error),
     };
-  }, [uid, user, profile, brands, error]);
+  }, [uid, user, profile, brands, error, isAdmin, myClaims]);
 
   return <SessionContext value={session}>{children}</SessionContext>;
 }

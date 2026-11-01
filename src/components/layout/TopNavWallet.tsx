@@ -9,6 +9,8 @@ import { Icon } from "@/components/ui/Icon";
 import { Logo } from "@/components/ui/Logo";
 import { monoLabel } from "@/components/ui/styles";
 import { NAV, isActivePath } from "./nav";
+import { SuperAdminModal } from "@/components/admin/SuperAdminModal";
+import { ContactAdminModal } from "@/components/contact/ContactAdminModal";
 
 function NavItems({ pathname }: { pathname: string | null }) {
   return NAV.map(({ href, label }) => {
@@ -124,6 +126,8 @@ function TokenPill() {
 function AccountMenu() {
   const { user } = useSession();
   const menu = useRef<HTMLDivElement>(null);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isContactOpen, setIsContactOpen] = useState(false);
   const initial = user?.email?.[0]?.toUpperCase();
 
   return (
@@ -132,6 +136,7 @@ function AccountMenu() {
         type="button"
         popoverTarget="account-menu"
         aria-label="Account menu"
+        data-testid="account-menu-button"
         className="flex size-10 items-center justify-center rounded-full bg-primary text-on-primary transition-colors hover:bg-primary-fixed sm:size-8"
       >
         {initial ? <span className="text-body font-semibold">{initial}</span> : <Icon name="user" />}
@@ -150,6 +155,32 @@ function AccountMenu() {
           <p className={monoLabel}>Active brand</p>
           <BrandSwitcher />
         </div>
+        <div className="border-b border-white/[0.08] p-1.5 space-y-0.5">
+          <button
+            type="button"
+            onClick={() => {
+              menu.current?.hidePopover();
+              setIsAdminOpen(true);
+            }}
+            data-testid="open-superadmin-button"
+            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-primary transition-colors hover:bg-primary-container/20 sm:min-h-10"
+          >
+            <Icon name="sliders" className="size-4" />
+            Super Admin Panel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              menu.current?.hidePopover();
+              setIsContactOpen(true);
+            }}
+            data-testid="open-contact-button"
+            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-on-surface-variant transition-colors hover:bg-white/[0.04] hover:text-on-surface sm:min-h-10"
+          >
+            <Icon name="sparkles" className="size-4" />
+            Message Super Admin
+          </button>
+        </div>
         <button
           type="button"
           onClick={() => {
@@ -162,6 +193,9 @@ function AccountMenu() {
           Sign out
         </button>
       </div>
+
+      <SuperAdminModal isOpen={isAdminOpen} onClose={() => setIsAdminOpen(false)} />
+      <ContactAdminModal isOpen={isContactOpen} onClose={() => setIsContactOpen(false)} />
     </>
   );
 }

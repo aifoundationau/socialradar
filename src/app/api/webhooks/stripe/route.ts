@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { creditTokens } from "@/lib/token-ledger";
+import { recordStripePurchase } from "@/lib/admin";
 import { jsonError } from "@/lib/api";
 import { TopupMetadataSchema } from "@/lib/contracts";
 import { getStripe } from "@/lib/stripe";
@@ -52,6 +53,19 @@ export async function POST(req: Request) {
       txId: session.id,
       stripeCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id,
     });
+
+    // Record to immutable redistributive purchase ledger
+    await recordStripePurchase({
+      purchaseId: session.id,
+      uid: meta.data.uid,
+      email: session.customer_details?.email ?? undefined,
+      packId: meta.data.packId,
+      tokens: meta.data.tokens,
+      amountCents: session.amount_total ?? 0,
+      currency: session.currency ?? "aud",
+      createdAt: new Date().toISOString(),
+    });
+
     return NextResponse.json({ received: true, credited: !result.replayed, balanceAfter: result.balanceAfter });
   } catch (err) {
     console.error("[stripe-webhook] credit failed; Stripe will retry", session.id, err);

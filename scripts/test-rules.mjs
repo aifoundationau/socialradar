@@ -9,6 +9,7 @@ const token = execSync("gcloud auth print-access-token", { encoding: "utf8" }).t
 const P = (p) => `/databases/ad-radar/documents/${p}`;
 const U = { uid: "userA", token: { email: "a@example.com" } };
 const V = { uid: "userB", token: { email: "b@example.com" } };
+const Admin = { uid: "adminUser", token: { email: "admin@example.com", role: "admin" } };
 const ownedByA = { data: { uid: "userA" } };
 
 const cases = [
@@ -25,6 +26,15 @@ const cases = [
   ["ledger: create", "DENY", { auth: U, path: P("token_transactions/tx2"), method: "create" }],
   ["own remix: get", "ALLOW", { auth: U, path: P("remixes/r1"), method: "get" }, ownedByA],
   ["other user's remix: get", "DENY", { auth: V, path: P("remixes/r1"), method: "get" }, ownedByA],
+  ["own admin message: get", "ALLOW", { auth: U, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
+  ["other user's admin message: get", "DENY", { auth: V, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
+  ["admin: get admin message", "ALLOW", { auth: Admin, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
+  ["signed out: get admin message", "DENY", { path: P("admin_messages/msg1"), method: "get" }, ownedByA],
+  ["admin message: create", "DENY", { auth: U, path: P("admin_messages/msg2"), method: "create" }],
+  ["stripe purchase: get as non-admin", "DENY", { auth: U, path: P("stripe_purchases/sp1"), method: "get" }, ownedByA],
+  ["stripe purchase: get as admin", "ALLOW", { auth: Admin, path: P("stripe_purchases/sp1"), method: "get" }, ownedByA],
+  ["signed out: get stripe purchase", "DENY", { path: P("stripe_purchases/sp1"), method: "get" }, ownedByA],
+  ["stripe purchase: create", "DENY", { auth: U, path: P("stripe_purchases/sp2"), method: "create" }],
   ["normalized_ads: get (token-gated)", "DENY", { auth: U, path: P("normalized_ads/meta_1"), method: "get" }],
   ["radar_cache: get (token-gated)", "DENY", { auth: U, path: P("radar_cache/abc"), method: "get" }],
   ["unknown collection: get", "DENY", { auth: U, path: P("anything/x"), method: "get" }],
