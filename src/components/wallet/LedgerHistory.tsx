@@ -11,6 +11,7 @@ const TYPE_LABELS: Record<TokenTxType, string> = {
   RADAR_SEARCH: "Radar search",
   AI_REMIX: "AI remix",
   REFUND: "Refund",
+  BRAND_CLONE: "Global brand copy",
 };
 
 const HISTORY_LIMIT = 50;

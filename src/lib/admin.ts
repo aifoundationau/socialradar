@@ -40,6 +40,7 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
     searchExtendedDays: 1,
     searchEliteScore: 2,
     aiRemix: 0,
+    brandClone: 5,
   },
   tokenPacks: [
     { id: "PACK_10", name: "Quick Pack (10)", tokens: TOKEN_PACKS.PACK_10.tokens, priceCents: TOKEN_PACKS.PACK_10.priceCents, enabled: true },

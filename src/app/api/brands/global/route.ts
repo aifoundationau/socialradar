@@ -3,6 +3,7 @@ import { verifyRequest } from "@/lib/firebase-admin";
 import { errorResponse } from "@/lib/api";
 import { searchGlobalBrands } from "@/lib/brands";
 import { GlobalBrandSearchQuerySchema } from "@/lib/contracts";
+import { getSystemConfig } from "@/lib/admin";
 
 export async function GET(req: Request) {
   try {
@@ -13,12 +14,25 @@ export async function GET(req: Request) {
       tone: searchParams.get("tone") ?? undefined,
       limit: searchParams.get("limit") ? parseInt(searchParams.get("limit")!, 10) : 50,
     });
-    const brands = await searchGlobalBrands({
-      query: parsed.q,
-      tone: parsed.tone,
-      limit: parsed.limit,
+
+    const [brands, config] = await Promise.all([
+      searchGlobalBrands({
+        query: parsed.q,
+        tone: parsed.tone,
+        limit: parsed.limit,
+      }),
+      getSystemConfig(),
+    ]);
+
+    const brandCloneFee = config.isTokenSystemEnabled
+      ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 5))
+      : 0;
+
+    return NextResponse.json({
+      brands,
+      brandCloneFee,
+      audCentsPerToken: config.audCentsPerToken ?? 100,
     });
-    return NextResponse.json({ brands });
   } catch (err) {
     return errorResponse(err);
   }

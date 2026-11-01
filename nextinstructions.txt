@@ -1,19 +1,24 @@
 # Next Instructions for Social Radar (ad-radar)
 
 ## Current Status (November 1, 2026)
-1. **Personal & Global Brands System with Version Duplication:**
-   - **Personal Brand Cards by Default**: Owned and scoped to `users/{uid}/brands/{brandId}`.
-   - **Version Duplication**: Dedicated "Duplicate" button on every personal card to rapidly fork new versions (e.g., "Brand X - Winter Campaign" / "Brand X (v2)") with all pain points, landing pages, and tone preserved.
-   - **Global Community Sharing**: 1-click "Make Global" / "Make Private" toggle syncing to `global_brands/{brandId}`.
-   - **Global Brand Library**: Searchable directory with keyword search and tone-of-voice filters.
-   - **Make a Copy for Myself (Instant Clone)**: 1-click "Make a copy for myself" button on any community brand card, automatically cloning it into the user's personal account for independent editing and AI remixing.
-   - **Security Rules Verified & Deployed**: Subagent authored and tested rules for `global_brands` (`40/40` test cases passed) and deployed to Cloud Firestore.
-   - **Data Contracts Documented**: `data-contracts.md` updated with `isGlobal`, `version`, `authorUid`, `authorEmail`, `clonedFromBrandId`, and clone/duplicate schemas.
-2. **All Verifications Passing:**
-   - `npm run test:rules` (40/40 passed).
+1. **Global Brand Card Copy Token Fee (Customizable via Service Pricing):**
+   - Added `brandClone` to `ServiceCosts` in `contracts.ts`, `DEFAULT_CONFIG` in `admin.ts`, and `ACTION_COSTS` in `pricing.ts`. Default is 5 tokens.
+   - Integrated into SuperAdmin Control Panel Tab 2 (Service Pricing):
+     - Interactive card with `+` / `-` steppers, integer validation, AU/NZ AUD price hover, and international USD price hover.
+     - Included in "Set All Free" (0 tok) and "Standard Paid Rates" (5 tok) quick preset buttons.
+   - Atomic token deduction via `withTokenGate` on `POST /api/brands/clone`:
+     - Checks user balance, deducts tokens atomically, and writes an immutable `BRAND_CLONE` record to `token_transactions`.
+     - Superadmin exemption rule strictly enforced (0 tokens charged for superadmin).
+     - Returns `INSUFFICIENT_TOKENS` error if user balance is too low.
+   - Display on Global Brand Library card:
+     - Shows token badge (`⚡ {cloneFee} tok`) on the "Make a copy for myself" button.
+     - Strictly shows converted AUD/USD price on hover via `formatTokenEstimateHover`.
+     - Displays live copy fee banner in the library toolbar and on the wallet token packs comparison.
+2. **All Tests & Verifications Passing:**
+   - `npm run test:rules` (40/40 tests passing).
    - `npx tsc --noEmit` (0 errors).
    - `npm run build` (Next.js 16.4.3 Turbopack build succeeded).
 
 ## Next Priority Actions
-1. Have user test creating a brand, duplicating it to a new version, toggling it to Global, and inspecting the Global Brand Library at http://localhost:3001/brands.
-2. Proceed to next feature or instruction from user.
+1. Have user test copying a global brand card and customize the token fee in SuperAdmin > Service Pricing at http://localhost:3001.
+2. Await next user directive.

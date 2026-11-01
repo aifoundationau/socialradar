@@ -56,6 +56,7 @@ interface ServiceCosts {
   searchExtendedDays: number;
   searchEliteScore: number;
   aiRemix: number;
+  brandClone?: number;
 }
 
 interface TokenPackItem {
@@ -947,6 +948,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                               searchExtendedDays: 0,
                               searchEliteScore: 0,
                               aiRemix: 0,
+                              brandClone: 0,
                             },
                           })
                         }
@@ -965,6 +967,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                               searchExtendedDays: 1,
                               searchEliteScore: 2,
                               aiRemix: 5,
+                              brandClone: 5,
                             },
                           })
                         }
@@ -996,6 +999,11 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                         key: "aiRemix" as const,
                         label: "AI Creative Remix Studio",
                         desc: "Gemini multimodal creative deconstruction, 3 hook variants & storyboard",
+                      },
+                      {
+                        key: "brandClone" as const,
+                        label: "Global Brand Card Copy",
+                        desc: "Token fee to copy a community brand card from the Global Library into personal account",
                       },
                     ].map(({ key, label: serviceLabel, desc }) => {
                       const tok = config.serviceCosts[key] ?? 0;

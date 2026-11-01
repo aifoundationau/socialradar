@@ -48,7 +48,7 @@ export const UserDocSchema = z
   .strict();
 export type UserDoc = z.infer<typeof UserDocSchema>;
 
-export const TokenTxTypeSchema = z.enum(["TOPUP", "RADAR_SEARCH", "AI_REMIX", "REFUND"]);
+export const TokenTxTypeSchema = z.enum(["TOPUP", "RADAR_SEARCH", "AI_REMIX", "REFUND", "BRAND_CLONE"]);
 export type TokenTxType = z.infer<typeof TokenTxTypeSchema>;
 
 export const TokenTransactionDocSchema = z
@@ -321,6 +321,7 @@ export const ServiceCostsSchema = z
     searchExtendedDays: tokenInt.min(0),
     searchEliteScore: tokenInt.min(0),
     aiRemix: tokenInt.min(0),
+    brandClone: tokenInt.min(0).default(5),
   })
   .strict();
 export type ServiceCosts = z.infer<typeof ServiceCostsSchema>;

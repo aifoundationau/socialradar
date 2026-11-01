@@ -47,16 +47,16 @@
 |---|---|---|
 | `txId` | string | idempotency key / deterministic id |
 | `uid` | string | |
-| `type` | enum | `"TOPUP" \| "RADAR_SEARCH" \| "AI_REMIX" \| "REFUND"` |
+| `type` | enum | `"TOPUP" \| "RADAR_SEARCH" \| "AI_REMIX" \| "REFUND" \| "BRAND_CLONE"` |
 | `delta` | integer | non-zero (e.g. `-2`, `-5`, `+100`) |
 | `balanceAfter` | integer | `>= 0` |
-| `referenceId` | string | queryHash, adId, stripeSessionId, or refunded txId; max 256 |
+| `referenceId` | string | queryHash, adId, stripeSessionId, globalBrandId, or refunded txId; max 256 |
 | `createdAt` | ISO-8601 | |
 
 ### Token packs (server constants, `src/lib/pricing.ts`)
 One-off Stripe Checkout purchases. Tokens never expire.
 - **Default Currency & Base Rate:** The default platform currency is **AUD** (`aud`), and the default token price is **1 Token = AUD $1.00** (`100 cents AUD`, stored in `audCentsPerToken`).
-- **SuperAdmin Customization:** From the SuperAdmin Control Panel (`system_config/global`), both `audCentsPerToken` and the token amounts for each product and service (`serviceCosts`: `searchStandard`, `searchExtendedDays`, `searchEliteScore`, `aiRemix`) are fully customizable.
+- **SuperAdmin Customization:** From the SuperAdmin Control Panel (`system_config/global`), both `audCentsPerToken` and the token amounts for each product and service (`serviceCosts`: `searchStandard`, `searchExtendedDays`, `searchEliteScore`, `aiRemix`, `brandClone`) are fully customizable.
 - **Australian Invoicing:** All invoices and Stripe Checkout settlements are strictly issued and billed in Australian Dollars (**AUD**).
 - **Geolocation & International Currency Conversion:**
   - If geolocation is in Australia or New Zealand (`AU` or `NZ`), users strictly see **AUD** prices (`A$1.00 AUD` per token) with no currency conversion display.

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/styles";
 import { TONE_LABELS } from "./BrandForm";
 import { BrandSlideOver } from "./BrandSlideOver";
+import { formatTokenEstimateHover } from "@/lib/pricing";
 
 type SlideOverState =
   | { isOpen: false }
@@ -25,7 +26,7 @@ type SlideOverState =
 type BrandsTab = "personal" | "global";
 
 export function BrandsManager() {
-  const { brands, profile } = useSession();
+  const { brands, profile, isAdmin } = useSession();
   const [activeTab, setActiveTab] = useState<BrandsTab>("personal");
   const [slideOver, setSlideOver] = useState<SlideOverState>({ isOpen: false });
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -39,6 +40,8 @@ export function BrandsManager() {
   // Global Brands Library State
   const [globalBrands, setGlobalBrands] = useState<BrandProfile[] | null>(null);
   const [globalLoading, setGlobalLoading] = useState(false);
+  const [cloneFee, setCloneFee] = useState<number>(5);
+  const [audRate, setAudRate] = useState<number>(100);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTone, setSelectedTone] = useState<string>("ALL");
   const [cloningId, setCloningId] = useState<string | null>(null);
@@ -115,8 +118,14 @@ export function BrandsManager() {
       const params = new URLSearchParams();
       if (q.trim()) params.set("q", q.trim());
       if (tone && tone !== "ALL") params.set("tone", tone);
-      const res = await apiFetch<{ brands: BrandProfile[] }>(`/api/brands/global?${params.toString()}`);
+      const res = await apiFetch<{
+        brands: BrandProfile[];
+        brandCloneFee?: number;
+        audCentsPerToken?: number;
+      }>(`/api/brands/global?${params.toString()}`);
       setGlobalBrands(res.brands);
+      if (typeof res.brandCloneFee === "number") setCloneFee(res.brandCloneFee);
+      if (typeof res.audCentsPerToken === "number") setAudRate(res.audCentsPerToken);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -125,6 +134,15 @@ export function BrandsManager() {
   }
 
   async function handleCloneGlobalBrand(globalBrand: BrandProfile) {
+    const isSuperAdmin = Boolean(isAdmin);
+    const balance = profile?.tokenBalance ?? 0;
+    if (!isSuperAdmin && cloneFee > 0 && balance < cloneFee) {
+      setError(
+        `Insufficient tokens: copying a global brand card requires ${cloneFee} tokens (your balance: ${balance} tokens). Please top up in your Wallet.`
+      );
+      return;
+    }
+
     setCloningId(globalBrand.brandId);
     setError(null);
     setSuccessMsg(null);
@@ -133,7 +151,11 @@ export function BrandsManager() {
         method: "POST",
         body: { globalBrandId: globalBrand.brandId },
       });
-      setSuccessMsg(`Successfully copied "${globalBrand.brandName}" into your My Brands!`);
+      setSuccessMsg(
+        `Successfully copied "${globalBrand.brandName}" into your personal brands${
+          cloneFee > 0 && !isSuperAdmin ? ` (-${cloneFee} tokens)` : ""
+        }!`
+      );
       setActiveTab("personal");
     } catch (err) {
       setError(errorMessage(err));
@@ -743,19 +765,43 @@ export function BrandsManager() {
                     )}
 
                     {/* Copy to My Brands Button */}
-                    <div className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between">
-                      <span className="text-[11px] text-on-surface-variant font-mono">
-                        Instant personal clone
-                      </span>
+                    <div className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 font-mono text-[11px] text-on-surface-variant">
+                        <span>Fee:</span>
+                        {cloneFee > 0 ? (
+                          <span
+                            title={formatTokenEstimateHover(cloneFee, false, audRate)}
+                            className="cursor-help font-bold text-primary flex items-center gap-0.5"
+                          >
+                            <Icon name="zap" className="size-3" />
+                            {cloneFee} {cloneFee === 1 ? "tok" : "tokens"}
+                          </span>
+                        ) : (
+                          <span className="font-bold text-winner-soft">Free</span>
+                        )}
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleCloneGlobalBrand(gb)}
                         disabled={isCloning}
-                        className={`${btnPrimary} py-1.5 px-3 text-xs`}
+                        title={cloneFee === 0 ? "Free to copy" : formatTokenEstimateHover(cloneFee, false, audRate)}
+                        className={`${btnPrimary} py-1.5 px-3 text-xs flex items-center gap-1.5 cursor-pointer`}
                         data-testid={`clone-global-brand-${gb.brandId}`}
                       >
                         <Icon name="copy" className="size-3.5" />
-                        {isCloning ? "Copying…" : "Make a copy for myself"}
+                        {isCloning ? (
+                          "Copying…"
+                        ) : (
+                          <>
+                            <span>Make a copy for myself</span>
+                            {cloneFee > 0 && (
+                              <span className="ml-1 rounded-full bg-black/30 px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary flex items-center gap-0.5">
+                                <Icon name="zap" className="size-2.5" />
+                                {cloneFee}
+                              </span>
+                            )}
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
