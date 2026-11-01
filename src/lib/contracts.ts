@@ -23,7 +23,7 @@ export const tokenInt = z.number().int();
 export const idempotencyKey = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/);
 
 // ---------- 1. UserAuth & Token Ledger ----------
-export const RoleSchema = z.enum(["admin", "superadmin", "supporter", "user"]);
+export const RoleSchema = z.enum(["admin", "superadmin", "moderator", "agency", "supporter", "user"]);
 export const TierSchema = z.enum(["supporter", "starter", "growth", "agency"]);
 export const CustomClaimsSchema = z
   .object({
@@ -376,3 +376,73 @@ export const CreateAdminMessageRequestSchema = z
   })
   .strict();
 export type CreateAdminMessageRequest = z.infer<typeof CreateAdminMessageRequestSchema>;
+
+// ---------- 9. Role-Based Access Control (RBAC) Matrix ----------
+export const RbacPermissionSchema = z.enum([
+  "view_analytics",
+  "manage_config",
+  "manage_ledger",
+  "flush_cache",
+  "manage_messages",
+  "manage_rbac",
+  "manage_users",
+  "search_radar",
+  "ai_remix",
+  "manage_brands",
+]);
+export type RbacPermission = z.infer<typeof RbacPermissionSchema>;
+
+export const RBAC_PERMISSIONS_LIST: RbacPermission[] = [
+  "view_analytics",
+  "manage_config",
+  "manage_ledger",
+  "flush_cache",
+  "manage_messages",
+  "manage_rbac",
+  "manage_users",
+  "search_radar",
+  "ai_remix",
+  "manage_brands",
+];
+
+export const RBAC_ROLES_LIST = [
+  "superadmin",
+  "admin",
+  "moderator",
+  "agency",
+  "supporter",
+] as const;
+export type RbacRole = (typeof RBAC_ROLES_LIST)[number];
+
+export const RbacMatrixSchema = z.record(
+  z.string(),
+  z.array(RbacPermissionSchema)
+);
+export type RbacMatrix = Record<RbacRole, RbacPermission[]>;
+
+export const RbacConfigDocSchema = z
+  .object({
+    matrix: RbacMatrixSchema,
+    updatedAt: isoDate,
+    updatedBy: z.string().max(254),
+  })
+  .strict();
+export type RbacConfigDoc = z.infer<typeof RbacConfigDocSchema>;
+
+export const UpdateRolePermissionsRequestSchema = z
+  .object({
+    action: z.literal("UPDATE_ROLE_PERMISSIONS"),
+    role: z.enum(["admin", "moderator", "agency", "supporter"]),
+    permissions: z.array(RbacPermissionSchema),
+  })
+  .strict();
+export type UpdateRolePermissionsRequest = z.infer<typeof UpdateRolePermissionsRequestSchema>;
+
+export const AssignUserRoleRequestSchema = z
+  .object({
+    action: z.literal("ASSIGN_USER_ROLE"),
+    email: z.string().trim().toLowerCase().email().max(254),
+    role: z.enum(["admin", "moderator", "agency", "supporter"]),
+  })
+  .strict();
+export type AssignUserRoleRequest = z.infer<typeof AssignUserRoleRequestSchema>;

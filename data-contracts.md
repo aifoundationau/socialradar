@@ -242,3 +242,38 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 ### `POST /api/contact`
 Body: `{ "subject": "string (1-150)", "body": "string (1-2000)" }`.
 Requires authenticated user. Strips HTML, validates plain text only, rejects file payloads, sets `retentionUntil = now + 7 years`.
+
+## 8. Role-Based Access Control (RBAC) Matrix (`system_config/rbac`)
+
+### System Roles
+- `superadmin`: Permanent Firebase database admin email (`davidrobertson.info@gmail.com` / `support@aifoundation.net.au`). Cannot be demoted or edited. Permanently holds all permissions.
+- `admin`: Co-administrator with delegated management access.
+- `moderator`: Operational manager (messages, analytics, cache inspection).
+- `agency`: Advanced agency tier (multiple brands, elite searches).
+- `supporter`: Default baseline tier for all authenticated users.
+
+### Permissions List
+- `view_analytics`: View global search and remix metrics
+- `manage_config`: Adjust token packs, pricing, and system currencies
+- `manage_ledger`: Modify redistributive equity ledger & partners
+- `flush_cache`: Flush radar cache and temporary indexes
+- `manage_messages`: Read, update, and archive compliance messages
+- `manage_rbac`: Modify the RBAC matrix and assign user roles
+- `manage_users`: Inspect registered users and adjust token balances
+- `search_radar`: Execute Meta ad library intelligence searches
+- `ai_remix`: Generate AI remixes using Gemini 2.5 Flash
+- `manage_brands`: Create and manage brand profiles
+
+### `RbacConfigDoc` (`system_config/rbac`)
+| Field | Type | Rules |
+|---|---|---|
+| `matrix` | object | Mapping of role to array of granted `RbacPermission` |
+| `updatedAt` | ISO-8601 | Last updated timestamp |
+| `updatedBy` | string | Email of superadmin who made the change |
+
+### API Endpoints
+- `GET /api/admin/rbac`: Requires `superadmin` role. Returns matrix, all permissions, roles, and user list.
+- `PUT /api/admin/rbac`: Requires `superadmin` role.
+  - Action `UPDATE_ROLE_PERMISSIONS`: `{ "action": "UPDATE_ROLE_PERMISSIONS", "role": "admin"|"moderator"|"agency"|"supporter", "permissions": RbacPermission[] }`
+  - Action `ASSIGN_USER_ROLE`: `{ "action": "ASSIGN_USER_ROLE", "email": "valid-email", "role": "admin"|"moderator"|"agency"|"supporter" }`
+

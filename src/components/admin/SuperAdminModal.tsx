@@ -9,9 +9,13 @@ import { formatAud, formatPrice, formatTokenEstimateHover, formatUsd } from "@/l
 import type {
   AdminMessage,
   EquityPartner,
+  RbacMatrix,
+  RbacPermission,
+  RbacRole,
   RedistributiveLedgerSummary,
   StripePurchaseRecord,
 } from "@/lib/contracts";
+import { RBAC_PERMISSIONS_LIST, RBAC_ROLES_LIST } from "@/lib/contracts";
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -21,6 +25,30 @@ function useIsClient() {
     () => false
   );
 }
+
+interface RbacUserItem {
+  uid: string;
+  email: string;
+  displayName?: string;
+  photoUrl?: string;
+  role: RbacRole;
+  tier: string;
+  createdAt: string;
+  isPermanentSuperAdmin: boolean;
+}
+
+const PERMISSION_METADATA: Record<RbacPermission, { label: string; desc: string }> = {
+  view_analytics: { label: "View Analytics", desc: "Access global usage and search metrics" },
+  manage_config: { label: "System Config", desc: "Adjust pricing, token packs, and currencies" },
+  manage_ledger: { label: "Redistributive Ledger", desc: "Manage equity partners and token allocations" },
+  flush_cache: { label: "Flush Cache", desc: "Flush radar search cache and index keys" },
+  manage_messages: { label: "Manage Messages", desc: "Read and manage 7-year user compliance messages" },
+  manage_rbac: { label: "Manage RBAC", desc: "Configure role permissions matrix and assign roles" },
+  manage_users: { label: "Manage Users", desc: "Inspect registered accounts and adjust token balances" },
+  search_radar: { label: "Search Ad Radar", desc: "Perform Meta ad library intelligence searches" },
+  ai_remix: { label: "AI Remix Studio", desc: "Generate generative ad variations using Gemini" },
+  manage_brands: { label: "Manage Brands", desc: "Create, edit, and select brand profiles" },
+};
 
 interface ServiceCosts {
   searchStandard: number;
@@ -52,7 +80,7 @@ interface SuperAdminModalProps {
   onClose: () => void;
 }
 
-type TabKey = "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "DEV";
+type TabKey = "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "DEV";
 
 export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
   const isClient = useIsClient();
@@ -62,6 +90,15 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
   const [recentPurchases, setRecentPurchases] = useState<StripePurchaseRecord[]>([]);
   const [adminMessages, setAdminMessages] = useState<AdminMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<AdminMessage | null>(null);
+
+  // RBAC Matrix & Role Assignment state
+  const [rbacMatrix, setRbacMatrix] = useState<RbacMatrix | null>(null);
+  const [rbacUsers, setRbacUsers] = useState<RbacUserItem[]>([]);
+  const [rbacLoading, setRbacLoading] = useState(false);
+  const [rbacSaving, setRbacSaving] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [quickAssignEmail, setQuickAssignEmail] = useState("");
+  const [quickAssignRole, setQuickAssignRole] = useState<Exclude<RbacRole, "superadmin">>("supporter");
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -95,6 +132,81 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
     status: "active" as const,
   });
 
+  async function reloadRbac() {
+    setRbacLoading(true);
+    try {
+      const data = await apiFetch<{
+        matrix: RbacMatrix;
+        users: RbacUserItem[];
+        roles: RbacRole[];
+        permissions: RbacPermission[];
+      }>("/api/admin/rbac");
+      if (data.matrix) setRbacMatrix(data.matrix);
+      if (data.users) setRbacUsers(data.users);
+    } catch (err) {
+      console.warn("[rbac] could not load rbac data", err);
+    } finally {
+      setRbacLoading(false);
+    }
+  }
+
+  function handleTogglePermission(role: RbacRole, perm: RbacPermission) {
+    if (role === "superadmin" || !rbacMatrix) return;
+    const currentList = rbacMatrix[role] || [];
+    const exists = currentList.includes(perm);
+    const updated = exists ? currentList.filter((p) => p !== perm) : [...currentList, perm];
+    setRbacMatrix({
+      ...rbacMatrix,
+      [role]: updated,
+    });
+  }
+
+  async function handleSaveRolePermissions(role: Exclude<RbacRole, "superadmin">) {
+    if (!rbacMatrix) return;
+    setRbacSaving(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{ success: boolean; matrix: RbacMatrix }>("/api/admin/rbac", {
+        method: "PUT",
+        body: {
+          action: "UPDATE_ROLE_PERMISSIONS",
+          role,
+          permissions: rbacMatrix[role] || [],
+        },
+      });
+      if (data.matrix) setRbacMatrix(data.matrix);
+      setStatusMsg(`Permissions for role "${role.toUpperCase()}" successfully saved.`);
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setRbacSaving(false);
+    }
+  }
+
+  async function handleAssignUserRole(email: string, targetRole: Exclude<RbacRole, "superadmin">) {
+    setRbacSaving(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{ success: boolean; users: RbacUserItem[] }>("/api/admin/rbac", {
+        method: "PUT",
+        body: {
+          action: "ASSIGN_USER_ROLE",
+          email,
+          role: targetRole,
+        },
+      });
+      if (data.users) setRbacUsers(data.users);
+      setStatusMsg(`Role "${targetRole.toUpperCase()}" successfully assigned to ${email}.`);
+      setQuickAssignEmail("");
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setRbacSaving(false);
+    }
+  }
+
   async function reloadConfig() {
     setLoading(true);
     setErrorMsg(null);
@@ -116,6 +228,8 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
       } catch {
         // Non-admin or messages not accessible
       }
+
+      await reloadRbac();
     } catch (err) {
       setErrorMsg(errorMessage(err));
     } finally {
@@ -148,14 +262,22 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
       apiFetch<{ messages: AdminMessage[] }>("/api/admin/messages").catch(() => ({
         messages: [] as AdminMessage[],
       })),
+      apiFetch<{
+        matrix: RbacMatrix;
+        users: RbacUserItem[];
+        roles: RbacRole[];
+        permissions: RbacPermission[];
+      }>("/api/admin/rbac").catch(() => null),
     ])
-      .then(([adminData, msgData]) => {
+      .then(([adminData, msgData, rbacData]) => {
         if (active) {
           setConfig(adminData.config);
           if (adminData.ledger) setLedger(adminData.ledger);
           if (adminData.recentPurchases) setRecentPurchases(adminData.recentPurchases);
           setIsAdmin(adminData.isAdmin);
           if (msgData?.messages) setAdminMessages(msgData.messages);
+          if (rbacData?.matrix) setRbacMatrix(rbacData.matrix);
+          if (rbacData?.users) setRbacUsers(rbacData.users);
           setLoading(false);
         }
       })
@@ -471,6 +593,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
             { id: "PACKS", label: "Token Packs (CRUD)" },
             { id: "LEDGER", label: "Redistributive Ledger" },
             { id: "MESSAGES", label: `User Messages (${adminMessages.filter((m) => m.status === "unread").length})` },
+            { id: "RBAC", label: "RBAC Matrix & Roles" },
             { id: "DEV", label: "Developer Diagnostics" },
           ].map((t) => (
             <button
@@ -1205,7 +1328,249 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                 </div>
               )}
 
-              {/* TAB 6: DEVELOPER DIAGNOSTICS */}
+              {/* TAB 6: RBAC MATRIX & ROLES */}
+              {tab === "RBAC" && (
+                <div className="space-y-8">
+                  <div>
+                    <h3 className="text-title-sm font-semibold text-on-surface">
+                      Role-Based Access Control (RBAC) Matrix
+                    </h3>
+                    <p className="mt-1 text-compact text-on-surface-variant">
+                      Cryptographically enforced permissions matrix across system roles. Superadmin holds full immutable privileges.
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-compact text-on-surface">
+                    <div className="flex items-start gap-3">
+                      <Icon name="sparkles" className="mt-0.5 size-4 text-primary shrink-0" />
+                      <div>
+                        <strong className="text-primary font-semibold">Strict Database Superadmin Gate:</strong>
+                        <p className="text-[12px] text-on-surface-variant mt-0.5">
+                          Only the authenticated Firebase database administrator email holds permanent Super Admin status. All permissions for Super Admin are locked. Non-admin users start at Supporter level and can be granted operational or administrative roles below.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 1. ROLE-PERMISSION MATRIX TABLE */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-compact font-semibold text-on-surface">
+                        1. Feature Permission Matrix
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={reloadRbac}
+                        disabled={rbacLoading}
+                        className="text-xs text-primary hover:underline flex items-center gap-1"
+                      >
+                        <Icon name="refresh" className={`size-3 ${rbacLoading ? "animate-spin" : ""}`} />
+                        Refresh Matrix
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-surface-container">
+                      <table className="w-full text-left text-compact border-collapse">
+                        <thead>
+                          <tr className="border-b border-white/[0.08] bg-surface-container-high/60 font-mono text-[11px] text-on-surface-variant">
+                            <th className="p-3 font-semibold text-on-surface min-w-[200px]">Permission / Capability</th>
+                            <th className="p-3 text-center min-w-[120px]">
+                              <span className="inline-flex items-center gap-1 text-primary font-bold">
+                                superadmin
+                              </span>
+                              <div className="text-[10px] text-on-surface-variant/80 font-normal">Immutable 🔒</div>
+                            </th>
+                            {(["admin", "moderator", "agency", "supporter"] as const).map((role) => (
+                              <th key={role} className="p-3 text-center min-w-[130px]">
+                                <div className="font-semibold text-on-surface capitalize">{role}</div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveRolePermissions(role)}
+                                  disabled={rbacSaving}
+                                  data-testid={`save-role-${role}-button`}
+                                  data-agent-id={`save-role-${role}-btn`}
+                                  className="mt-1 inline-flex items-center gap-1 rounded bg-surface-container-highest px-2 py-0.5 text-[10px] font-mono text-primary hover:bg-primary hover:text-on-primary transition"
+                                >
+                                  Save Role
+                                </button>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/[0.04]">
+                          {RBAC_PERMISSIONS_LIST.map((perm) => {
+                            const meta = PERMISSION_METADATA[perm];
+                            return (
+                              <tr key={perm} className="hover:bg-white/[0.02] transition-colors">
+                                <td className="p-3">
+                                  <div className="font-medium text-on-surface">{meta.label}</div>
+                                  <div className="text-[11px] text-on-surface-variant font-mono">{meta.desc}</div>
+                                </td>
+                                {/* Superadmin (Locked) */}
+                                <td className="p-3 text-center">
+                                  <span className="inline-flex items-center gap-1 rounded bg-primary/20 px-2 py-0.5 text-[11px] font-mono font-bold text-primary">
+                                    [✔] Locked
+                                  </span>
+                                </td>
+                                {/* Configurable Roles */}
+                                {(["admin", "moderator", "agency", "supporter"] as const).map((role) => {
+                                  const isChecked = (rbacMatrix?.[role] || []).includes(perm);
+                                  return (
+                                    <td key={role} className="p-3 text-center">
+                                      <label className="inline-flex items-center justify-center cursor-pointer p-1">
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={() => handleTogglePermission(role, perm)}
+                                          data-testid={`rbac-checkbox-${role}-${perm}`}
+                                          data-agent-id={`rbac-checkbox-${role}-${perm}`}
+                                          aria-label={`Allow ${perm} for ${role}`}
+                                          className="size-4.5 rounded border border-white/20 bg-surface-container-lowest text-primary focus:ring-1 focus:ring-primary focus:ring-offset-0 cursor-pointer"
+                                        />
+                                      </label>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* 2. USER ROLE ASSIGNMENT TABLE */}
+                  <div className="space-y-4 pt-4 border-t border-white/[0.08]">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h4 className="text-compact font-semibold text-on-surface">
+                          2. User Role Assignments
+                        </h4>
+                        <p className="text-[12px] text-on-surface-variant">
+                          Assign RBAC roles to authenticated users. Instant update to Firebase custom claims.
+                        </p>
+                      </div>
+                      <input
+                        type="search"
+                        placeholder="Filter users by email..."
+                        value={userSearchQuery}
+                        onChange={(e) => setUserSearchQuery(e.target.value)}
+                        className="rounded-lg border border-white/10 bg-surface-container px-3 py-1.5 text-compact text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:outline-none max-w-xs"
+                      />
+                    </div>
+
+                    {/* Quick Assign Card */}
+                    <div className={`${card} p-4`}>
+                      <span className="font-mono text-mono-label text-on-surface-variant">Quick Assign Role by Email</span>
+                      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input
+                          type="email"
+                          placeholder="user@example.com"
+                          value={quickAssignEmail}
+                          onChange={(e) => setQuickAssignEmail(e.target.value)}
+                          className={`flex-1 ${field}`}
+                        />
+                        <select
+                          value={quickAssignRole}
+                          onChange={(e) => setQuickAssignRole(e.target.value as Exclude<RbacRole, "superadmin">)}
+                          className={`w-full sm:w-44 ${field}`}
+                        >
+                          <option value="supporter">Supporter (Default)</option>
+                          <option value="agency">Agency Tier</option>
+                          <option value="moderator">Moderator</option>
+                          <option value="admin">Administrator</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!quickAssignEmail.trim()) return;
+                            handleAssignUserRole(quickAssignEmail.trim(), quickAssignRole);
+                          }}
+                          disabled={rbacSaving || !quickAssignEmail.trim()}
+                          data-testid="quick-assign-button"
+                          data-agent-id="quick-assign-btn"
+                          className={`${btnPrimary} shrink-0`}
+                        >
+                          Assign Role
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Users List Table */}
+                    <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-surface-container">
+                      <table className="w-full text-left text-compact border-collapse">
+                        <thead>
+                          <tr className="border-b border-white/[0.08] bg-surface-container-high/60 font-mono text-[11px] text-on-surface-variant">
+                            <th className="p-3 font-semibold text-on-surface">User Account</th>
+                            <th className="p-3">Current Role</th>
+                            <th className="p-3">Tier</th>
+                            <th className="p-3 text-right">Assign Role</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/[0.04]">
+                          {rbacUsers
+                            .filter((u) =>
+                              u.email.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                              (u.displayName || "").toLowerCase().includes(userSearchQuery.toLowerCase())
+                            )
+                            .map((user) => (
+                              <tr key={user.uid} className="hover:bg-white/[0.02] transition-colors">
+                                <td className="p-3">
+                                  <div className="font-medium text-on-surface">{user.email}</div>
+                                  <div className="text-[11px] text-on-surface-variant font-mono">
+                                    UID: {user.uid.slice(0, 12)}… • Created {new Date(user.createdAt).toLocaleDateString("en-AU")}
+                                  </div>
+                                </td>
+                                <td className="p-3">
+                                  <span
+                                    className={`inline-block rounded px-2 py-0.5 font-mono text-[11px] font-semibold uppercase ${
+                                      user.isPermanentSuperAdmin
+                                        ? "border border-primary/40 bg-primary/20 text-primary"
+                                        : user.role === "admin"
+                                        ? "border border-secondary/40 bg-secondary/20 text-secondary"
+                                        : user.role === "moderator"
+                                        ? "border border-tertiary/40 bg-tertiary/20 text-tertiary"
+                                        : "border border-white/10 bg-surface-container-highest text-on-surface-variant"
+                                    }`}
+                                  >
+                                    {user.role}
+                                  </span>
+                                </td>
+                                <td className="p-3 font-mono text-[12px] text-on-surface-variant uppercase">
+                                  {user.tier}
+                                </td>
+                                <td className="p-3 text-right">
+                                  {user.isPermanentSuperAdmin ? (
+                                    <span className="inline-flex items-center gap-1 rounded bg-primary/20 px-2 py-1 text-xs font-mono font-semibold text-primary">
+                                      Permanent Super Admin 🔒
+                                    </span>
+                                  ) : (
+                                    <select
+                                      value={user.role}
+                                      onChange={(e) =>
+                                        handleAssignUserRole(user.email, e.target.value as Exclude<RbacRole, "superadmin">)
+                                      }
+                                      disabled={rbacSaving}
+                                      aria-label={`Change role for ${user.email}`}
+                                      className="rounded border border-white/15 bg-surface-container-low px-2 py-1 text-xs text-on-surface font-mono focus:border-primary focus:outline-none"
+                                    >
+                                      <option value="supporter">Supporter</option>
+                                      <option value="agency">Agency</option>
+                                      <option value="moderator">Moderator</option>
+                                      <option value="admin">Admin</option>
+                                    </select>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 7: DEVELOPER DIAGNOSTICS */}
               {tab === "DEV" && (
                 <div className="space-y-6">
                   <div>

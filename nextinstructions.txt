@@ -19,12 +19,18 @@
 2. **Supporters (Default for All Other Users):**
    - Everyone else starts at supporter level with default claims: `{ role: "supporter", tier: "supporter", isSuperAdmin: false, admin: false }`.
    - On sign-in, `/api/me` ensures non-admin accounts are normalized to supporter level.
-3. **UI Protection Gate:**
+3. **Interactive RBAC Matrix & Role Management:**
+   - Full 2D Permission-Role matrix tab in Super Admin Panel (`SuperAdminModal.tsx`).
+   - Superadmin permissions are immutable and locked `[✔] Locked`.
+   - Admin, Moderator, Agency, and Supporter feature permissions are toggleable and savable to Firestore `system_config/rbac`.
+   - User Accounts Table allows Superadmin to inspect all users and assign roles via Firebase custom claims with instant update.
+   - Quick role assignment card allows assigning roles directly by email address.
+4. **UI Protection Gate:**
    - The TopNav Account Menu shows a "Super Admin" badge for database admins and a "Supporter" badge for standard users.
    - The "Super Admin Panel" action is rendered strictly for the database admin. Standard users only see "Message Super Admin".
-4. **API Route Protection:**
-   - `/api/admin/config` (GET, PUT, POST) and `/api/admin/messages` (GET, PATCH) enforce `requireRole: "superadmin"` and reject unauthorized users with 403 Forbidden.
+5. **API Route Protection:**
+   - `/api/admin/config` (GET, PUT, POST), `/api/admin/messages` (GET, PATCH), and `/api/admin/rbac` (GET, PUT) enforce `requireRole: "superadmin"` and reject unauthorized users with 403 Forbidden.
 
 ## 3. Next Tasks & Instructions
-1. Test signing in on `http://localhost:3001` with your database admin email (`davidrobertson.info@gmail.com`) to verify the "Super Admin" badge and panel access.
-2. Test signing in with any other account to confirm it starts as "Supporter" with only "Message Super Admin" visible.
+1. Test opening the **Super Admin Panel** -> **RBAC Matrix & Roles** tab to test permission toggling, saving role permissions, and assigning user roles.
+2. Verify brand creation in Firestore: Brands are stored under `users/{uid}/brands/{brandId}`.
