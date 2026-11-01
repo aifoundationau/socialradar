@@ -55,20 +55,21 @@
 
 ### Token packs (server constants, `src/lib/pricing.ts`)
 One-off Stripe Checkout purchases. Tokens never expire.
-- **Default Currency & Base Rate:** The default platform currency is **AUD** (`aud`), and the default token price is **1 Token = AUD $1.00** (`100 cents AUD`, stored in `audCentsPerToken`).
+- **Default Currency & Base Rate:** The default platform currency is **AUD** (`aud`), and the default token price is **1 Token = AUD $1** (`100 cents AUD`, stored in `audCentsPerToken`).
 - **SuperAdmin Customization:** From the SuperAdmin Control Panel (`system_config/global`), both `audCentsPerToken` and the token amounts for each product and service (`serviceCosts`: `searchStandard`, `searchExtendedDays`, `searchEliteScore`, `aiRemix`, `brandClone`) are fully customizable.
+- **Strict Whole Numbers (Zero Decimals):** The business never uses decimals and operates strictly on whole numbers, with all numbers rounded up (`Math.ceil`) to make them whole numbers.
 - **Australian Invoicing:** All invoices and Stripe Checkout settlements are strictly issued and billed in Australian Dollars (**AUD**).
 - **Geolocation & International Currency Conversion:**
-  - If geolocation is in Australia or New Zealand (`AU` or `NZ`), users strictly see **AUD** prices (`A$1.00 AUD` per token) with no currency conversion display.
-  - For **all nations except Australia and New Zealand**, a currency conversion is displayed showing **AUD $1.00 converted to USD** (`A$1.00 AUD ≈ US$0.65 USD` at standard FX `0.65`), while all formal invoices remain in Australian Dollars (AUD).
+  - If geolocation is in Australia or New Zealand (`AU` or `NZ`), users strictly see **AUD** prices (`$1 AUD` per token) with no currency conversion display.
+  - For **all nations except Australia and New Zealand**, a currency converter displays the **AUD to USD conversion** (`$1 AUD ≈ $1 USD` / `$10 AUD ≈ $7 USD` rounded up), while all formal invoices remain in Australian Dollars (AUD).
 - **Pack Sizes:** Packs are offered in 10, 50, 100, and Custom quantities.
 
 | Pack id | Tokens | Default Price in AUD (All Invoices) | International Display (Nations Outside AU & NZ) |
 |---|---|---|---|
-| `PACK_10` | 10 | A$10.00 AUD | A$10.00 AUD (≈ US$6.50 USD) |
-| `PACK_50` | 50 | A$50.00 AUD | A$50.00 AUD (≈ US$32.50 USD) |
-| `PACK_100` | 100 | A$100.00 AUD | A$100.00 AUD (≈ US$65.00 USD) |
-| `PACK_CUSTOM` | Custom ($N \ge 1$) | $N \times \text{audCentsPerToken}$ | $\text{AUD} \times 0.65\text{ USD}$ |
+| `PACK_10` | 10 | $10 AUD | $10 AUD (≈ $7 USD) |
+| `PACK_50` | 50 | $50 AUD | $50 AUD (≈ $33 USD) |
+| `PACK_100` | 100 | $100 AUD | $100 AUD (≈ $65 USD) |
+| `PACK_CUSTOM` | Custom ($N \ge 1$) | $N \times \text{audCentsPerToken}$ | $\text{AUD} \times 0.65\text{ USD (rounded up)}$ |
 
 ### `TopupMetadata` (Checkout Session `metadata`, also copied to the PaymentIntent)
 | Field | Type | Rules |
@@ -346,7 +347,7 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 - **Copyright:** `Copyright © 2026 AI Foundation · All rights reserved.`
 - **Founder Welcome:** David Robertson welcome briefing detailing democratic access and redistributive token economics.
 - **Privacy Policy:** Australian Privacy Principles (APPs) and Privacy Act 1988 (Cth) compliance, 7-year statutory data retention on financial logs, zero selling of personal data.
-- **Terms of Service:** Commercial contract specifying that all invoices are in Australian Dollars (AUD), the default currency is AUD, and the default token price is 1 Token = AUD $1.00 (with product & service token amounts customizable by SuperAdmin). Nations outside Australia and New Zealand view an AUD $1.00 to USD currency conversion.
+- **Terms of Service:** Commercial contract specifying that all invoices are in Australian Dollars (AUD), the default currency is AUD, the default token price is 1 Token = AUD $1 (with product & service token amounts customizable by SuperAdmin), and that the business never uses decimals, operating strictly on whole numbers rounded up. Explains what tokens are: *"You exchange money for a token, tokens mean more flexible payment options, as a payment may be distributed to multiple service providers."* Nations outside Australia and New Zealand view an AUD to USD currency conversion.
 - **AI Policy (ISO/IEC 42001):** Artificial Intelligence Management System compliance, model ethics, bias mitigations, and human-in-the-loop oversight.
 - **Security Policy (ISO/IEC 27001):** Information Security Management System standards, defense-in-depth, RBAC matrix, and encrypted storage.
 

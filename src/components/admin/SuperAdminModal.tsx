@@ -1077,7 +1077,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                             </span>
                           </div>
                           <div className="flex items-center justify-between pt-1 border-t border-white/[0.06] font-mono text-[11px] text-outline">
-                            <span>AU/NZ: {tok === 0 ? "Free (A$0.00)" : `${formatAud(audCents)} AUD`}</span>
+                            <span>AU/NZ: {tok === 0 ? "Free ($0 AUD)" : `${formatAud(audCents)} AUD`}</span>
                             <span>Intl: {tok === 0 ? "Free" : `≈ ${formatUsd(usdCents)} USD`}</span>
                           </div>
                         </div>

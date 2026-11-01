@@ -34,7 +34,7 @@ export const POLICIES: Record<string, PolicyDoc> = {
         ],
         bullets: [
           "No forced recurring retainers or hidden cancellation penalties.",
-          "Tokens purchased in USD (default rate 1 Token = USD $1.00) are converted to AUD at checkout for seamless local settlement.",
+          "Tokens are priced and invoiced in Australian Dollars (default rate 1 Token = AUD $1) with whole numbers and local settlement.",
           "Australians and New Zealanders receive transparent, dedicated AUD pricing.",
           "Redistributive equity ledger ensuring partner accountability and statutory compliance.",
         ],
@@ -66,15 +66,18 @@ export const POLICIES: Record<string, PolicyDoc> = {
       {
         heading: "2. Token Economy, Australian Dollar Invoicing & Currency Conversion",
         paragraphs: [
-          "AdRadar operates on a strictly defined digital token ledger. Because AI Foundation is an Australian registered business headquartered in Australia, the default currency of the platform is Australian Dollars (AUD), and all invoices and checkout transactions are issued and settled in Australian Dollars (AUD).",
-          "The default token price is 1 Token = AUD $1.00. From the SuperAdmin Control Panel, both the base token rate and the token amounts required for each product and service (including Base Search, Extended Longevity filters, Elite Winner filters, and AI Creative Remixes) are fully customizable.",
-          "Australians and New Zealanders accessing the platform from Australia or New Zealand view pricing exclusively in AUD. For all nations except Australia and New Zealand, a currency conversion is displayed showing AUD $1.00 converted to US Dollars (USD) for international reference, while all formal invoices remain in Australian Dollars (AUD).",
+          "AdRadar operates on a strictly defined digital token ledger. You exchange money for a token, tokens mean more flexible payment options, as a payment may be distributed to multiple service providers across our infrastructure.",
+          "Because AI Foundation is an Australian registered business headquartered in Australia, the default currency of the platform is Australian Dollars (AUD), and all invoices and checkout transactions are issued and settled in Australian Dollars (AUD).",
+          "The default price for one token is AUD $1. From the SuperAdmin Control Panel, both the base token price and the token amount for all services and products that are sold (including Base Search, Extended Longevity filters, Elite Winner filters, AI Creative Remixes, and Global Brand Copies) are fully customizable.",
+          "We never ever use decimals; this business only uses whole numbers and we round up all numbers to make them whole numbers. All token fees, wallet balances, and currency amounts are strictly calculated as integers with any partial increments rounded up (Math.ceil).",
+          "Geolocation sets the user's default region. Australians and New Zealanders accessing the platform from Australia or New Zealand view pricing strictly in AUD. If someone is outside of Australia or New Zealand, we use our currency converter for AUD to USD currency conversion to display the USD conversion alongside the AUD price, while all formal invoices remain in Australian Dollars (AUD).",
         ],
         bullets: [
-          "All invoices and Stripe Checkout settlements are strictly billed in Australian Dollars (AUD).",
+          "Full disclaimer: all invoices and Stripe Checkout transactions are strictly billed and settled in Australian Dollars (AUD).",
+          "Tokens represent flexible access credits: you exchange money for a token, tokens mean more flexible payment options, as a payment may be distributed to multiple service providers.",
           "Tokens are non-refundable and hold no monetary cash value outside the AdRadar platform, except as mandated by the Australian Consumer Law (ACL).",
           "Tokens never expire and remain permanently credited to your account ledger.",
-          "Deductions occur on a strict integer basis (Math.round) only upon successful delivery of search and remix outputs.",
+          "Zero-decimal standard: our business exclusively uses whole numbers and rounds up all calculations to make them whole numbers.",
         ],
       },
       {

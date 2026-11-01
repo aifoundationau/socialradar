@@ -59,7 +59,7 @@ export function TokenPacks() {
     try {
       const body =
         packId === "PACK_CUSTOM"
-          ? { packId, customTokens: Math.max(1, Math.round(amount || customTokens || 10)) }
+          ? { packId, customTokens: Math.max(1, Math.ceil(amount || customTokens || 10)) }
           : { packId };
       const { url } = await apiFetch<{ url: string }>("/api/wallet/checkout", { body });
       window.location.assign(url);
@@ -159,8 +159,8 @@ export function TokenPacks() {
           const best = pack.id === BEST_VALUE;
           const audPriceStr = `${formatAud(pack.priceCents)} AUD`;
           const usdPriceStr = `${formatUsd(pack.priceUsdCents)} USD`;
-          const perTokenAud = formatAud(Math.round(pack.priceCents / pack.tokens));
-          const perTokenUsd = formatUsd(Math.round(pack.priceUsdCents / pack.tokens));
+          const perTokenAud = formatAud(Math.ceil(pack.priceCents / pack.tokens));
+          const perTokenUsd = formatUsd(Math.ceil(pack.priceUsdCents / pack.tokens));
 
           return (
             <li

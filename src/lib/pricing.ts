@@ -1,8 +1,9 @@
 /**
  * Token economy constants, shared by server routes and the wallet UI.
- * Default currency is AUD ("aud") and default token price is 1 Token = AUD $1.00.
- * All invoices and Stripe Checkout transactions are billed in Australian Dollars (AUD).
- * For all nations except Australia and New Zealand, an AUD $1.00 -> USD conversion is shown.
+ * Default currency is AUD ("aud") and default token price is 1 Token = AUD $1.
+ * All invoices and Stripe Checkout transactions are strictly billed in Australian Dollars (AUD).
+ * Never uses decimals: only whole numbers, with all amounts rounded up (Math.ceil).
+ * For all nations except Australia and New Zealand, an AUD to USD conversion is shown.
  */
 import type { TokenPackId } from "./contracts";
 
@@ -34,27 +35,31 @@ export function calculateSearchCost(
   let cost = base;
   if (req?.extendedLongevity) cost += ext;
   if (req?.eliteWinnersOnly) cost += elite;
-  return Math.max(0, Math.round(cost));
+  return Math.max(0, Math.ceil(cost));
 }
 
-/** Standard foreign exchange rate: AUD $1.00 = USD $0.65. */
+/** Standard foreign exchange rate: AUD $1 = USD $0.65. */
 export const FX_AUD_TO_USD = 0.65;
 
 export const TOKEN_PACK_CURRENCY = "aud";
 
-/** Default rate is 1 Token = AUD $1.00 (100 cents AUD). */
+/** Default rate is 1 Token = AUD $1 (100 cents AUD). */
 export const DEFAULT_AUD_CENTS_PER_TOKEN = 100;
 /** Legacy alias preserved for compatibility. */
 export const DEFAULT_USD_CENTS_PER_TOKEN = 100;
 
-/** Converts AUD cents to USD cents for nations outside Australia and New Zealand. */
+/**
+ * Converts AUD cents to USD cents for nations outside Australia and New Zealand.
+ * Enforces strict whole numbers: always rounds up (Math.ceil) to the nearest whole dollar in cents.
+ */
 export function audToUsdCents(audCents: number): number {
-  return Math.round(audCents * FX_AUD_TO_USD);
+  const usdCents = audCents * FX_AUD_TO_USD;
+  return Math.ceil(usdCents / 100) * 100;
 }
 
-/** Converts USD cents to AUD cents. */
+/** Converts USD cents to AUD cents, strictly rounded up to whole dollars in cents. */
 export function usdToAudCents(usdCents: number): number {
-  return Math.round(usdCents / FX_AUD_TO_USD);
+  return Math.ceil((usdCents / FX_AUD_TO_USD) / 100) * 100;
 }
 
 export function formatTokenEstimateHover(
@@ -63,7 +68,7 @@ export function formatTokenEstimateHover(
   audCentsPerToken = DEFAULT_AUD_CENTS_PER_TOKEN
 ): string {
   if (tokens <= 0) return "Free (0 tokens)";
-  const audCents = Math.round(tokens * audCentsPerToken);
+  const audCents = Math.ceil(tokens * audCentsPerToken);
   const usdCents = audToUsdCents(audCents);
   if (isAuNz) {
     return `${formatAud(audCents)} AUD`;
@@ -80,9 +85,9 @@ export const costLabel = (action: ChargeableAction, overrideCost?: number) => {
 export interface TokenPack {
   id: TokenPackId;
   tokens: number;
-  /** Minor units (cents) in AUD — all invoices & Stripe checkouts settle in AUD. */
+  /** Minor units (cents) in AUD — all invoices & Stripe checkouts settle in AUD. Whole dollars. */
   priceCents: number;
-  /** Minor units (cents) in USD — currency conversion shown for nations outside AU & NZ. */
+  /** Minor units (cents) in USD — currency conversion shown for nations outside AU & NZ. Whole dollars. */
   priceUsdCents: number;
 }
 
@@ -92,8 +97,8 @@ export function buildTokenPack(
   tokens: number,
   audCentsPerToken = DEFAULT_AUD_CENTS_PER_TOKEN
 ): TokenPack {
-  const cleanTokens = Math.max(1, Math.round(tokens));
-  const priceCents = Math.round(cleanTokens * audCentsPerToken);
+  const cleanTokens = Math.max(1, Math.ceil(tokens));
+  const priceCents = Math.ceil(cleanTokens * audCentsPerToken);
   const priceUsdCents = audToUsdCents(priceCents);
   return {
     id,
@@ -107,27 +112,39 @@ export const TOKEN_PACKS: Record<"PACK_10" | "PACK_50" | "PACK_100", TokenPack> 
   PACK_10: {
     id: "PACK_10",
     tokens: 10,
-    priceCents: 10 * DEFAULT_AUD_CENTS_PER_TOKEN, // A$10.00 AUD
-    priceUsdCents: audToUsdCents(10 * DEFAULT_AUD_CENTS_PER_TOKEN), // US$6.50 USD
+    priceCents: 10 * DEFAULT_AUD_CENTS_PER_TOKEN, // $10 AUD
+    priceUsdCents: audToUsdCents(10 * DEFAULT_AUD_CENTS_PER_TOKEN), // $7 USD (rounded up)
   },
   PACK_50: {
     id: "PACK_50",
     tokens: 50,
-    priceCents: 50 * DEFAULT_AUD_CENTS_PER_TOKEN, // A$50.00 AUD
-    priceUsdCents: audToUsdCents(50 * DEFAULT_AUD_CENTS_PER_TOKEN), // US$32.50 USD
+    priceCents: 50 * DEFAULT_AUD_CENTS_PER_TOKEN, // $50 AUD
+    priceUsdCents: audToUsdCents(50 * DEFAULT_AUD_CENTS_PER_TOKEN), // $33 USD (rounded up)
   },
   PACK_100: {
     id: "PACK_100",
     tokens: 100,
-    priceCents: 100 * DEFAULT_AUD_CENTS_PER_TOKEN, // A$100.00 AUD
-    priceUsdCents: audToUsdCents(100 * DEFAULT_AUD_CENTS_PER_TOKEN), // US$65.00 USD
+    priceCents: 100 * DEFAULT_AUD_CENTS_PER_TOKEN, // $100 AUD
+    priceUsdCents: audToUsdCents(100 * DEFAULT_AUD_CENTS_PER_TOKEN), // $65 USD (rounded up)
   },
 };
 
+/** Formats AUD without decimals, rounding up to whole dollars. */
 export const formatAud = (cents: number) =>
-  new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(cents / 100);
+  new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: "AUD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.ceil(cents / 100));
 
+/** Formats USD without decimals, rounding up to whole dollars. */
 export const formatUsd = (cents: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.ceil(cents / 100));
 
 export const formatPrice = (cents: number) => formatAud(cents);
