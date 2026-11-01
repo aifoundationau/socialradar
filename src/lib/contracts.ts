@@ -318,6 +318,7 @@ export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 export const ServiceCostsSchema = z
   .object({
     searchStandard: tokenInt.min(0),
+    searchProvenWinners: tokenInt.min(0).default(1),
     searchExtendedDays: tokenInt.min(0),
     searchEliteScore: tokenInt.min(0),
     aiRemix: tokenInt.min(0),

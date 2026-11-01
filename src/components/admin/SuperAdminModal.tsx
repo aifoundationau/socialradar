@@ -53,6 +53,7 @@ const PERMISSION_METADATA: Record<RbacPermission, { label: string; desc: string 
 
 interface ServiceCosts {
   searchStandard: number;
+  searchProvenWinners?: number;
   searchExtendedDays: number;
   searchEliteScore: number;
   aiRemix: number;
@@ -945,6 +946,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                           saveConfig({
                             serviceCosts: {
                               searchStandard: 0,
+                              searchProvenWinners: 0,
                               searchExtendedDays: 0,
                               searchEliteScore: 0,
                               aiRemix: 0,
@@ -963,7 +965,8 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                         onClick={() =>
                           saveConfig({
                             serviceCosts: {
-                              searchStandard: 2,
+                              searchStandard: 0,
+                              searchProvenWinners: 1,
                               searchExtendedDays: 1,
                               searchEliteScore: 2,
                               aiRemix: 5,
@@ -984,6 +987,11 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                         key: "searchStandard" as const,
                         label: "Base Radar Search",
                         desc: "Base platform ad library search across Meta, TikTok, or Google",
+                      },
+                      {
+                        key: "searchProvenWinners" as const,
+                        label: "Proven Winners (28+d) Surcharge",
+                        desc: "Additional tokens for filtering battle-tested 28+ day proven winner ads",
                       },
                       {
                         key: "searchExtendedDays" as const,

@@ -1,23 +1,20 @@
 # Next Instructions for Social Radar (ad-radar)
 
 ## Current Status (November 2, 2026)
-1. **AUD Default, Zero-Decimal Whole Numbers & Currency Standard:**
-   - Default currency is AUD (`aud`) for all tokens, products, and services across the app.
-   - Base token price is AUD $1 (`DEFAULT_AUD_CENTS_PER_TOKEN = 100`).
-   - Zero-decimal policy strictly applied: only whole numbers, with all amounts rounded up via `Math.ceil` (no decimals anywhere).
-   - SuperAdmin can customize the token amount for all services and products via Tab 2 in the SuperAdmin Modal.
-   - Geolocation sets user's default region (`AU`/`NZ` view pure AUD; outside AU/NZ view USD conversion rounded up).
-   - Full disclaimers on all purchase cards and policies stating all invoices are strictly issued in Australian Dollars (AUD).
-   - Terms of Service Section 2 includes exact token definition: *"You exchange money for a token, tokens mean more flexible payment options, as a payment may be distributed to multiple service providers."*
-2. **Global Brand Card Copy Token Fee:**
-   - SuperAdmin can set `brandClone` token fee under Service Pricing (defaults to 5 tokens).
-   - Users can clone global brand cards for this token fee with atomic deduction and superadmin exemption.
+1. **Proven Winners (Active 28+d) Token Surcharge & Attachment:**
+   - Added `searchProvenWinners` to `ServiceCosts` in `contracts.ts`, `DEFAULT_CONFIG` in `admin.ts`, and `SERVICE_SURCHARGES` in `pricing.ts` (default 1 token).
+   - Proven winners button in `RadarFilterBar.tsx` now attaches the token badge `+1` (green pill with hover tooltip) styled identically alongside Extended (`+1`) and Top Winners (`+2`).
+   - Integrated into SuperAdmin Control Panel Tab 2 (Service Pricing) with `+`/`-` steppers, AU/NZ AUD hover, and international USD hover.
+   - Included in quick preset buttons ("Set All Free" sets 0 tok, "Standard Paid Rates" sets 1 tok).
+   - Displayed in live service rates comparison bar in `TokenPacks.tsx`.
+   - `calculateSearchCost` and server `/api/radar/search` automatically incorporate `searchProvenWinners` into the token gate (with superadmin 0-token exemption).
+2. **Contact Message Flow:**
+   - Quick "Message Sent" checkmark confirmation on submission, automatically transitioning to the "My Messages" panel.
 3. **All Tests & Verifications Passing:**
    - `npm run test:rules` (40/40 tests passing).
    - `npx tsc --noEmit` (0 errors).
    - `npm run build` (Next.js 16.4.3 Turbopack build succeeded).
-   - Git repository synced with `origin/main` (commit `e639f69`).
 
 ## Next Priority Actions
-1. Have user verify the token pricing, zero decimals, and Terms of Service at http://localhost:3001/wallet.
+1. Have user test toggling Proven Winners (Active 28+d) on http://localhost:3001/radar and observing the attached token badge and Search button cost update.
 2. Await next user directive.

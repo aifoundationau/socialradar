@@ -19,20 +19,28 @@ export const ACTION_COSTS: Record<"RADAR_SEARCH" | "AI_REMIX" | "BRAND_CLONE", n
 export type ChargeableAction = keyof typeof ACTION_COSTS;
 
 export const SERVICE_SURCHARGES = {
+  PROVEN_WINNERS: 1,
   EXTENDED_DAYS: 1,
   ELITE_SCORE: 2,
 };
 
-/** Calculates total token charge for a search including longevity and score filter surcharges. */
+/** Calculates total token charge for a search including proven winners, longevity, and score filter surcharges. */
 export function calculateSearchCost(
-  req?: { extendedLongevity?: boolean; eliteWinnersOnly?: boolean },
-  customServiceCosts?: { searchStandard: number; searchExtendedDays: number; searchEliteScore: number }
+  req?: { provenWinnersOnly?: boolean; extendedLongevity?: boolean; eliteWinnersOnly?: boolean },
+  customServiceCosts?: {
+    searchStandard: number;
+    searchProvenWinners?: number;
+    searchExtendedDays: number;
+    searchEliteScore: number;
+  }
 ): number {
   const base = customServiceCosts ? customServiceCosts.searchStandard : ACTION_COSTS.RADAR_SEARCH;
+  const proven = customServiceCosts?.searchProvenWinners ?? SERVICE_SURCHARGES.PROVEN_WINNERS;
   const ext = customServiceCosts ? customServiceCosts.searchExtendedDays : SERVICE_SURCHARGES.EXTENDED_DAYS;
   const elite = customServiceCosts ? customServiceCosts.searchEliteScore : SERVICE_SURCHARGES.ELITE_SCORE;
 
   let cost = base;
+  if (req?.provenWinnersOnly) cost += proven;
   if (req?.extendedLongevity) cost += ext;
   if (req?.eliteWinnersOnly) cost += elite;
   return Math.max(0, Math.ceil(cost));

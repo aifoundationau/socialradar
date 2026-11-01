@@ -232,7 +232,7 @@ export function RadarFilterBar({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 self-start lg:order-3 lg:ml-auto lg:self-auto">
-            {/* 1. Default 28+ days switch */}
+            {/* 1. Proven winners 28+ days toggle */}
             <button
               type="button"
               role="switch"
@@ -240,22 +240,21 @@ export function RadarFilterBar({
               data-testid="radar-proven-winners-toggle"
               data-agent-id="radar-proven-winners-toggle"
               onClick={() => onChange({ provenWinnersOnly: !filters.provenWinnersOnly })}
-              className="flex items-center gap-2.5 text-left"
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
+                filters.provenWinnersOnly
+                  ? "border-winner/50 bg-winner/15 text-on-surface shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                  : "border-white/[0.08] bg-surface-container-low text-on-surface-variant hover:border-white/20"
+              }`}
             >
+              <Icon name="zap" className="size-3.5 text-winner" />
+              <div className="flex flex-col text-left">
+                <span className="text-compact font-medium text-on-surface">Proven ({PROVEN_WINNER_DAYS}+d)</span>
+              </div>
               <span
-                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors sm:h-5 sm:w-10 ${
-                  filters.provenWinnersOnly ? "bg-winner shadow-[0_0_14px_rgba(16,185,129,0.55)]" : "bg-surface-container-high"
-                }`}
+                title={formatTokenEstimateHover(SERVICE_SURCHARGES.PROVEN_WINNERS)}
+                className="ml-1 rounded bg-winner/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-winner"
               >
-                <span
-                  className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-white transition-transform sm:size-4 ${
-                    filters.provenWinnersOnly ? "translate-x-5" : ""
-                  }`}
-                />
-              </span>
-              <span className="flex flex-col">
-                <span className="text-body font-semibold text-on-surface">Proven winners</span>
-                <span className="font-mono text-[10px] text-winner-soft">Active {PROVEN_WINNER_DAYS}+ days</span>
+                +{SERVICE_SURCHARGES.PROVEN_WINNERS}
               </span>
             </button>
 

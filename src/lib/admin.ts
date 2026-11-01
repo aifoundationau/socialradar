@@ -37,6 +37,7 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
   usdCentsPerToken: 100,
   serviceCosts: {
     searchStandard: 0,
+    searchProvenWinners: 1,
     searchExtendedDays: 1,
     searchEliteScore: 2,
     aiRemix: 0,
@@ -63,6 +64,10 @@ export async function getSystemConfig(): Promise<AdminSystemConfig> {
     return {
       ...DEFAULT_CONFIG,
       ...data,
+      serviceCosts: {
+        ...DEFAULT_CONFIG.serviceCosts,
+        ...(data.serviceCosts || {}),
+      },
       equityPartners: Array.isArray(data.equityPartners) ? data.equityPartners : [],
       audCentsPerToken: typeof data.audCentsPerToken === "number" ? data.audCentsPerToken : DEFAULT_CONFIG.audCentsPerToken,
       tokenPacks:

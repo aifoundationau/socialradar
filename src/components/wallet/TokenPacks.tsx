@@ -27,6 +27,7 @@ export function TokenPacks() {
   const [audCentsPerToken, setAudCentsPerToken] = useState<number>(DEFAULT_AUD_CENTS_PER_TOKEN);
   const [serviceCosts, setServiceCosts] = useState<ServiceCosts>({
     searchStandard: ACTION_COSTS.RADAR_SEARCH,
+    searchProvenWinners: SERVICE_SURCHARGES.PROVEN_WINNERS,
     searchExtendedDays: SERVICE_SURCHARGES.EXTENDED_DAYS,
     searchEliteScore: SERVICE_SURCHARGES.ELITE_SCORE,
     aiRemix: ACTION_COSTS.AI_REMIX,
@@ -123,6 +124,11 @@ export function TokenPacks() {
             <strong className="text-primary">
               {serviceCosts.searchStandard === 0 ? "Free (0)" : `${serviceCosts.searchStandard} tok`}
             </strong>
+          </span>
+          <span className="text-white/20">•</span>
+          <span>
+            Proven 28+d:{" "}
+            <strong className="text-primary">+{(serviceCosts.searchProvenWinners ?? 1)} tok</strong>
           </span>
           <span className="text-white/20">•</span>
           <span>
