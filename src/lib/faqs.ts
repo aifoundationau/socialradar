@@ -106,3 +106,4 @@ export async function resetDefaultFaqs(): Promise<FaqItem[]> {
   await db.doc(FAQS_DOC_PATH).set({ faqs: DEFAULT_FAQS, updatedAt: new Date().toISOString() });
   return DEFAULT_FAQS;
 }
+

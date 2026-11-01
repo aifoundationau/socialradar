@@ -25,9 +25,12 @@
    - Admin, Moderator, Agency, and Supporter feature permissions are toggleable and savable to Firestore `system_config/rbac`.
    - User Accounts Table allows Superadmin to inspect all users and assign roles via Firebase custom claims with instant update.
    - Quick role assignment card allows assigning roles directly by email address.
-4. **Navbar Menu Order & Hover Popups:**
-   - Navbar order: "My Brands" is first, followed by "Radar Feed", then "Wallet".
-   - Rich hover popup tooltips on desktop explaining both My Brands and Radar Feed with titles, icons, and descriptions.
+4. **Navbar Menu Order, Hover Popups & Mobile Tab Bar:**
+   - Desktop & Mobile Navigation: "My Brands" is first, followed by "Radar Feed", then "Wallet".
+   - Rich hover popup tooltips on desktop explaining both My Brands and Radar Feed.
+   - On Android & iPhone mobile bottom bar: "My Brands" is first with an interactive `?` trigger that expands a collapsible explanation card above the bottom bar.
+   - Informs users that they can create as many Brands as they want, then choose which one to research & remix.
+   - Includes collapsible details guide at the top of the My Brands page.
 5. **Knowledge Base FAQs Management:**
    - Super Admin Panel includes dedicated "Help & FAQs" tab.
    - Superadmin can add, edit, reorder, toggle, and delete FAQs (with confirmation).

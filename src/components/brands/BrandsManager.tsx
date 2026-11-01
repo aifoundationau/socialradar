@@ -79,6 +79,63 @@ export function BrandsManager() {
 
       {error && <p className={alertError}>{error}</p>}
 
+      {/* Collapsible Explanation on Filling out My Brands Section */}
+      <details
+        className="group rounded-2xl border border-primary/25 bg-surface-container-high p-4 transition-all shadow-sm"
+        data-testid="brands-explanation-dropdown"
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between font-medium text-on-surface">
+          <div className="flex items-center gap-2">
+            <span className="flex size-6 items-center justify-center rounded-lg bg-primary/20 text-primary">
+              <Icon name="sparkles" className="size-3.5" />
+            </span>
+            <span className="text-compact font-semibold text-primary">
+              How to fill out My Brands (Create as many Brands as you want!)
+            </span>
+          </div>
+          <span className="text-xs text-on-surface-variant transition-transform duration-200 group-open:rotate-180">
+            ▼
+          </span>
+        </summary>
+        <div className="mt-3.5 space-y-3 border-t border-white/[0.08] pt-3 text-compact text-on-surface-variant">
+          <p className="leading-relaxed">
+            You can create as many Brands as you want in your account, then choose which one to research. When you select an active brand, the AI Remix Studio automatically aligns all headlines, copy hooks, and video scripts to match that specific brand&apos;s unique voice and offer.
+          </p>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 pt-1">
+            <div className="rounded-xl border border-white/[0.06] bg-surface-container p-3 space-y-1">
+              <strong className="text-body font-semibold text-on-surface flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-primary" />
+                1. Brand & URLs
+              </strong>
+              <p className="text-[12px] leading-relaxed">
+                Brand name, industry vertical, and destination landing page URLs where your ads drive prospective customers.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/[0.06] bg-surface-container p-3 space-y-1">
+              <strong className="text-body font-semibold text-on-surface flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-secondary" />
+                2. Tone of Voice
+              </strong>
+              <p className="text-[12px] leading-relaxed">
+                Direct-response copywriting tone (High Conversion, Bold, Professional, Playful, or Minimalist) tailored to your brand.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/[0.06] bg-surface-container p-3 space-y-1">
+              <strong className="text-body font-semibold text-on-surface flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-tertiary" />
+                3. Value Proposition
+              </strong>
+              <p className="text-[12px] leading-relaxed">
+                Your key competitive advantage and customer pain points. Powers persuasive hook variations in the AI Remix Studio.
+              </p>
+            </div>
+          </div>
+        </div>
+      </details>
+
       {/* Empty State */}
       {brands.length === 0 ? (
         <div
