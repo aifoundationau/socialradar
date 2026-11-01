@@ -1,20 +1,23 @@
 # Next Instructions for Social Radar (ad-radar)
 
 ## Current Status (November 2, 2026)
-1. **Refund Rules (Written Request to Superadmin):**
+1. **Firebase Authentication Refreshed & Dev Server Active on Port 3000:**
+   - Google Cloud Application Default Credentials (ADC) successfully refreshed.
+   - Next.js Turbopack dev server running on port 3000 (`http://localhost:3000`) and responding with HTTP 200.
+2. **Refund Rules (Written Request to Superadmin):**
    - Stated across Terms of Service Section 2, Wallet Overview, Contact Admin Modal, and FAQs:
      *"If a search or remix fails on our side, tokens are refunded automatically. All formal refund requests are to be made in writing by sending a message to the Super Admin via the secure in-app messaging interface."*
    - Requests are preserved under statutory 7-year audit retention and reviewed under the Australian Consumer Law (ACL).
-2. **Currency Conversion Decimals:**
+3. **Currency Conversion Decimals:**
    - AUD platform pricing and token charges remain strictly whole numbers (zero decimals).
    - Foreign exchange currency conversion (AUD to USD) displays up to 2 decimal places (e.g. 1 Token = $1 AUD ≈ $0.65 USD, 10 Tokens = $10 AUD ≈ $6.50 USD, 50 Tokens = $50 AUD ≈ $32.50 USD, 100 Tokens = $100 AUD ≈ $65 USD).
-3. **Standard Paid Rates Standardized to 1 Token:**
+4. **Standard Paid Rates Standardized to 1 Token:**
    - Standard Paid Rates for all services, products, and surcharges across the application are strictly **1 Token** each.
-4. **All Tests & Verifications Passing:**
+5. **All Tests & Verifications Passing:**
    - `npm run test:rules` (40/40 tests passing).
    - `npx tsc --noEmit` (0 errors).
    - `npm run build` (Next.js 16.4.3 Turbopack build succeeded).
 
 ## Next Priority Actions
-1. Have user test clicking Terms of Service in the footer or checking the Wallet overview at http://localhost:3001/wallet to verify refund rules statement.
+1. Have user open http://localhost:3000 in their browser to verify that the app loads cleanly with valid session credentials.
 2. Await next user directive.
