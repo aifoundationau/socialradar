@@ -85,9 +85,15 @@ export async function updateSystemConfig(patch: Partial<AdminSystemConfig>): Pro
   return next;
 }
 
-/** Promotes a caller to admin in dev environment. */
+/** Sets superadmin claims on an authorized administrator account. */
 export async function grantDevAdminRole(uid: string): Promise<void> {
-  await setUserClaims(uid, { role: "admin", tier: "agency" });
+  await setUserClaims(uid, {
+    role: "superadmin",
+    tier: "agency",
+    isSuperAdmin: true,
+    admin: true,
+    superadmin: true,
+  });
 }
 
 /** Flushes all documents in radar_cache collection. */

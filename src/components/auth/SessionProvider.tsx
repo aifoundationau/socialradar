@@ -16,6 +16,7 @@ export interface Session {
   brands: BrandProfile[] | null;
   activeBrand: BrandProfile | null;
   isAdmin: boolean;
+  role: "superadmin" | "supporter";
   claims: Record<string, unknown> | null;
   error: string | null;
 }
@@ -44,7 +45,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const myClaims = user && claims?.uid === user.uid ? claims.value : null;
-  const isAdmin = myClaims?.role === "admin";
+
+  const envAdmins = (process.env.NEXT_PUBLIC_DATABASE_ADMIN_EMAIL || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  const DATABASE_ADMIN_EMAILS = new Set([
+    "davidrobertson.info@gmail.com",
+    "support@aifoundation.net.au",
+    ...envAdmins,
+  ]);
+
+  const isSuperAdminEmail = (email?: string | null) => {
+    const e = (email || "").toLowerCase().trim();
+    return Boolean(e && DATABASE_ADMIN_EMAILS.has(e));
+  };
+
+  // The superadmin should only be the firebase database admin email. Everyone else starts at supporter level.
+  const isAdmin = isSuperAdminEmail(user?.email);
+  const role: "superadmin" | "supporter" = isAdmin ? "superadmin" : "supporter";
 
   useEffect(() => onAuthStateChanged(clientAuth(), setUser), []);
 
@@ -87,10 +107,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       brands: myBrands,
       activeBrand: myBrands?.find((b) => b.brandId === myProfile?.activeBrandId) ?? null,
       isAdmin,
+      role,
       claims: myClaims,
       error: mine(error),
     };
-  }, [uid, user, profile, brands, error, isAdmin, myClaims]);
+  }, [uid, user, profile, brands, error, isAdmin, role, myClaims]);
 
   return <SessionContext value={session}>{children}</SessionContext>;
 }

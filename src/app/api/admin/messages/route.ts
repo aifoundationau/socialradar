@@ -11,10 +11,7 @@ const UpdateStatusSchema = z.object({
 
 export async function GET(req: Request) {
   try {
-    const caller = await verifyRequest(req);
-    if (process.env.NODE_ENV === "production" && caller.claims.role !== "admin") {
-      return NextResponse.json({ error: { code: "FORBIDDEN", message: "Super admin role required" } }, { status: 403 });
-    }
+    await verifyRequest(req, { requireRole: "superadmin" });
 
     const messages = await getAdminMessages(100);
     return NextResponse.json({ messages });
@@ -25,10 +22,7 @@ export async function GET(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const caller = await verifyRequest(req);
-    if (process.env.NODE_ENV === "production" && caller.claims.role !== "admin") {
-      return NextResponse.json({ error: { code: "FORBIDDEN", message: "Super admin role required" } }, { status: 403 });
-    }
+    await verifyRequest(req, { requireRole: "superadmin" });
 
     const body = await readJson(req);
     const { messageId, status } = UpdateStatusSchema.parse(body);

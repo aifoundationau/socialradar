@@ -17,7 +17,7 @@ import type { EquityPartner } from "@/lib/contracts";
 
 export async function GET(req: Request) {
   try {
-    const caller = await verifyRequest(req);
+    const caller = await verifyRequest(req, { requireRole: "superadmin" });
     const [config, ledger, recentPurchases] = await Promise.all([
       getSystemConfig(),
       getRedistributiveLedger(),
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
       config,
       ledger,
       recentPurchases,
-      isAdmin: caller.claims.role === "admin",
+      isAdmin: true,
       user: { uid: caller.uid, email: caller.email, claims: caller.claims },
     });
   } catch (err) {
@@ -38,11 +38,7 @@ export async function GET(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const caller = await verifyRequest(req);
-    // In production, require admin; in development, allow developer to configure
-    if (process.env.NODE_ENV === "production" && caller.claims.role !== "admin") {
-      return NextResponse.json({ error: { code: "FORBIDDEN", message: "Super admin role required" } }, { status: 403 });
-    }
+    const caller = await verifyRequest(req, { requireRole: "superadmin" });
 
     const body = (await readJson(req)) as Record<string, unknown>;
 
@@ -105,10 +101,8 @@ export async function PUT(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const caller = await verifyRequest(req);
-    // Allow promotion in development or by existing admin
-    await grantDevAdminRole(caller.uid);
-    return NextResponse.json({ success: true, message: "Admin claim granted. Token refreshed." });
+    const caller = await verifyRequest(req, { requireRole: "superadmin" });
+    return NextResponse.json({ success: true, message: "Super admin role confirmed.", user: caller.email });
   } catch (err) {
     return errorResponse(err);
   }

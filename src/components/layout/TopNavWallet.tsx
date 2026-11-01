@@ -124,7 +124,7 @@ function TokenPill() {
 }
 
 function AccountMenu() {
-  const { user } = useSession();
+  const { user, isAdmin } = useSession();
   const menu = useRef<HTMLDivElement>(null);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
@@ -148,7 +148,18 @@ function AccountMenu() {
         className="inset-auto top-[calc(3.75rem+env(safe-area-inset-top))] right-3 m-0 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-white/[0.12] bg-surface-container-high p-0 text-on-surface shadow-[0_12px_32px_-4px_rgba(0,0,0,0.6)] sm:right-6"
       >
         <div className="border-b border-white/[0.08] px-4 py-3">
-          <p className={monoLabel}>Signed in as</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className={monoLabel}>Signed in as</p>
+            <span
+              className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${
+                isAdmin
+                  ? "border border-primary/30 bg-primary-container/30 text-primary"
+                  : "border border-white/10 bg-surface-container-highest text-on-surface-variant"
+              }`}
+            >
+              {isAdmin ? "Super Admin" : "Supporter"}
+            </span>
+          </div>
           <p className="mt-1 truncate text-body font-medium">{user?.email}</p>
         </div>
         <div className="space-y-2 border-b border-white/[0.08] px-4 py-3 lg:hidden">
@@ -156,18 +167,20 @@ function AccountMenu() {
           <BrandSwitcher />
         </div>
         <div className="border-b border-white/[0.08] p-1.5 space-y-0.5">
-          <button
-            type="button"
-            onClick={() => {
-              menu.current?.hidePopover();
-              setIsAdminOpen(true);
-            }}
-            data-testid="open-superadmin-button"
-            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-primary transition-colors hover:bg-primary-container/20 sm:min-h-10"
-          >
-            <Icon name="sliders" className="size-4" />
-            Super Admin Panel
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                menu.current?.hidePopover();
+                setIsAdminOpen(true);
+              }}
+              data-testid="open-superadmin-button"
+              className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-primary transition-colors hover:bg-primary-container/20 sm:min-h-10"
+            >
+              <Icon name="sliders" className="size-4" />
+              Super Admin Panel
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {

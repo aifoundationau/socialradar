@@ -18,9 +18,19 @@
 
 ### Custom Claims (Firebase Admin)
 ```json
-{ "role": "admin" | "user", "tier": "starter" | "growth" | "agency" }
+{
+  "role": "superadmin" | "admin" | "supporter" | "user",
+  "tier": "supporter" | "starter" | "growth" | "agency",
+  "isSuperAdmin"?: boolean,
+  "admin"?: boolean,
+  "superadmin"?: boolean
+}
 ```
-If claims are missing, the server treats the caller as `{ role: "user", tier: "starter" }`.
+- **Superadmin Authority:** Strictly restricted to the Firebase database admin email (`davidrobertson.info@gmail.com` / `support@aifoundation.net.au` or configured via `FIREBASE_DATABASE_ADMIN_EMAIL`).
+- **Supporter Level (Default):** All other users start at supporter level `{ "role": "supporter", "tier": "supporter", "isSuperAdmin": false, "admin": false }`.
+- Missing/unassigned claims automatically fall back to `{ role: "supporter", tier: "supporter" }`.
+- UI displays a "Super Admin" badge for database admins and a "Supporter" badge for all standard users.
+- The Super Admin Panel is strictly visible and accessible only to the database admin. Non-admin users are provided with the "Message Super Admin" modal.
 
 ### `UserDoc`
 | Field | Type | Rules |

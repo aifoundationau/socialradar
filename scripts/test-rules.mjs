@@ -10,6 +10,10 @@ const P = (p) => `/databases/ad-radar/documents/${p}`;
 const U = { uid: "userA", token: { email: "a@example.com" } };
 const V = { uid: "userB", token: { email: "b@example.com" } };
 const Admin = { uid: "adminUser", token: { email: "admin@example.com", role: "admin" } };
+const SuperAdmin = { uid: "superUser", token: { email: "super@example.com", role: "superadmin" } };
+const SuperAdminFlag = { uid: "superFlagUser", token: { email: "superflag@example.com", isSuperAdmin: true } };
+const AdminFlag = { uid: "adminFlagUser", token: { email: "adminflag@example.com", admin: true } };
+const SuperAdminBool = { uid: "superBoolUser", token: { email: "superbool@example.com", superadmin: true } };
 const ownedByA = { data: { uid: "userA" } };
 
 const cases = [
@@ -29,10 +33,18 @@ const cases = [
   ["own admin message: get", "ALLOW", { auth: U, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
   ["other user's admin message: get", "DENY", { auth: V, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
   ["admin: get admin message", "ALLOW", { auth: Admin, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
+  ["superadmin: get admin message", "ALLOW", { auth: SuperAdmin, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
+  ["superadmin flag: get admin message", "ALLOW", { auth: SuperAdminFlag, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
+  ["admin flag: get admin message", "ALLOW", { auth: AdminFlag, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
+  ["superadmin bool: get admin message", "ALLOW", { auth: SuperAdminBool, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
   ["signed out: get admin message", "DENY", { path: P("admin_messages/msg1"), method: "get" }, ownedByA],
   ["admin message: create", "DENY", { auth: U, path: P("admin_messages/msg2"), method: "create" }],
   ["stripe purchase: get as non-admin", "DENY", { auth: U, path: P("stripe_purchases/sp1"), method: "get" }, ownedByA],
   ["stripe purchase: get as admin", "ALLOW", { auth: Admin, path: P("stripe_purchases/sp1"), method: "get" }, ownedByA],
+  ["stripe purchase: get as superadmin", "ALLOW", { auth: SuperAdmin, path: P("stripe_purchases/sp1"), method: "get" }, ownedByA],
+  ["stripe purchase: get as superadmin flag", "ALLOW", { auth: SuperAdminFlag, path: P("stripe_purchases/sp1"), method: "get" }, ownedByA],
+  ["stripe purchase: get as admin flag", "ALLOW", { auth: AdminFlag, path: P("stripe_purchases/sp1"), method: "get" }, ownedByA],
+  ["stripe purchase: get as superadmin bool", "ALLOW", { auth: SuperAdminBool, path: P("stripe_purchases/sp1"), method: "get" }, ownedByA],
   ["signed out: get stripe purchase", "DENY", { path: P("stripe_purchases/sp1"), method: "get" }, ownedByA],
   ["stripe purchase: create", "DENY", { auth: U, path: P("stripe_purchases/sp2"), method: "create" }],
   ["normalized_ads: get (token-gated)", "DENY", { auth: U, path: P("normalized_ads/meta_1"), method: "get" }],

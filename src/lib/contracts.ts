@@ -23,11 +23,17 @@ export const tokenInt = z.number().int();
 export const idempotencyKey = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/);
 
 // ---------- 1. UserAuth & Token Ledger ----------
-export const RoleSchema = z.enum(["admin", "user"]);
-export const TierSchema = z.enum(["starter", "growth", "agency"]);
+export const RoleSchema = z.enum(["admin", "superadmin", "supporter", "user"]);
+export const TierSchema = z.enum(["supporter", "starter", "growth", "agency"]);
 export const CustomClaimsSchema = z
-  .object({ role: RoleSchema, tier: TierSchema })
-  .strict();
+  .object({
+    role: RoleSchema,
+    tier: TierSchema,
+    isSuperAdmin: z.boolean().optional(),
+    admin: z.boolean().optional(),
+    superadmin: z.boolean().optional(),
+  })
+  .passthrough();
 export type CustomClaims = z.infer<typeof CustomClaimsSchema>;
 
 export const UserDocSchema = z

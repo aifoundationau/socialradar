@@ -38,7 +38,41 @@ const adminApp: App = getApps()[0] ?? createAdminApp();
 export const adminAuth = getAuth(adminApp);
 export const db = getFirestore(adminApp, FIRESTORE_DATABASE_ID);
 
-const DEFAULT_CLAIMS: CustomClaims = { role: "user", tier: "starter" };
+export const DEFAULT_CLAIMS: CustomClaims = {
+  role: "supporter",
+  tier: "supporter",
+  isSuperAdmin: false,
+  admin: false,
+  superadmin: false,
+};
+
+const envAdmins = (process.env.FIREBASE_DATABASE_ADMIN_EMAIL || process.env.NEXT_PUBLIC_DATABASE_ADMIN_EMAIL || "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+/**
+ * List of authorized database administrator emails.
+ * The superadmin should ONLY be the firebase database admin email. Everyone else starts at supporter level.
+ */
+export const DATABASE_ADMIN_EMAILS = new Set([
+  "davidrobertson.info@gmail.com",
+  "support@aifoundation.net.au",
+  ...envAdmins,
+]);
+
+/**
+ * Strictly checks whether an email belongs to the Firebase database admin.
+ * Only the database admin email is granted superadmin authority.
+ */
+export function isDatabaseAdmin(
+  token?: DecodedIdToken | Record<string, unknown> | null,
+  email?: string | null,
+): boolean {
+  const normEmail = (email || (token as DecodedIdToken)?.email || "").toLowerCase().trim();
+  if (!normEmail) return false;
+  return DATABASE_ADMIN_EMAILS.has(normEmail);
+}
 
 export interface VerifiedCaller {
   uid: string;
@@ -69,7 +103,9 @@ const TOKEN_REJECTED_CODES = new Set([
 
 /**
  * Step 1 of the gate: verify the Bearer ID token (revocation checked) and
- * resolve custom claims. Missing/invalid claims fall back to the least-privileged default.
+ * resolve custom claims.
+ * The only superadmin is the person who is the admin of the Firebase database.
+ * Everyone else starts off as 'Supporters'.
  */
 export async function verifyRequest(
   req: Request,
@@ -96,17 +132,36 @@ export async function verifyRequest(
     throw new AuthError("UPSTREAM_FAILURE", `Couldn't verify your session right now.${credentialHint}`);
   }
 
-  const parsed = CustomClaimsSchema.safeParse({ role: token.role, tier: token.tier });
-  const claims = parsed.success ? parsed.data : DEFAULT_CLAIMS;
+  const isSuper = isDatabaseAdmin(token, token.email);
+  let claims: CustomClaims;
+  if (isSuper) {
+    claims = {
+      role: "superadmin",
+      tier: "agency",
+      isSuperAdmin: true,
+      admin: true,
+      superadmin: true,
+    };
+  } else {
+    claims = {
+      role: "supporter",
+      tier: "supporter",
+      isSuperAdmin: false,
+      admin: false,
+      superadmin: false,
+    };
+  }
 
-  if (opts.requireRole === "admin" && claims.role !== "admin") {
-    throw new AuthError("FORBIDDEN", "Admin role required");
+  if (opts.requireRole && (opts.requireRole === "admin" || opts.requireRole === "superadmin")) {
+    if (!isSuper) {
+      throw new AuthError("FORBIDDEN", "Super admin role required");
+    }
   }
 
   return { uid: token.uid, email: (token.email ?? "").toLowerCase(), claims, token };
 }
 
 /** Admin-only helper to assign RBAC claims (used by scripts / admin routes). */
-export async function setUserClaims(uid: string, claims: CustomClaims) {
+export async function setUserClaims(uid: string, claims: Partial<CustomClaims> & { role: CustomClaims["role"]; tier: CustomClaims["tier"] }) {
   await adminAuth.setCustomUserClaims(uid, CustomClaimsSchema.parse(claims));
 }
