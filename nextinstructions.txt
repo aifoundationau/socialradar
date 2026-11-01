@@ -1,19 +1,58 @@
-# AdRadar - Next Instructions
+# AdRadar - Handover & Next Instructions
 
-Current Status:
-- Committed and pushed to GitHub main.
-- Dev server running on http://localhost:3001 (Status 200 OK).
-- All features implemented & verified:
-  1. Superadmin Redistributive Ledger with Stripe purchase tracking:
-     - Shows Total Tokens Purchased (strict integers).
-     - Shows Sum Amount in AUD and Sum Amount in USD.
-     - Redistributive owner equity calculation where owners can be simply added by email address and percentage.
-     - 2-step confirm delete for equity partners and token packs.
-  2. User-to-Superadmin 7-year statutory audit plain-text messaging (centered responsive portal modal).
-  3. Superadmin Token Exemption rule (superadmin pays 0 tokens across all operations).
-  4. Brand Matrix Radar Engine Agent Skill upgraded with Total Views scale ($S_{scale}$) and resonant Highlight Keywords engine.
-  5. Configured external image remote patterns for Meta/Facebook/Instagram (`**.fbcdn.net`), TikTok, Google, and added `unoptimized` fallback to prevent unconfigured host runtime errors.
-- Verification checks passed: TypeScript (0 errors), ESLint (0 errors), Firestore Security Rules (25/25 passed).
+## 1. Current Repository & Build State
+- **Branch:** `main`
+- **Latest Commit:** `ce08b64`
+- **Remote Origin:** `https://github.com/aifoundationau/socialradar.git`
+- **Vercel Project:** `https://vercel.com/aifoundationau/ad-radar`
+- **Working Tree:** Clean (all changes committed and synced)
+- **Local Dev Server:** Running on `http://localhost:3001` (HTTP 200 OK)
+- **Verification Gates:**
+  - TypeScript: 0 errors (`npx tsc --noEmit`)
+  - ESLint: 0 errors (`npm run lint`)
+  - Firestore Security Rules: 25/25 tests pass (`npm run test:rules`)
 
-Next Instruction for Testing & Verification:
-1. Open http://localhost:3001 in your browser, click the gear/admin icon in the top navigation bar to open the SuperAdmin panel, navigate to the "Redistributive Ledger" tab, verify the Total Tokens and Sum in AUD and USD stat cards, then click "Add Equity Partner" and add an owner by entering their email address and percentage allocation.
+## 2. Implemented & Verified Capabilities
+1. **SuperAdmin Redistributive Ledger**:
+   - Aggregates all Stripe token purchases into a centralized ledger (`stripe_purchases` collection).
+   - Shows Total Tokens Sold (strict integers via `Math.round`).
+   - Shows Total Sum in AUD (`formatAud`) and Total Sum in USD (`formatUsd`) with dual-currency calculation.
+   - Owners / equity partners can be simply added by entering their email address and percentage share.
+   - Computes owner distributions (owned tokens, owned AUD, owned USD) and treasury retained values in real-time.
+   - 2-step Confirm Delete pattern implemented for both partners and token packs.
+   - Test simulation button ("Simulate Purchase") available for immediate validation.
+2. **7-Year Statutory Compliance User Messaging**:
+   - Centered, responsive modal rendered via React portal to `document.body` to avoid CSS stacking context clipping.
+   - Strictly plain-text only (all HTML stripped, zero binary or file attachments permitted).
+   - Automated `retentionUntil = now + 7 years` statutory audit backup stored in Firestore `admin_messages`.
+   - SuperAdmin message manager with unread badges, mark-as-read, and archive workflows.
+3. **Superadmin Token Exemption Rule**:
+   - `withTokenGate` token ledger guard automatically bypasses token deductions and balance checks for callers with `role === "admin"`.
+   - UI reflects `0 tokens (Admin)` and hides deduction tags for superadmin sessions.
+4. **Brand Matrix Radar Engine Agent Skill & Total Views**:
+   - Upgraded in `skills/brand-matrix-radar-engine/SKILL.md`.
+   - Computes total views and velocity-derived estimates ($V_{total}$, $S_{scale}$).
+   - Extracts resonant keywords matched against active brand profile avatar, pain points, and unique mechanism.
+   - Displays 4-metric grid on Ad Winner cards with "Est. views" chip, resonant keyword badges, and in-copy ambient highlights.
+5. **Next.js External Image & CDN Configuration**:
+   - Configured `images.remotePatterns` in `next.config.ts` with wildcards for Meta (`**.fbcdn.net`, `**.facebook.com`, `**.cdninstagram.com`), TikTok, Google, and other social ad networks.
+   - Set `unoptimized` on upstream ad creative `<Image />` tags to safeguard against expirable CDN tokens and unconfigured host errors.
+
+## 3. Immediate Next Steps When Reopening Web App Development
+Start here when reopening the project:
+1. **Launch Dev Server**:
+   Run `npm run dev -- -p 3001` and verify `http://localhost:3001` returns 200.
+2. **Step 1 - SuperAdmin Panel Verification**:
+   - Open `http://localhost:3001` and click the SuperAdmin gear icon in the top right.
+   - Go to the **Redistributive Ledger** tab.
+   - Verify the 4 top cards: Total Tokens Purchased, Sum (AUD), Sum (USD), and Owner Redistribution.
+   - Click "Add Equity Partner" and add an owner by entering their email address and percentage share.
+   - Click "Simulate Purchase" to confirm real-time integer redistribution across all active owners.
+3. **Step 2 - Messaging Panel Verification**:
+   - Open the "Message Admin" modal from the navigation / footer.
+   - Send a plain text message and verify in SuperAdmin that it appears with its 7-year retention timestamp.
+4. **Step 3 - Radar Winner Views & Keywords Verification**:
+   - Run a radar search with an active brand profile.
+   - Confirm ad cards display estimated views and highlight resonant keywords.
+5. **Step 4 - Vercel Deployment Sync**:
+   - Verify environment variables and trigger deployment sync on `https://vercel.com/aifoundationau/ad-radar`.
