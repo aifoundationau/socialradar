@@ -3,33 +3,51 @@
 import { useEffect, useState } from "react";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import type { TokenPackId } from "@/lib/contracts";
-import { ACTION_COSTS, TOKEN_PACKS, costLabel, formatAud, formatUsd } from "@/lib/pricing";
+import {
+  ACTION_COSTS,
+  TOKEN_PACKS,
+  buildTokenPack,
+  costLabel,
+  formatAud,
+  formatUsd,
+} from "@/lib/pricing";
 import { loadGeoConfig, type GeoConfig } from "@/lib/geo";
 import { Icon } from "@/components/ui/Icon";
-import { alertError, btnPrimary, btnSecondary, card } from "@/components/ui/styles";
+import { alertError, btnPrimary, btnSecondary, card, field } from "@/components/ui/styles";
 
-const BEST_VALUE: TokenPackId = "PACK_2000";
+const BEST_VALUE: TokenPackId = "PACK_100";
 
 export function TokenPacks() {
   const [pending, setPending] = useState<TokenPackId | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [geo, setGeo] = useState<GeoConfig>(loadGeoConfig());
+  const [customTokens, setCustomTokens] = useState<number>(25);
 
   useEffect(() => {
     setGeo(loadGeoConfig());
   }, []);
 
-  async function buy(packId: TokenPackId) {
+  async function buy(packId: TokenPackId, amount?: number) {
     setPending(packId);
     setError(null);
     try {
-      const { url } = await apiFetch<{ url: string }>("/api/wallet/checkout", { body: { packId } });
+      const body =
+        packId === "PACK_CUSTOM"
+          ? { packId, customTokens: Math.max(1, Math.round(amount || customTokens || 10)) }
+          : { packId };
+      const { url } = await apiFetch<{ url: string }>("/api/wallet/checkout", { body });
       window.location.assign(url);
     } catch (err) {
       setError(errorMessage(err));
       setPending(null);
     }
   }
+
+  // Live calculation for Custom Pack
+  const customPack = buildTokenPack("PACK_CUSTOM", customTokens);
+  const customDisplayPrice = geo.isAuNz
+    ? formatAud(customPack.priceCents)
+    : formatUsd(customPack.priceUsdCents);
 
   return (
     <section id="packs" className="scroll-mt-24 space-y-4" aria-labelledby="packs-heading">
@@ -39,7 +57,7 @@ export function TokenPacks() {
             Top up
           </h2>
           <p className="text-body text-on-surface-variant">
-            One-off purchase through Stripe. Tokens never expire.{" "}
+            One-off purchase through Stripe. Tokens never expire. Base rate is USD $1.00 per token.{" "}
             {ACTION_COSTS.RADAR_SEARCH || ACTION_COSTS.AI_REMIX
               ? `A search uses ${costLabel("RADAR_SEARCH")}, a remix uses ${costLabel("AI_REMIX")}.`
               : "Searching and remixing are free right now."}
@@ -59,7 +77,8 @@ export function TokenPacks() {
 
       {error && <p className={alertError}>{error}</p>}
 
-      <ul className="grid gap-4 sm:grid-cols-3">
+      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Standard Packs: 10, 50, 100 */}
         {Object.values(TOKEN_PACKS).map((pack) => {
           const best = pack.id === BEST_VALUE;
           const displayPrice = geo.isAuNz ? formatAud(pack.priceCents) : formatUsd(pack.priceUsdCents);
@@ -70,8 +89,11 @@ export function TokenPacks() {
           return (
             <li
               key={pack.id}
+              data-testid={`pack-${pack.id.toLowerCase()}`}
               className={`${card} relative flex flex-col gap-3 ${
-                best ? "border-primary-container shadow-[0_0_24px_rgba(128,131,255,0.18)] ring-1 ring-primary-container" : ""
+                best
+                  ? "border-primary-container shadow-[0_0_24px_rgba(128,131,255,0.18)] ring-1 ring-primary-container"
+                  : ""
               }`}
             >
               <div className="flex items-baseline justify-between gap-2">
@@ -99,6 +121,8 @@ export function TokenPacks() {
               )}
               <button
                 type="button"
+                data-testid={`buy-${pack.id.toLowerCase()}`}
+                data-agent-id={`buy-${pack.id.toLowerCase()}`}
                 className={`${best ? btnPrimary : btnSecondary} mt-auto w-full`}
                 onClick={() => buy(pack.id)}
                 disabled={pending !== null}
@@ -108,6 +132,82 @@ export function TokenPacks() {
             </li>
           );
         })}
+
+        {/* 4th Card: Custom Pack */}
+        <li
+          data-testid="pack-custom"
+          className={`${card} relative flex flex-col gap-3 border-white/20`}
+        >
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="flex items-center gap-1.5 font-mono text-mono-metric text-on-surface tabular-nums">
+              <Icon name="zap" className="size-4 text-secondary" />
+              <span>Custom</span>
+            </p>
+            <span className="rounded-full border border-secondary/40 bg-secondary/15 px-2 py-0.5 font-mono text-[10px] text-secondary font-bold uppercase">
+              Flexible
+            </span>
+          </div>
+
+          <div>
+            <label htmlFor="custom-token-input" className="block text-[11px] font-mono text-outline mb-1">
+              Quantity of tokens
+            </label>
+            <div className="flex items-center gap-1.5">
+              <input
+                id="custom-token-input"
+                type="number"
+                min={1}
+                max={100000}
+                value={customTokens || ""}
+                onChange={(e) => setCustomTokens(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                className={`${field} py-1.5 px-2.5 font-mono text-sm`}
+                placeholder="25"
+              />
+            </div>
+            {/* Quick preset increments */}
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {[10, 25, 50, 100].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setCustomTokens((prev) => Math.min(100000, (prev || 0) + n))}
+                  className="rounded bg-white/5 border border-white/10 px-1.5 py-0.5 text-[10px] font-mono text-on-surface-variant hover:border-primary/40 hover:text-primary transition"
+                >
+                  +{n}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCustomTokens(10)}
+                className="rounded bg-white/5 border border-white/10 px-1.5 py-0.5 text-[10px] font-mono text-outline hover:text-on-surface transition"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <p className="text-title-sm font-semibold mt-1">{customDisplayPrice}</p>
+          <p className="font-mono text-[11px] text-outline">
+            {geo.isAuNz ? "AUD settled at checkout" : "USD base converted to AUD at checkout"}
+          </p>
+
+          {!geo.isAuNz && (
+            <p className="font-mono text-[10px] text-on-surface-variant">
+              Converts to {formatAud(customPack.priceCents)} AUD at checkout
+            </p>
+          )}
+
+          <button
+            type="button"
+            data-testid="buy-pack-custom"
+            data-agent-id="buy-pack-custom"
+            className={`${btnSecondary} mt-auto w-full`}
+            onClick={() => buy("PACK_CUSTOM", customTokens)}
+            disabled={pending !== null || !customTokens || customTokens < 1}
+          >
+            {pending === "PACK_CUSTOM" ? "Opening Stripe…" : `Buy ${customTokens || 0} tokens`}
+          </button>
+        </li>
       </ul>
     </section>
   );

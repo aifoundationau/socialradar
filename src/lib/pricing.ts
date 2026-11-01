@@ -37,9 +37,9 @@ export function usdToAudCents(usdCents: number): number {
   return Math.round(usdCents / FX_AUD_TO_USD);
 }
 
-export function formatTokenEstimateHover(tokens: number, isAuNz = false): string {
+export function formatTokenEstimateHover(tokens: number, isAuNz = false, usdCentsPerToken = DEFAULT_USD_CENTS_PER_TOKEN): string {
   if (tokens <= 0) return "Free";
-  const usdCents = tokens * DEFAULT_USD_CENTS_PER_TOKEN;
+  const usdCents = tokens * usdCentsPerToken;
   const audCents = usdToAudCents(usdCents);
   if (isAuNz) {
     return `~${formatAud(audCents)} AUD`;
@@ -62,24 +62,41 @@ export interface TokenPack {
   priceCents: number;
 }
 
-export const TOKEN_PACKS: Record<TokenPackId, TokenPack> = {
+/** Creates a TokenPack instance dynamically with the specified or system base rate. */
+export function buildTokenPack(
+  id: TokenPackId,
+  tokens: number,
+  usdCentsPerToken = DEFAULT_USD_CENTS_PER_TOKEN
+): TokenPack {
+  const cleanTokens = Math.max(1, Math.round(tokens));
+  const priceUsdCents = Math.round(cleanTokens * usdCentsPerToken);
+  const priceCents = usdToAudCents(priceUsdCents);
+  return {
+    id,
+    tokens: cleanTokens,
+    priceUsdCents,
+    priceCents,
+  };
+}
+
+export const TOKEN_PACKS: Record<"PACK_10" | "PACK_50" | "PACK_100", TokenPack> = {
+  PACK_10: {
+    id: "PACK_10",
+    tokens: 10,
+    priceUsdCents: 10 * DEFAULT_USD_CENTS_PER_TOKEN, // $10.00 USD
+    priceCents: usdToAudCents(10 * DEFAULT_USD_CENTS_PER_TOKEN), // $15.00 AUD
+  },
+  PACK_50: {
+    id: "PACK_50",
+    tokens: 50,
+    priceUsdCents: 50 * DEFAULT_USD_CENTS_PER_TOKEN, // $50.00 USD
+    priceCents: usdToAudCents(50 * DEFAULT_USD_CENTS_PER_TOKEN), // $77.00 AUD
+  },
   PACK_100: {
     id: "PACK_100",
     tokens: 100,
     priceUsdCents: 100 * DEFAULT_USD_CENTS_PER_TOKEN, // $100.00 USD
     priceCents: usdToAudCents(100 * DEFAULT_USD_CENTS_PER_TOKEN), // $154.00 AUD
-  },
-  PACK_500: {
-    id: "PACK_500",
-    tokens: 500,
-    priceUsdCents: 500 * DEFAULT_USD_CENTS_PER_TOKEN, // $500.00 USD
-    priceCents: usdToAudCents(500 * DEFAULT_USD_CENTS_PER_TOKEN), // $769.00 AUD
-  },
-  PACK_2000: {
-    id: "PACK_2000",
-    tokens: 2000,
-    priceUsdCents: 2000 * DEFAULT_USD_CENTS_PER_TOKEN, // $2000.00 USD
-    priceCents: usdToAudCents(2000 * DEFAULT_USD_CENTS_PER_TOKEN), // $3,077.00 AUD
   },
 };
 

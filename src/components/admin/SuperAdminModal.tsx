@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { alertError, alertInfo, btnDanger, btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
-import { formatAud, formatPrice, formatTokenEstimateHover, formatUsd } from "@/lib/pricing";
+import { formatAud, formatPrice, formatTokenEstimateHover, formatUsd, usdToAudCents } from "@/lib/pricing";
 import type {
   AdminMessage,
   EquityPartner,
@@ -70,6 +70,7 @@ interface AdminConfigData {
   isTokenSystemEnabled: boolean;
   isAudEnabled: boolean;
   isUsdEnabled: boolean;
+  usdCentsPerToken?: number;
   serviceCosts: ServiceCosts;
   tokenPacks: TokenPackItem[];
   equityPartners: EquityPartner[];
@@ -881,6 +882,40 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                       >
                         {config.isUsdEnabled ? "Enabled" : "Disabled"}
                       </button>
+                    </div>
+                  </div>
+                  {/* Token Base Price (USD) */}
+                  <div className="${card} p-5 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-body font-semibold text-on-surface">Base Token Price (USD)</h4>
+                        <p className="mt-0.5 text-compact text-on-surface-variant">
+                          Default is 1 Token = USD $1.00. Superadmin can adjust the rate; checkout amounts convert to AUD at standard FX.
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 font-mono text-xs font-bold text-primary">
+                        ${((config.usdCentsPerToken ?? 100) / 100).toFixed(2)} USD / token
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                      <div className="relative max-w-xs flex-1">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-outline font-mono text-sm">$</span>
+                        <input
+                          type="number"
+                          min={0.01}
+                          step={0.05}
+                          value={((config.usdCentsPerToken ?? 100) / 100).toFixed(2)}
+                          onChange={(e) => {
+                            const val = Math.max(1, Math.round((parseFloat(e.target.value) || 1) * 100));
+                            saveConfig({ usdCentsPerToken: val });
+                          }}
+                          className="${field} pl-7 font-mono text-sm"
+                        />
+                      </div>
+                      <p className="text-xs font-mono text-outline">
+                        Equates to ~{formatAud(usdToAudCents(config.usdCentsPerToken ?? 100))} AUD per token at checkout
+                      </p>
                     </div>
                   </div>
                 </div>

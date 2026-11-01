@@ -248,10 +248,20 @@ export const ActiveBrandRequestSchema = z
   .object({ activeBrandId: z.union([z.literal(""), BrandIdSchema]) })
   .strict();
 
-export const TokenPackIdSchema = z.enum(["PACK_100", "PACK_500", "PACK_2000"]);
+export const TokenPackIdSchema = z.enum(["PACK_10", "PACK_50", "PACK_100", "PACK_CUSTOM"]);
 export type TokenPackId = z.infer<typeof TokenPackIdSchema>;
 
-export const CheckoutRequestSchema = z.object({ packId: TokenPackIdSchema }).strict();
+export const CheckoutRequestSchema = z
+  .object({
+    packId: TokenPackIdSchema,
+    customTokens: tokenInt.min(1).max(1_000_000).optional(),
+  })
+  .strict()
+  .refine(
+    (data) => data.packId !== "PACK_CUSTOM" || (typeof data.customTokens === "number" && data.customTokens >= 1),
+    { message: "customTokens is required when packId is PACK_CUSTOM" }
+  );
+export type CheckoutRequest = z.infer<typeof CheckoutRequestSchema>;
 
 /** Metadata the server stamps on every Checkout Session; the webhook trusts nothing else. */
 export const TopupMetadataSchema = z
@@ -289,6 +299,7 @@ export const SystemConfigSchema = z
     isTokenSystemEnabled: z.boolean(),
     isAudEnabled: z.boolean(),
     isUsdEnabled: z.boolean(),
+    usdCentsPerToken: tokenInt.min(1).default(100),
     serviceCosts: ServiceCostsSchema,
     updatedAt: isoDate,
   })

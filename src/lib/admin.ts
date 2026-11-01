@@ -33,6 +33,7 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
   isTokenSystemEnabled: true,
   isAudEnabled: true,
   isUsdEnabled: true,
+  usdCentsPerToken: 100,
   serviceCosts: {
     searchStandard: 0,
     searchExtendedDays: 1,
@@ -40,9 +41,9 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
     aiRemix: 0,
   },
   tokenPacks: [
-    { id: "PACK_100", name: "Starter Pack", tokens: TOKEN_PACKS.PACK_100.tokens, priceCents: TOKEN_PACKS.PACK_100.priceCents, enabled: true },
-    { id: "PACK_500", name: "Growth Pack", tokens: TOKEN_PACKS.PACK_500.tokens, priceCents: TOKEN_PACKS.PACK_500.priceCents, enabled: true },
-    { id: "PACK_2000", name: "Agency Pack", tokens: TOKEN_PACKS.PACK_2000.tokens, priceCents: TOKEN_PACKS.PACK_2000.priceCents, enabled: true },
+    { id: "PACK_10", name: "Quick Pack (10)", tokens: TOKEN_PACKS.PACK_10.tokens, priceCents: TOKEN_PACKS.PACK_10.priceCents, enabled: true },
+    { id: "PACK_50", name: "Creator Pack (50)", tokens: TOKEN_PACKS.PACK_50.tokens, priceCents: TOKEN_PACKS.PACK_50.priceCents, enabled: true },
+    { id: "PACK_100", name: "Pro Pack (100)", tokens: TOKEN_PACKS.PACK_100.tokens, priceCents: TOKEN_PACKS.PACK_100.priceCents, enabled: true },
   ],
   equityPartners: [],
   updatedAt: new Date().toISOString(),

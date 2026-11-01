@@ -1,32 +1,29 @@
+Created At: 2026-11-01T17:41:00+10:00
+Completed At: 2026-11-01T17:41:00+10:00
+
 # AdRadar - Handover & Next Instructions
 
 ## 1. Resolved Issues
-1. **Super Admin Panel "Failed to load system configuration":**
-   - **Root Cause:** In [`apiFetch`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/api-client.ts#L22-L46), `method` was defaulting to `"POST"`, causing requests to `/api/admin/config`, `/api/admin/messages`, `/api/admin/rbac`, and `/api/admin/faqs` to send `POST` instead of `GET`.
-   - **Fix:** Enhanced [`apiFetch`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/api-client.ts#L22-L46) to support `"GET"` without request bodies, updated all fetch calls in [`SuperAdminModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/admin/SuperAdminModal.tsx#L324-L388) to explicitly pass `{ method: "GET" }`, and updated `POST /api/admin/config` as a resilient fallback.
-2. **Superadmin Messaging Anyone (7-Year Statutory Retention, Plain Text Only, No Upload Links):**
-   - Added `sendSuperadminMessage` in [`admin.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/admin.ts#L318-L368) and `POST /api/admin/messages`.
-   - Validates plain text only and rejects any upload links or URLs via `LINK_URL_PATTERN`.
-   - Added Compose Message to Anyone drawer in the SuperAdmin "User Messages" tab with registered users autosuggest.
-   - Added "Reply to Sender" button on user messages.
-   - Added "Message" action button beside each user row in the "RBAC Matrix & Roles" tab table.
-   - Added "My Messages" history tab in [`ContactAdminModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/contact/ContactAdminModal.tsx#L125-L160) for users to review their message exchanges with Superadmin.
-3. **Radar Feed Sorting:**
-   - Updated sort keys in [`options.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/components/radar/options.ts#L56-L63) and [`RadarView.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/radar/RadarView.tsx#L57-L65) to include:
-     1. **Winning score** (`SCORE`)
-     2. **Most likes** (`LIKES`)
-     3. **Most views** (`VIEWS`)
-     4. **Longest ad online** (`LONGEST`)
-   - Added `totalLikes` to [`NormalizedAdSchema`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/contracts.ts#L84-L108) and [`AdWinnerCard.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/radar/AdWinnerCard.tsx#L270-L280) so that all 4 sort metrics (Days live, Win score, Est. views, Est. likes) are visibly displayed on each winner card.
+1. **Hydration Mismatch Fix:**
+   - Initialized `AppFooter.tsx` with identical default state on server and client.
+   - Synchronized client-side updates (weather, location, live clock) in `useEffect` post-hydration.
+   - Added `suppressHydrationWarning` on dynamic temperature and time spans.
+2. **Auto-find Geolocation & Live Weather:**
+   - Enhanced `src/app/api/geo/route.ts` and `src/lib/geo.ts` with `autofindUserLocation()`.
+   - Browser GPS reverse-geocodes with BigDataCloud and falls back to server-side IP lookup (`ipwho.is`).
+   - Fetches real-time local weather from Open-Meteo (`23°C Mainly Clear` for Brisbane, QLD).
+   - Added "Auto-Detect Location" one-click button in `GeoTimeModal.tsx`.
+3. **Responsive Button-Based Footer:**
+   - Converted top thin bar and bottom policy links into interactive button chips with icons.
+   - Added mobile bottom safe-area padding (`pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-6`) so the footer is never obscured by the mobile navigation bottom tab bar.
+   - Removed `export const dynamic = "force-dynamic"` to satisfy `nextConfig.cacheComponents`.
 
 ## 2. Verification Gates Passed
 - TypeScript: 0 errors (`npx tsc --noEmit`)
 - Next.js Production Build: Succeeded (`next build`)
 - Firestore Security Rules: 33/33 tests passed (`npm run test:rules`)
-- Messages E2E Pipeline: Verified (`node scripts/test-messages-e2e.mjs`)
-- Commits pushed to `origin main`: `0e533ce`
+- Vercel Production Deployment: READY (`dpl_A9WCC9hCVbaRN9LzeP2npKLo5mmt`)
+- Git commit pushed: `48412eb`
 
 ## 3. Next Tasks & Instructions
-1. Refresh the web app and open the Super Admin Panel to verify that all configuration tabs (Currency Controls, Service Pricing, Token Packs, Redistributive Ledger, User Messages, RBAC Matrix & Roles, Help & FAQs, Developer Diagnostics) load smoothly without the previous error.
-2. Test composing a message to anyone from the "User Messages" tab.
-3. In the Radar Feed (`/radar`), verify the four sort options: "Winning score", "Most likes", "Most views", and "Longest ad online".
+1. Refresh the app at `http://localhost:3001` (or production) and verify that the hydration error is completely gone, and that the footer displays your auto-detected location (`Brisbane, QLD · AU`), live weather, and button chips.

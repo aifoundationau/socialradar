@@ -55,21 +55,23 @@
 
 ### Token packs (server constants, `src/lib/pricing.ts`)
 One-off Stripe Checkout purchases. Tokens never expire.
-- **Base Rate:** Default base rate is 1 Token = USD $1.00 (`100 cents USD`), adjustable by Superadmin in system configuration.
+- **Base Rate:** Default base rate is 1 Token = USD $1.00 (`100 cents USD`), adjustable by Superadmin in system configuration (`usdCentsPerToken`).
 - **Australian Settlement:** People purchase tokens denominated in USD, and amounts at checkout are currency converted to AUD as AI Foundation is an Australian registered business.
 - **Geolocation Filter:** If geolocation is detected in Australia or New Zealand (`AU` or `NZ`), Australians and New Zealanders exclusively see the AUD currency converted price (USD is hidden). All other visitors see USD with converted AUD checkout disclosure.
+- **Pack Sizes:** Packs are offered in 10, 50, 100, and Custom quantities.
 
-| Pack id | Tokens | USD Base | AUD Converted (Checkout) |
+| Pack id | Tokens | USD Base (Default $1/token) | AUD Converted (Checkout) |
 |---|---|---|---|
+| `PACK_10` | 10 | US$10.00 | A$15.00 |
+| `PACK_50` | 50 | US$50.00 | A$77.00 |
 | `PACK_100` | 100 | US$100.00 | A$154.00 |
-| `PACK_500` | 500 | US$500.00 | A$769.00 |
-| `PACK_2000` | 2000 | US$2,000.00 | A$3,077.00 |
+| `PACK_CUSTOM` | Custom ($N \ge 1$) | $N \times \text{Rate}$ | $\text{Round}(N \times \text{Rate} / 0.65)$ |
 
 ### `TopupMetadata` (Checkout Session `metadata`, also copied to the PaymentIntent)
 | Field | Type | Rules |
 |---|---|---|
 | `uid` | string | same as `UserDoc.uid`; must equal the session's `client_reference_id` |
-| `packId` | enum | `PACK_100 \| PACK_500 \| PACK_2000` |
+| `packId` | enum | `PACK_10 \| PACK_50 \| PACK_100 \| PACK_CUSTOM` |
 | `tokens` | string | integer `1–1000000` (Stripe metadata values are strings) |
 
 The webhook credits `tokens` to `uid` with `txId = referenceId = <Checkout Session id>`, so redelivered events are no-ops.
@@ -183,9 +185,9 @@ No body. Creates `users/{uid}` on first sign-in (balance 0) and returns `{ user,
 
 ### `POST /api/wallet/checkout`
 ```json
-{ "packId": "PACK_100|PACK_500|PACK_2000" }
+{ "packId": "PACK_10|PACK_50|PACK_100|PACK_CUSTOM", "customTokens": 25 }
 ```
-Requires `x-idempotency-key` (reused as the Stripe idempotency key). Returns `{ "url": "https://checkout.stripe.com/..." }`.
+`customTokens` is required when `packId` is `"PACK_CUSTOM"` (integer $\ge 1$). Requires `x-idempotency-key` (reused as the Stripe idempotency key). Returns `{ "url": "https://checkout.stripe.com/..." }`.
 
 ### `POST /api/webhooks/stripe`
 Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles `checkout.session.completed` and `checkout.session.async_payment_succeeded` when `payment_status = "paid"`. Returns `500` only when the ledger write fails, so Stripe retries.
