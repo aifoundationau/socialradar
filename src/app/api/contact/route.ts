@@ -2,7 +2,19 @@ import { NextResponse } from "next/server";
 import { verifyRequest } from "@/lib/firebase-admin";
 import { errorResponse, readJson } from "@/lib/api";
 import { CreateAdminMessageRequestSchema } from "@/lib/contracts";
-import { createAdminMessage } from "@/lib/admin";
+import { createAdminMessage, getUserMessages } from "@/lib/admin";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(req: Request) {
+  try {
+    const caller = await verifyRequest(req);
+    const messages = await getUserMessages(caller.email, caller.uid, 50);
+    return NextResponse.json({ messages });
+  } catch (err) {
+    return errorResponse(err);
+  }
+}
 
 export async function POST(req: Request) {
   try {

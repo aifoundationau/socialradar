@@ -183,6 +183,7 @@ export function AdWinnerCard({
   const platform = PLATFORMS[ad.platform];
   const proven = ad.activeDaysCount >= PROVEN_WINNER_DAYS;
   const views = ad.totalViews ?? ad.matrixScore?.totalViews ?? 0;
+  const likes = ad.totalLikes ?? ad.matrixScore?.totalLikes ?? Math.round(views * 0.042);
   const keywords = ad.matrixScore?.highlightKeywords ?? ad.highlightKeywords ?? [];
 
   return (
@@ -273,7 +274,7 @@ export function AdWinnerCard({
           <Metric label="Days live" value={ad.activeDaysCount} sub={`since ${formatDay(ad.firstSeenDate)}`} tone="text-winner-soft" />
           <Metric label="Win score" value={ad.winningScore} sub="of 100" tone="text-on-surface" divided />
           <Metric label="Est. views" value={formatViews(views)} sub="reach" tone="text-primary" divided />
-          <Metric label="Format" value={MEDIA_LABELS[ad.mediaType]} sub={platform.label} tone="text-secondary" divided />
+          <Metric label="Est. likes" value={formatViews(likes)} sub="reactions" tone="text-secondary" divided />
         </dl>
 
         {ad.matrixScore && (

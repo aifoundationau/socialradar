@@ -7,6 +7,7 @@ interface AdCandidate {
   activeDaysCount: number;
   winningScore?: number;
   totalViews?: number;
+  totalLikes?: number;
   duplicates?: number;
 }
 
@@ -51,11 +52,16 @@ export function calculateMatrixScore(
 ): MatrixScoreBreakdown {
   const duplicates = ad.duplicates ?? 0;
 
-  // 1. Total Views Calculation ($V_{total}$)
+  // 1. Total Views Calculation ($V_{total}$) & Total Likes
   const baseViews =
     ad.totalViews ??
     Math.round(ad.activeDaysCount * 1250 + (ad.winningScore ?? 50) * 350);
   const totalViews = Math.max(0, baseViews);
+
+  const baseLikes =
+    ad.totalLikes ??
+    Math.round(totalViews * 0.042);
+  const totalLikes = Math.max(0, baseLikes);
 
   // Views scale score: log10 scale from 100 to 1M+ views mapped to 10-100
   const viewsScore = Math.min(
@@ -106,6 +112,7 @@ export function calculateMatrixScore(
       compositeScore,
       resonanceReason: `Proven winner with ${totalViews.toLocaleString("en-AU")} estimated views running across ${ad.activeDaysCount} days.`,
       totalViews,
+      totalLikes,
       highlightKeywords: genericKeywords,
     };
   }
@@ -217,6 +224,7 @@ export function calculateMatrixScore(
     compositeScore,
     resonanceReason: resonanceReason.slice(0, 300),
     totalViews,
+    totalLikes,
     highlightKeywords,
   };
 }

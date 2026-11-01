@@ -141,6 +141,7 @@ function rank(drafts: Draft[], brand?: BrandProfile | null): NormalizedAd[] {
         ...draft,
         winningScore: matrixScore.compositeScore,
         totalViews: matrixScore.totalViews,
+        totalLikes: matrixScore.totalLikes,
         highlightKeywords: matrixScore.highlightKeywords,
         matrixScore,
       });

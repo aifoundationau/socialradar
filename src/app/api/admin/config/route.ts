@@ -102,7 +102,20 @@ export async function PUT(req: Request) {
 export async function POST(req: Request) {
   try {
     const caller = await verifyRequest(req, { requireRole: "superadmin" });
-    return NextResponse.json({ success: true, message: "Super admin role confirmed.", user: caller.email });
+    const [config, ledger, recentPurchases] = await Promise.all([
+      getSystemConfig(),
+      getRedistributiveLedger(),
+      getStripePurchases(50),
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      config,
+      ledger,
+      recentPurchases,
+      isAdmin: true,
+      user: { uid: caller.uid, email: caller.email, claims: caller.claims },
+    });
   } catch (err) {
     return errorResponse(err);
   }

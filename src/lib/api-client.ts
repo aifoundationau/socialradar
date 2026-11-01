@@ -21,19 +21,27 @@ export const newIdempotencyKey = () => crypto.randomUUID();
  */
 export async function apiFetch<T>(
   path: string,
-  opts: { method?: "POST" | "PUT" | "PATCH" | "DELETE"; body?: unknown; idempotencyKey?: string } = {},
+  opts: { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; body?: unknown; idempotencyKey?: string } = {},
 ): Promise<T> {
   const user = clientAuth().currentUser;
   if (!user) throw new ApiClientError("UNAUTHENTICATED", "Please sign in again.", 401);
 
+  const method = opts.method ?? (opts.body !== undefined ? "POST" : "POST");
+  const isGet = method === "GET";
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${await user.getIdToken()}`,
+  };
+
+  if (!isGet) {
+    headers["Content-Type"] = "application/json";
+    headers["x-idempotency-key"] = opts.idempotencyKey ?? newIdempotencyKey();
+  }
+
   const res = await fetch(path, {
-    method: opts.method ?? "POST",
-    headers: {
-      Authorization: `Bearer ${await user.getIdToken()}`,
-      "Content-Type": "application/json",
-      "x-idempotency-key": opts.idempotencyKey ?? newIdempotencyKey(),
-    },
-    body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+    method,
+    headers,
+    body: isGet || opts.body === undefined ? undefined : JSON.stringify(opts.body),
   });
   const json = await res.json().catch(() => null);
   if (!res.ok) {

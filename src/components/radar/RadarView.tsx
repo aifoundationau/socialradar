@@ -55,9 +55,10 @@ function loadSaved(uid: string): Saved | null {
 }
 
 const SORTERS: Record<SortKey, (a: NormalizedAd, b: NormalizedAd) => number> = {
-  SCORE: (a, b) => b.winningScore - a.winningScore,
-  LONGEVITY: (a, b) => b.activeDaysCount - a.activeDaysCount,
-  RECENT: (a, b) => Date.parse(b.firstSeenDate) - Date.parse(a.firstSeenDate),
+  SCORE: (a, b) => (b.matrixScore?.compositeScore ?? b.winningScore) - (a.matrixScore?.compositeScore ?? a.winningScore),
+  LIKES: (a, b) => (b.totalLikes ?? b.matrixScore?.totalLikes ?? Math.round((b.totalViews ?? 0) * 0.042)) - (a.totalLikes ?? a.matrixScore?.totalLikes ?? Math.round((a.totalViews ?? 0) * 0.042)),
+  VIEWS: (a, b) => (b.totalViews ?? b.matrixScore?.totalViews ?? 0) - (a.totalViews ?? a.matrixScore?.totalViews ?? 0),
+  LONGEST: (a, b) => b.activeDaysCount - a.activeDaysCount,
 };
 
 const toError = (err: unknown): RemixError => ({

@@ -76,6 +76,7 @@ export const MatrixScoreBreakdownSchema = z
     compositeScore: tokenInt.min(0).max(100),
     resonanceReason: z.string().max(500),
     totalViews: tokenInt.min(0).optional(),
+    totalLikes: tokenInt.min(0).optional(),
     highlightKeywords: z.array(z.string().max(60)).max(20).default([]),
   })
   .strict();
@@ -100,6 +101,7 @@ export const NormalizedAdSchema = z
     activeDaysCount: tokenInt.min(1),
     winningScore: tokenInt.min(0).max(100),
     totalViews: tokenInt.min(0).optional(),
+    totalLikes: tokenInt.min(0).optional(),
     highlightKeywords: z.array(z.string().max(60)).max(20).default([]),
     matrixScore: MatrixScoreBreakdownSchema.optional(),
   })
@@ -355,13 +357,18 @@ export const RedistributiveLedgerSummarySchema = z
 export type RedistributiveLedgerSummary = z.infer<typeof RedistributiveLedgerSummarySchema>;
 
 // ---------- 8. Admin Messaging (7-Year Plain Text Retention) ----------
+export const LINK_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.|data:|[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?|\[.*?\]\(.*?\))/i;
+
 export const AdminMessageSchema = z
   .object({
     messageId: z.string().min(1).max(128),
     uid: z.string().min(1).max(128),
     senderEmail: z.string().trim().toLowerCase().email().max(254),
+    recipientEmail: z.string().trim().toLowerCase().email().max(254).optional(),
+    recipientUid: z.string().max(128).optional(),
+    direction: z.enum(["user_to_admin", "admin_to_user"]).default("user_to_admin"),
     subject: z.string().trim().min(1).max(150),
-    body: z.string().trim().min(1).max(2000), // strictly plain text only, no attachments
+    body: z.string().trim().min(1).max(2000), // strictly plain text only, no attachments, no upload links
     status: z.enum(["unread", "read", "archived"]).default("unread"),
     createdAt: isoDate,
     retentionUntil: isoDate, // strictly 7 years from createdAt for statutory compliance
@@ -371,11 +378,48 @@ export type AdminMessage = z.infer<typeof AdminMessageSchema>;
 
 export const CreateAdminMessageRequestSchema = z
   .object({
-    subject: z.string().trim().min(1, "Subject is required").max(150),
-    body: z.string().trim().min(1, "Message text is required").max(2000),
+    subject: z
+      .string()
+      .trim()
+      .min(1, "Subject is required")
+      .max(150)
+      .refine((s) => !LINK_URL_PATTERN.test(s), {
+        message: "Plain text only. Links, URLs, and file uploads are strictly prohibited.",
+      }),
+    body: z
+      .string()
+      .trim()
+      .min(1, "Message text is required")
+      .max(2000)
+      .refine((b) => !LINK_URL_PATTERN.test(b), {
+        message: "Plain text only. Links, URLs, and file uploads are strictly prohibited.",
+      }),
   })
   .strict();
 export type CreateAdminMessageRequest = z.infer<typeof CreateAdminMessageRequestSchema>;
+
+export const SendAdminMessageRequestSchema = z
+  .object({
+    recipientEmail: z.string().trim().toLowerCase().email("Valid recipient email is required").max(254),
+    subject: z
+      .string()
+      .trim()
+      .min(1, "Subject is required")
+      .max(150)
+      .refine((s) => !LINK_URL_PATTERN.test(s), {
+        message: "Plain text only. Links, URLs, and file uploads are strictly prohibited.",
+      }),
+    body: z
+      .string()
+      .trim()
+      .min(1, "Message text is required")
+      .max(2000)
+      .refine((b) => !LINK_URL_PATTERN.test(b), {
+        message: "Plain text only. Links, URLs, and file uploads are strictly prohibited.",
+      }),
+  })
+  .strict();
+export type SendAdminMessageRequest = z.infer<typeof SendAdminMessageRequestSchema>;
 
 // ---------- 9. Role-Based Access Control (RBAC) Matrix ----------
 export const RbacPermissionSchema = z.enum([

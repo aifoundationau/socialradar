@@ -16,7 +16,7 @@ import type {
   RedistributiveLedgerSummary,
   StripePurchaseRecord,
 } from "@/lib/contracts";
-import { RBAC_PERMISSIONS_LIST, RBAC_ROLES_LIST } from "@/lib/contracts";
+import { LINK_URL_PATTERN, RBAC_PERMISSIONS_LIST, RBAC_ROLES_LIST } from "@/lib/contracts";
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -91,6 +91,14 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
   const [recentPurchases, setRecentPurchases] = useState<StripePurchaseRecord[]>([]);
   const [adminMessages, setAdminMessages] = useState<AdminMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<AdminMessage | null>(null);
+  // Superadmin Messaging Anyone state
+  const [showComposeMessage, setShowComposeMessage] = useState(false);
+  const [composeRecipientEmail, setComposeRecipientEmail] = useState("");
+  const [composeSubject, setComposeSubject] = useState("");
+  const [composeBody, setComposeBody] = useState("");
+  const [composeSending, setComposeSending] = useState(false);
+
+  const composeHasLinks = LINK_URL_PATTERN.test(composeSubject) || LINK_URL_PATTERN.test(composeBody);
 
   // RBAC Matrix & Role Assignment state
   const [rbacMatrix, setRbacMatrix] = useState<RbacMatrix | null>(null);
@@ -157,7 +165,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
         users: RbacUserItem[];
         roles: RbacRole[];
         permissions: RbacPermission[];
-      }>("/api/admin/rbac");
+      }>("/api/admin/rbac", { method: "GET" });
       if (data.matrix) setRbacMatrix(data.matrix);
       if (data.users) setRbacUsers(data.users);
     } catch (err) {
@@ -227,7 +235,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
   async function reloadFaqs() {
     setFaqsLoading(true);
     try {
-      const data = await apiFetch<{ faqs: FaqItem[] }>("/api/admin/faqs");
+      const data = await apiFetch<{ faqs: FaqItem[] }>("/api/admin/faqs", { method: "GET" });
       if (data.faqs) setFaqs(data.faqs);
     } catch (err) {
       console.warn("[faqs] failed to load faqs", err);
@@ -330,14 +338,14 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
         ledger?: RedistributiveLedgerSummary;
         recentPurchases?: StripePurchaseRecord[];
         isAdmin: boolean;
-      }>("/api/admin/config");
+      }>("/api/admin/config", { method: "GET" });
       setConfig(data.config);
       if (data.ledger) setLedger(data.ledger);
       if (data.recentPurchases) setRecentPurchases(data.recentPurchases);
       setIsAdmin(data.isAdmin);
 
       try {
-        const msgData = await apiFetch<{ messages: AdminMessage[] }>("/api/admin/messages");
+        const msgData = await apiFetch<{ messages: AdminMessage[] }>("/api/admin/messages", { method: "GET" });
         if (msgData.messages) setAdminMessages(msgData.messages);
       } catch {
         // Non-admin or messages not accessible
@@ -372,8 +380,8 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
         ledger?: RedistributiveLedgerSummary;
         recentPurchases?: StripePurchaseRecord[];
         isAdmin: boolean;
-      }>("/api/admin/config"),
-      apiFetch<{ messages: AdminMessage[] }>("/api/admin/messages").catch(() => ({
+      }>("/api/admin/config", { method: "GET" }),
+      apiFetch<{ messages: AdminMessage[] }>("/api/admin/messages", { method: "GET" }).catch(() => ({
         messages: [] as AdminMessage[],
       })),
       apiFetch<{
@@ -381,8 +389,8 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
         users: RbacUserItem[];
         roles: RbacRole[];
         permissions: RbacPermission[];
-      }>("/api/admin/rbac").catch(() => null),
-      apiFetch<{ faqs: FaqItem[] }>("/api/admin/faqs").catch(() => null),
+      }>("/api/admin/rbac", { method: "GET" }).catch(() => null),
+      apiFetch<{ faqs: FaqItem[] }>("/api/admin/faqs", { method: "GET" }).catch(() => null),
     ])
       .then(([adminData, msgData, rbacData, faqData]) => {
         if (active) {
@@ -621,6 +629,41 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
       setErrorMsg(errorMessage(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSendSuperadminMessage(e: React.FormEvent) {
+    e.preventDefault();
+    if (composeHasLinks) {
+      setErrorMsg("Plain text only. Upload links, URLs, and file attachments are strictly prohibited.");
+      return;
+    }
+    if (!composeRecipientEmail.trim() || !composeSubject.trim() || !composeBody.trim()) return;
+    setComposeSending(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{ success: boolean; message: AdminMessage; messages: AdminMessage[] }>(
+        "/api/admin/messages",
+        {
+          method: "POST",
+          body: {
+            recipientEmail: composeRecipientEmail.trim(),
+            subject: composeSubject.trim(),
+            body: composeBody.trim(),
+          },
+        }
+      );
+      if (data.messages) setAdminMessages(data.messages);
+      setShowComposeMessage(false);
+      setComposeRecipientEmail("");
+      setComposeSubject("");
+      setComposeBody("");
+      setStatusMsg(`Message delivered to ${data.message.recipientEmail} and recorded under 7-year statutory retention.`);
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setComposeSending(false);
     }
   }
 
@@ -1328,12 +1371,121 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
               {/* TAB 5: USER MESSAGES (7-YEAR COMPLIANCE ARCHIVE) */}
               {tab === "MESSAGES" && (
                 <div className="space-y-6">
-                  <div>
-                    <h3 className="text-title-sm font-semibold text-on-surface">User Messages & 7-Year Statutory Backup</h3>
-                    <p className="mt-1 text-compact text-on-surface-variant">
-                      Direct plain-text messages submitted by users. Immutable 7-year audit retention. Binary attachments strictly prohibited.
-                    </p>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-title-sm font-semibold text-on-surface">User Messages & Communications</h3>
+                      <p className="mt-1 text-compact text-on-surface-variant">
+                        Inspect incoming user communications or message anyone. Immutable 7-year statutory retention. Plain text only, no upload links.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowComposeMessage((v) => !v)}
+                      className={btnPrimary}
+                      data-testid="compose-message-button"
+                    >
+                      <Icon name="sparkles" className="size-4" />
+                      {showComposeMessage ? "Close Compose" : "Message Anyone"}
+                    </button>
                   </div>
+
+                  {showComposeMessage && (
+                    <form onSubmit={handleSendSuperadminMessage} className={`${card} p-5 space-y-4`}>
+                      <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+                        <div className="flex items-center gap-2">
+                          <Icon name="sparkles" className="size-4 text-primary" />
+                          <h4 className="text-compact font-bold text-on-surface">Compose Message to Anyone</h4>
+                        </div>
+                        <span className="rounded bg-primary/20 px-2 py-0.5 font-mono text-[11px] text-primary">
+                          7-Year Compliance Archive
+                        </span>
+                      </div>
+
+                      {composeHasLinks && (
+                        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-[12px] text-red-300">
+                          <p className="font-semibold">Upload links / URLs detected</p>
+                          <p className="mt-0.5">Please remove links or URLs. Plain text communication only.</p>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className={label}>Recipient Email</label>
+                          <input
+                            type="email"
+                            required
+                            list="registered-users-list"
+                            placeholder="user@example.com"
+                            value={composeRecipientEmail}
+                            onChange={(e) => setComposeRecipientEmail(e.target.value)}
+                            className={field}
+                          />
+                          <datalist id="registered-users-list">
+                            {rbacUsers.map((u) => (
+                              <option key={u.uid} value={u.email} />
+                            ))}
+                          </datalist>
+                        </div>
+                        <div>
+                          <label className={label}>Subject</label>
+                          <input
+                            type="text"
+                            required
+                            maxLength={150}
+                            placeholder="e.g. Account update, compliance notice, or support reply"
+                            value={composeSubject}
+                            onChange={(e) => setComposeSubject(e.target.value)}
+                            className={field}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <label className={label}>Message Body (Plain Text Only)</label>
+                          <span className="font-mono text-[11px] text-on-surface-variant">
+                            {composeBody.length} / 2000
+                          </span>
+                        </div>
+                        <textarea
+                          required
+                          rows={4}
+                          maxLength={2000}
+                          placeholder="Type your plain-text message here..."
+                          value={composeBody}
+                          onChange={(e) => setComposeBody(e.target.value)}
+                          className={`${field} font-sans leading-relaxed`}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.08]">
+                        <button
+                          type="button"
+                          onClick={() => setShowComposeMessage(false)}
+                          className={btnSecondary}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={composeSending || composeHasLinks || !composeRecipientEmail || !composeSubject || !composeBody}
+                          className={btnPrimary}
+                        >
+                          {composeSending ? (
+                            <>
+                              <Icon name="refresh" className="size-4 animate-spin" />
+                              Sending…
+                            </>
+                          ) : (
+                            <>
+                              <Icon name="sparkles" className="size-4" />
+                              Send Message
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  )}
 
                   {/* 7-Year Statutory Compliance Badge */}
                   <div className="rounded-xl border border-secondary/30 bg-secondary/10 p-3.5 flex items-start gap-3">
@@ -1440,6 +1592,19 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                             </div>
 
                             <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/[0.08]">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setComposeRecipientEmail(selectedMessage.senderEmail);
+                                  setComposeSubject(`Re: ${selectedMessage.subject}`);
+                                  setComposeBody("");
+                                  setShowComposeMessage(true);
+                                }}
+                                className={btnPrimary}
+                              >
+                                <Icon name="sparkles" className="size-3.5" />
+                                Reply to Sender
+                              </button>
                               {selectedMessage.status !== "archived" ? (
                                 <button
                                   type="button"
@@ -1682,6 +1847,20 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                                   {user.tier}
                                 </td>
                                 <td className="p-3 text-right">
+                                  <button
+                                    type="button"
+                                    title={`Message ${user.email}`}
+                                    onClick={() => {
+                                      setTab("MESSAGES");
+                                      setComposeRecipientEmail(user.email);
+                                      setComposeSubject("Direct Notice from Super Admin");
+                                      setComposeBody("");
+                                      setShowComposeMessage(true);
+                                    }}
+                                    className="rounded border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-mono text-primary hover:bg-primary/20 transition mr-2"
+                                  >
+                                    Message
+                                  </button>
                                   {user.isPermanentSuperAdmin ? (
                                     <span className="inline-flex items-center gap-1 rounded bg-primary/20 px-2 py-1 text-xs font-mono font-semibold text-primary">
                                       Permanent Super Admin 🔒

@@ -104,10 +104,16 @@ A cost of `0` makes the action free: the caller must still be signed in and send
 | `activeDaysCount` | integer | `>= 1` |
 | `winningScore` | integer | `0–100` |
 | `totalViews` | integer | optional, `>= 0` (total verified views or velocity-derived impressions) |
+| `totalLikes` | integer | optional, `>= 0` (estimated or observed likes/reactions) |
 | `highlightKeywords` | string[] | max 20, resonant keywords overlapping brand profile |
-| `matrixScore` | object | optional `{ brandFitScore, hookStrengthScore, longevityScore, compositeScore, resonanceReason, totalViews, highlightKeywords }` |
+| `matrixScore` | object | optional `{ brandFitScore, hookStrengthScore, longevityScore, compositeScore, resonanceReason, totalViews, totalLikes, highlightKeywords }` |
 
 - **Winning score:** `raw = activeDaysCount × 2.5 + duplicateCreativeCount × 10` (duplicates = Meta `collation_count − 1`, 0 elsewhere). Results are sorted by `raw` descending; the stored value is `min(100, round(raw))`.
+- **Feed Sort Keys:**
+  - `SCORE`: Winning score (`compositeScore ?? winningScore`) descending.
+  - `LIKES`: Most likes (`totalLikes ?? compositeLikes`) descending.
+  - `VIEWS`: Most views (`totalViews ?? compositeViews`) descending.
+  - `LONGEST`: Longest ad online (`activeDaysCount`) descending.
 - **countryCode** is the searched country, or `EU` when TikTok (whose library only covers Europe) was searched for a country outside it.
 - Written by `/api/radar/search` to `normalized_ads/{adId}`; `/api/radar/remix` reads the ad from there and never accepts ad content from the client.
 
@@ -233,15 +239,30 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 | `messageId` | string | Unique message identifier |
 | `uid` | string | Sender user ID |
 | `senderEmail` | string | Sender email |
-| `subject` | string | Message subject, max 150 chars |
-| `body` | string | Plain text message body, max 2000 chars. **STRICTLY NO ATTACHMENTS OR FILES ALLOWED**. |
-| `status` | enum | `"unread" | "read" | "archived"` |
+| `recipientEmail` | string | optional, Recipient email (for Superadmin messaging anyone or targeted notifications) |
+| `recipientUid` | string | optional, Recipient user ID |
+| `direction` | enum | `"user_to_admin" \| "admin_to_user"`, default `"user_to_admin"` |
+| `subject` | string | Message subject, max 150 chars. Plain text only, strictly NO URLs or upload links. |
+| `body` | string | Plain text message body, max 2000 chars. **STRICTLY PLAIN TEXT ONLY: NO ATTACHMENTS, NO UPLOAD LINKS, NO URLS**. |
+| `status` | enum | `"unread" \| "read" \| "archived"` |
 | `createdAt` | ISO-8601 | Date message sent |
 | `retentionUntil` | ISO-8601 | **Strict 7-year statutory compliance date** (`createdAt + 7 years`). Messages are preserved for 7 years in database backup. |
 
+### Statutory Compliance & Anti-Tamper Policies
+- **Plain Text Only:** Zero HTML tags and zero links/URLs (`https?://`, `ftp://`, `www.`, `data:`, markdown `[text](url)`). Any message containing links or upload URLs is rejected.
+- **7-Year Retention:** All messages are indexed with an immutable `retentionUntil` set 7 years from creation.
+- **Superadmin Authority:** Superadmin can message **anyone** (any email or registered user).
+
 ### `POST /api/contact`
 Body: `{ "subject": "string (1-150)", "body": "string (1-2000)" }`.
-Requires authenticated user. Strips HTML, validates plain text only, rejects file payloads, sets `retentionUntil = now + 7 years`.
+Requires authenticated user. Validates plain text only, rejects file upload links & URLs, sets `retentionUntil = now + 7 years`, sets `direction = "user_to_admin"`.
+
+### `GET /api/contact`
+Requires authenticated user. Returns messages where caller is either sender (`uid == caller.uid`) or recipient (`recipientEmail == caller.email` or `recipientUid == caller.uid`).
+
+### `POST /api/admin/messages`
+Body: `{ "recipientEmail": "email", "subject": "string (1-150)", "body": "string (1-2000)" }`.
+Requires Superadmin. Allows Superadmin to message anyone. Validates plain text only, rejects file upload links & URLs, sets `direction = "admin_to_user"`, sets `retentionUntil = now + 7 years`.
 
 ## 8. Role-Based Access Control (RBAC) Matrix (`system_config/rbac`)
 

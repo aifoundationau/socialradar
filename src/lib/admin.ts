@@ -263,6 +263,17 @@ export async function deleteEquityPartner(partnerId: string): Promise<EquityPart
 // ADMIN MESSAGING (7-YEAR PLAIN TEXT STATUTORY RETENTION)
 // ============================================================================
 
+const LINK_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.|data:|[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?|\[.*?\]\(.*?\))/i;
+
+export function assertPlainTextNoLinks(text: string, fieldName = "Text") {
+  if (/<[^>]*>/i.test(text)) {
+    throw new Error(`${fieldName} contains forbidden HTML tags. Plain text only.`);
+  }
+  if (LINK_URL_PATTERN.test(text)) {
+    throw new Error(`${fieldName} contains links or file upload URLs. Plain text communication only.`);
+  }
+}
+
 /** Creates a user message for superadmin with 7-year statutory retention backup. */
 export async function createAdminMessage(params: {
   uid: string;
@@ -270,10 +281,13 @@ export async function createAdminMessage(params: {
   subject: string;
   body: string;
 }): Promise<AdminMessage> {
-  const cleanSubject = params.subject.replace(/<[^>]*>/g, "").trim().slice(0, 150);
-  const cleanBody = params.body.replace(/<[^>]*>/g, "").trim().slice(0, 2000);
+  const cleanSubject = params.subject.trim().slice(0, 150);
+  const cleanBody = params.body.trim().slice(0, 2000);
   if (!cleanSubject) throw new Error("Subject is required");
   if (!cleanBody) throw new Error("Message body is required");
+
+  assertPlainTextNoLinks(cleanSubject, "Subject");
+  assertPlainTextNoLinks(cleanBody, "Message body");
 
   const now = new Date();
   // 7-year statutory retention in milliseconds
@@ -284,6 +298,7 @@ export async function createAdminMessage(params: {
     messageId,
     uid: params.uid,
     senderEmail: params.senderEmail.toLowerCase().trim(),
+    direction: "user_to_admin",
     subject: cleanSubject,
     body: cleanBody,
     status: "unread",
@@ -295,7 +310,58 @@ export async function createAdminMessage(params: {
   return message;
 }
 
-/** Fetches messages sent to superadmin. */
+/** Allows Superadmin to message anyone. Stored for 7 years in compliance archive. Plain text only, no upload links. */
+export async function sendSuperadminMessage(params: {
+  superadminUid: string;
+  superadminEmail: string;
+  recipientEmail: string;
+  subject: string;
+  body: string;
+}): Promise<AdminMessage> {
+  const cleanEmail = params.recipientEmail.toLowerCase().trim();
+  const cleanSubject = params.subject.trim().slice(0, 150);
+  const cleanBody = params.body.trim().slice(0, 2000);
+
+  if (!cleanEmail) throw new Error("Recipient email is required.");
+  if (!cleanSubject) throw new Error("Subject is required.");
+  if (!cleanBody) throw new Error("Message body is required.");
+
+  assertPlainTextNoLinks(cleanSubject, "Subject");
+  assertPlainTextNoLinks(cleanBody, "Message body");
+
+  let recipientUid: string | undefined;
+  try {
+    const userQuery = await db.collection("users").where("email", "==", cleanEmail).limit(1).get();
+    if (!userQuery.empty) {
+      recipientUid = userQuery.docs[0].id;
+    }
+  } catch {
+    // Proceed without recipientUid
+  }
+
+  const now = new Date();
+  const retentionDate = new Date(now.getTime() + 7 * 365.25 * 24 * 60 * 60 * 1000);
+  const messageId = `msg_out_${Date.now()}_${randomBytes(4).toString("hex")}`;
+
+  const message: AdminMessage = {
+    messageId,
+    uid: params.superadminUid,
+    senderEmail: params.superadminEmail.toLowerCase().trim(),
+    recipientEmail: cleanEmail,
+    recipientUid,
+    direction: "admin_to_user",
+    subject: cleanSubject,
+    body: cleanBody,
+    status: "unread",
+    createdAt: now.toISOString(),
+    retentionUntil: retentionDate.toISOString(),
+  };
+
+  await db.collection(MESSAGES_COL).doc(messageId).set(message);
+  return message;
+}
+
+/** Fetches messages sent to superadmin or created by superadmin. */
 export async function getAdminMessages(limit = 100): Promise<AdminMessage[]> {
   try {
     const snap = await db.collection(MESSAGES_COL).orderBy("createdAt", "desc").limit(limit).get();
@@ -303,6 +369,28 @@ export async function getAdminMessages(limit = 100): Promise<AdminMessage[]> {
     return snap.docs.map((d) => d.data() as AdminMessage);
   } catch (err) {
     console.warn("[admin] failed to fetch admin messages", err);
+    return [];
+  }
+}
+
+/** Retrieves messages for a standard user (sent by user or sent to user by Superadmin). */
+export async function getUserMessages(email: string, uid: string, limit = 50): Promise<AdminMessage[]> {
+  const cleanEmail = email.toLowerCase().trim();
+  try {
+    const [sentSnap, receivedSnap] = await Promise.all([
+      db.collection(MESSAGES_COL).where("uid", "==", uid).limit(limit).get(),
+      db.collection(MESSAGES_COL).where("recipientEmail", "==", cleanEmail).limit(limit).get(),
+    ]);
+
+    const map = new Map<string, AdminMessage>();
+    sentSnap.docs.forEach((d) => map.set(d.id, d.data() as AdminMessage));
+    receivedSnap.docs.forEach((d) => map.set(d.id, d.data() as AdminMessage));
+
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  } catch (err) {
+    console.warn("[admin] failed to fetch user messages", err);
     return [];
   }
 }

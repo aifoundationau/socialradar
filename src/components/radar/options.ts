@@ -53,12 +53,13 @@ export const COUNTRIES: { value: string; label: string }[] = [
   { value: "SG", label: "Singapore" },
 ];
 
-export type SortKey = "SCORE" | "LONGEVITY" | "RECENT";
+export type SortKey = "SCORE" | "LIKES" | "VIEWS" | "LONGEST";
 
 export const SORTS: { value: SortKey; label: string }[] = [
   { value: "SCORE", label: "Winning score" },
-  { value: "LONGEVITY", label: "Days active" },
-  { value: "RECENT", label: "Newest" },
+  { value: "LIKES", label: "Most likes" },
+  { value: "VIEWS", label: "Most views" },
+  { value: "LONGEST", label: "Longest ad online" },
 ];
 
 export const formatDay = (iso: string) =>
