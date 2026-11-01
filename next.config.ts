@@ -69,7 +69,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  serverExternalPackages: ["firebase-admin"],
+  serverExternalPackages: ["firebase-admin", "jwks-rsa"],
   turbopack: {
     rules: {
       "*.css": {
