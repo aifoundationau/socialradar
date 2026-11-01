@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     ]);
 
     const brandCloneFee = config.isTokenSystemEnabled
-      ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 5))
+      ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 1))
       : 0;
 
     return NextResponse.json({

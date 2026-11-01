@@ -36,12 +36,12 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
   audCentsPerToken: 100,
   usdCentsPerToken: 100,
   serviceCosts: {
-    searchStandard: 0,
+    searchStandard: 1,
     searchProvenWinners: 1,
     searchExtendedDays: 1,
-    searchEliteScore: 2,
-    aiRemix: 0,
-    brandClone: 5,
+    searchEliteScore: 1,
+    aiRemix: 1,
+    brandClone: 1,
   },
   tokenPacks: [
     { id: "PACK_10", name: "Quick Pack (10)", tokens: TOKEN_PACKS.PACK_10.tokens, priceCents: TOKEN_PACKS.PACK_10.priceCents, enabled: true },

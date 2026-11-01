@@ -48,7 +48,7 @@ export default function Home() {
           </h1>
           <p className="text-base text-on-surface-variant sm:text-title-sm">
             {ACTION_COSTS.RADAR_SEARCH || ACTION_COSTS.AI_REMIX
-              ? `Pay as you go with tokens: a search costs ${ACTION_COSTS.RADAR_SEARCH}, a full remix costs ${ACTION_COSTS.AI_REMIX}. No subscription.`
+              ? `Pay as you go with tokens: a search costs ${ACTION_COSTS.RADAR_SEARCH} token, a full remix costs ${ACTION_COSTS.AI_REMIX} token. No subscription.`
               : "Search the ad libraries and remix winning ads for your brand. Free right now, no subscription."}
           </p>
           <HomeCta />

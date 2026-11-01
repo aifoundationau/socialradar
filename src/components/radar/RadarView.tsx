@@ -362,7 +362,7 @@ export function RadarView() {
             </div>
             <p className="font-mono text-mono-label text-outline">
               {ACTION_COSTS.RADAR_SEARCH || ACTION_COSTS.AI_REMIX
-                ? `Searches cost ${ACTION_COSTS.RADAR_SEARCH} tokens · remixes cost ${ACTION_COSTS.AI_REMIX}`
+                ? `Searches cost ${ACTION_COSTS.RADAR_SEARCH} ${ACTION_COSTS.RADAR_SEARCH === 1 ? "token" : "tokens"} · remixes cost ${ACTION_COSTS.AI_REMIX} ${ACTION_COSTS.AI_REMIX === 1 ? "token" : "tokens"}`
                 : "Searching and remixing are free right now"}
             </p>
           </div>

@@ -40,7 +40,7 @@ export function BrandsManager() {
   // Global Brands Library State
   const [globalBrands, setGlobalBrands] = useState<BrandProfile[] | null>(null);
   const [globalLoading, setGlobalLoading] = useState(false);
-  const [cloneFee, setCloneFee] = useState<number>(5);
+  const [cloneFee, setCloneFee] = useState<number>(1);
   const [audRate, setAudRate] = useState<number>(100);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTone, setSelectedTone] = useState<string>("ALL");

@@ -1,13 +1,16 @@
 # Next Instructions for Social Radar (ad-radar)
 
 ## Current Status (November 2, 2026)
-1. **Proven Winners (Active 28+d) Token Surcharge & Attachment:**
-   - Added `searchProvenWinners` to `ServiceCosts` in `contracts.ts`, `DEFAULT_CONFIG` in `admin.ts`, and `SERVICE_SURCHARGES` in `pricing.ts` (default 1 token).
-   - Proven winners button in `RadarFilterBar.tsx` now attaches the token badge `+1` (green pill with hover tooltip) styled identically alongside Extended (`+1`) and Top Winners (`+2`).
-   - Integrated into SuperAdmin Control Panel Tab 2 (Service Pricing) with `+`/`-` steppers, AU/NZ AUD hover, and international USD hover.
-   - Included in quick preset buttons ("Set All Free" sets 0 tok, "Standard Paid Rates" sets 1 tok).
-   - Displayed in live service rates comparison bar in `TokenPacks.tsx`.
-   - `calculateSearchCost` and server `/api/radar/search` automatically incorporate `searchProvenWinners` into the token gate (with superadmin 0-token exemption).
+1. **Standard Paid Rates Standardized to 1 Token:**
+   - Standard Paid Rates for all services, products, and surcharges across the application are strictly **1 Token** each:
+     - Base Radar Search (`searchStandard`): 1 token
+     - Proven Winners Active 28+d filter (`searchProvenWinners`): +1 token
+     - Extended Longevity 60+d filter (`searchExtendedDays`): +1 token
+     - Top Winners 90%+ filter (`searchEliteScore`): +1 token
+     - AI Creative Remix Studio (`aiRemix`): 1 token
+     - Global Brand Card Copy (`brandClone`): 1 token
+   - SuperAdmin Control Panel Tab 2 (Service Pricing) preset "Standard Paid Rates (1 tok each)" sets all 6 services to 1 token with one click.
+   - All defaults in `ServiceCostsSchema` (contracts), `DEFAULT_CONFIG` (admin), `ACTION_COSTS`, and `SERVICE_SURCHARGES` (pricing) aligned to 1 token.
 2. **Contact Message Flow:**
    - Quick "Message Sent" checkmark confirmation on submission, automatically transitioning to the "My Messages" panel.
 3. **All Tests & Verifications Passing:**
@@ -16,5 +19,5 @@
    - `npm run build` (Next.js 16.4.3 Turbopack build succeeded).
 
 ## Next Priority Actions
-1. Have user test toggling Proven Winners (Active 28+d) on http://localhost:3001/radar and observing the attached token badge and Search button cost update.
+1. Have user test clicking "Standard Paid Rates" in SuperAdmin Control Panel > Service Pricing at http://localhost:3001 and verify all items show 1 token.
 2. Await next user directive.

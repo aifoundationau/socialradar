@@ -151,7 +151,7 @@ export function TokenPacks() {
           <span>
             Global Brand Copy:{" "}
             <strong className="text-primary">
-              {(serviceCosts.brandClone ?? 5) === 0 ? "Free (0)" : `${serviceCosts.brandClone ?? 5} tok`}
+              {(serviceCosts.brandClone ?? 1) === 0 ? "Free (0)" : `${serviceCosts.brandClone ?? 1} tok`}
             </strong>
           </span>
         </div>

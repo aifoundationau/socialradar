@@ -317,12 +317,12 @@ export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 // ---------- 6. Super Admin & System Config ----------
 export const ServiceCostsSchema = z
   .object({
-    searchStandard: tokenInt.min(0),
+    searchStandard: tokenInt.min(0).default(1),
     searchProvenWinners: tokenInt.min(0).default(1),
-    searchExtendedDays: tokenInt.min(0),
-    searchEliteScore: tokenInt.min(0),
-    aiRemix: tokenInt.min(0),
-    brandClone: tokenInt.min(0).default(5),
+    searchExtendedDays: tokenInt.min(0).default(1),
+    searchEliteScore: tokenInt.min(0).default(1),
+    aiRemix: tokenInt.min(0).default(1),
+    brandClone: tokenInt.min(0).default(1),
   })
   .strict();
 export type ServiceCosts = z.infer<typeof ServiceCostsSchema>;

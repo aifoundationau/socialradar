@@ -15,7 +15,7 @@ export async function POST(req: Request) {
 
   const config = await getSystemConfig();
   const cost = config.isTokenSystemEnabled
-    ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 5))
+    ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 1))
     : 0;
 
   return withTokenGate(

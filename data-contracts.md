@@ -81,16 +81,18 @@ One-off Stripe Checkout purchases. Tokens never expire.
 The webhook credits `tokens` to `uid` with `txId = referenceId = <Checkout Session id>`, so redelivered events are no-ops.
 
 ### Action costs & Service surcharges (server constants, `src/lib/pricing.ts`)
-| Action / Filter | Default Cost | Description |
+Standard Paid Rates for all services, products, and surcharges across the platform are strictly **1 Token** each.
+
+| Action / Surcharge | Standard Paid Rate | Description |
 |---|---|---|
-| `RADAR_SEARCH` (Base) | 0 tokens (free) | Base platform search across ad libraries |
+| `searchStandard` (Base Radar Search) | 1 token | Base platform search across ad libraries |
 | `searchProvenWinners` | +1 token | Proven winners longevity filter (Active 28+ days) |
 | `searchExtendedDays` | +1 token | Extended longevity filter (Active 60+ days) |
-| `searchEliteScore` | +2 tokens | Top Winners composite score filter (90%+ score) |
-| `AI_REMIX` | 0 tokens (free) | Multimodal AI remix deconstruction & script generation |
-| `brandClone` | 5 tokens | Copying global brand card into personal workspace |
+| `searchEliteScore` | +1 token | Top Winners composite score filter (90%+ score) |
+| `aiRemix` (AI Creative Remix) | 1 token | Multimodal AI remix deconstruction & script generation |
+| `brandClone` (Global Brand Copy) | 1 token | Copying global brand card into personal workspace |
 
-A cost of `0` makes the action free: the caller must still be signed in and send an idempotency key, but nothing is written to the ledger and no balance check is made.
+From the SuperAdmin Control Panel, all rates can be dynamically set to free (`0 tokens`) using the "Set All Free (0)" preset or customized individually. A cost of `0` makes the action free: the caller must still be signed in and send an idempotency key, but nothing is written to the ledger and no balance check is made.
 
 ### Superadmin Token Exemption Rule
 - If the authenticated caller has custom claim `{ "role": "admin" }` (Superadmin), the effective token cost for **all actions** (`RADAR_SEARCH`, proven winners filters, extended longevity filters, elite winner filters, and `AI_REMIX`) is strictly **0 tokens**.

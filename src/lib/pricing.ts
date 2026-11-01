@@ -12,16 +12,16 @@ import type { TokenPackId } from "./contracts";
  * signed-in user but writes nothing to the ledger. Customizable via SuperAdmin Control Panel.
  */
 export const ACTION_COSTS: Record<"RADAR_SEARCH" | "AI_REMIX" | "BRAND_CLONE", number> = {
-  RADAR_SEARCH: 0,
-  AI_REMIX: 0,
-  BRAND_CLONE: 5,
+  RADAR_SEARCH: 1,
+  AI_REMIX: 1,
+  BRAND_CLONE: 1,
 };
 export type ChargeableAction = keyof typeof ACTION_COSTS;
 
 export const SERVICE_SURCHARGES = {
   PROVEN_WINNERS: 1,
   EXTENDED_DAYS: 1,
-  ELITE_SCORE: 2,
+  ELITE_SCORE: 1,
 };
 
 /** Calculates total token charge for a search including proven winners, longevity, and score filter surcharges. */

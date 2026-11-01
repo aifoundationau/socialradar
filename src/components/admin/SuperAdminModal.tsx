@@ -965,18 +965,18 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                         onClick={() =>
                           saveConfig({
                             serviceCosts: {
-                              searchStandard: 0,
+                              searchStandard: 1,
                               searchProvenWinners: 1,
                               searchExtendedDays: 1,
-                              searchEliteScore: 2,
-                              aiRemix: 5,
-                              brandClone: 5,
+                              searchEliteScore: 1,
+                              aiRemix: 1,
+                              brandClone: 1,
                             },
                           })
                         }
                         className={btnPrimary}
                       >
-                        Standard Paid Rates
+                        Standard Paid Rates (1 tok each)
                       </button>
                     </div>
                   </div>
