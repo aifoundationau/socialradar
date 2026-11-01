@@ -5,9 +5,10 @@ import { radarQueryHash, replayRadarSearch, runRadarSearch } from "@/lib/radar";
 import { withTokenGate } from "@/lib/token-ledger";
 import { getBrand } from "@/lib/brands";
 import { calculateSearchCost } from "@/lib/pricing";
+import { getSystemConfig } from "@/lib/admin";
 
 /**
- * Searches one ad library (2 tokens, cache hit or miss). Body: RadarSearchRequest.
+ * Searches one ad library using SuperAdmin-configurable token costs. Body: RadarSearchRequest.
  * Requires `x-idempotency-key`; the input is validated before anything is charged.
  */
 export async function POST(req: Request) {
@@ -19,7 +20,10 @@ export async function POST(req: Request) {
   }
   const queryHash = radarQueryHash(input);
 
-  const searchCost = calculateSearchCost(input);
+  const config = await getSystemConfig();
+  const searchCost = config.isTokenSystemEnabled
+    ? calculateSearchCost(input, config.serviceCosts)
+    : 0;
 
   return withTokenGate(
     req,

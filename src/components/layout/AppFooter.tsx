@@ -107,8 +107,8 @@ export function AppFooter() {
                 <span className="size-1.5 rounded-full bg-secondary animate-pulse" />
                 <span suppressHydrationWarning>
                   {geoConfig.isAuNz
-                    ? "AUD Price (AU/NZ Geolocation)"
-                    : "USD Price (Converted at Checkout)"}
+                    ? "AUD $1.00 / Token (AU/NZ Local Currency)"
+                    : "AUD $1.00 ≈ USD $0.65 (All Invoices in AUD)"}
                 </span>
               </div>
 

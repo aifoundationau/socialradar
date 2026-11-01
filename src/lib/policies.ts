@@ -64,13 +64,14 @@ export const POLICIES: Record<string, PolicyDoc> = {
         ],
       },
       {
-        heading: "2. Token Economy & Currency Conversion at Checkout",
+        heading: "2. Token Economy, Australian Dollar Invoicing & Currency Conversion",
         paragraphs: [
-          "AdRadar operates on a strictly defined digital token ledger. People buy tokens denominated in US Dollars (USD). Because AI Foundation is an Australian business registered and headquartered in Australia, all token pack transactions at checkout are currency converted and settled in Australian Dollars (AUD).",
-          "The default rate is 1 Token = USD $1.00. The Superadmin retains full administrative authority to adjust package pricing, service costs, and promotional pack allocations via the system configuration matrix.",
-          "Australians and New Zealanders accessing the platform via geolocation in Australia or New Zealand exclusively view and transact in the AUD currency converted price.",
+          "AdRadar operates on a strictly defined digital token ledger. Because AI Foundation is an Australian registered business headquartered in Australia, the default currency of the platform is Australian Dollars (AUD), and all invoices and checkout transactions are issued and settled in Australian Dollars (AUD).",
+          "The default token price is 1 Token = AUD $1.00. From the SuperAdmin Control Panel, both the base token rate and the token amounts required for each product and service (including Base Search, Extended Longevity filters, Elite Winner filters, and AI Creative Remixes) are fully customizable.",
+          "Australians and New Zealanders accessing the platform from Australia or New Zealand view pricing exclusively in AUD. For all nations except Australia and New Zealand, a currency conversion is displayed showing AUD $1.00 converted to US Dollars (USD) for international reference, while all formal invoices remain in Australian Dollars (AUD).",
         ],
         bullets: [
+          "All invoices and Stripe Checkout settlements are strictly billed in Australian Dollars (AUD).",
           "Tokens are non-refundable and hold no monetary cash value outside the AdRadar platform, except as mandated by the Australian Consumer Law (ACL).",
           "Tokens never expire and remain permanently credited to your account ledger.",
           "Deductions occur on a strict integer basis (Math.round) only upon successful delivery of search and remix outputs.",

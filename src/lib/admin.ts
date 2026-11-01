@@ -33,6 +33,7 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
   isTokenSystemEnabled: true,
   isAudEnabled: true,
   isUsdEnabled: true,
+  audCentsPerToken: 100,
   usdCentsPerToken: 100,
   serviceCosts: {
     searchStandard: 0,
@@ -62,7 +63,11 @@ export async function getSystemConfig(): Promise<AdminSystemConfig> {
       ...DEFAULT_CONFIG,
       ...data,
       equityPartners: Array.isArray(data.equityPartners) ? data.equityPartners : [],
-      tokenPacks: Array.isArray(data.tokenPacks) ? data.tokenPacks : DEFAULT_CONFIG.tokenPacks,
+      audCentsPerToken: typeof data.audCentsPerToken === "number" ? data.audCentsPerToken : DEFAULT_CONFIG.audCentsPerToken,
+      tokenPacks:
+        Array.isArray(data.tokenPacks) && data.tokenPacks.some((p: { id?: string }) => p.id === "PACK_10")
+          ? data.tokenPacks
+          : DEFAULT_CONFIG.tokenPacks,
     };
   } catch (err) {
     console.warn("[admin] failed to fetch system config, using default", err);

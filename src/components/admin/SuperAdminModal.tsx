@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { alertError, alertInfo, btnDanger, btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
-import { formatAud, formatPrice, formatTokenEstimateHover, formatUsd, usdToAudCents } from "@/lib/pricing";
+import { audToUsdCents, formatAud, formatPrice, formatTokenEstimateHover, formatUsd, usdToAudCents } from "@/lib/pricing";
 import type {
   AdminMessage,
   EquityPartner,
@@ -70,6 +70,7 @@ interface AdminConfigData {
   isTokenSystemEnabled: boolean;
   isAudEnabled: boolean;
   isUsdEnabled: boolean;
+  audCentsPerToken?: number;
   usdCentsPerToken?: number;
   serviceCosts: ServiceCosts;
   tokenPacks: TokenPackItem[];
@@ -884,37 +885,38 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                       </button>
                     </div>
                   </div>
-                  {/* Token Base Price (USD) */}
-                  <div className="${card} p-5 space-y-4">
+                  {/* Token Base Price (AUD) */}
+                  <div className={`${card} p-5 space-y-4`}>
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
-                        <h4 className="text-body font-semibold text-on-surface">Base Token Price (USD)</h4>
+                        <h4 className="text-body font-semibold text-on-surface">Base Token Price (AUD — Default Currency)</h4>
                         <p className="mt-0.5 text-compact text-on-surface-variant">
-                          Default is 1 Token = USD $1.00. Superadmin can adjust the rate; checkout amounts convert to AUD at standard FX.
+                          Default is 1 Token = AUD $1.00. All invoices are in AUD. Nations outside AU & NZ see the AUD → USD conversion.
                         </p>
                       </div>
                       <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 font-mono text-xs font-bold text-primary">
-                        ${((config.usdCentsPerToken ?? 100) / 100).toFixed(2)} USD / token
+                        {formatAud(config.audCentsPerToken ?? 100)} AUD / token
                       </span>
                     </div>
 
                     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                       <div className="relative max-w-xs flex-1">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-outline font-mono text-sm">$</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-outline font-mono text-sm">A$</span>
                         <input
                           type="number"
                           min={0.01}
                           step={0.05}
-                          value={((config.usdCentsPerToken ?? 100) / 100).toFixed(2)}
+                          data-testid="superadmin-aud-rate-input"
+                          value={((config.audCentsPerToken ?? 100) / 100).toFixed(2)}
                           onChange={(e) => {
                             const val = Math.max(1, Math.round((parseFloat(e.target.value) || 1) * 100));
-                            saveConfig({ usdCentsPerToken: val });
+                            saveConfig({ audCentsPerToken: val });
                           }}
-                          className="${field} pl-7 font-mono text-sm"
+                          className={`${field} pl-9 font-mono text-sm`}
                         />
                       </div>
                       <p className="text-xs font-mono text-outline">
-                        Equates to ~{formatAud(usdToAudCents(config.usdCentsPerToken ?? 100))} AUD per token at checkout
+                        International Conversion (Outside AU/NZ): {formatAud(config.audCentsPerToken ?? 100)} AUD ≈ {formatUsd(audToUsdCents(config.audCentsPerToken ?? 100))} USD
                       </p>
                     </div>
                   </div>
@@ -924,52 +926,155 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
               {/* TAB 2: SERVICE PRICING */}
               {tab === "PRICING" && (
                 <div className="space-y-6">
-                  <div>
-                    <h3 className="text-title-sm font-semibold text-on-surface">Service Token Surcharges</h3>
-                    <p className="mt-1 text-compact text-on-surface-variant">
-                      Configure strict integer token costs per service operation. AUD/USD estimates display strictly on hover.
-                    </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-title-sm font-semibold text-on-surface">
+                        Customizable Product & Service Token Amounts
+                      </h3>
+                      <p className="mt-1 text-compact text-on-surface-variant">
+                        Customize the integer token amount required for each product and service. Default rate is 1 Token = {formatAud(config.audCentsPerToken ?? 100)} AUD (≈ {formatUsd(audToUsdCents(config.audCentsPerToken ?? 100))} USD for nations outside AU & NZ).
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        data-testid="preset-free-services"
+                        disabled={saving}
+                        onClick={() =>
+                          saveConfig({
+                            serviceCosts: {
+                              searchStandard: 0,
+                              searchExtendedDays: 0,
+                              searchEliteScore: 0,
+                              aiRemix: 0,
+                            },
+                          })
+                        }
+                        className={btnSecondary}
+                      >
+                        Set All Free (0)
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="preset-paid-services"
+                        disabled={saving}
+                        onClick={() =>
+                          saveConfig({
+                            serviceCosts: {
+                              searchStandard: 2,
+                              searchExtendedDays: 1,
+                              searchEliteScore: 2,
+                              aiRemix: 5,
+                            },
+                          })
+                        }
+                        className={btnPrimary}
+                      >
+                        Standard Paid Rates
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {[
-                      { key: "searchStandard" as const, label: "Base Search", desc: "Base platform query across Meta, TikTok, or Google" },
-                      { key: "searchExtendedDays" as const, label: "Extended (60+d) Longevity", desc: "Filter for high-performing battle-tested 60+ day ads" },
-                      { key: "searchEliteScore" as const, label: "Top Winners (90%+)", desc: "Filter for elite tier ads with composite resonance >= 90%" },
-                      { key: "aiRemix" as const, label: "AI Creative Remix", desc: "Gemini multimodal remix generation with brand strategy" },
-                    ].map(({ key, label: serviceLabel, desc }) => (
-                      <div key={key} className={`${card} p-4 space-y-3`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-body font-medium text-on-surface">{serviceLabel}</span>
-                          <span
-                            title={formatTokenEstimateHover(config.serviceCosts[key])}
-                            className="cursor-help rounded bg-surface-container-highest px-2 py-0.5 font-mono text-[12px] text-primary"
-                          >
-                            {config.serviceCosts[key]} tokens
-                          </span>
+                      {
+                        key: "searchStandard" as const,
+                        label: "Base Radar Search",
+                        desc: "Base platform ad library search across Meta, TikTok, or Google",
+                      },
+                      {
+                        key: "searchExtendedDays" as const,
+                        label: "Extended (60+d) Longevity Surcharge",
+                        desc: "Additional tokens for battle-tested 60+ day proven ads filter",
+                      },
+                      {
+                        key: "searchEliteScore" as const,
+                        label: "Top Winners (90%+) Surcharge",
+                        desc: "Additional tokens for elite tier ads with composite score >= 90%",
+                      },
+                      {
+                        key: "aiRemix" as const,
+                        label: "AI Creative Remix Studio",
+                        desc: "Gemini multimodal creative deconstruction, 3 hook variants & storyboard",
+                      },
+                    ].map(({ key, label: serviceLabel, desc }) => {
+                      const tok = config.serviceCosts[key] ?? 0;
+                      const audCents = Math.round(tok * (config.audCentsPerToken ?? 100));
+                      const usdCents = audToUsdCents(audCents);
+
+                      return (
+                        <div key={key} data-testid={`service-cost-card-${key}`} className={`${card} p-4 space-y-3`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-body font-semibold text-on-surface">{serviceLabel}</span>
+                            <span
+                              title={formatTokenEstimateHover(tok, false, config.audCentsPerToken ?? 100)}
+                              className="cursor-help rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 font-mono text-[12px] font-bold text-primary"
+                            >
+                              {tok} {tok === 1 ? "token" : "tokens"}
+                            </span>
+                          </div>
+                          <p className="text-[12px] text-on-surface-variant">{desc}</p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              aria-label={`Decrease ${serviceLabel} tokens`}
+                              disabled={saving || tok <= 0}
+                              onClick={() =>
+                                saveConfig({
+                                  serviceCosts: {
+                                    ...config.serviceCosts,
+                                    [key]: Math.max(0, tok - 1),
+                                  },
+                                })
+                              }
+                              className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-container-highest font-mono text-sm font-bold text-on-surface hover:border-primary/40 hover:text-primary disabled:opacity-40"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              data-testid={`service-cost-input-${key}`}
+                              value={tok}
+                              onChange={(e) => {
+                                const val = Math.max(0, Math.round(Number(e.target.value) || 0));
+                                saveConfig({
+                                  serviceCosts: {
+                                    ...config.serviceCosts,
+                                    [key]: val,
+                                  },
+                                });
+                              }}
+                              className={`${field} text-center font-mono`}
+                            />
+                            <button
+                              type="button"
+                              aria-label={`Increase ${serviceLabel} tokens`}
+                              disabled={saving}
+                              onClick={() =>
+                                saveConfig({
+                                  serviceCosts: {
+                                    ...config.serviceCosts,
+                                    [key]: tok + 1,
+                                  },
+                                })
+                              }
+                              className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-container-highest font-mono text-sm font-bold text-on-surface hover:border-primary/40 hover:text-primary disabled:opacity-40"
+                            >
+                              +
+                            </button>
+                            <span className="text-compact text-on-surface-variant whitespace-nowrap font-mono">
+                              tokens
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between pt-1 border-t border-white/[0.06] font-mono text-[11px] text-outline">
+                            <span>AU/NZ: {tok === 0 ? "Free (A$0.00)" : `${formatAud(audCents)} AUD`}</span>
+                            <span>Intl: {tok === 0 ? "Free" : `≈ ${formatUsd(usdCents)} USD`}</span>
+                          </div>
                         </div>
-                        <p className="text-[12px] text-on-surface-variant">{desc}</p>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={config.serviceCosts[key]}
-                            onChange={(e) => {
-                              const val = Math.max(0, Math.round(Number(e.target.value) || 0));
-                              saveConfig({
-                                serviceCosts: {
-                                  ...config.serviceCosts,
-                                  [key]: val,
-                                },
-                              });
-                            }}
-                            className={field}
-                          />
-                          <span className="text-compact text-on-surface-variant whitespace-nowrap">tokens</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1067,7 +1172,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                           <div>
                             <p className="text-body font-semibold text-on-surface">{pack.name}</p>
                             <p className="text-[12px] text-on-surface-variant font-mono">
-                              {pack.id} • {pack.tokens.toLocaleString("en-AU")} tokens • {formatPrice(pack.priceCents)}
+                              {pack.id} • {pack.tokens.toLocaleString("en-AU")} tokens • {formatAud(pack.priceCents)} AUD (≈ {formatUsd(audToUsdCents(pack.priceCents))} USD)
                             </p>
                           </div>
                         </div>

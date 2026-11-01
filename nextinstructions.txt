@@ -1,28 +1,30 @@
-Created At: 2026-11-01T17:54:05+10:00
-Completed At: 2026-11-01T17:54:05+10:00
+Created At: 2026-11-01T19:51:30+10:00
+Completed At: 2026-11-01T19:51:30+10:00
 
 # AdRadar - Handover & Next Instructions
 
 ## 1. Resolved Issues
-1. **Superadmin Token Base Rate Configuration:**
-   - Default is 1 Token = USD $1.00 (`usdCentsPerToken: 100`).
-   - Added Base Token Price (USD) card under Currency Controls in `SuperAdminModal.tsx`.
-   - Allows Superadmin to adjust token price; checkout dynamically converts to AUD at standard FX (`usdToAudCents`).
-2. **Token Packs of 10, 50, 100, and Custom:**
-   - Standard packs updated to:
-     - `PACK_10`: 10 tokens ($10.00 USD / $15.00 AUD)
-     - `PACK_50`: 50 tokens ($50.00 USD / $77.00 AUD)
-     - `PACK_100`: 100 tokens ($100.00 USD / $154.00 AUD - "Best value")
-     - `PACK_CUSTOM`: Flexible custom token count with quick increment buttons (`+10`, `+25`, `+50`, `+100`), live price calculation, and one-click Stripe checkout.
-   - Updated `data-contracts.md`, `src/lib/contracts.ts`, `src/lib/pricing.ts`, `src/lib/admin.ts`, and `src/app/api/wallet/checkout/route.ts`.
-   - Built 4-column responsive grid in `src/components/wallet/TokenPacks.tsx` with AU/NZ geolocation AUD price protection.
+1. **AUD Default Currency Overhaul:**
+   - Default currency is Australian Dollars (AUD).
+   - Default token price is 1 Token = AUD $1.00 (`audCentsPerToken: 100`).
+   - All invoices and Stripe Checkout transactions are strictly issued and billed in AUD.
+2. **SuperAdmin Customization:**
+   - In `SuperAdminModal.tsx` under Currency Controls, SuperAdmin can customize `audCentsPerToken`.
+   - Under Service Pricing, token amounts for every product and service (`searchStandard`, `searchExtendedDays`, `searchEliteScore`, `aiRemix`) can be customized with live AUD / USD calculation previews.
+   - Presets for "Set All Free (0)" and "Standard Paid Rates" are provided.
+3. **Currency Conversion for Nations Outside AU & NZ:**
+   - Australia (`AU`) and New Zealand (`NZ`) users see strictly AUD prices with zero USD display.
+   - All other nations see AUD prices with live currency conversion to USD (`AUD $1.00 ≈ USD $0.65`).
+4. **Terms of Service & Policies:**
+   - Updated `policies.ts` Section 2 to specify that all invoices are in Australian Dollars (AUD), base rate is 1 Token = AUD $1.00, and non-AU/NZ visitors see indicative USD conversions.
+5. **Data Contracts & Pricing APIs:**
+   - Updated `data-contracts.md`, `src/lib/contracts.ts`, `src/lib/pricing.ts`, `src/lib/admin.ts`, and `src/app/api/wallet/checkout/route.ts` with `GET /api/wallet/checkout` delivering live SuperAdmin rates to the client.
 
 ## 2. Verification Gates Passed
 - TypeScript: 0 errors (`npx tsc --noEmit`)
 - Next.js Production Build: Succeeded (`next build`)
 - Firestore Security Rules: 33/33 tests passed (`npm run test:rules`)
-- Vercel Production Deployment: READY (`dpl_DTwSx9Xy294hwXV1X4moRHydmQ1f`)
-- Git commit pushed: `ade8ce3`
+- Production push: `main`
 
 ## 3. Next Tasks & Instructions
-1. Open `/wallet` in your browser and verify the 4 token pack options (10, 50, 100, and Custom). Try typing a custom number of tokens (e.g. 25) and verify the live price updates.
+1. Open the SuperAdmin Panel (`SuperAdminModal.tsx`) and verify the Currency Controls (Base Token Price: A$1.00 AUD) and Service Pricing tabs where token amounts for each product and service are customizable.

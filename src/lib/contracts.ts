@@ -299,7 +299,8 @@ export const SystemConfigSchema = z
     isTokenSystemEnabled: z.boolean(),
     isAudEnabled: z.boolean(),
     isUsdEnabled: z.boolean(),
-    usdCentsPerToken: tokenInt.min(1).default(100),
+    audCentsPerToken: tokenInt.min(1).default(100),
+    usdCentsPerToken: tokenInt.min(1).optional(),
     serviceCosts: ServiceCostsSchema,
     updatedAt: isoDate,
   })

@@ -151,7 +151,7 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
               <span>Geolocation & Currency Policy</span>
             </p>
             <p className="mt-1">
-              Australians and New Zealanders exclusively view <strong>AUD currency converted price</strong>. International visitors see USD prices converted to AUD at checkout.
+              Default currency is <strong>AUD</strong> (1 Token = AUD $1.00) and all invoices are in Australian Dollars. For all nations except Australia and New Zealand, an <strong>AUD $1.00 to USD</strong> currency conversion is displayed.
             </p>
           </div>
 
@@ -195,12 +195,12 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
                 }}
                 className={field}
               >
-                <option value="AU">Australia (AUD)</option>
-                <option value="NZ">New Zealand (AUD)</option>
-                <option value="US">United States (USD)</option>
-                <option value="GB">United Kingdom (USD)</option>
-                <option value="CA">Canada (USD)</option>
-                <option value="SG">Singapore (USD)</option>
+                <option value="AU">Australia (AUD Only)</option>
+                <option value="NZ">New Zealand (AUD Only)</option>
+                <option value="US">United States (AUD → USD Conversion)</option>
+                <option value="GB">United Kingdom (AUD → USD Conversion)</option>
+                <option value="CA">Canada (AUD → USD Conversion)</option>
+                <option value="SG">Singapore (AUD → USD Conversion)</option>
               </select>
             </div>
             <div>
