@@ -706,7 +706,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
       />
 
       {/* Main Container */}
-      <div className="relative z-10 flex w-full max-w-4xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[92vh] flex-col rounded-2xl border border-white/[0.14] bg-surface-container-high shadow-2xl overflow-hidden my-auto">
+      <div className="relative z-10 flex w-full max-w-4xl lg:max-w-6xl xl:max-w-7xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[92vh] flex-col rounded-2xl border border-white/[0.14] bg-surface-container-high shadow-2xl overflow-hidden my-auto transition-all duration-200">
         {/* Header */}
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-white/[0.08] px-6">
           <div className="flex items-center gap-2.5">
@@ -746,13 +746,13 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
           </div>
         </div>
 
-        {/* Responsive Navbar (Zero Scrollbars, Fluid 2x4 / 4x2 Grid) */}
+        {/* Responsive Navbar (Single sleek row on lg: desktop/laptop, fluid grid on mobile) */}
         <nav
           aria-label="Superadmin Navigation"
           data-testid="superadmin-navbar"
-          className="border-b border-white/[0.08] bg-surface-container p-2.5 sm:px-6 sm:py-3 shrink-0"
+          className="border-b border-white/[0.08] bg-surface-container p-2 sm:px-5 sm:py-2.5 shrink-0"
         >
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-8 sm:gap-2 lg:gap-1.5">
             {[
               { id: "CURRENCY" as const, label: "Currency Controls", icon: "sliders" as IconName },
               { id: "PRICING" as const, label: "Service Pricing", icon: "zap" as IconName },
@@ -779,7 +779,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                   onClick={() => setTab(t.id)}
                   data-testid={`superadmin-tab-${t.id.toLowerCase()}`}
                   data-agent-id={`superadmin-tab-${t.id.toLowerCase()}`}
-                  className={`group relative flex items-center gap-2 rounded-xl border px-3 py-2 text-left font-mono text-[11px] font-semibold transition-all duration-150 ${
+                  className={`group relative flex items-center gap-1.5 sm:gap-2 rounded-xl border px-2 py-1.5 sm:px-3 sm:py-2 text-left font-mono text-[10px] sm:text-[11px] font-semibold transition-all duration-150 ${
                     active
                       ? "border-primary/50 bg-primary/15 text-primary shadow-sm ring-1 ring-primary/30"
                       : "border-white/[0.06] bg-surface-container-high/60 text-on-surface-variant hover:border-white/15 hover:bg-surface-container-high hover:text-on-surface"
@@ -787,7 +787,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                 >
                   <Icon
                     name={t.icon}
-                    className={`size-3.5 shrink-0 transition-colors ${
+                    className={`size-3 sm:size-3.5 shrink-0 transition-colors ${
                       active ? "text-primary" : "text-on-surface-variant group-hover:text-on-surface"
                     }`}
                   />
@@ -799,7 +799,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
         </nav>
 
         {/* Body Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
           {errorMsg && <p className={alertError}>{errorMsg}</p>}
           {statusMsg && <p className={alertInfo}>{statusMsg}</p>}
 
@@ -1216,15 +1216,21 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
 
               {/* TAB 4: REDISTRIBUTIVE LEDGER */}
               {tab === "LEDGER" && (
-                <div className="space-y-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-4 lg:space-y-3.5">
+                  {/* Top Bar: Title & Action Buttons */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div>
-                      <h3 className="text-title-sm font-semibold text-on-surface">Redistributive Equity Ledger</h3>
-                      <p className="mt-1 text-compact text-on-surface-variant">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-title-sm font-semibold text-on-surface">Redistributive Equity Ledger</h3>
+                        <span className="rounded-full bg-secondary/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-secondary">
+                          Live Statutory Splits
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[12px] text-on-surface-variant">
                         Calculates equity partner ownership from total Stripe token revenue and purchased tokens.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
                         onClick={handleSimulatePurchase}
@@ -1249,59 +1255,59 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                   </div>
 
                   {/* Top Stats Cards: Total Tokens and Sum in USD & AUD */}
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <div className={`${card} p-4`}>
-                      <span className="text-[11px] font-mono text-on-surface-variant uppercase">Total Tokens Purchased</span>
-                      <p className="mt-1 text-title-md font-bold text-primary flex items-center gap-1.5">
-                        <Icon name="zap" className="size-5" />
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:gap-2.5">
+                    <div className={`${card} p-3 lg:py-2.5 lg:px-3.5`}>
+                      <span className="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">Total Tokens</span>
+                      <p className="mt-0.5 text-title-sm lg:text-title-md font-bold text-primary flex items-center gap-1.5">
+                        <Icon name="zap" className="size-4 lg:size-5" />
                         {(ledger?.totalTokens ?? 0).toLocaleString("en-AU")}
                       </p>
-                      <span className="text-[11px] text-on-surface-variant">Stripe payments · Integers only</span>
+                      <span className="text-[10px] text-on-surface-variant truncate block">Stripe · Integers only</span>
                     </div>
 
-                    <div className={`${card} p-4`}>
-                      <span className="text-[11px] font-mono text-on-surface-variant uppercase">Sum Amount (AUD)</span>
-                      <p className="mt-1 text-title-md font-bold text-on-surface">
+                    <div className={`${card} p-3 lg:py-2.5 lg:px-3.5`}>
+                      <span className="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">Sum Amount (AUD)</span>
+                      <p className="mt-0.5 text-title-sm lg:text-title-md font-bold text-on-surface">
                         {formatAud(ledger?.totalGrossAudCents ?? ledger?.totalGrossCents ?? 0)}
                       </p>
-                      <span className="text-[11px] text-on-surface-variant">
-                        {ledger?.totalPurchasesCount ?? 0} Stripe transaction(s)
+                      <span className="text-[10px] text-on-surface-variant truncate block">
+                        {ledger?.totalPurchasesCount ?? 0} transaction(s)
                       </span>
                     </div>
 
-                    <div className={`${card} p-4`}>
-                      <span className="text-[11px] font-mono text-on-surface-variant uppercase">Sum Amount (USD)</span>
-                      <p className="mt-1 text-title-md font-bold text-on-surface">
+                    <div className={`${card} p-3 lg:py-2.5 lg:px-3.5`}>
+                      <span className="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">Sum Amount (USD)</span>
+                      <p className="mt-0.5 text-title-sm lg:text-title-md font-bold text-on-surface">
                         {formatUsd(ledger?.totalGrossUsdCents ?? Math.round((ledger?.totalGrossCents ?? 0) * 0.65))}
                       </p>
-                      <span className="text-[11px] text-on-surface-variant">
+                      <span className="text-[10px] text-on-surface-variant truncate block">
                         Dual currency standard
                       </span>
                     </div>
 
-                    <div className={`${card} p-4`}>
-                      <span className="text-[11px] font-mono text-on-surface-variant uppercase">Owner Redistribution</span>
-                      <p className="mt-1 text-title-md font-bold text-secondary">
+                    <div className={`${card} p-3 lg:py-2.5 lg:px-3.5`}>
+                      <span className="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">Owner Redistribution</span>
+                      <p className="mt-0.5 text-title-sm lg:text-title-md font-bold text-secondary">
                         {(ledger?.allocatedPercentage ?? 0).toFixed(2)}% Allocated
                       </p>
-                      <span className="text-[11px] text-on-surface-variant">
-                        Treasury retains {(ledger?.treasuryPercentage ?? 100).toFixed(2)}% ({formatAud(ledger?.treasuryAudCents ?? ledger?.treasuryCents ?? 0)} / {formatUsd(ledger?.treasuryUsdCents ?? Math.round((ledger?.treasuryCents ?? 0) * 0.65))})
+                      <span className="text-[10px] text-on-surface-variant truncate block" title={`Treasury retains ${(ledger?.treasuryPercentage ?? 100).toFixed(2)}% (${formatAud(ledger?.treasuryAudCents ?? ledger?.treasuryCents ?? 0)} / ${formatUsd(ledger?.treasuryUsdCents ?? Math.round((ledger?.treasuryCents ?? 0) * 0.65))})`}>
+                        Treasury retains {(ledger?.treasuryPercentage ?? 100).toFixed(2)}%
                       </span>
                     </div>
                   </div>
 
                   {/* Add Partner Form */}
                   {showAddPartner && (
-                    <form onSubmit={handleAddPartner} className={`${card} p-5 border border-primary/30 space-y-4`}>
+                    <form onSubmit={handleAddPartner} className={`${card} p-4 border border-primary/30 space-y-3 animate-fadeIn`}>
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="text-compact font-semibold text-on-surface">Add Owner to Redistributive Ledger</h4>
-                          <p className="text-[12px] text-on-surface-variant mt-0.5">
-                            Simply add their email address and percentage allocation to redistribute Stripe token proceeds.
+                          <p className="text-[11px] text-on-surface-variant">
+                            Add owner email address and percentage allocation to redistribute Stripe token proceeds.
                           </p>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                         <div>
                           <label className={label}>Owner Email Address *</label>
                           <input
@@ -1363,147 +1369,165 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
                     </form>
                   )}
 
-                  {/* Equity Partners Breakdown Table */}
-                  <div className="space-y-3">
-                    <h4 className="text-compact font-semibold text-on-surface">Owner Redistribution Breakdown</h4>
-                    {config.equityPartners?.length === 0 ? (
-                      <div className={`${card} p-8 text-center text-on-surface-variant`}>
-                        <p>No owners or equity partners added yet.</p>
-                        <p className="text-[12px] mt-1">Click &ldquo;Add Equity Partner&rdquo; to add someone by email address and configure their percentage.</p>
+                  {/* Dual-Pane Grid on Desktop / Stacks on Mobile & Tablet */}
+                  <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-12 lg:items-start">
+                    {/* LEFT PANE (7 COLS): Owner Redistribution Breakdown */}
+                    <div className="space-y-2 lg:col-span-7">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-compact font-semibold text-on-surface">Owner Redistribution Breakdown</h4>
+                        <span className="font-mono text-[11px] text-on-surface-variant">
+                          {config.equityPartners?.length ?? 0} Partner(s)
+                        </span>
                       </div>
-                    ) : (
-                      <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-surface-container-low">
-                        <table className="w-full text-left text-[13px]">
-                          <thead className="border-b border-white/[0.08] bg-surface-container-high/40 font-mono text-mono-label text-on-surface-variant">
-                            <tr>
-                              <th className="px-4 py-3">Owner / Email</th>
-                              <th className="px-4 py-3">Equity %</th>
-                              <th className="px-4 py-3">Owned Tokens</th>
-                              <th className="px-4 py-3">Owned (AUD)</th>
-                              <th className="px-4 py-3">Owned (USD)</th>
-                              <th className="px-4 py-3">Status</th>
-                              <th className="px-4 py-3 text-right">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/[0.04]">
-                            {ledger?.distributions.map((dist) => {
-                              const partner = config.equityPartners.find((p) => p.partnerId === dist.partnerId);
-                              if (!partner) return null;
-                              return (
-                                <tr key={dist.partnerId} className="hover:bg-white/[0.02] transition">
-                                  <td className="px-4 py-3">
-                                    <div className="font-semibold text-on-surface font-mono">{dist.email}</div>
-                                    {dist.name && dist.name !== dist.email && (
-                                      <div className="text-[11px] text-on-surface-variant">{dist.name}</div>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3 font-mono font-bold text-secondary">
-                                    {dist.percentage}%
-                                  </td>
-                                  <td className="px-4 py-3 font-mono text-primary font-semibold">
-                                    ⚡ {dist.ownedTokens.toLocaleString("en-AU")}
-                                  </td>
-                                  <td className="px-4 py-3 font-mono font-semibold text-on-surface">
-                                    {formatAud(dist.ownedAudCents ?? dist.ownedCents)}
-                                  </td>
-                                  <td className="px-4 py-3 font-mono font-semibold text-on-surface-variant">
-                                    {formatUsd(dist.ownedUsdCents ?? Math.round(dist.ownedCents * 0.65))}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleTogglePartnerStatus(partner)}
-                                      className={`rounded px-2 py-0.5 text-[11px] font-mono font-semibold transition ${
-                                        dist.status === "active"
-                                          ? "bg-primary/20 text-primary hover:bg-primary/30"
-                                          : "bg-surface-container-highest text-on-surface-variant hover:bg-white/[0.08]"
-                                      }`}
-                                    >
-                                      {dist.status.toUpperCase()}
-                                    </button>
-                                  </td>
-                                  <td className="px-4 py-3 text-right">
-                                    {confirmDeletePartnerId === dist.partnerId ? (
-                                      <div className="flex items-center justify-end gap-1.5 animate-fadeIn">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDeletePartner(dist.partnerId)}
-                                          className={btnDanger}
-                                          data-testid={`confirm-delete-partner-${dist.partnerId}`}
-                                        >
-                                          Confirm Delete
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => setConfirmDeletePartnerId(null)}
-                                          className={btnSecondary}
-                                        >
-                                          Cancel
-                                        </button>
+
+                      {config.equityPartners?.length === 0 ? (
+                        <div className={`${card} p-6 text-center text-on-surface-variant`}>
+                          <p className="text-sm">No owners or equity partners added yet.</p>
+                          <p className="text-[11px] mt-1 text-outline">
+                            Click &ldquo;Add Equity Partner&rdquo; to add someone by email address and configure their percentage.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-surface-container-low max-h-[360px] overflow-y-auto">
+                          <table className="w-full text-left text-[12px]">
+                            <thead className="border-b border-white/[0.08] bg-surface-container-high/60 font-mono text-mono-label text-on-surface-variant sticky top-0 z-10 backdrop-blur-sm">
+                              <tr>
+                                <th className="px-3 py-2">Owner / Email</th>
+                                <th className="px-2.5 py-2">Equity %</th>
+                                <th className="px-2.5 py-2">Tokens</th>
+                                <th className="px-2.5 py-2">AUD</th>
+                                <th className="px-2.5 py-2">USD</th>
+                                <th className="px-2 py-2">Status</th>
+                                <th className="px-3 py-2 text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/[0.04]">
+                              {ledger?.distributions.map((dist) => {
+                                const partner = config.equityPartners.find((p) => p.partnerId === dist.partnerId);
+                                if (!partner) return null;
+                                return (
+                                  <tr key={dist.partnerId} className="hover:bg-white/[0.02] transition">
+                                    <td className="px-3 py-2">
+                                      <div className="font-semibold text-on-surface font-mono text-[11px] truncate max-w-[140px] sm:max-w-[180px]" title={dist.email}>
+                                        {dist.email}
                                       </div>
-                                    ) : (
+                                      {dist.name && dist.name !== dist.email && (
+                                        <div className="text-[10px] text-on-surface-variant truncate max-w-[140px]">{dist.name}</div>
+                                      )}
+                                    </td>
+                                    <td className="px-2.5 py-2 font-mono font-bold text-secondary text-[11px]">
+                                      {dist.percentage}%
+                                    </td>
+                                    <td className="px-2.5 py-2 font-mono text-primary font-semibold text-[11px] whitespace-nowrap">
+                                      ⚡ {dist.ownedTokens.toLocaleString("en-AU")}
+                                    </td>
+                                    <td className="px-2.5 py-2 font-mono font-semibold text-on-surface text-[11px] whitespace-nowrap">
+                                      {formatAud(dist.ownedAudCents ?? dist.ownedCents)}
+                                    </td>
+                                    <td className="px-2.5 py-2 font-mono font-semibold text-on-surface-variant text-[10px] whitespace-nowrap">
+                                      {formatUsd(dist.ownedUsdCents ?? Math.round(dist.ownedCents * 0.65))}
+                                    </td>
+                                    <td className="px-2 py-2">
                                       <button
                                         type="button"
-                                        onClick={() => setConfirmDeletePartnerId(dist.partnerId)}
-                                        className="text-error hover:text-error/80 font-mono text-[11px] underline"
-                                        data-testid={`delete-partner-${dist.partnerId}`}
+                                        onClick={() => handleTogglePartnerStatus(partner)}
+                                        className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold transition ${
+                                          dist.status === "active"
+                                            ? "bg-primary/20 text-primary hover:bg-primary/30"
+                                            : "bg-surface-container-highest text-on-surface-variant hover:bg-white/[0.08]"
+                                        }`}
                                       >
-                                        Delete
+                                        {dist.status.toUpperCase()}
                                       </button>
-                                    )}
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      {confirmDeletePartnerId === dist.partnerId ? (
+                                        <div className="flex items-center justify-end gap-1 animate-fadeIn">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeletePartner(dist.partnerId)}
+                                            className={`${btnDanger} px-2 py-1 text-[10px]`}
+                                            data-testid={`confirm-delete-partner-${dist.partnerId}`}
+                                          >
+                                            Confirm
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setConfirmDeletePartnerId(null)}
+                                            className={`${btnSecondary} px-2 py-1 text-[10px]`}
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => setConfirmDeletePartnerId(dist.partnerId)}
+                                          className="text-error hover:text-error/80 font-mono text-[10px] underline"
+                                          data-testid={`delete-partner-${dist.partnerId}`}
+                                        >
+                                          Delete
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* RIGHT PANE (5 COLS): Recent Stripe Purchases */}
+                    <div className="space-y-2 lg:col-span-5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-compact font-semibold text-on-surface">Recent Stripe Purchases</h4>
+                        <span className="font-mono text-[11px] text-on-surface-variant">
+                          {recentPurchases.length} Logged
+                        </span>
+                      </div>
+
+                      {recentPurchases.length === 0 ? (
+                        <div className={`${card} p-6 text-center text-on-surface-variant`}>
+                          <p className="text-sm italic">No Stripe purchases recorded yet.</p>
+                          <p className="text-[11px] mt-1 text-outline">
+                            Make a purchase via Wallet or click &ldquo;Simulate Purchase (Test)&rdquo; above.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-surface-container-low max-h-[360px] overflow-y-auto">
+                          <table className="w-full text-left text-[11px]">
+                            <thead className="border-b border-white/[0.08] bg-surface-container-high/60 font-mono text-mono-label text-on-surface-variant sticky top-0 z-10 backdrop-blur-sm">
+                              <tr>
+                                <th className="px-2.5 py-2">Date</th>
+                                <th className="px-2.5 py-2">Buyer</th>
+                                <th className="px-2 py-2">Tokens</th>
+                                <th className="px-2.5 py-2 text-right">Gross (AUD)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/[0.04] font-mono">
+                              {recentPurchases.map((p) => (
+                                <tr key={p.purchaseId} className="hover:bg-white/[0.02]">
+                                  <td className="px-2.5 py-2 text-on-surface-variant whitespace-nowrap">
+                                    {new Date(p.createdAt).toLocaleDateString("en-AU", { day: "2-digit", month: "short" })}
+                                  </td>
+                                  <td className="px-2.5 py-2 text-on-surface truncate max-w-[110px]" title={p.email || p.uid}>
+                                    {p.email || p.uid}
+                                  </td>
+                                  <td className="px-2 py-2 text-primary font-semibold whitespace-nowrap">
+                                    ⚡ {p.tokens.toLocaleString("en-AU")}
+                                  </td>
+                                  <td className="px-2.5 py-2 text-on-surface text-right font-semibold whitespace-nowrap">
+                                    {formatPrice(p.amountCents)}
                                   </td>
                                 </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Recorded Stripe Purchases Table */}
-                  <div className="space-y-3 pt-4 border-t border-white/[0.08]">
-                    <h4 className="text-compact font-semibold text-on-surface">Recent Stripe Token Purchases</h4>
-                    {recentPurchases.length === 0 ? (
-                      <p className="text-[12px] text-on-surface-variant italic">
-                        No Stripe purchases recorded yet. Make a purchase via Wallet or click &ldquo;Simulate Purchase (Test)&rdquo; above.
-                      </p>
-                    ) : (
-                      <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-surface-container-low max-h-60 overflow-y-auto">
-                        <table className="w-full text-left text-[12px]">
-                          <thead className="border-b border-white/[0.08] bg-surface-container-high/40 font-mono text-mono-label text-on-surface-variant sticky top-0">
-                            <tr>
-                              <th className="px-3 py-2">Date</th>
-                              <th className="px-3 py-2">Buyer</th>
-                              <th className="px-3 py-2">Pack</th>
-                              <th className="px-3 py-2">Tokens</th>
-                              <th className="px-3 py-2">Gross (AUD)</th>
-                              <th className="px-3 py-2">Session ID</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/[0.04] font-mono">
-                            {recentPurchases.map((p) => (
-                              <tr key={p.purchaseId} className="hover:bg-white/[0.02]">
-                                <td className="px-3 py-2 text-on-surface-variant">
-                                  {new Date(p.createdAt).toLocaleDateString("en-AU")}
-                                </td>
-                                <td className="px-3 py-2 text-on-surface truncate max-w-[12rem]">
-                                  {p.email || p.uid}
-                                </td>
-                                <td className="px-3 py-2 text-on-surface-variant">{p.packId}</td>
-                                <td className="px-3 py-2 text-primary font-semibold">
-                                  ⚡ {p.tokens.toLocaleString("en-AU")}
-                                </td>
-                                <td className="px-3 py-2 text-on-surface">{formatPrice(p.amountCents)}</td>
-                                <td className="px-3 py-2 text-on-surface-variant text-[10px] truncate max-w-[8rem]" title={p.purchaseId}>
-                                  {p.purchaseId}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

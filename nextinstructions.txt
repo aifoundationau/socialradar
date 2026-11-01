@@ -1,23 +1,24 @@
 # Next Instructions for Social Radar (ad-radar)
 
 ## Current Status (November 1, 2026)
-1. **Firestore Client Resilience & Rule Synchronization:**
-   - Released and deployed latest `firestore.rules` directly to Cloud Firestore `ad-radar` database.
-   - Enhanced `src/lib/firebase-client.ts` with singleton initialization, `experimentalAutoDetectLongPolling: true`, multi-tab IndexedDB persistence (`persistentLocalCache`), and `setLogLevel("silent")` to silence transient streaming retry warnings in Next.js Turbopack dev overlay.
-   - Hardened `SessionProvider.tsx` and `LedgerHistory.tsx` to handle transient `unavailable` Firestore errors gracefully without breaking the UI.
-2. **AUD Platform Currency & Pricing System:**
-   - Base platform currency is AUD.
-   - 1 Token = AUD $1.00 base (`audCentsPerToken = 100`).
-   - SuperAdmin control panel customizes service costs for Base Search, Extended Search, Top Winners, and AI Remix.
-   - Geolocation conversion: AU/NZ see strictly AUD; all other countries see live USD conversions.
-   - Terms of Service updated: all invoices are in AUD.
-3. **Footer Stability:**
-   - Fixed tabular clock width (78px) and static glowing secondary badge.
-4. **All Tests Passing:**
-   - `npm run test:rules` (33/33 tests passing).
+1. **Redistributive Equity Ledger Responsiveness & Zero-Scrollbar Enhancement:**
+   - Upgraded SuperAdminModal container to `max-w-4xl lg:max-w-6xl xl:max-w-7xl` to naturally utilize desktop and laptop horizontal width.
+   - Converted 8-tab navbar to a single streamlined row on desktop/laptop (`lg:grid-cols-8`), reclaiming ~45px of vertical screen real estate.
+   - Transformed Tab 4 into a dual-pane responsive grid:
+     - Left Pane (7 cols / 58%): Owner Redistribution Breakdown table with email, equity %, owned tokens (integers), AUD, USD, status toggle, and confirm-delete modal.
+     - Right Pane (5 cols / 42%): Recent Stripe Purchases feed with date, buyer, tokens, and gross AUD.
+   - High-density compact KPI metrics (`py-2.5 px-3.5`).
+   - Zero outer scrollbar required on laptop screens (768p/900p/1080p) and desktop monitors.
+   - Ergonomic vertical stacking fallback on mobile phones and tablets (< 1024px).
+2. **Firestore Client Resilience & Rule Synchronization:**
+   - Auto-detect long-polling enabled and IndexedDB multi-tab caching configured.
+   - Silent logging enabled for client firestore in browser overlay.
+   - Security rules deployed to Cloud Firestore.
+3. **All Verifications Passing:**
+   - `npm run test:rules` (33/33 passed).
    - `npx tsc --noEmit` (0 errors).
-   - `npm run build` (Next.js 16.4.3 Turbopack build succeeds).
+   - `npm run build` (Next.js 16.4.3 Turbopack build succeeded).
 
 ## Next Priority Actions
-1. Have user refresh http://localhost:3001 in their browser to confirm the console error overlay is resolved.
-2. Proceed to the next user feature or enhancement request.
+1. Have user inspect the SuperAdmin panel's Redistributive Ledger tab at http://localhost:3001 on desktop/laptop to confirm fluid responsiveness and zero outer scrollbars.
+2. Proceed to next feature or task requested by user.
