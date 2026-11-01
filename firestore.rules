@@ -61,6 +61,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Global shared brands catalog: any signed-in user can read.
+    // Mutations are server-only via Firebase Admin SDK.
+    match /global_brands/{brandId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
     // normalized_ads/* and radar_cache/* are server-only: clients reach them through
     // the token-gated /api routes, so direct reads would bypass the ledger.
     match /{document=**} {

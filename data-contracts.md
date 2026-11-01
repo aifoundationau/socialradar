@@ -136,11 +136,11 @@ A cost of `0` makes the action free: the caller must still be signed in and send
 | `notice` | string | max 500, `""` if none |
 | `createdAt`, `expiresAt` | ISO-8601 | `expiresAt = createdAt + 24h` |
 
-## 3. Brand Profile Contract (`users/{uid}/brands/{brandId}`)
+## 3. Brand Profile Contract (`users/{uid}/brands/{brandId}` and `global_brands/{brandId}`)
 
 | Field | Type | Rules |
 |---|---|---|
-| `brandId` | string | server-generated |
+| `brandId` | string | server-generated alphanumeric ID |
 | `brandName` | string | 1–100 |
 | `productServiceDescription` | string | 1–2000 |
 | `targetAudienceAvatar` | string | 1–2000 |
@@ -149,6 +149,18 @@ A cost of `0` makes the action free: the caller must still be signed in and send
 | `toneOfVoice` | enum | `"DIRECT_RESPONSE" \| "AUTHORITATIVE" \| "UGC_CASUAL" \| "URGENT"` |
 | `destinationUrl` | string | https URL (primary landing page) |
 | `landingPageUrls` | string[] | array of https URLs, max 50 (defaults to `[destinationUrl]`) |
+| `isGlobal` | boolean | `default: false` — when `true`, synced to `global_brands/{brandId}` for global discovery & cloning |
+| `version` | string | optional version tag or campaign identifier (e.g. "v1", "v2", "Q4 2026") |
+| `authorUid` | string | optional creator UID for attribution |
+| `authorEmail` | string | optional creator email for global display |
+| `clonedFromBrandId` | string | optional ID of source brand if cloned from community or duplicated |
+| `createdAt` | ISO-8601 | creation timestamp |
+| `updatedAt` | ISO-8601 | last updated timestamp |
+
+### Global Brands & Duplication Endpoints
+- `POST /api/brands/duplicate`: `{ "brandId": string, "versionName"?: string }` clones a personal brand into a new version.
+- `GET /api/brands/global`: `?q=...&tone=...&limit=...` searches public community brands in `global_brands`.
+- `POST /api/brands/clone`: `{ "globalBrandId": string }` copies a global brand into the caller's personal `users/{uid}/brands`.
 
 ## 4. AI Deconstruction & Remix Contract (`remixes/{remixId}`)
 

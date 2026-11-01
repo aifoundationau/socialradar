@@ -25,6 +25,8 @@ const EMPTY: Omit<BrandProfile, "brandId"> = {
   toneOfVoice: "DIRECT_RESPONSE",
   destinationUrl: "https://",
   landingPageUrls: ["https://"],
+  isGlobal: false,
+  version: "",
 };
 
 /** Create (no `brand`) or edit (with `brand`) a Brand Profile in the slide-over panel. */
@@ -39,6 +41,8 @@ export function BrandForm({ brand, onDone, onCancel }: { brand?: BrandProfile; o
 
   const [values, setValues] = useState({
     ...initial,
+    isGlobal: initial.isGlobal ?? false,
+    version: initial.version ?? "",
     corePainPoints: initial.corePainPoints.join("\n"),
   });
   const [landingUrls, setLandingUrls] = useState<string[]>(initialUrls);
@@ -50,6 +54,8 @@ export function BrandForm({ brand, onDone, onCancel }: { brand?: BrandProfile; o
 
   const set = (name: keyof typeof values) => (e: { target: { value: string } }) =>
     setValues((v) => ({ ...v, [name]: e.target.value }));
+
+  const toggleGlobal = () => setValues((v) => ({ ...v, isGlobal: !v.isGlobal }));
 
   function addLandingUrl() {
     setLandingUrls((prev) => [...prev, "https://"]);
@@ -85,6 +91,8 @@ export function BrandForm({ brand, onDone, onCancel }: { brand?: BrandProfile; o
       toneOfVoice: values.toneOfVoice,
       destinationUrl: chosenPrimary,
       landingPageUrls: cleanUrls.length > 0 ? cleanUrls : [chosenPrimary],
+      isGlobal: values.isGlobal,
+      version: values.version?.trim() || undefined,
     });
 
     if (!parsed.success) {
@@ -320,6 +328,50 @@ export function BrandForm({ brand, onDone, onCancel }: { brand?: BrandProfile; o
         </div>
         {err("destinationUrl")}
         {err("landingPageUrls")}
+      </div>
+
+      {/* Version / Campaign Tag (Optional) */}
+      <div>
+        <label htmlFor="version" className={label}>
+          Version or Campaign Tag (Optional)
+        </label>
+        <input
+          id="version"
+          type="text"
+          maxLength={50}
+          className={field}
+          value={values.version}
+          onChange={set("version")}
+          placeholder="e.g. v1, Summer 2026, Campaign B"
+          data-testid="brand-version-input"
+          data-agent-id="brand-version-input"
+        />
+        <p className={hint}>
+          Useful when creating multiple iterations or versions of the same brand.
+        </p>
+      </div>
+
+      {/* Global Brand Sharing Option */}
+      <div className="rounded-xl border border-white/[0.08] bg-surface-container-low p-3.5 space-y-2">
+        <label className="flex items-start gap-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={values.isGlobal}
+            onChange={toggleGlobal}
+            data-testid="brand-is-global-checkbox"
+            data-agent-id="brand-is-global-checkbox"
+            className="mt-0.5 size-4 rounded border-white/20 bg-surface-container-high text-primary focus:ring-primary/40"
+          />
+          <div className="min-w-0">
+            <span className="text-body font-semibold text-on-surface flex items-center gap-1.5">
+              <Icon name="globe" className="size-4 text-primary" />
+              Make this Brand Global (Community Discovery)
+            </span>
+            <p className="text-[12px] text-on-surface-variant mt-0.5 leading-relaxed">
+              When enabled, anyone can search for this brand in the Global Brand Library and make a copy for themselves. Your brand stays personal and editable in your account.
+            </p>
+          </div>
+        </label>
       </div>
 
       {submitError && <p className={alertError}>{submitError}</p>}

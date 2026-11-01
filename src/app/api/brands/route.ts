@@ -29,7 +29,7 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const caller = await verifyRequest(req);
-    const brand = await updateBrand(caller.uid, BrandProfileSchema.parse(await readJson(req)));
+    const brand = await updateBrand(caller.uid, BrandProfileSchema.parse(await readJson(req)), caller.email);
     return NextResponse.json({ brand });
   } catch (err) {
     return errorResponse(err);

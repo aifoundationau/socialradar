@@ -121,11 +121,42 @@ export const BrandProfileInputSchema = z
     toneOfVoice: ToneOfVoiceSchema,
     destinationUrl: httpsUrl,
     landingPageUrls: z.array(httpsUrl).max(50).default([]),
+    isGlobal: z.boolean().default(false),
+    version: z.string().max(50).optional(),
+    authorUid: z.string().optional(),
+    authorEmail: z.string().optional(),
+    clonedFromBrandId: z.string().optional(),
+    createdAt: isoDate.optional(),
+    updatedAt: isoDate.optional(),
   })
   .strict();
-export const BrandIdSchema = z.string().regex(/^[A-Za-z0-9]{1,128}$/);
+export const BrandIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/);
 export const BrandProfileSchema = BrandProfileInputSchema.extend({ brandId: BrandIdSchema }).strict();
 export type BrandProfile = z.infer<typeof BrandProfileSchema>;
+
+export const BrandDuplicateRequestSchema = z
+  .object({
+    brandId: BrandIdSchema,
+    versionName: safeText(1, 100).optional(),
+  })
+  .strict();
+export type BrandDuplicateRequest = z.infer<typeof BrandDuplicateRequestSchema>;
+
+export const BrandCloneRequestSchema = z
+  .object({
+    globalBrandId: BrandIdSchema,
+  })
+  .strict();
+export type BrandCloneRequest = z.infer<typeof BrandCloneRequestSchema>;
+
+export const GlobalBrandSearchQuerySchema = z
+  .object({
+    q: z.string().max(100).optional(),
+    tone: ToneOfVoiceSchema.optional(),
+    limit: tokenInt.min(1).max(100).default(50),
+  })
+  .strict();
+export type GlobalBrandSearchQuery = z.infer<typeof GlobalBrandSearchQuerySchema>;
 
 // ---------- 4. AI Deconstruction & Remix ----------
 export const PersuasionFrameworkSchema = z.enum([
