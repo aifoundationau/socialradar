@@ -58,16 +58,15 @@ export const DEFAULT_USD_CENTS_PER_TOKEN = 100;
 
 /**
  * Converts AUD cents to USD cents for nations outside Australia and New Zealand.
- * Enforces strict whole numbers: always rounds up (Math.ceil) to the nearest whole dollar in cents.
+ * Currency conversion can show up to 2 decimal places (rounded to the nearest cent).
  */
 export function audToUsdCents(audCents: number): number {
-  const usdCents = audCents * FX_AUD_TO_USD;
-  return Math.ceil(usdCents / 100) * 100;
+  return Math.round(audCents * FX_AUD_TO_USD);
 }
 
-/** Converts USD cents to AUD cents, strictly rounded up to whole dollars in cents. */
+/** Converts USD cents to AUD cents. */
 export function usdToAudCents(usdCents: number): number {
-  return Math.ceil((usdCents / FX_AUD_TO_USD) / 100) * 100;
+  return Math.round(usdCents / FX_AUD_TO_USD);
 }
 
 export function formatTokenEstimateHover(
@@ -121,19 +120,19 @@ export const TOKEN_PACKS: Record<"PACK_10" | "PACK_50" | "PACK_100", TokenPack> 
     id: "PACK_10",
     tokens: 10,
     priceCents: 10 * DEFAULT_AUD_CENTS_PER_TOKEN, // $10 AUD
-    priceUsdCents: audToUsdCents(10 * DEFAULT_AUD_CENTS_PER_TOKEN), // $7 USD (rounded up)
+    priceUsdCents: audToUsdCents(10 * DEFAULT_AUD_CENTS_PER_TOKEN), // $6.50 USD
   },
   PACK_50: {
     id: "PACK_50",
     tokens: 50,
     priceCents: 50 * DEFAULT_AUD_CENTS_PER_TOKEN, // $50 AUD
-    priceUsdCents: audToUsdCents(50 * DEFAULT_AUD_CENTS_PER_TOKEN), // $33 USD (rounded up)
+    priceUsdCents: audToUsdCents(50 * DEFAULT_AUD_CENTS_PER_TOKEN), // $32.50 USD
   },
   PACK_100: {
     id: "PACK_100",
     tokens: 100,
     priceCents: 100 * DEFAULT_AUD_CENTS_PER_TOKEN, // $100 AUD
-    priceUsdCents: audToUsdCents(100 * DEFAULT_AUD_CENTS_PER_TOKEN), // $65 USD (rounded up)
+    priceUsdCents: audToUsdCents(100 * DEFAULT_AUD_CENTS_PER_TOKEN), // $65 USD
   },
 };
 
@@ -146,13 +145,15 @@ export const formatAud = (cents: number) =>
     maximumFractionDigits: 0,
   }).format(Math.ceil(cents / 100));
 
-/** Formats USD without decimals, rounding up to whole dollars. */
-export const formatUsd = (cents: number) =>
-  new Intl.NumberFormat("en-US", {
+/** Formats USD currency conversion showing up to 2 decimal places. */
+export const formatUsd = (cents: number) => {
+  const dollars = cents / 100;
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(Math.ceil(cents / 100));
+    minimumFractionDigits: dollars % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(dollars);
+};
 
 export const formatPrice = (cents: number) => formatAud(cents);

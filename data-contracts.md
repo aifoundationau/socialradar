@@ -57,19 +57,18 @@
 One-off Stripe Checkout purchases. Tokens never expire.
 - **Default Currency & Base Rate:** The default platform currency is **AUD** (`aud`), and the default token price is **1 Token = AUD $1** (`100 cents AUD`, stored in `audCentsPerToken`).
 - **SuperAdmin Customization:** From the SuperAdmin Control Panel (`system_config/global`), both `audCentsPerToken` and the token amounts for each product and service (`serviceCosts`: `searchStandard`, `searchProvenWinners`, `searchExtendedDays`, `searchEliteScore`, `aiRemix`, `brandClone`) are fully customizable.
-- **Strict Whole Numbers (Zero Decimals):** The business never uses decimals and operates strictly on whole numbers, with all numbers rounded up (`Math.ceil`) to make them whole numbers.
-- **Australian Invoicing:** All invoices and Stripe Checkout settlements are strictly issued and billed in Australian Dollars (**AUD**).
+- **Base Currency & Invoicing:** All platform token fees and Stripe invoices operate strictly in Australian Dollars (**AUD**) with whole numbers.
 - **Geolocation & International Currency Conversion:**
   - If geolocation is in Australia or New Zealand (`AU` or `NZ`), users strictly see **AUD** prices (`$1 AUD` per token) with no currency conversion display.
-  - For **all nations except Australia and New Zealand**, a currency converter displays the **AUD to USD conversion** (`$1 AUD ≈ $1 USD` / `$10 AUD ≈ $7 USD` rounded up), while all formal invoices remain in Australian Dollars (AUD).
+  - For **all nations except Australia and New Zealand**, a currency converter displays the **AUD to USD conversion**, which can show up to 2 decimal places (e.g. `$1 AUD ≈ $0.65 USD`, `$10 AUD ≈ $6.50 USD`), while all formal invoices remain in Australian Dollars (AUD).
 - **Pack Sizes:** Packs are offered in 10, 50, 100, and Custom quantities.
 
 | Pack id | Tokens | Default Price in AUD (All Invoices) | International Display (Nations Outside AU & NZ) |
 |---|---|---|---|
-| `PACK_10` | 10 | $10 AUD | $10 AUD (≈ $7 USD) |
-| `PACK_50` | 50 | $50 AUD | $50 AUD (≈ $33 USD) |
+| `PACK_10` | 10 | $10 AUD | $10 AUD (≈ $6.50 USD) |
+| `PACK_50` | 50 | $50 AUD | $50 AUD (≈ $32.50 USD) |
 | `PACK_100` | 100 | $100 AUD | $100 AUD (≈ $65 USD) |
-| `PACK_CUSTOM` | Custom ($N \ge 1$) | $N \times \text{audCentsPerToken}$ | $\text{AUD} \times 0.65\text{ USD (rounded up)}$ |
+| `PACK_CUSTOM` | Custom ($N \ge 1$) | $N \times \text{audCentsPerToken}$ | $\text{AUD} \times 0.65\text{ USD (up to 2 decimal places)}$ |
 
 ### `TopupMetadata` (Checkout Session `metadata`, also copied to the PaymentIntent)
 | Field | Type | Rules |
