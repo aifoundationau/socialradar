@@ -1,53 +1,32 @@
 # AdRadar - Handover & Next Instructions
 
-## 1. Current Repository & Build State
-- **Branch:** `main`
-- **GitHub Origin:** `https://github.com/aifoundationau/socialradar.git`
-- **Vercel Dashboard:** `https://vercel.com/aifoundationau/socialradar`
-- **Live Vercel Production URLs:**
-  - `https://socialradar-eight.vercel.app` (Status: 200 OK)
-  - `https://socialradar.aifoundation.net.au` (Status: 200 OK)
-- **Local Dev Server:** Running on `http://localhost:3001` (HTTP 200 OK)
-- **Verification Gates:**
-  - TypeScript: 0 errors (`npx tsc --noEmit`)
-  - Firestore Security Rules: 33/33 tests pass (`npm run test:rules`)
+## 1. Resolved Issues
+1. **Super Admin Panel "Failed to load system configuration":**
+   - **Root Cause:** In [`apiFetch`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/api-client.ts#L22-L46), `method` was defaulting to `"POST"`, causing requests to `/api/admin/config`, `/api/admin/messages`, `/api/admin/rbac`, and `/api/admin/faqs` to send `POST` instead of `GET`.
+   - **Fix:** Enhanced [`apiFetch`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/api-client.ts#L22-L46) to support `"GET"` without request bodies, updated all fetch calls in [`SuperAdminModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/admin/SuperAdminModal.tsx#L324-L388) to explicitly pass `{ method: "GET" }`, and updated `POST /api/admin/config` as a resilient fallback.
+2. **Superadmin Messaging Anyone (7-Year Statutory Retention, Plain Text Only, No Upload Links):**
+   - Added `sendSuperadminMessage` in [`admin.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/admin.ts#L318-L368) and `POST /api/admin/messages`.
+   - Validates plain text only and rejects any upload links or URLs via `LINK_URL_PATTERN`.
+   - Added Compose Message to Anyone drawer in the SuperAdmin "User Messages" tab with registered users autosuggest.
+   - Added "Reply to Sender" button on user messages.
+   - Added "Message" action button beside each user row in the "RBAC Matrix & Roles" tab table.
+   - Added "My Messages" history tab in [`ContactAdminModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/contact/ContactAdminModal.tsx#L125-L160) for users to review their message exchanges with Superadmin.
+3. **Radar Feed Sorting:**
+   - Updated sort keys in [`options.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/components/radar/options.ts#L56-L63) and [`RadarView.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/radar/RadarView.tsx#L57-L65) to include:
+     1. **Winning score** (`SCORE`)
+     2. **Most likes** (`LIKES`)
+     3. **Most views** (`VIEWS`)
+     4. **Longest ad online** (`LONGEST`)
+   - Added `totalLikes` to [`NormalizedAdSchema`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/contracts.ts#L84-L108) and [`AdWinnerCard.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/radar/AdWinnerCard.tsx#L270-L280) so that all 4 sort metrics (Days live, Win score, Est. views, Est. likes) are visibly displayed on each winner card.
 
-## 2. Role & Access Control Architecture
-1. **Superadmin Authority:**
-   - Strictly reserved for the Firebase database administrator email (`davidrobertson.info@gmail.com` / `support@aifoundation.net.au`).
-   - Custom claims: `{ role: "superadmin", tier: "agency", isSuperAdmin: true, admin: true, superadmin: true }`.
-2. **Supporters (Default for All Other Users):**
-   - Everyone else starts at supporter level with default claims: `{ role: "supporter", tier: "supporter", isSuperAdmin: false, admin: false }`.
-   - On sign-in, `/api/me` ensures non-admin accounts are normalized to supporter level.
-3. **Interactive RBAC Matrix & Responsive Superadmin Navbar:**
-   - SuperAdmin navbar rebuilt into a clean, responsive, fluid grid (4x2 on tablet/desktop, 2x4 on mobile) with **zero scrollbars**.
-   - Symmetrically displays all 8 tabs clearly:
-     1. Currency Controls
-     2. Service Pricing
-     3. Token Packs (CRUD)
-     4. Redistributive Ledger
-     5. User Messages (with unread count)
-     6. RBAC Matrix & Roles
-     7. Help & FAQs (with total count)
-     8. Developer Diagnostics
-   - Full 2D Permission-Role matrix tab with locked Superadmin capabilities and toggleable permissions for all other roles.
-   - User Accounts Table allows Superadmin to inspect all users and assign roles via Firebase custom claims with instant update.
-4. **Navbar Menu Order, Hover Popups & Mobile Tab Bar:**
-   - Desktop & Mobile Navigation: "My Brands" is first, followed by "Radar Feed", then "Wallet".
-   - Rich hover popup tooltips on desktop explaining both My Brands and Radar Feed.
-   - On Android & iPhone mobile bottom bar: "My Brands" is first with an interactive `?` trigger that expands a collapsible explanation card above the bottom bar.
-   - Informs users that they can create as many Brands as they want, then choose which one to research & remix.
-   - Includes collapsible details guide at the top of the My Brands page.
-5. **Knowledge Base FAQs Management:**
-   - Super Admin Panel includes dedicated "Help & FAQs" tab.
-   - Superadmin can add, edit, reorder, toggle, and delete FAQs (with confirmation).
-   - Seeded with comprehensive FAQs explaining "What is My Brands?", "What is Radar Feed?", and "How do Token Deductions Work?".
-6. **UI Protection Gate:**
-   - The TopNav Account Menu shows a "Super Admin" badge for database admins and a "Supporter" badge for standard users.
-   - The "Super Admin Panel" action is rendered strictly for the database admin. Standard users only see "Message Super Admin".
-7. **API Route Protection:**
-   - `/api/admin/config` (GET, PUT, POST), `/api/admin/messages` (GET, PATCH), `/api/admin/rbac` (GET, PUT), and `/api/admin/faqs` (GET, POST, PUT, DELETE) enforce `requireRole: "superadmin"`.
+## 2. Verification Gates Passed
+- TypeScript: 0 errors (`npx tsc --noEmit`)
+- Next.js Production Build: Succeeded (`next build`)
+- Firestore Security Rules: 33/33 tests passed (`npm run test:rules`)
+- Messages E2E Pipeline: Verified (`node scripts/test-messages-e2e.mjs`)
+- Commits pushed to `origin main`: `0e533ce`
 
 ## 3. Next Tasks & Instructions
-1. Hover over "My Brands" and "Radar Feed" in the top navbar to verify the explanatory hover popup tooltips.
-2. Open Super Admin Panel -> "Help & FAQs" tab to test managing FAQs and reviewing the seed FAQs.
+1. Refresh the web app and open the Super Admin Panel to verify that all configuration tabs (Currency Controls, Service Pricing, Token Packs, Redistributive Ledger, User Messages, RBAC Matrix & Roles, Help & FAQs, Developer Diagnostics) load smoothly without the previous error.
+2. Test composing a message to anyone from the "User Messages" tab.
+3. In the Radar Feed (`/radar`), verify the four sort options: "Winning score", "Most likes", "Most views", and "Longest ad online".
