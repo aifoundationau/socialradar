@@ -121,6 +121,7 @@ function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
           src={ad.mediaUrls[0] || ad.thumbnailUrl}
           alt={ad.headline || ad.advertiserName || "Ad creative"}
           fill
+          unoptimized
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           className="object-cover"
           onError={() => setErrored(true)}

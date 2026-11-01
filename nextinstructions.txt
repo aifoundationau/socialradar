@@ -8,6 +8,7 @@ Current Status:
   2. User-to-Superadmin 7-year statutory audit plain-text messaging (centered responsive portal modal).
   3. Superadmin Token Exemption rule (superadmin pays 0 tokens across all operations).
   4. Brand Matrix Radar Engine Agent Skill upgraded with Total Views scale ($S_{scale}$) and resonant Highlight Keywords engine.
+  5. Configured external image remote patterns for Meta/Facebook/Instagram (`**.fbcdn.net`), TikTok, Google, and added `unoptimized` fallback to prevent unconfigured host runtime errors.
 - Verification checks passed: TypeScript (0 errors), ESLint (0 errors), Firestore Security Rules (25/25 passed).
 
 Next Instruction for Testing & Verification:
