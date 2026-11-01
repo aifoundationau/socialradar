@@ -1,6 +1,13 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import {
+  initializeFirestore,
+  getFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  setLogLevel,
+  type Firestore,
+} from "firebase/firestore";
 
 /** Must match FIRESTORE_DATABASE_ID on the server and the database in firebase.json. */
 export const FIRESTORE_DATABASE_ID = "ad-radar";
@@ -17,6 +24,33 @@ const config = {
 
 const app = (): FirebaseApp => (getApps().length ? getApp() : initializeApp(config));
 
+let dbSingleton: Firestore | null = null;
+
 /** Browser-only accessors — call from effects and event handlers, never during render. */
 export const clientAuth = (): Auth => getAuth(app());
-export const clientDb = (): Firestore => getFirestore(app(), FIRESTORE_DATABASE_ID);
+
+export const clientDb = (): Firestore => {
+  if (dbSingleton) return dbSingleton;
+  const a = app();
+  try {
+    // Silence internal firestore connection retry warnings from triggering Next.js dev overlay
+    setLogLevel("silent");
+    dbSingleton = initializeFirestore(
+      a,
+      {
+        experimentalAutoDetectLongPolling: true,
+        ...(typeof window !== "undefined"
+          ? {
+              localCache: persistentLocalCache({
+                tabManager: persistentMultipleTabManager(),
+              }),
+            }
+          : {}),
+      },
+      FIRESTORE_DATABASE_ID,
+    );
+  } catch {
+    dbSingleton = getFirestore(a, FIRESTORE_DATABASE_ID);
+  }
+  return dbSingleton;
+};

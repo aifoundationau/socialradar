@@ -43,7 +43,13 @@ export function LedgerHistory({ uid }: { uid: string }) {
           setRows(snap.docs.map((d) => d.data() as TokenTransactionDoc));
           setError(null);
         },
-        (err) => setError(err.message),
+        (err) => {
+          if (err.name === "FirebaseError" && (err as { code?: string }).code === "unavailable") {
+            console.warn("[ledger] firestore backend temporarily unavailable; retrying in background");
+            return;
+          }
+          setError(err.message);
+        },
       ),
     [uid],
   );

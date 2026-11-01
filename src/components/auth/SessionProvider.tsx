@@ -72,7 +72,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!uid) return;
     const db = clientDb();
-    const fail = (err: Error) => setError({ uid, value: err.message });
+    const fail = (err: Error) => {
+      if (err.name === "FirebaseError" && (err as { code?: string }).code === "unavailable") {
+        console.warn("[session] firestore backend temporarily unavailable; operating offline");
+        return;
+      }
+      setError({ uid, value: err.message });
+    };
 
     // Creates users/{uid} on first sign-in; the profile listener picks it up.
     apiFetch("/api/me").catch(fail);
