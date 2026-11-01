@@ -31,7 +31,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     faqId: "faq_tokens_overview",
     question: "How do Token Deductions Work?",
     answer:
-      "Ad Radar operates on a strict integer token ledger. Standard searches cost 0 tokens. Extended day filtering costs 1 token, elite performance score searches cost 2 tokens, and AI Remix generation costs 0 tokens. If any external provider encounters an error, your tokens are automatically refunded atomically.",
+      "Ad Radar operates on a strict integer token ledger. Standard Paid Rates for all services are 1 token each. If any external provider encounters an error, your tokens are automatically refunded atomically. Refund rules: all refund requests are to be made in writing by sending a message to the Super Admin.",
     category: "General",
     order: 3,
     enabled: true,

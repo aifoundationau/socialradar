@@ -242,10 +242,11 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-[12px] text-on-surface-variant leading-relaxed">
               <div className="flex items-center gap-1.5 font-semibold text-primary mb-1">
                 <Icon name="shield" className="size-3.5" />
-                <span>Security & 7-Year Statutory Compliance Policy</span>
+                <span>Security, Compliance & Refund Policy</span>
               </div>
               <p>
                 Messages are archived for <strong>7 years</strong> in accordance with Australian statutory regulations.
+                <strong>Refund requests are to be made in writing by sending a message to the Super Admin here</strong>.
                 To maintain system security, <strong>file uploads and external URLs are strictly prohibited</strong>.
                 Plain text messages only.
               </p>
@@ -267,7 +268,7 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
                 type="text"
                 required
                 maxLength={150}
-                placeholder="e.g. Account inquiry, token question, or feedback"
+                placeholder="e.g. Account inquiry, token question, refund request, or feedback"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 className={field}

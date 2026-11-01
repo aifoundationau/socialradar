@@ -93,6 +93,11 @@ Standard Paid Rates for all services, products, and surcharges across the platfo
 
 From the SuperAdmin Control Panel, all rates can be dynamically set to free (`0 tokens`) using the "Set All Free (0)" preset or customized individually. A cost of `0` makes the action free: the caller must still be signed in and send an idempotency key, but nothing is written to the ledger and no balance check is made.
 
+### Refund Policy & Dispute Process
+- **Automatic Failure Refunds:** If an upstream API provider (SearchApi.io, Gemini) or system operation fails during a search or remix, tokens are automatically refunded atomically via compensating transaction (`<txId>_refund`).
+- **Written Refund Requests:** All formal or manual refund requests are to be made in writing by sending a message to the Superadmin via the secure in-app messaging interface (`/api/contact`).
+- **Statutory Audit Retention:** Written refund requests and compliance communications are cryptographically preserved for 7 years under Australian statutory recordkeeping standards and reviewed in accordance with the Australian Consumer Law (ACL).
+
 ### Superadmin Token Exemption Rule
 - If the authenticated caller has custom claim `{ "role": "admin" }` (Superadmin), the effective token cost for **all actions** (`RADAR_SEARCH`, proven winners filters, extended longevity filters, elite winner filters, and `AI_REMIX`) is strictly **0 tokens**.
 - Superadmin pays **no tokens** under any circumstance.
@@ -352,7 +357,7 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 - **Copyright:** `Copyright © 2026 AI Foundation · All rights reserved.`
 - **Founder Welcome:** David Robertson welcome briefing detailing democratic access and redistributive token economics.
 - **Privacy Policy:** Australian Privacy Principles (APPs) and Privacy Act 1988 (Cth) compliance, 7-year statutory data retention on financial logs, zero selling of personal data.
-- **Terms of Service:** Commercial contract specifying that all invoices are in Australian Dollars (AUD), the default currency is AUD, the default token price is 1 Token = AUD $1 (with product & service token amounts customizable by SuperAdmin), and that the business never uses decimals, operating strictly on whole numbers rounded up. Explains what tokens are: *"You exchange money for a token, tokens mean more flexible payment options, as a payment may be distributed to multiple service providers."* Nations outside Australia and New Zealand view an AUD to USD currency conversion.
+- **Terms of Service:** Commercial contract specifying that all invoices are in Australian Dollars (AUD), the default currency is AUD, the default token price is 1 Token = AUD $1 (with product & service token amounts customizable by SuperAdmin), that the business never uses decimals, operating strictly on whole numbers, and that currency conversion can show up to 2 decimal places. Explains what tokens are: *"You exchange money for a token, tokens mean more flexible payment options, as a payment may be distributed to multiple service providers."* Specifies refund rules: all formal refund requests must be made in writing by sending a message to the Superadmin. Nations outside Australia and New Zealand view an AUD to USD currency conversion.
 - **AI Policy (ISO/IEC 42001):** Artificial Intelligence Management System compliance, model ethics, bias mitigations, and human-in-the-loop oversight.
 - **Security Policy (ISO/IEC 27001):** Information Security Management System standards, defense-in-depth, RBAC matrix, and encrypted storage.
 

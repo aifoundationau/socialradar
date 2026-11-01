@@ -25,8 +25,8 @@ export function WalletView() {
             {profile ? profile.tokenBalance.toLocaleString("en-AU") : "–"}
           </p>
         </div>
-        <p className="max-w-xs text-body text-on-surface-variant">
-          If a search or remix fails on our side, its tokens are refunded automatically.
+        <p className="max-w-sm text-body text-on-surface-variant">
+          If a search or remix fails on our side, its tokens are refunded automatically. Refund requests are to be made in writing by sending a message to the Super Admin.
         </p>
       </section>
 
