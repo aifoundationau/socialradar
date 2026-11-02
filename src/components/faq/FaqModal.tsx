@@ -25,7 +25,8 @@ export interface FaqModalProps {
 
 export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
   const isClient = useIsClient();
-  const { isAdmin } = useSession();
+  const { isAdmin, role } = useSession();
+  const isSuperAdmin = Boolean(isAdmin && role === "superadmin");
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,8 +141,8 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
           </button>
         </div>
 
-        {/* Superadmin banner / shortcut */}
-        {isAdmin && onOpenFaqDev && (
+        {/* Strictly Super Admin Only: FAQ Development Suite shortcut */}
+        {isSuperAdmin && onOpenFaqDev && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-primary/20 bg-primary/10 px-5 py-2.5">
             <div className="flex items-center gap-2">
               <span className="rounded bg-primary/20 px-2 py-0.5 font-mono text-[11px] font-bold text-primary uppercase">
