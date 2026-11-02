@@ -32,11 +32,17 @@
    - Added `customizeService` (default **45 tokens**) to `ServiceCostsSchema`, `DEFAULT_CONFIG`, `ACTION_COSTS`, and the Admin Panel `Service Pricing` tab.
    - Configured `src/lib/firebase-admin.ts`, `SessionProvider.tsx`, and `/api/admin/messages` so both **SuperAdmin** (`superadmin`) and **Main Admin** (`admin` role, below `superadmin`) receive Customize requests, can run the **"Generate AI Work Reply ✨"** automated AI process (`skills/custom-brand-strategist-reply/SKILL.md` & `src/lib/customize-ai.ts`), and send completed work back to the customer's Message Panel.
    - Automatically dispatches an immediate customized confirmation reply to the customer's Message Panel upon Customize submission.
-9. **All Tests & Verifications Passing:**
-   - `npm run test:rules` (50/50 tests passing, including `customize_requests` and recipient-scoped `admin_messages`).
+   - Fixed multi-digit token input in `SuperAdminModal.tsx` with `draftCostInputs` + 800ms debounce so typing multi-digit integers (`45`, `100`, etc.) never jumps or saves prematurely.
+9. **Master Order Ledger, Order Token Refunds & SuperAdmin Gift Tokens (`/api/admin/orders` & `SuperAdminModal.tsx`):**
+   - Built `src/app/api/admin/orders/route.ts`, `getMasterOrderLedger`, and `giftTokensToUser` in `src/lib/admin.ts`.
+   - Updated `withTokenGate` in `src/lib/token-ledger.ts` so every search order (including 0-token superadmin searches) and every Stripe purchase, AI Remix, Customize brief, Gift credit, and Refund is recorded in `token_transactions`.
+   - Added **SuperAdmin Gift Tokens (Add Tokens at No Charge)** card in `SuperAdminModal.tsx` (`LEDGER` tab) with quick presets (`+10`, `+45`, `+100`, `+500`), custom integer input, recipient email selector, and `$0` charge ledger tracking (`GIFT`).
+   - Added **Master Order Ledger** in `SuperAdminModal.tsx` (`LEDGER` tab) with filters (`All Orders`, `Search Orders`, `Stripe Purchases`, `Customize & AI`, `Gifts & Refunds`), search box, and a two-step **Refund Tokens -> Confirm Refund** button that restores integer tokens to the customer's wallet.
+10. **All Tests & Verifications Passing:**
+   - `npm run test:rules` (55/55 tests passing, including `customize_requests`, `admin_messages`, and `token_transactions` admin read access).
    - `npx tsc --noEmit` (0 errors).
    - Dev server running on port 3000 (HTTP 200).
 
 ## Next Priority Actions
-1. Test TikTok, Google, and Meta searches on http://localhost:3000 to verify high-reach TikTok winners, Google Image/Video previews, and expanded result counts.
+1. Review the Master Order Ledger, Refund Tokens button, and SuperAdmin Gift Tokens section in the Admin Panel (`Redistributive Ledger` tab) on http://localhost:3000.
 2. Await next user directive.

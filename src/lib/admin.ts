@@ -1,6 +1,6 @@
 import "server-only";
 import { randomBytes } from "crypto";
-import { db, setUserClaims } from "./firebase-admin";
+import { adminAuth, db, setUserClaims } from "./firebase-admin";
 import {
   type AdminMessage,
   type CustomizeRequestDoc,
@@ -11,8 +11,10 @@ import {
   type StripePurchaseRecord,
   type SystemConfig,
   type TokenPackId,
+  type TokenTransactionDoc,
 } from "./contracts";
 import { TOKEN_PACKS } from "./pricing";
+import { creditTokens } from "./token-ledger";
 
 const CONFIG_DOC_PATH = "system_config/global";
 const PURCHASES_COL = "stripe_purchases";
@@ -621,4 +623,132 @@ export async function getCustomizeRequestById(requestId: string): Promise<Custom
   } catch {
     return null;
   }
+}
+
+// ============================================================================
+// MASTER ORDER LEDGER (ALL TRANSACTIONS, SEARCHES, STRIPE PURCHASES & REFUNDS)
+// & SUPERADMIN GIFT TOKENS
+// ============================================================================
+
+/**
+ * Fetches the Master Order Ledger combining `token_transactions` (all searches, remixes,
+ * top-ups, gifts, and refunds) and `stripe_purchases`, enriched with customer email and refund status.
+ */
+export async function getMasterOrderLedger(limit = 150): Promise<TokenTransactionDoc[]> {
+  try {
+    const [txSnap, purchasesSnap, usersSnap] = await Promise.all([
+      db.collection("token_transactions").orderBy("createdAt", "desc").limit(limit).get(),
+      db.collection(PURCHASES_COL).orderBy("createdAt", "desc").limit(50).get(),
+      db.collection("users").limit(200).get(),
+    ]);
+
+    const uidToEmail = new Map<string, string>();
+    for (const uDoc of usersSnap.docs) {
+      const uData = uDoc.data();
+      if (typeof uData.email === "string" && uData.email) {
+        uidToEmail.set(uDoc.id, uData.email.toLowerCase());
+      }
+    }
+
+    const txMap = new Map<string, TokenTransactionDoc>();
+    const refundedOrigIds = new Set<string>();
+
+    for (const doc of txSnap.docs) {
+      const data = doc.data() as TokenTransactionDoc;
+      if (data.type === "REFUND" && data.referenceId) {
+        refundedOrigIds.add(data.referenceId);
+      }
+      txMap.set(data.txId || doc.id, {
+        ...data,
+        txId: data.txId || doc.id,
+        email: data.email || uidToEmail.get(data.uid) || undefined,
+      });
+    }
+
+    // Ensure any simulated or direct Stripe purchase records also appear in the Master Order Ledger
+    for (const pDoc of purchasesSnap.docs) {
+      const p = pDoc.data() as StripePurchaseRecord;
+      if (!txMap.has(p.purchaseId)) {
+        txMap.set(p.purchaseId, {
+          txId: p.purchaseId,
+          uid: p.uid,
+          email: p.email || uidToEmail.get(p.uid) || undefined,
+          type: "TOPUP",
+          delta: Math.round(p.tokens),
+          balanceAfter: Math.round(p.tokens),
+          referenceId: `Stripe ${p.packId} ($${Math.round(p.amountCents / 100)} ${p.currency.toUpperCase()})`,
+          createdAt: p.createdAt,
+        });
+      }
+    }
+
+    const rows = Array.from(txMap.values()).map((tx) => ({
+      ...tx,
+      refunded: tx.refunded || refundedOrigIds.has(tx.txId),
+      refundTxId: tx.refundTxId || (refundedOrigIds.has(tx.txId) ? `${tx.txId}_refund` : undefined),
+    }));
+
+    return rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, limit);
+  } catch (err) {
+    console.warn("[admin] failed to fetch master order ledger", err);
+    return [];
+  }
+}
+
+/**
+ * SuperAdmin Gift Tokens: adds integer tokens at no charge ($0) to a user's wallet
+ * and logs an immutable `GIFT` transaction in `token_transactions`.
+ */
+export async function giftTokensToUser(params: {
+  recipientEmail: string;
+  tokens: number;
+  note?: string;
+  giftedByEmail: string;
+}): Promise<{
+  txId: string;
+  uid: string;
+  email: string;
+  tokens: number;
+  balanceAfter: number;
+}> {
+  const cleanEmail = params.recipientEmail.trim().toLowerCase();
+  const cleanTokens = Math.max(1, Math.round(params.tokens));
+
+  let targetUid: string | null = null;
+  try {
+    const authUser = await adminAuth.getUserByEmail(cleanEmail);
+    targetUid = authUser.uid;
+  } catch {
+    // Check Firestore users collection if not found via Auth lookup
+    const snap = await db.collection("users").where("email", "==", cleanEmail).limit(1).get();
+    if (!snap.empty) {
+      targetUid = snap.docs[0].id;
+    }
+  }
+
+  if (!targetUid) {
+    throw new Error(`No registered account found for "${cleanEmail}". Ask the user to sign in once first.`);
+  }
+
+  const txId = `gift_${Date.now()}_${randomBytes(4).toString("hex")}`;
+  const refNote = params.note?.trim()
+    ? `Gift from Super Admin (${params.giftedByEmail}): ${params.note.trim()}`
+    : `Gift from Super Admin (${params.giftedByEmail}) — No Charge`;
+
+  const res = await creditTokens({
+    uid: targetUid,
+    email: cleanEmail,
+    amount: cleanTokens,
+    referenceId: refNote,
+    txId,
+    txType: "GIFT",
+  });
+
+  return {
+    txId: res.txId,
+    uid: targetUid,
+    email: cleanEmail,
+    tokens: cleanTokens,
+    balanceAfter: res.balanceAfter,
+  };
 }

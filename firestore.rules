@@ -36,9 +36,9 @@ service cloud.firestore {
       }
     }
 
-    // Queries must filter on uid == request.auth.uid or they are rejected.
+    // Queries must filter on uid == request.auth.uid (or caller must be admin) or they are rejected.
     match /token_transactions/{txId} {
-      allow read: if ownsDoc();
+      allow read: if ownsDoc() || isAdmin();
       allow write: if false;
     }
 

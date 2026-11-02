@@ -15,6 +15,7 @@ import type {
   RbacRole,
   RedistributiveLedgerSummary,
   StripePurchaseRecord,
+  TokenTransactionDoc,
 } from "@/lib/contracts";
 import { LINK_URL_PATTERN, RBAC_PERMISSIONS_LIST, RBAC_ROLES_LIST } from "@/lib/contracts";
 
@@ -102,6 +103,15 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [config, setConfig] = useState<AdminConfigData | null>(null);
   const [ledger, setLedger] = useState<RedistributiveLedgerSummary | null>(null);
   const [recentPurchases, setRecentPurchases] = useState<StripePurchaseRecord[]>([]);
+  const [orderLedger, setOrderLedger] = useState<TokenTransactionDoc[]>([]);
+  const [orderFilter, setOrderFilter] = useState<"ALL" | "SEARCH" | "STRIPE" | "SERVICES" | "GIFT_REFUND">("ALL");
+  const [orderSearch, setOrderSearch] = useState("");
+  const [confirmRefundTxId, setConfirmRefundTxId] = useState<string | null>(null);
+  const [refundingTxId, setRefundingTxId] = useState<string | null>(null);
+  const [giftEmail, setGiftEmail] = useState("");
+  const [giftTokensInput, setGiftTokensInput] = useState("45");
+  const [giftNote, setGiftNote] = useState("");
+  const [gifting, setGifting] = useState(false);
   const [adminMessages, setAdminMessages] = useState<AdminMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<AdminMessage | null>(null);
   // Superadmin Messaging Anyone state
@@ -347,6 +357,90 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     }
   }
 
+  async function reloadOrders() {
+    try {
+      const data = await apiFetch<{ orders: TokenTransactionDoc[] }>("/api/admin/orders", { method: "GET" });
+      if (data.orders) setOrderLedger(data.orders);
+    } catch {
+      // Non-admin or orders not accessible
+    }
+  }
+
+  async function handleGiftTokens(e: React.FormEvent) {
+    e.preventDefault();
+    const recipientEmail = giftEmail.trim().toLowerCase();
+    const tokens = Math.round(Number(giftTokensInput) || 0);
+    if (!recipientEmail) {
+      setErrorMsg("Enter a recipient email address to gift tokens.");
+      return;
+    }
+    if (tokens <= 0) {
+      setErrorMsg("Gift token amount must be a positive integer (1 or more).");
+      return;
+    }
+
+    setGifting(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{
+        success: boolean;
+        recipientEmail: string;
+        tokens: number;
+        newBalance: number;
+        orders: TokenTransactionDoc[];
+      }>("/api/admin/orders", {
+        method: "POST",
+        body: {
+          action: "GIFT_TOKENS",
+          recipientEmail,
+          tokens,
+          note: giftNote.trim() || undefined,
+        },
+      });
+      if (data.orders) setOrderLedger(data.orders);
+      setGiftNote("");
+      setStatusMsg(
+        `Gifted +${data.tokens.toLocaleString("en-AU")} tokens at no charge to ${data.recipientEmail} (new balance: ${data.newBalance.toLocaleString("en-AU")} ⚡).`
+      );
+      window.dispatchEvent(new CustomEvent("wallet-updated"));
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setGifting(false);
+    }
+  }
+
+  async function handleRefundOrder(txId: string) {
+    setRefundingTxId(txId);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{
+        success: boolean;
+        refundedTokens: number;
+        newBalance: number;
+        orders: TokenTransactionDoc[];
+      }>("/api/admin/orders", {
+        method: "POST",
+        body: {
+          action: "REFUND_ORDER",
+          txId,
+        },
+      });
+      if (data.orders) setOrderLedger(data.orders);
+      setConfirmRefundTxId(null);
+      setStatusMsg(
+        `Refunded +${data.refundedTokens.toLocaleString("en-AU")} tokens to customer wallet (new balance: ${data.newBalance.toLocaleString("en-AU")} ⚡).`
+      );
+      window.dispatchEvent(new CustomEvent("wallet-updated"));
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setRefundingTxId(null);
+    }
+  }
+
   async function reloadConfig() {
     setLoading(true);
     setErrorMsg(null);
@@ -369,7 +463,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         // Non-admin or messages not accessible
       }
 
-      await Promise.all([reloadRbac(), reloadFaqs()]);
+      await Promise.all([reloadRbac(), reloadFaqs(), reloadOrders()]);
     } catch (err) {
       setErrorMsg(errorMessage(err));
     } finally {
@@ -409,8 +503,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         permissions: RbacPermission[];
       }>("/api/admin/rbac", { method: "GET" }).catch(() => null),
       apiFetch<{ faqs: FaqItem[] }>("/api/admin/faqs", { method: "GET" }).catch(() => null),
+      apiFetch<{ orders: TokenTransactionDoc[] }>("/api/admin/orders", { method: "GET" }).catch(() => null),
     ])
-      .then(([adminData, msgData, rbacData, faqData]) => {
+      .then(([adminData, msgData, rbacData, faqData, ordersData]) => {
         if (active) {
           setConfig(adminData.config);
           if (adminData.ledger) setLedger(adminData.ledger);
@@ -420,6 +515,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           if (rbacData?.matrix) setRbacMatrix(rbacData.matrix);
           if (rbacData?.users) setRbacUsers(rbacData.users);
           if (faqData?.faqs) setFaqs(faqData.faqs);
+          if (ordersData?.orders) setOrderLedger(ordersData.orders);
           setLoading(false);
         }
       })
@@ -651,6 +747,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       });
       setLedger(data.ledger);
       setRecentPurchases(data.recentPurchases);
+      await reloadOrders();
       setStatusMsg("Simulated purchase (+500 tokens, $79.00 AUD) recorded to redistributive ledger.");
     } catch (err) {
       setErrorMsg(errorMessage(err));
@@ -1690,6 +1787,343 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* SUPERADMIN GIFT TOKENS SECTION (ADD TOKENS AT NO CHARGE) */}
+                  <form
+                    onSubmit={handleGiftTokens}
+                    className={`${card} p-4 border border-primary/30 bg-primary/[0.03] space-y-3`}
+                    data-agent-id="superadmin-gift-tokens-form"
+                    data-testid="superadmin-gift-tokens-form"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Icon name="sparkles" className="size-4 text-primary" />
+                          <h4 className="text-compact font-bold text-on-surface">
+                            SuperAdmin Gift Tokens (Add Tokens at No Charge)
+                          </h4>
+                          <span className="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
+                            $0 Charge · Strict Integer
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-on-surface-variant">
+                          Credit complimentary integer tokens directly to any customer wallet at no charge. Recorded in the Master Order Ledger as GIFT without inflating Stripe revenue.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {[10, 45, 100, 500].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setGiftTokensInput(String(preset))}
+                            className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                              Math.round(Number(giftTokensInput) || 0) === preset
+                                ? "border-primary bg-primary/20 text-primary"
+                                : "border-white/10 bg-surface-container-highest text-on-surface-variant hover:border-primary/40 hover:text-on-surface"
+                            }`}
+                            data-testid={`gift-preset-${preset}`}
+                          >
+                            +{preset} ⚡
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12 items-end">
+                      <div className="sm:col-span-4">
+                        <label className={label}>Recipient Customer Email *</label>
+                        <input
+                          type="email"
+                          required
+                          list="gift-registered-users-list"
+                          placeholder="customer@example.com"
+                          value={giftEmail}
+                          onChange={(e) => setGiftEmail(e.target.value)}
+                          className={field}
+                          data-agent-id="gift-recipient-email-input"
+                          data-testid="gift-recipient-email-input"
+                        />
+                        <datalist id="gift-registered-users-list">
+                          {rbacUsers.map((u) => (
+                            <option key={u.uid} value={u.email} />
+                          ))}
+                        </datalist>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className={label}>Tokens (Integer) *</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          required
+                          value={giftTokensInput}
+                          onChange={(e) => setGiftTokensInput(e.target.value.replace(/[^0-9]/g, ""))}
+                          className={`${field} font-mono text-center`}
+                          data-agent-id="gift-tokens-amount-input"
+                          data-testid="gift-tokens-amount-input"
+                        />
+                      </div>
+                      <div className="sm:col-span-4">
+                        <label className={label}>Reason / Gift Note (Optional)</label>
+                        <input
+                          type="text"
+                          maxLength={200}
+                          placeholder="e.g. Complimentary onboarding credit / VIP bonus"
+                          value={giftNote}
+                          onChange={(e) => setGiftNote(e.target.value)}
+                          className={field}
+                          data-agent-id="gift-tokens-note-input"
+                          data-testid="gift-tokens-note-input"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <button
+                          type="submit"
+                          disabled={gifting}
+                          className={`${btnPrimary} w-full justify-center`}
+                          data-agent-id="submit-gift-tokens-button"
+                          data-testid="submit-gift-tokens-button"
+                        >
+                          <Icon name="zap" className="size-3.5" />
+                          {gifting ? "Gifting..." : "Gift Tokens"}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+
+                  {/* MASTER ORDER LEDGER: ALL TRANSACTIONS, STRIPE PURCHASES, SEARCH ORDERS & REFUNDS */}
+                  <div
+                    className={`${card} p-4 space-y-3`}
+                    data-agent-id="master-order-ledger-section"
+                    data-testid="master-order-ledger-section"
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-compact font-bold text-on-surface">
+                            Master Order Ledger (All Transactions, Stripe Purchases & Search Orders)
+                          </h4>
+                          <span className="rounded-full bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
+                            {orderLedger.length} Total Logged
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-on-surface-variant">
+                          Complete chronological audit of every Stripe purchase, Ad Radar search order, AI Remix, Customize brief, Gift credit, and Token Refund. Click &ldquo;Refund Tokens&rdquo; on any deduction order to restore tokens to the customer wallet.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Search email, brand, or tx ID..."
+                          value={orderSearch}
+                          onChange={(e) => setOrderSearch(e.target.value)}
+                          className={`${field} !py-1.5 !text-[12px] w-48 sm:w-56`}
+                          data-agent-id="master-order-ledger-search"
+                          data-testid="master-order-ledger-search"
+                        />
+                        <button
+                          type="button"
+                          onClick={reloadOrders}
+                          className={btnSecondary}
+                          data-agent-id="refresh-order-ledger-button"
+                          data-testid="refresh-order-ledger-button"
+                        >
+                          <Icon name="refresh" className="size-3.5" />
+                          Refresh
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Filter Tabs */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {(
+                        [
+                          { id: "ALL", label: "All Orders" },
+                          { id: "SEARCH", label: "Search Orders" },
+                          { id: "STRIPE", label: "Stripe Purchases" },
+                          { id: "SERVICES", label: "Customize & AI" },
+                          { id: "GIFT_REFUND", label: "Gifts & Refunds" },
+                        ] as const
+                      ).map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => setOrderFilter(f.id)}
+                          className={`rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                            orderFilter === f.id
+                              ? "bg-primary/20 text-primary border border-primary/40"
+                              : "bg-surface-container-highest text-on-surface-variant border border-white/[0.06] hover:text-on-surface"
+                          }`}
+                          data-testid={`order-filter-${f.id.toLowerCase()}`}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Orders Table */}
+                    {(() => {
+                      const q = orderSearch.trim().toLowerCase();
+                      const filteredOrders = orderLedger.filter((tx) => {
+                        if (orderFilter === "SEARCH" && tx.type !== "RADAR_SEARCH") return false;
+                        if (orderFilter === "STRIPE" && tx.type !== "TOPUP") return false;
+                        if (
+                          orderFilter === "SERVICES" &&
+                          tx.type !== "CUSTOMIZE_SERVICE" &&
+                          tx.type !== "AI_REMIX" &&
+                          tx.type !== "REGENERATE_VARIATIONS" &&
+                          tx.type !== "BRAND_CLONE"
+                        ) {
+                          return false;
+                        }
+                        if (orderFilter === "GIFT_REFUND" && tx.type !== "GIFT" && tx.type !== "REFUND") {
+                          return false;
+                        }
+                        if (!q) return true;
+                        return (
+                          (tx.email || "").toLowerCase().includes(q) ||
+                          tx.uid.toLowerCase().includes(q) ||
+                          tx.referenceId.toLowerCase().includes(q) ||
+                          tx.type.toLowerCase().includes(q) ||
+                          tx.txId.toLowerCase().includes(q)
+                        );
+                      });
+
+                      if (filteredOrders.length === 0) {
+                        return (
+                          <div className="rounded-xl border border-white/[0.06] bg-surface-container-low p-6 text-center text-on-surface-variant">
+                            <p className="text-sm">No transactions match the current filter.</p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-surface-container-low max-h-[420px] overflow-y-auto">
+                          <table className="w-full text-left text-[11px]">
+                            <thead className="border-b border-white/[0.08] bg-surface-container-high/80 font-mono text-mono-label text-on-surface-variant sticky top-0 z-10 backdrop-blur-sm">
+                              <tr>
+                                <th className="px-3 py-2">Date / Time</th>
+                                <th className="px-3 py-2">Customer</th>
+                                <th className="px-2.5 py-2">Order Type</th>
+                                <th className="px-3 py-2">Order Details</th>
+                                <th className="px-2.5 py-2 text-right">Tokens</th>
+                                <th className="px-2.5 py-2 text-right">Balance</th>
+                                <th className="px-3 py-2 text-right">Refund Action</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/[0.04] font-mono">
+                              {filteredOrders.map((tx) => {
+                                const canRefund = tx.delta < 0 && !tx.refunded;
+                                const isCredit = tx.delta > 0;
+                                return (
+                                  <tr key={tx.txId} className="hover:bg-white/[0.02] transition">
+                                    <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">
+                                      {new Date(tx.createdAt).toLocaleString("en-AU", {
+                                        day: "2-digit",
+                                        month: "short",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </td>
+                                    <td
+                                      className="px-3 py-2 text-on-surface truncate max-w-[150px]"
+                                      title={tx.email || tx.uid}
+                                    >
+                                      {tx.email || tx.uid}
+                                    </td>
+                                    <td className="px-2.5 py-2 whitespace-nowrap">
+                                      <span
+                                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                          tx.type === "TOPUP"
+                                            ? "bg-emerald-500/15 text-emerald-300"
+                                            : tx.type === "GIFT"
+                                              ? "bg-primary/20 text-primary"
+                                              : tx.type === "REFUND"
+                                                ? "bg-amber-500/20 text-amber-300"
+                                                : tx.type === "RADAR_SEARCH"
+                                                  ? "bg-sky-500/15 text-sky-300"
+                                                  : "bg-surface-container-highest text-on-surface-variant"
+                                        }`}
+                                      >
+                                        {tx.type}
+                                      </span>
+                                    </td>
+                                    <td
+                                      className="px-3 py-2 font-sans text-on-surface max-w-[280px] truncate"
+                                      title={tx.referenceId}
+                                    >
+                                      {tx.referenceId}
+                                    </td>
+                                    <td
+                                      className={`px-2.5 py-2 text-right font-bold whitespace-nowrap ${
+                                        isCredit
+                                          ? "text-emerald-400"
+                                          : tx.delta === 0
+                                            ? "text-on-surface-variant"
+                                            : "text-amber-300"
+                                      }`}
+                                    >
+                                      {isCredit ? `+${tx.delta}` : tx.delta} ⚡
+                                    </td>
+                                    <td className="px-2.5 py-2 text-right text-on-surface-variant whitespace-nowrap">
+                                      {tx.balanceAfter} ⚡
+                                    </td>
+                                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                                      {tx.refunded ? (
+                                        <span
+                                          className="rounded bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300"
+                                          title={tx.refundTxId ? `Refund TX: ${tx.refundTxId}` : "Tokens refunded"}
+                                        >
+                                          Refunded
+                                        </span>
+                                      ) : canRefund ? (
+                                        confirmRefundTxId === tx.txId ? (
+                                          <div className="inline-flex items-center gap-1 animate-fadeIn">
+                                            <button
+                                              type="button"
+                                              disabled={refundingTxId === tx.txId}
+                                              onClick={() => handleRefundOrder(tx.txId)}
+                                              className={`${btnDanger} !px-2 !py-1 !text-[10px]`}
+                                              data-agent-id={`confirm-refund-order-${tx.txId}`}
+                                              data-testid={`confirm-refund-order-${tx.txId}`}
+                                            >
+                                              {refundingTxId === tx.txId
+                                                ? "Refunding..."
+                                                : `Confirm Refund (+${Math.abs(tx.delta)} ⚡)`}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setConfirmRefundTxId(null)}
+                                              className={`${btnSecondary} !px-2 !py-1 !text-[10px]`}
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => setConfirmRefundTxId(tx.txId)}
+                                            className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 font-mono text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20 transition"
+                                            data-agent-id={`refund-order-${tx.txId}`}
+                                            data-testid={`refund-order-${tx.txId}`}
+                                          >
+                                            Refund Tokens
+                                          </button>
+                                        )
+                                      ) : (
+                                        <span className="text-[10px] text-outline">—</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}

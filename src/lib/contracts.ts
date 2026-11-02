@@ -48,17 +48,29 @@ export const UserDocSchema = z
   .strict();
 export type UserDoc = z.infer<typeof UserDocSchema>;
 
-export const TokenTxTypeSchema = z.enum(["TOPUP", "RADAR_SEARCH", "AI_REMIX", "REGENERATE_VARIATIONS", "REFUND", "BRAND_CLONE", "CUSTOMIZE_SERVICE"]);
+export const TokenTxTypeSchema = z.enum([
+  "TOPUP",
+  "GIFT",
+  "RADAR_SEARCH",
+  "AI_REMIX",
+  "REGENERATE_VARIATIONS",
+  "REFUND",
+  "BRAND_CLONE",
+  "CUSTOMIZE_SERVICE",
+]);
 export type TokenTxType = z.infer<typeof TokenTxTypeSchema>;
 
 export const TokenTransactionDocSchema = z
   .object({
     txId: z.string().min(1).max(160),
     uid: z.string().min(1).max(128),
+    email: z.string().max(254).optional(),
     type: TokenTxTypeSchema,
-    delta: tokenInt.refine((n) => n !== 0, "delta must be non-zero"),
+    delta: tokenInt,
     balanceAfter: tokenInt.min(0),
     referenceId: z.string().max(256),
+    refunded: z.boolean().optional(),
+    refundTxId: z.string().max(160).optional(),
     createdAt: isoDate,
   })
   .strict();
@@ -639,3 +651,20 @@ export const AiCustomizeReplyDraftResponseSchema = z
   })
   .strict();
 export type AiCustomizeReplyDraftResponse = z.infer<typeof AiCustomizeReplyDraftResponseSchema>;
+
+// ---------- 12. Master Order Ledger, Token Refunds & SuperAdmin Gift Tokens ----------
+export const AdminGiftTokensRequestSchema = z
+  .object({
+    recipientEmail: z.string().trim().toLowerCase().email("Valid email address is required").max(254),
+    tokens: tokenInt.min(1, "Tokens must be at least 1").max(1_000_000),
+    note: safeText(0, 200).optional(),
+  })
+  .strict();
+export type AdminGiftTokensRequest = z.infer<typeof AdminGiftTokensRequestSchema>;
+
+export const AdminRefundOrderRequestSchema = z
+  .object({
+    txId: z.string().trim().min(1).max(160),
+  })
+  .strict();
+export type AdminRefundOrderRequest = z.infer<typeof AdminRefundOrderRequestSchema>;

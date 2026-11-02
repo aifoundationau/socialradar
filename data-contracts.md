@@ -464,6 +464,49 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 - **Automated Staff AI Reply Process (`POST /api/admin/messages/ai-draft`):**
   - Implements `skills/custom-brand-strategist-reply/SKILL.md` (`src/lib/customize-ai.ts`), compatible across Gemini 2.5 Flash-Lite, Claude Haiku 4.5, and gpt-6-luna, producing a 7-year-archive-compliant plain-text 4-pillar strategy reply for staff to review and send to the customer's Message Panel.
 
+## 13. Master Order Ledger, Token Refunds & SuperAdmin Gift Tokens (`/api/admin/orders`)
+
+### Master Order Ledger (`TokenTransactionDocSchema`)
+- **Collection:** `token_transactions/{txId}` (Firestore rules: `allow read: if ownsDoc() || isAdmin(); allow write: if false;`)
+- **Transaction Types (`TokenTxTypeSchema`):**
+  - `"TOPUP"` (Stripe purchase credit)
+  - `"GIFT"` (SuperAdmin no-charge complimentary token gift)
+  - `"RADAR_SEARCH"` (Every Ad Radar search order, including 0-token superadmin searches)
+  - `"AI_REMIX"`
+  - `"REGENERATE_VARIATIONS"`
+  - `"BRAND_CLONE"`
+  - `"CUSTOMIZE_SERVICE"`
+  - `"REFUND"`
+- **Fields (`additionalProperties: false` via `.strict()`):**
+  - `txId`: string (1..128)
+  - `uid`: string (1..128)
+  - `email`: optional string (up to 320)
+  - `type`: `TokenTxType`
+  - `delta`: integer (`Math.round()`, negative for deductions, `0` for 0-token superadmin orders, positive for `TOPUP`, `GIFT`, and `REFUND`)
+  - `balanceAfter`: non-negative integer
+  - `idempotencyKey`: string (`^[a-zA-Z0-9_-]{8,128}$`)
+  - `description`: string (1..240)
+  - `refunded`: optional boolean (set to `true` when refunded by admin or system)
+  - `refundTxId`: optional string (1..128)
+  - `createdAt`: ISO 8601 datetime
+
+### Order Refund Contract (`AdminRefundOrderRequestSchema`)
+- **Endpoint:** `POST /api/admin/orders` (`action: "REFUND_ORDER"`)
+- **Fields (`additionalProperties: false`):**
+  - `action`: `"REFUND_ORDER"`
+  - `txId`: string (1..128)
+- **Behavior:** Requires `Confirm Refund` confirmation in UI; atomically credits `Math.abs(delta)` integer tokens back to `users/{uid}.tokenBalance`, writes a `REFUND` record in `token_transactions`, and marks the original order `refunded: true`.
+
+### SuperAdmin Gift Tokens Contract (`AdminGiftTokensRequestSchema`)
+- **Endpoint:** `POST /api/admin/orders` (`action: "GIFT_TOKENS"`) — restricted exclusively to `SuperAdmin` (`superadmin` role).
+- **Fields (`additionalProperties: false`):**
+  - `action`: `"GIFT_TOKENS"`
+  - `recipientEmail`: valid email string (up to 254 chars)
+  - `tokens`: positive integer (`1..1,000,000`, `Math.round()`)
+  - `note`: optional string (up to 200 chars)
+- **Behavior:** Credits integer tokens at `$0` charge (`type: "GIFT"`) to the recipient's wallet without creating a `stripe_purchases` revenue record.
+
+
 
 
 

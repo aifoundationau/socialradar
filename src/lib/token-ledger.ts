@@ -60,8 +60,9 @@ export async function ensureUserDoc(uid: string, email: string): Promise<UserDoc
  */
 export async function deductTokens(params: {
   uid: string;
+  email?: string;
   cost: number;
-  type: Exclude<TokenTxType, "TOPUP" | "REFUND">;
+  type: Exclude<TokenTxType, "TOPUP" | "GIFT" | "REFUND">;
   referenceId: string;
   txId: string;
 }): Promise<LedgerResult> {
@@ -95,6 +96,7 @@ export async function deductTokens(params: {
     const record: TokenTransactionDoc = {
       txId: params.txId,
       uid: params.uid,
+      ...(params.email ? { email: params.email.toLowerCase() } : {}),
       type: params.type,
       delta: -cost,
       balanceAfter,
@@ -122,7 +124,7 @@ export async function refundTokens(originalTxId: string): Promise<LedgerResult> 
     if (refundSnap.exists) {
       return { txId: refundId, balanceAfter: (refundSnap.data() as TokenTransactionDoc).balanceAfter, replayed: true };
     }
-    if (orig.delta >= 0 || orig.type === "REFUND" || orig.type === "TOPUP") {
+    if (orig.delta >= 0 || orig.type === "REFUND" || orig.type === "TOPUP" || orig.type === "GIFT") {
       throw new Error("Only deductions can be refunded");
     }
 
@@ -133,9 +135,11 @@ export async function refundTokens(originalTxId: string): Promise<LedgerResult> 
     const now = new Date().toISOString();
 
     t.update(userRef, { tokenBalance: FieldValue.increment(amount), updatedAt: now });
+    t.update(origRef, { refunded: true, refundTxId: refundId });
     t.create(refundRef, {
       txId: refundId,
       uid: orig.uid,
+      ...(orig.email ? { email: orig.email } : {}),
       type: "REFUND",
       delta: amount,
       balanceAfter,
@@ -157,6 +161,7 @@ export async function creditTokens(params: {
   referenceId: string;
   txId: string;
   stripeCustomerId?: string;
+  txType?: "TOPUP" | "GIFT";
 }): Promise<LedgerResult> {
   const amount = toInt(params.amount);
   if (!Number.isInteger(amount) || amount <= 0) throw new Error("amount must be a positive integer");
@@ -192,7 +197,8 @@ export async function creditTokens(params: {
     t.create(txRef, {
       txId: params.txId,
       uid: params.uid,
-      type: "TOPUP",
+      ...(params.email ? { email: params.email.toLowerCase() } : {}),
+      type: params.txType ?? "TOPUP",
       delta: amount,
       balanceAfter,
       referenceId: params.referenceId.slice(0, 256),
@@ -240,13 +246,33 @@ export async function withTokenGate(
     const effectiveCost = isSuperadmin ? 0 : rawCost;
 
     if (effectiveCost === 0) {
-      // Free action or superadmin exemption: nothing to charge, refund or replay.
+      // Free action or superadmin exemption: record the order in token_transactions with delta 0 so every search/order appears in the Order Ledger.
       const balance = toInt(Number((await usersCol().doc(caller.uid).get()).get("tokenBalance") ?? 0));
-      return await handler({ caller, txId: buildTxId(caller.uid, key), balanceAfter: balance, replayed: false });
+      const txId = buildTxId(caller.uid, key);
+      const res = await handler({ caller, txId, balanceAfter: balance, replayed: false });
+      try {
+        await txCol().doc(txId).set(
+          {
+            txId,
+            uid: caller.uid,
+            email: caller.email.toLowerCase(),
+            type: action,
+            delta: 0,
+            balanceAfter: balance,
+            referenceId: ref.slice(0, 256),
+            createdAt: new Date().toISOString(),
+          } satisfies TokenTransactionDoc,
+          { merge: true }
+        );
+      } catch {
+        // Non-fatal if logging 0-token order fails
+      }
+      return res;
     }
 
     charged = await deductTokens({
       uid: caller.uid,
+      email: caller.email,
       cost: effectiveCost,
       type: action,
       referenceId: ref,

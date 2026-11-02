@@ -36,3 +36,4 @@ Every generated staff work reply contains four structured plain-text sections ta
    - **Angle 2 — Unique Mechanism & Proof Contrast:** Differentiates the brand's mechanism against generic alternatives.
    - **Angle 3 — UGC / Native Story Script:** Tailored to the customer's selected `toneOfVoice` and special instructions.
 4. **Recommended Next Steps & Implementation Notes:** Actionable launch checklist referencing their campaign version and staff guidance.
+
