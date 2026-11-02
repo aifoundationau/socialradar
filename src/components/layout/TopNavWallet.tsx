@@ -11,6 +11,7 @@ import { monoLabel } from "@/components/ui/styles";
 import { NAV, isActivePath } from "./nav";
 import { SuperAdminModal } from "@/components/admin/SuperAdminModal";
 import { ContactAdminModal } from "@/components/contact/ContactAdminModal";
+import { FaqModal } from "@/components/faq/FaqModal";
 
 function NavItems({ pathname }: { pathname: string | null }) {
   return NAV.map(({ href, label, tooltipTitle, tooltipDesc }) => {
@@ -140,11 +141,17 @@ function TokenPill() {
   );
 }
 
-function AccountMenu() {
+function AccountMenu({
+  onOpenAdmin,
+  onOpenContact,
+  onOpenFaqs,
+}: {
+  onOpenAdmin: (tab?: "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV") => void;
+  onOpenContact: () => void;
+  onOpenFaqs: () => void;
+}) {
   const { user, isAdmin } = useSession();
   const menu = useRef<HTMLDivElement>(null);
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [isContactOpen, setIsContactOpen] = useState(false);
   const initial = user?.email?.[0]?.toUpperCase();
 
   return (
@@ -189,7 +196,7 @@ function AccountMenu() {
               type="button"
               onClick={() => {
                 menu.current?.hidePopover();
-                setIsAdminOpen(true);
+                onOpenAdmin();
               }}
               data-testid="open-superadmin-button"
               className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-primary transition-colors hover:bg-primary-container/20 sm:min-h-10"
@@ -202,7 +209,20 @@ function AccountMenu() {
             type="button"
             onClick={() => {
               menu.current?.hidePopover();
-              setIsContactOpen(true);
+              onOpenFaqs();
+            }}
+            data-agent-id="account-menu-faqs-button"
+            data-testid="open-faqs-button"
+            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-on-surface-variant transition-colors hover:bg-white/[0.04] hover:text-on-surface sm:min-h-10"
+          >
+            <Icon name="helpCircle" className="size-4" />
+            Frequently Asked Questions
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              menu.current?.hidePopover();
+              onOpenContact();
             }}
             data-testid="open-contact-button"
             className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-on-surface-variant transition-colors hover:bg-white/[0.04] hover:text-on-surface sm:min-h-10"
@@ -223,15 +243,19 @@ function AccountMenu() {
           Sign out
         </button>
       </div>
-
-      <SuperAdminModal isOpen={isAdminOpen} onClose={() => setIsAdminOpen(false)} />
-      <ContactAdminModal isOpen={isContactOpen} onClose={() => setIsContactOpen(false)} />
     </>
   );
 }
 
 /** Sticky app header: live token balance, active-brand switcher and the "Top-up" entry point. */
 export function TopNavWallet() {
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [adminInitialTab, setAdminInitialTab] = useState<
+    "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV" | undefined
+  >(undefined);
+  const [isContactOpen, setIsContactOpen] = useState(false);
+  const [isFaqOpen, setIsFaqOpen] = useState(false);
+
   return (
     <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-surface-container-lowest/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
       <div className="flex h-14 items-center gap-3 px-3 sm:px-6">
@@ -245,14 +269,50 @@ export function TopNavWallet() {
           <Suspense fallback={<NavItems pathname={null} />}>
             <NavLinks />
           </Suspense>
+          <button
+            type="button"
+            onClick={() => setIsFaqOpen(true)}
+            data-agent-id="nav-link-faqs"
+            data-testid="nav-link-faqs"
+            aria-label="Frequently Asked Questions"
+            className="rounded px-3 py-1.5 text-body text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+          >
+            FAQs
+          </button>
         </nav>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
           <BrandSwitcher className="hidden lg:flex" />
           <TokenPill />
-          <AccountMenu />
+          <AccountMenu
+            onOpenAdmin={(tab) => {
+              setAdminInitialTab(tab);
+              setIsAdminOpen(true);
+            }}
+            onOpenContact={() => setIsContactOpen(true)}
+            onOpenFaqs={() => setIsFaqOpen(true)}
+          />
         </div>
       </div>
+
+      <FaqModal
+        isOpen={isFaqOpen}
+        onClose={() => setIsFaqOpen(false)}
+        onOpenFaqDev={() => {
+          setIsFaqOpen(false);
+          setAdminInitialTab("FAQS");
+          setIsAdminOpen(true);
+        }}
+      />
+      <SuperAdminModal
+        isOpen={isAdminOpen}
+        onClose={() => {
+          setIsAdminOpen(false);
+          setAdminInitialTab(undefined);
+        }}
+        initialTab={adminInitialTab}
+      />
+      <ContactAdminModal isOpen={isContactOpen} onClose={() => setIsContactOpen(false)} />
     </header>
   );
 }

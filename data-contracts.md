@@ -353,6 +353,16 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 | `updatedAt` | ISO-8601 | Last updated timestamp |
 | `updatedBy` | string | Email of superadmin who made the change |
 
+### Default Knowledge Base Seed Items
+1. `faq_base_radar_search`: *"What is Base Radar Search?"* — *"It is the core platform search that queries the ad libraries (Meta, TikTok, and Google) for any keyword, hook, or competitor brand to find winning ad creatives and performance data."* (`category: "Radar"`, `order: 1`).
+2. `faq_radar_overview`: *"What is Radar Feed?"* — Ad intelligence engine searching live ads (`category: "Radar"`, `order: 2`).
+3. `faq_brands_overview`: *"What is My Brands?"* — Brand configuration for tailored AI remixes (`category: "Brands"`, `order: 3`).
+4. `faq_tokens_overview`: *"How do Token Deductions Work?"* — Strict integer token ledger, 1 token standard paid rates, and refund request rules (`category: "General"`, `order: 4`).
+
+### Header & Superadmin Integration
+- **Header FAQs Button:** Displays in top desktop navigation and mobile user account menu. Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.
+- **Superadmin FAQ Development Suite:** Accessible directly from the Super Admin Panel (`SuperAdminModal` tab `FAQS`) and via the highlighted "FAQ Development Suite" action in `FaqModal` for superadmins. Supports real-time Q&A authoring, live inline editing, priority ordering, draft visibility toggling, and confirmation-protected deletion.
+
 ### API Endpoints
 - `GET /api/admin/rbac`: Requires `superadmin` role. Returns matrix, all permissions, roles, and user list.
 - `PUT /api/admin/rbac`: Requires `superadmin` role.
@@ -372,6 +382,16 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 | `enabled` | boolean | Toggle whether shown to users |
 | `createdAt` | ISO-8601 | Creation timestamp |
 | `updatedAt` | ISO-8601 | Last updated timestamp |
+
+### Default Knowledge Base Seed Items
+1. `faq_base_radar_search`: *"What is Base Radar Search?"* — *"It is the core platform search that queries the ad libraries (Meta, TikTok, and Google) for any keyword, hook, or competitor brand to find winning ad creatives and performance data."* (`category: "Radar"`, `order: 1`).
+2. `faq_radar_overview`: *"What is Radar Feed?"* — Ad intelligence engine searching live ads (`category: "Radar"`, `order: 2`).
+3. `faq_brands_overview`: *"What is My Brands?"* — Brand configuration for tailored AI remixes (`category: "Brands"`, `order: 3`).
+4. `faq_tokens_overview`: *"How do Token Deductions Work?"* — Strict integer token ledger, 1 token standard paid rates, and refund request rules (`category: "General"`, `order: 4`).
+
+### Header & Superadmin Integration
+- **Header FAQs Button:** Displays in top desktop navigation and mobile user account menu. Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.
+- **Superadmin FAQ Development Suite:** Accessible directly from the Super Admin Panel (`SuperAdminModal` tab `FAQS`) and via the highlighted "FAQ Development Suite" action in `FaqModal` for superadmins. Supports real-time Q&A authoring, live inline editing, priority ordering, draft visibility toggling, and confirmation-protected deletion.
 
 ### API Endpoints
 - `GET /api/faqs`: Open to all authenticated users. Returns enabled FAQs sorted by `order`.

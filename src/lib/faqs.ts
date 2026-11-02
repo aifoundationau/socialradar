@@ -6,15 +6,15 @@ const FAQS_DOC_PATH = "system_config/faqs";
 
 export const DEFAULT_FAQS: FaqItem[] = [
   {
-    faqId: "faq_brands_overview",
-    question: "What is My Brands?",
+    faqId: "faq_base_radar_search",
+    question: "What is Base Radar Search?",
     answer:
-      "My Brands is where you register and configure your business identity, core value propositions, tone of voice, target audience hooks, and landing page URLs. When you generate an AI Remix from any winning competitor ad in the Radar Feed, Ad Radar uses your active brand profile to rewrite the hooks, headlines, and video scripts specifically tailored to your brand.",
-    category: "Brands",
+      "It is the core platform search that queries the ad libraries (Meta, TikTok, and Google) for any keyword, hook, or competitor brand to find winning ad creatives and performance data.",
+    category: "Radar",
     order: 1,
     enabled: true,
-    createdAt: "2026-11-01T00:00:00.000Z",
-    updatedAt: "2026-11-01T00:00:00.000Z",
+    createdAt: "2026-11-03T00:00:00.000Z",
+    updatedAt: "2026-11-03T00:00:00.000Z",
   },
   {
     faqId: "faq_radar_overview",
@@ -28,12 +28,23 @@ export const DEFAULT_FAQS: FaqItem[] = [
     updatedAt: "2026-11-01T00:00:00.000Z",
   },
   {
+    faqId: "faq_brands_overview",
+    question: "What is My Brands?",
+    answer:
+      "My Brands is where you register and configure your business identity, core value propositions, tone of voice, target audience hooks, and landing page URLs. When you generate an AI Remix from any winning competitor ad in the Radar Feed, Ad Radar uses your active brand profile to rewrite the hooks, headlines, and video scripts specifically tailored to your brand.",
+    category: "Brands",
+    order: 3,
+    enabled: true,
+    createdAt: "2026-11-01T00:00:00.000Z",
+    updatedAt: "2026-11-01T00:00:00.000Z",
+  },
+  {
     faqId: "faq_tokens_overview",
     question: "How do Token Deductions Work?",
     answer:
       "Ad Radar operates on a strict integer token ledger. Standard Paid Rates for all services are 1 token each. If any external provider encounters an error, your tokens are automatically refunded atomically. Refund rules: all refund requests are to be made in writing by sending a message to the Super Admin.",
     category: "General",
-    order: 3,
+    order: 4,
     enabled: true,
     createdAt: "2026-11-01T00:00:00.000Z",
     updatedAt: "2026-11-01T00:00:00.000Z",
@@ -48,8 +59,23 @@ export async function getFaqs(includeDisabled = false): Promise<FaqItem[]> {
       return DEFAULT_FAQS.filter((f) => includeDisabled || f.enabled);
     }
     const data = snap.data() || {};
-    const faqs = Array.isArray(data.faqs) ? (data.faqs as FaqItem[]) : DEFAULT_FAQS;
-    return faqs
+    const loadedFaqs = Array.isArray(data.faqs) ? (data.faqs as FaqItem[]) : [];
+
+    // Ensure all seed default FAQs are present
+    const existingIds = new Set(loadedFaqs.map((f) => f.faqId));
+    let hasNewDefaults = false;
+    for (const def of DEFAULT_FAQS) {
+      if (!existingIds.has(def.faqId)) {
+        loadedFaqs.push(def);
+        hasNewDefaults = true;
+      }
+    }
+    if (hasNewDefaults) {
+      loadedFaqs.sort((a, b) => a.order - b.order);
+      await db.doc(FAQS_DOC_PATH).set({ faqs: loadedFaqs, updatedAt: new Date().toISOString() }).catch(() => null);
+    }
+
+    return loadedFaqs
       .filter((f) => includeDisabled || f.enabled)
       .sort((a, b) => a.order - b.order);
   } catch (err) {

@@ -80,16 +80,23 @@ interface AdminConfigData {
   updatedAt?: string;
 }
 
-interface SuperAdminModalProps {
+export interface SuperAdminModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: TabKey;
 }
 
 type TabKey = "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV";
 
-export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
+export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModalProps) {
   const isClient = useIsClient();
-  const [tab, setTab] = useState<TabKey>("CURRENCY");
+  const [tab, setTab] = useState<TabKey>(initialTab ?? "CURRENCY");
+
+  useEffect(() => {
+    if (initialTab && isOpen) {
+      setTab(initialTab);
+    }
+  }, [initialTab, isOpen]);
   const [config, setConfig] = useState<AdminConfigData | null>(null);
   const [ledger, setLedger] = useState<RedistributiveLedgerSummary | null>(null);
   const [recentPurchases, setRecentPurchases] = useState<StripePurchaseRecord[]>([]);
@@ -768,7 +775,7 @@ export function SuperAdminModal({ isOpen, onClose }: SuperAdminModalProps) {
               { id: "RBAC" as const, label: "RBAC Matrix & Roles", icon: "shield" as IconName },
               {
                 id: "FAQS" as const,
-                label: `Help & FAQs (${faqs.length})`,
+                label: `FAQ Development (${faqs.length})`,
                 icon: "sparkles" as IconName,
               },
               { id: "DEV" as const, label: "Developer Diagnostics", icon: "flask" as IconName },
