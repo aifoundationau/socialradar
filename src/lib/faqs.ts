@@ -50,12 +50,23 @@ export const DEFAULT_FAQS: FaqItem[] = [
     updatedAt: "2026-11-03T00:00:00.000Z",
   },
   {
+    faqId: "faq_remix_studio",
+    question: "What is AI Creative Remix Studio & how do I use it?",
+    answer:
+      "AI Creative Remix Studio deconstructs the persuasion DNA of any winning competitor ad—its 3-second hook, pacing, and emotional triggers—and remixes it specifically for your brand profile.\n\nTo use it:\n1. On any ad card in the Radar Feed, click 'Model this ad ⚡' to open the workbench.\n2. Click 'Generate remix ✨' to generate 3 complete script variations (including scene directions, voiceover, and text overlays) ready to copy or export to CSV for your video creators.",
+    category: "Radar",
+    order: 5,
+    enabled: true,
+    createdAt: "2026-11-03T00:00:00.000Z",
+    updatedAt: "2026-11-03T00:00:00.000Z",
+  },
+  {
     faqId: "faq_radar_overview",
     question: "What is Radar Feed?",
     answer:
       "Radar Feed is an ad intelligence engine that searches and indexes live high-performing advertisements running across the Meta Ad Library (Facebook and Instagram). It analyzes creatives, formats, active running duration, and performance scores so you can discover proven winning ad strategies in your niche and instantly remix them for your own brand.",
     category: "Radar",
-    order: 5,
+    order: 6,
     enabled: true,
     createdAt: "2026-11-01T00:00:00.000Z",
     updatedAt: "2026-11-01T00:00:00.000Z",
@@ -66,7 +77,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "My Brands is where you register and configure your business identity, core value propositions, tone of voice, target audience hooks, and landing page URLs. When you generate an AI Remix from any winning competitor ad in the Radar Feed, Ad Radar uses your active brand profile to rewrite the hooks, headlines, and video scripts specifically tailored to your brand.",
     category: "Brands",
-    order: 6,
+    order: 7,
     enabled: true,
     createdAt: "2026-11-01T00:00:00.000Z",
     updatedAt: "2026-11-01T00:00:00.000Z",
@@ -77,7 +88,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Ad Radar operates on a strict integer token ledger. Standard Paid Rates for all services are 1 token each. If any external provider encounters an error, your tokens are automatically refunded atomically. Refund rules: all refund requests are to be made in writing by sending a message to the Super Admin.",
     category: "General",
-    order: 7,
+    order: 8,
     enabled: true,
     createdAt: "2026-11-01T00:00:00.000Z",
     updatedAt: "2026-11-01T00:00:00.000Z",
