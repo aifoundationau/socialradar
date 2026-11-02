@@ -135,10 +135,15 @@ From the SuperAdmin Control Panel, all rates can be dynamically set to free (`0 
   - `LIKES`: Most likes (`totalLikes ?? compositeLikes`) descending.
   - `VIEWS`: Most views (`totalViews ?? compositeViews`) descending.
   - `LONGEST`: Longest ad online (`activeDaysCount`) descending.
-- **Platform Search Volume & Quality Normalization (`CACHE_VERSION = "4"`, `MAX_RESULTS = 100`, `PAGE_SIZE = 18`):**
+- **Platform Search Volume & Quality Normalization (`CACHE_VERSION = "5"`, `MAX_RESULTS = 100`, `PAGE_SIZE = 18`):**
+  - **Semantic Ad Search & Relevance Engine (`src/lib/radar-relevance.ts` & `skills/semantic-ad-search-relevance/SKILL.md`):**
+    1. *Intent-to-Domain & Vertical Taxonomy Resolver:* Maps generic category queries (e.g., `"car"`, `"running shoes"`, `"skincare"`, `"pet food"`, `"horse"`) to authoritative category domains (such as `carsales.com.au`, `toyota.com.au`, `mazda.com.au`, `drive.com.au` for `"car"`).
+    2. *Word-Boundary & Prefix Collision Guard:* Blocks false-positive substring matches on Google advertiser lookups (e.g., blocking `"Cara HO"`, `"Care"`, `"Skincare"`, `"CeraVe"`, `"Carpet"` when searching `"car"`).
+    3. *Post-Fetch Semantic Ad Gate:* Purges any off-topic ads matching negative collision patterns before ranking and caching.
+    4. *Single-Call Credit Saver & Zero-Downtime Fallback:* Uses 1 SearchApi credit per search and automatically recovers via category-verified Firestore cache + benchmark ads if upstream SearchApi credits are exhausted (`HTTP 429`).
   - **Meta:** Follows `pagination.next_page_token` up to 3 pages (~60–100 ads per search).
   - **TikTok:** Uses exact-phrase quoted keyword queries (`"..."`, with unquoted fallback) so `sort_by: "unique_users_seen_high_to_low"` surfaces high-reach commercial ads across up to 4 pages, defaults non-European English markets (`AU`, `US`, `CA`, `NZ`) to `GB`, maps `estimated_audience_max` to `totalViews`, and collates duplicate ad variations from the same advertiser.
-  - **Google:** Fetches up to 100 creatives (`num: "100"`, plus page 2 fallback) across up to 5 matched advertiser IDs, extracts `c.image.link` into `mediaUrls` and `thumbnailUrl` for Image/Video ads (plus best-effort detail enrichment for missing visuals), and preserves pure Text ads as `TEXT`.
+  - **Google:** Fetches up to 100 creatives (`num: "100"`, plus page 2 fallback) across verified category domains or word-boundary-validated advertiser IDs, extracts `c.image.link` into `mediaUrls` and `thumbnailUrl` for Image/Video ads, and preserves pure Text ads as `TEXT`.
 - Written by `/api/radar/search` to `normalized_ads/{adId}`; `/api/radar/remix` reads the ad from there and never accepts ad content from the client.
 
 ### `RadarCacheDoc` (`radar_cache/{queryHash}`)

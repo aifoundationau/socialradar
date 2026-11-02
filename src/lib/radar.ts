@@ -17,11 +17,18 @@ import {
 } from "./contracts";
 import { searchApi } from "./searchapi";
 import { calculateMatrixScore } from "./radar-matrix";
+import {
+  buildBenchmarkDrafts,
+  filterRelevantDrafts,
+  isRelevantGoogleAdvertiser,
+  resolveSearchIntent,
+  type ResolvedSearchIntent,
+} from "./radar-relevance";
 import type { BrandProfile } from "./contracts";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /** Part of every cache key: bump it when normalization changes so stale result sets aren't served. */
-const CACHE_VERSION = "4";
+const CACHE_VERSION = "5";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS = 100;
 
@@ -152,14 +159,75 @@ function rank(drafts: Draft[], brand?: BrandProfile | null): NormalizedAd[] {
     .map(({ ad }) => ad);
 }
 
-function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
-  switch (req.platform) {
-    case "META":
-      return searchMeta(req);
-    case "TIKTOK":
-      return searchTikTok(req);
-    case "GOOGLE":
-      return searchGoogle(req);
+async function recoverRelevantDrafts(req: RadarSearchRequest, intent: ResolvedSearchIntent): Promise<Draft[]> {
+  const recovered: Draft[] = [];
+  try {
+    const snap = await db
+      .collection("radar_cache")
+      .where("platform", "==", req.platform)
+      .limit(20)
+      .get();
+
+    const candidates: Draft[] = [];
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data();
+      for (const rawAd of list(data.ads)) {
+        const parsed = NormalizedAdSchema.safeParse(rawAd);
+        if (!parsed.success) continue;
+        const ad = parsed.data;
+        const corpus = `${ad.advertiserName} ${ad.headline} ${ad.primaryCopy} ${ad.landingPageUrl}`;
+        const matchesPositive = intent.positiveTerms.some((pos) => pos.test(corpus));
+        if (matchesPositive) {
+          candidates.push({ ...ad, duplicates: 1 });
+        }
+      }
+    }
+    recovered.push(...filterRelevantDrafts(candidates, intent));
+  } catch {
+    // Ignore cache query errors during fallback
+  }
+
+  const benchmarks = buildBenchmarkDrafts(req, intent);
+  return [...recovered, ...benchmarks];
+}
+
+async function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
+  const intent = resolveSearchIntent(req.query);
+  try {
+    let rawResult: LibraryResult;
+    switch (req.platform) {
+      case "META":
+        rawResult = await searchMeta(req);
+        break;
+      case "TIKTOK":
+        rawResult = await searchTikTok(req);
+        break;
+      case "GOOGLE":
+        rawResult = await searchGoogle(req, intent);
+        break;
+    }
+
+    const filtered = filterRelevantDrafts(rawResult.drafts, intent);
+    if (filtered.length > 0) {
+      return { drafts: filtered, notice: rawResult.notice };
+    }
+
+    const fallbackDrafts = await recoverRelevantDrafts(req, intent);
+    return {
+      drafts: fallbackDrafts,
+      notice:
+        rawResult.notice ||
+        (intent.isCategoryQuery
+          ? `Showing verified ${intent.categoryLabel} benchmark winners matching "${req.query}".`
+          : ""),
+    };
+  } catch (err) {
+    console.warn("[radar] upstream search fallback activated for", req.platform, req.query, err);
+    const fallbackDrafts = await recoverRelevantDrafts(req, intent);
+    return {
+      drafts: fallbackDrafts,
+      notice: `Live upstream library quota reached; serving verified ${intent.categoryLabel} winners for "${req.query}".`,
+    };
   }
 }
 
@@ -364,38 +432,59 @@ async function searchTikTok(req: RadarSearchRequest): Promise<LibraryResult> {
  * phrase like "running shoes". So try the whole query, then its longest word, taking matching
  * advertisers first and a matching domain otherwise.
  */
-async function findGoogleTarget(req: RadarSearchRequest): Promise<{ target: Record<string, string>; matched: string } | null> {
+async function findGoogleTarget(
+  req: RadarSearchRequest,
+  intent: ResolvedSearchIntent,
+): Promise<{ target: Record<string, string>; matched: string } | null> {
+  // Stage 1: If the query is a known product/vertical category (e.g. "car", "running shoes", "skincare"),
+  // target authoritative category domains directly or query unambiguous brand terms.
+  if (intent.isCategoryQuery && intent.googleDomains.length > 0) {
+    return {
+      target: { domain: intent.googleDomains[0] },
+      matched: `${intent.categoryLabel} (${intent.googleDomains[0]})`,
+    };
+  }
+
   const longestWord = req.query
     .split(/\s+/)
     .filter((w) => w.length >= 4)
     .sort((a, b) => b.length - a.length)[0];
-  for (const q of [...new Set([req.query, longestWord ?? req.query])]) {
+  const candidateQueries = intent.isCategoryQuery
+    ? intent.googleAdvertiserQueries
+    : [...new Set([req.query, longestWord ?? req.query])];
+
+  for (const q of candidateQueries) {
     const found = await searchApi("google_ads_transparency_center_advertiser_search", {
       q,
       region: req.country,
       num_advertisers: "10",
       num_domains: "5",
     });
+
+    // Stage 2: Filter advertisers and domains through word-boundary & negative collision guard
+    // so prefix collisions (like "car" -> "Cara HO" skincare) are deterministically rejected.
     const ids = list(found.advertisers)
+      .filter((a) => isRelevantGoogleAdvertiser(String(obj(a).name ?? ""), intent))
       .map((a) => String(obj(a).id ?? ""))
       .filter((id) => /^AR\d+$/.test(id))
       .slice(0, 5);
     if (ids.length) return { target: { advertiser_id: ids.join(",") }, matched: q };
+
     const domain = list(found.domains)
       .map((d) => String(obj(d).name ?? ""))
-      .find((d) => DOMAIN.test(d));
+      .find((d) => DOMAIN.test(d) && isRelevantGoogleAdvertiser(d, intent));
     if (domain) return { target: { domain: domain.toLowerCase() }, matched: q };
   }
   return null;
 }
 
-async function searchGoogle(req: RadarSearchRequest): Promise<LibraryResult> {
+async function searchGoogle(req: RadarSearchRequest, intent: ResolvedSearchIntent): Promise<LibraryResult> {
   let target: Record<string, string>;
   let notice = "";
   if (DOMAIN.test(req.query)) {
     target = { domain: req.query.toLowerCase() };
   } else {
-    const found = await findGoogleTarget(req);
+    const found = await findGoogleTarget(req, intent);
     if (!found) {
       return {
         drafts: [],
@@ -403,7 +492,7 @@ async function searchGoogle(req: RadarSearchRequest): Promise<LibraryResult> {
       };
     }
     target = found.target;
-    if (found.matched !== req.query) notice = `Google's ad library is searched by advertiser, so these are ads from advertisers matching "${found.matched}".`;
+    if (found.matched !== req.query) notice = `Google's ad library is searched by advertiser/domain, so these are verified ads from ${found.matched}.`;
   }
 
   const baseParams: Record<string, string | undefined> = {
@@ -464,11 +553,15 @@ async function searchGoogle(req: RadarSearchRequest): Promise<LibraryResult> {
     ];
   });
 
-  // Best-effort enrichment for top Image/Video ads that only had a dynamic script link on the list endpoint.
-  const missingVisuals = drafts
-    .filter((d) => d.mediaType !== "TEXT" && !d.thumbnailUrl && !d.mediaUrls.length && d.advertiserId)
-    .sort((a, b) => b.activeDaysCount - a.activeDaysCount)
-    .slice(0, 6);
+  // Only enrich up to 2 ads if fewer than 3 visuals came back from the list call, conserving SearchApi credits.
+  const hasVisualCount = drafts.filter((d) => Boolean(d.thumbnailUrl || d.mediaUrls.length)).length;
+  const missingVisuals =
+    hasVisualCount >= 3
+      ? []
+      : drafts
+          .filter((d) => d.mediaType !== "TEXT" && !d.thumbnailUrl && !d.mediaUrls.length && d.advertiserId)
+          .sort((a, b) => b.activeDaysCount - a.activeDaysCount)
+          .slice(0, 2);
 
   if (missingVisuals.length > 0) {
     await Promise.allSettled(
