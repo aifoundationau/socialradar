@@ -135,7 +135,7 @@ From the SuperAdmin Control Panel, all rates can be dynamically set to free (`0 
   - `LIKES`: Most likes (`totalLikes ?? compositeLikes`) descending.
   - `VIEWS`: Most views (`totalViews ?? compositeViews`) descending.
   - `LONGEST`: Longest ad online (`activeDaysCount`) descending.
-- **Platform Search Volume & Quality Normalization (`CACHE_VERSION = "5"`, `MAX_RESULTS = 100`, `PAGE_SIZE = 18`):**
+- **Platform Search Volume & Quality Normalization (`CACHE_VERSION = "7"`, `MAX_RESULTS = 100`, `PAGE_SIZE = 18`):**
   - **Semantic Ad Search & Relevance Engine (`src/lib/radar-relevance.ts` & `skills/semantic-ad-search-relevance/SKILL.md`):**
     1. *Intent-to-Domain & Vertical Taxonomy Resolver:* Maps generic category queries (e.g., `"car"`, `"running shoes"`, `"skincare"`, `"pet food"`, `"horse"`) to authoritative category domains (such as `carsales.com.au`, `toyota.com.au`, `mazda.com.au`, `drive.com.au` for `"car"`).
     2. *Word-Boundary & Prefix Collision Guard:* Blocks false-positive substring matches on Google advertiser lookups (e.g., blocking `"Cara HO"`, `"Care"`, `"Skincare"`, `"CeraVe"`, `"Carpet"` when searching `"car"`).

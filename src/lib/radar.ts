@@ -28,7 +28,7 @@ import type { BrandProfile } from "./contracts";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /** Part of every cache key: bump it when normalization changes so stale result sets aren't served. */
-const CACHE_VERSION = "5";
+const CACHE_VERSION = "7";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS = 100;
 
@@ -161,6 +161,9 @@ function rank(drafts: Draft[], brand?: BrandProfile | null): NormalizedAd[] {
 
 async function recoverRelevantDrafts(req: RadarSearchRequest, intent: ResolvedSearchIntent): Promise<Draft[]> {
   const recovered: Draft[] = [];
+  const queryLower = req.query.replace(/"/g, "").trim().toLowerCase();
+  const primaryWord = queryLower.split(/\s+/)[0] || queryLower;
+
   try {
     const snap = await db
       .collection("radar_cache")
@@ -175,8 +178,13 @@ async function recoverRelevantDrafts(req: RadarSearchRequest, intent: ResolvedSe
         const parsed = NormalizedAdSchema.safeParse(rawAd);
         if (!parsed.success) continue;
         const ad = parsed.data;
-        const corpus = `${ad.advertiserName} ${ad.headline} ${ad.primaryCopy} ${ad.landingPageUrl}`;
-        const matchesPositive = intent.positiveTerms.some((pos) => pos.test(corpus));
+        // Skip synthesized benchmark entries from other queries so brand searches stay 100% pure
+        if (ad.adId.includes("_verified_")) continue;
+        const corpus = `${ad.advertiserName} ${ad.headline} ${ad.primaryCopy} ${ad.landingPageUrl}`.toLowerCase();
+        const matchesQuery = corpus.includes(queryLower) || (primaryWord.length >= 4 && corpus.includes(primaryWord));
+        const matchesPositive = intent.isCategoryQuery
+          ? intent.positiveTerms.some((pos) => pos.test(corpus))
+          : matchesQuery;
         if (matchesPositive) {
           candidates.push({ ...ad, duplicates: 1 });
         }
@@ -187,7 +195,7 @@ async function recoverRelevantDrafts(req: RadarSearchRequest, intent: ResolvedSe
     // Ignore cache query errors during fallback
   }
 
-  const benchmarks = buildBenchmarkDrafts(req, intent);
+  const benchmarks = await buildBenchmarkDrafts(req, intent);
   return [...recovered, ...benchmarks];
 }
 
