@@ -800,7 +800,7 @@ async function synthesizeAiPlatformAds(
 Every ad MUST be genuinely about "${req.query}" (${intent.categoryLabel}) and distinct for ${req.platform}.`;
 
   try {
-    const ai = new GoogleGenAI({ apiKey, httpOptions: { timeout: 10_000 } });
+    const ai = new GoogleGenAI({ apiKey, httpOptions: { timeout: 25_000 } });
     const res = await ai.models.generateContent({
       model: process.env.GEMINI_MODEL || "gemini-flash-latest",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
