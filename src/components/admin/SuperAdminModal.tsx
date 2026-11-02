@@ -109,7 +109,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [confirmRefundTxId, setConfirmRefundTxId] = useState<string | null>(null);
   const [refundingTxId, setRefundingTxId] = useState<string | null>(null);
   const [giftEmail, setGiftEmail] = useState("");
-  const [giftTokensInput, setGiftTokensInput] = useState("45");
+  const [giftTokensInput, setGiftTokensInput] = useState("0");
   const [giftNote, setGiftNote] = useState("");
   const [gifting, setGifting] = useState(false);
   const [adminMessages, setAdminMessages] = useState<AdminMessage[]>([]);
@@ -400,6 +400,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       });
       if (data.orders) setOrderLedger(data.orders);
       setGiftNote("");
+      setGiftTokensInput("0");
       setStatusMsg(
         `Gifted +${data.tokens.toLocaleString("en-AU")} tokens at no charge to ${data.recipientEmail} (new balance: ${data.newBalance.toLocaleString("en-AU")} ⚡).`
       );
@@ -1858,6 +1859,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           pattern="[0-9]*"
                           required
                           value={giftTokensInput}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => setGiftTokensInput(e.target.value.replace(/[^0-9]/g, ""))}
                           className={`${field} font-mono text-center`}
                           data-agent-id="gift-tokens-amount-input"
