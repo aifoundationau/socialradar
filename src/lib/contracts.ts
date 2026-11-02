@@ -48,7 +48,7 @@ export const UserDocSchema = z
   .strict();
 export type UserDoc = z.infer<typeof UserDocSchema>;
 
-export const TokenTxTypeSchema = z.enum(["TOPUP", "RADAR_SEARCH", "AI_REMIX", "REFUND", "BRAND_CLONE"]);
+export const TokenTxTypeSchema = z.enum(["TOPUP", "RADAR_SEARCH", "AI_REMIX", "REGENERATE_VARIATIONS", "REFUND", "BRAND_CLONE"]);
 export type TokenTxType = z.infer<typeof TokenTxTypeSchema>;
 
 export const TokenTransactionDocSchema = z
@@ -262,7 +262,11 @@ export const RadarCacheDocSchema = z
 export type RadarCacheDoc = z.infer<typeof RadarCacheDocSchema>;
 
 export const RemixRequestSchema = z
-  .object({ adId: NormalizedAdSchema.shape.adId, brandId: BrandIdSchema })
+  .object({
+    adId: NormalizedAdSchema.shape.adId,
+    brandId: BrandIdSchema,
+    isRegenerate: z.boolean().default(false).optional(),
+  })
   .strict();
 export type RemixRequest = z.infer<typeof RemixRequestSchema>;
 
@@ -322,6 +326,7 @@ export const ServiceCostsSchema = z
     searchExtendedDays: tokenInt.min(0).default(1),
     searchEliteScore: tokenInt.min(0).default(1),
     aiRemix: tokenInt.min(0).default(1),
+    regenerateVariations: tokenInt.min(0).default(1),
     brandClone: tokenInt.min(0).default(1),
   })
   .strict();

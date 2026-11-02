@@ -88,7 +88,7 @@ export function RemixStudio({
   brand: BrandProfile | null;
   /** Brand the shown remix was written for (it may differ from the active brand). */
   remixBrandName: string | null;
-  onGenerate: () => void;
+  onGenerate: (isRegenerate?: boolean) => void;
 }) {
   const [tab, setTab] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
@@ -176,7 +176,7 @@ export function RemixStudio({
           </div>
           {error && <ErrorNote error={error} className="max-w-md text-left" />}
           {brand ? (
-            <button type="button" onClick={onGenerate} className={`${btnPrimary} w-full max-w-xs sm:w-auto`}>
+            <button type="button" data-agent-id="remix-generate-button" data-testid="remix-generate-button" onClick={() => onGenerate(false)} className={`${btnPrimary} w-full max-w-xs sm:w-auto`}>
               <Icon name="sparkles" />
               {error ? "Try again" : "Generate remix"}
               <CostTag action="AI_REMIX" />
@@ -213,10 +213,10 @@ export function RemixStudio({
                 : "Not quite right? Generate a fresh set of angles."}
             </p>
             {brand && (
-              <button type="button" onClick={onGenerate} className={btnPrimary}>
+              <button type="button" data-agent-id="remix-regenerate-variations-button" data-testid="remix-regenerate-variations-button" onClick={() => onGenerate(true)} className={btnPrimary}>
                 <Icon name="refresh" />
                 Regenerate variations
-                <CostTag action="AI_REMIX" />
+                <CostTag action="REGENERATE_VARIATIONS" />
               </button>
             )}
           </footer>

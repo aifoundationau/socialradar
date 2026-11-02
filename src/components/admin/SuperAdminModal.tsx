@@ -57,6 +57,7 @@ interface ServiceCosts {
   searchExtendedDays: number;
   searchEliteScore: number;
   aiRemix: number;
+  regenerateVariations?: number;
   brandClone?: number;
 }
 
@@ -957,6 +958,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               searchExtendedDays: 0,
                               searchEliteScore: 0,
                               aiRemix: 0,
+                              regenerateVariations: 0,
                               brandClone: 0,
                             },
                           })
@@ -977,6 +979,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               searchExtendedDays: 1,
                               searchEliteScore: 1,
                               aiRemix: 1,
+                              regenerateVariations: 1,
                               brandClone: 1,
                             },
                           })
@@ -1014,6 +1017,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         key: "aiRemix" as const,
                         label: "AI Creative Remix Studio",
                         desc: "Gemini multimodal creative deconstruction, 3 hook variants & storyboard",
+                      },
+                      {
+                        key: "regenerateVariations" as const,
+                        label: "Regenerate Variations",
+                        desc: "Regenerate fresh angles & 3 script variations for an existing deconstructed ad in Remix Studio",
                       },
                       {
                         key: "brandClone" as const,

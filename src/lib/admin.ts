@@ -41,6 +41,7 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
     searchExtendedDays: 1,
     searchEliteScore: 1,
     aiRemix: 1,
+    regenerateVariations: 1,
     brandClone: 1,
   },
   tokenPacks: [

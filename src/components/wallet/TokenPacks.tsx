@@ -31,6 +31,7 @@ export function TokenPacks() {
     searchExtendedDays: SERVICE_SURCHARGES.EXTENDED_DAYS,
     searchEliteScore: SERVICE_SURCHARGES.ELITE_SCORE,
     aiRemix: ACTION_COSTS.AI_REMIX,
+    regenerateVariations: ACTION_COSTS.REGENERATE_VARIATIONS,
     brandClone: ACTION_COSTS.BRAND_CLONE,
   });
 
@@ -145,6 +146,13 @@ export function TokenPacks() {
             AI Creative Remix:{" "}
             <strong className="text-primary">
               {serviceCosts.aiRemix === 0 ? "Free (0)" : `${serviceCosts.aiRemix} tok`}
+            </strong>
+          </span>
+          <span className="text-white/20">•</span>
+          <span>
+            Regenerate Variations:{" "}
+            <strong className="text-primary">
+              {(serviceCosts.regenerateVariations ?? 1) === 0 ? "Free (0)" : `${serviceCosts.regenerateVariations ?? 1} tok`}
             </strong>
           </span>
           <span className="text-white/20">•</span>

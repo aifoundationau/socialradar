@@ -232,7 +232,10 @@ export async function withTokenGate(
     const ref = typeof referenceId === "function" ? referenceId(caller) : referenceId;
 
     // Superadmin Token Exemption: Superadmin pays 0 tokens for any action on the platform
-    const isSuperadmin = caller.claims.role === "admin";
+    const isSuperadmin =
+      caller.claims.role === "admin" ||
+      caller.claims.role === "superadmin" ||
+      caller.claims.isSuperAdmin === true;
     const rawCost = customCost !== undefined ? customCost : ACTION_COSTS[action];
     const effectiveCost = isSuperadmin ? 0 : rawCost;
 

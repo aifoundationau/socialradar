@@ -11,8 +11,8 @@
 3. **Currency Conversion Decimals:**
    - AUD platform pricing and token charges remain strictly whole numbers (zero decimals).
    - Foreign exchange currency conversion (AUD to USD) displays up to 2 decimal places (e.g. 1 Token = $1 AUD ≈ $0.65 USD, 10 Tokens = $10 AUD ≈ $6.50 USD, 50 Tokens = $50 AUD ≈ $32.50 USD, 100 Tokens = $100 AUD ≈ $65 USD).
-4. **Standard Paid Rates Standardized to 1 Token:**
-   - Standard Paid Rates for all services, products, and surcharges across the application are strictly **1 Token** each.
+4. **Standard Paid Rates Standardized to 1 Token (Including Regenerate Variations):**
+   - Standard Paid Rates for all 7 services, products, and surcharges across the application (including `Regenerate Variations`) are strictly **1 Token** each and fully customizable in the Super Admin Panel.
 5. **Top 24 Most Searched Items (Radar Quick Search Pills):**
    - Implemented the top 24 most searched consumer & ad-library items on the internet on the empty Radar state.
    - Fluid responsive wrapping in `max-w-3xl` container with full DOM automation attributes (`data-agent-id`, `data-testid`, `aria-label`).

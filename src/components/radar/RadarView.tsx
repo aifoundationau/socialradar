@@ -219,12 +219,12 @@ export function RadarView() {
     requestAnimationFrame(() => studio.current?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }));
   }
 
-  async function generate(ad: NormalizedAd) {
+  async function generate(ad: NormalizedAd, isRegenerate = false) {
     if (!activeBrand) return;
     setRemixJob({ adId: ad.adId, loading: true, error: null });
     try {
       const res = await apiFetch<RemixResponse>("/api/radar/remix", {
-        body: { adId: ad.adId, brandId: activeBrand.brandId },
+        body: { adId: ad.adId, brandId: activeBrand.brandId, isRegenerate },
       });
       setRemixes((r) => ({ ...r, [ad.adId]: res.remix }));
       const updated = res.ad;
@@ -355,7 +355,7 @@ export function RadarView() {
                 error={job?.error ?? null}
                 brand={activeBrand}
                 remixBrandName={remixBrandName}
-                onGenerate={() => generate(selected)}
+                onGenerate={(isRegenerate) => generate(selected, isRegenerate)}
               />
             )}
           </>

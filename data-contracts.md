@@ -47,7 +47,7 @@
 |---|---|---|
 | `txId` | string | idempotency key / deterministic id |
 | `uid` | string | |
-| `type` | enum | `"TOPUP" \| "RADAR_SEARCH" \| "AI_REMIX" \| "REFUND" \| "BRAND_CLONE"` |
+| `type` | enum | `"TOPUP" \| "RADAR_SEARCH" \| "AI_REMIX" \| "REGENERATE_VARIATIONS" \| "REFUND" \| "BRAND_CLONE"` |
 | `delta` | integer | non-zero (e.g. `-2`, `-5`, `+100`) |
 | `balanceAfter` | integer | `>= 0` |
 | `referenceId` | string | queryHash, adId, stripeSessionId, globalBrandId, or refunded txId; max 256 |
@@ -56,7 +56,7 @@
 ### Token packs (server constants, `src/lib/pricing.ts`)
 One-off Stripe Checkout purchases. Tokens never expire.
 - **Default Currency & Base Rate:** The default platform currency is **AUD** (`aud`), and the default token price is **1 Token = AUD $1** (`100 cents AUD`, stored in `audCentsPerToken`).
-- **SuperAdmin Customization:** From the SuperAdmin Control Panel (`system_config/global`), both `audCentsPerToken` and the token amounts for each product and service (`serviceCosts`: `searchStandard`, `searchProvenWinners`, `searchExtendedDays`, `searchEliteScore`, `aiRemix`, `brandClone`) are fully customizable.
+- **SuperAdmin Customization:** From the SuperAdmin Control Panel (`system_config/global`), both `audCentsPerToken` and the token amounts for each product and service (`serviceCosts`: `searchStandard`, `searchProvenWinners`, `searchExtendedDays`, `searchEliteScore`, `aiRemix`, `regenerateVariations`, `brandClone`) are fully customizable.
 - **Base Currency & Invoicing:** All platform token fees and Stripe invoices operate strictly in Australian Dollars (**AUD**) with whole numbers.
 - **Geolocation & International Currency Conversion:**
   - If geolocation is in Australia or New Zealand (`AU` or `NZ`), users strictly see **AUD** prices (`$1 AUD` per token) with no currency conversion display.
@@ -89,6 +89,7 @@ Standard Paid Rates for all services, products, and surcharges across the platfo
 | `searchExtendedDays` | +1 token | Extended longevity filter (Active 60+ days) |
 | `searchEliteScore` | +1 token | Top Winners composite score filter (90%+ score) |
 | `aiRemix` (AI Creative Remix) | 1 token | Multimodal AI remix deconstruction & script generation |
+| `regenerateVariations` (Regenerate Variations) | 1 token | Regenerate fresh angles & 3 script variations in Remix Studio |
 | `brandClone` (Global Brand Copy) | 1 token | Copying global brand card into personal workspace |
 
 From the SuperAdmin Control Panel, all rates can be dynamically set to free (`0 tokens`) using the "Set All Free (0)" preset or customized individually. A cost of `0` makes the action free: the caller must still be signed in and send an idempotency key, but nothing is written to the ledger and no balance check is made.

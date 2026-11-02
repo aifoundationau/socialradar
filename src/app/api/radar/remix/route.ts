@@ -29,13 +29,17 @@ export async function POST(req: Request) {
   }
 
   const config = await getSystemConfig();
+  const isRegen = Boolean(input.isRegenerate);
+  const configuredCost = isRegen
+    ? (config.serviceCosts?.regenerateVariations ?? config.serviceCosts?.aiRemix ?? 1)
+    : (config.serviceCosts?.aiRemix ?? 1);
   const remixCost = config.isTokenSystemEnabled
-    ? Math.max(0, Math.round(config.serviceCosts?.aiRemix ?? 0))
+    ? Math.max(0, Math.round(configuredCost))
     : 0;
 
   return withTokenGate(
     req,
-    "AI_REMIX",
+    isRegen ? "REGENERATE_VARIATIONS" : "AI_REMIX",
     input.adId,
     async ({ caller, txId, replayed, balanceAfter }) => {
       const ref = db.collection("remixes").doc(txId);
