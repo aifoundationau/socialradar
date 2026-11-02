@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { Icon, type IconName } from "@/components/ui/Icon";
@@ -144,6 +144,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [draftCostInputs, setDraftCostInputs] = useState<Record<string, string>>({});
+  const costSaveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -437,6 +439,15 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
   async function saveConfig(patch: Partial<AdminConfigData>) {
     if (!config) return;
+    const optimisticNext: AdminConfigData = {
+      ...config,
+      ...patch,
+      serviceCosts: {
+        ...config.serviceCosts,
+        ...(patch.serviceCosts ?? {}),
+      },
+    };
+    setConfig(optimisticNext);
     setSaving(true);
     setErrorMsg(null);
     setStatusMsg(null);
@@ -1087,7 +1098,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         desc: "Customer submits full brand brief + extra details for SuperAdmin & Main Admin strategy reply (Default: 45 tokens)",
                       },
                     ].map(({ key, label: serviceLabel, desc }) => {
-                      const tok = config.serviceCosts[key] ?? 0;
+                      const defaultTok = key === "customizeService" ? 45 : 0;
+                      const tok = config.serviceCosts[key] ?? defaultTok;
+                      const displayVal = draftCostInputs[key] !== undefined ? draftCostInputs[key] : String(tok);
                       const audCents = Math.round(tok * (config.audCentsPerToken ?? 100));
                       const usdCents = audToUsdCents(audCents);
 
@@ -1108,26 +1121,74 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               type="button"
                               aria-label={`Decrease ${serviceLabel} tokens`}
                               disabled={saving || tok <= 0}
-                              onClick={() =>
+                              onClick={() => {
+                                if (costSaveTimersRef.current[key]) clearTimeout(costSaveTimersRef.current[key]);
+                                setDraftCostInputs((prev) => {
+                                  const next = { ...prev };
+                                  delete next[key];
+                                  return next;
+                                });
                                 saveConfig({
                                   serviceCosts: {
                                     ...config.serviceCosts,
                                     [key]: Math.max(0, tok - 1),
                                   },
-                                })
-                              }
+                                });
+                              }}
                               className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-container-highest font-mono text-sm font-bold text-on-surface hover:border-primary/40 hover:text-primary disabled:opacity-40"
                             >
                               -
                             </button>
                             <input
-                              type="number"
-                              min={0}
-                              step={1}
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               data-testid={`service-cost-input-${key}`}
-                              value={tok}
+                              value={displayVal}
                               onChange={(e) => {
-                                const val = Math.max(0, Math.round(Number(e.target.value) || 0));
+                                const raw = e.target.value.replace(/[^0-9]/g, "");
+                                setDraftCostInputs((prev) => ({ ...prev, [key]: raw }));
+                                const val = raw === "" ? 0 : Math.max(0, Math.round(Number(raw) || 0));
+                                setConfig((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        serviceCosts: {
+                                          ...prev.serviceCosts,
+                                          [key]: val,
+                                        },
+                                      }
+                                    : prev
+                                );
+                                if (costSaveTimersRef.current[key]) {
+                                  clearTimeout(costSaveTimersRef.current[key]);
+                                }
+                                costSaveTimersRef.current[key] = setTimeout(() => {
+                                  setDraftCostInputs((prev) => {
+                                    const next = { ...prev };
+                                    delete next[key];
+                                    return next;
+                                  });
+                                  saveConfig({
+                                    serviceCosts: {
+                                      ...config.serviceCosts,
+                                      [key]: val,
+                                    },
+                                  });
+                                }, 800);
+                              }}
+                              onBlur={() => {
+                                if (draftCostInputs[key] === undefined) return;
+                                if (costSaveTimersRef.current[key]) {
+                                  clearTimeout(costSaveTimersRef.current[key]);
+                                }
+                                const raw = draftCostInputs[key];
+                                const val = raw === "" ? 0 : Math.max(0, Math.round(Number(raw) || 0));
+                                setDraftCostInputs((prev) => {
+                                  const next = { ...prev };
+                                  delete next[key];
+                                  return next;
+                                });
                                 saveConfig({
                                   serviceCosts: {
                                     ...config.serviceCosts,
@@ -1135,20 +1196,32 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   },
                                 });
                               }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  (e.currentTarget as HTMLInputElement).blur();
+                                }
+                              }}
                               className={`${field} text-center font-mono`}
                             />
                             <button
                               type="button"
                               aria-label={`Increase ${serviceLabel} tokens`}
                               disabled={saving}
-                              onClick={() =>
+                              onClick={() => {
+                                if (costSaveTimersRef.current[key]) clearTimeout(costSaveTimersRef.current[key]);
+                                setDraftCostInputs((prev) => {
+                                  const next = { ...prev };
+                                  delete next[key];
+                                  return next;
+                                });
                                 saveConfig({
                                   serviceCosts: {
                                     ...config.serviceCosts,
                                     [key]: tok + 1,
                                   },
-                                })
-                              }
+                                });
+                              }}
                               className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-container-highest font-mono text-sm font-bold text-on-surface hover:border-primary/40 hover:text-primary disabled:opacity-40"
                             >
                               +
