@@ -355,9 +355,10 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 
 ### Default Knowledge Base Seed Items
 1. `faq_base_radar_search`: *"What is Base Radar Search?"* — *"It is the core platform search that queries the ad libraries (Meta, TikTok, and Google) for any keyword, hook, or competitor brand to find winning ad creatives and performance data."* (`category: "Radar"`, `order: 1`).
-2. `faq_radar_overview`: *"What is Radar Feed?"* — Ad intelligence engine searching live ads (`category: "Radar"`, `order: 2`).
-3. `faq_brands_overview`: *"What is My Brands?"* — Brand configuration for tailored AI remixes (`category: "Brands"`, `order: 3`).
-4. `faq_tokens_overview`: *"How do Token Deductions Work?"* — Strict integer token ledger, 1 token standard paid rates, and refund request rules (`category: "General"`, `order: 4`).
+2. `faq_proven_winners`: *"What is Proven (28+d)?"* — *"In performance marketing, unprofitable ads get turned off quickly. The Proven (28+d) filter isolates ads that have run continuously for 28 days or longer across the ad libraries. This strips away short-lived split tests and noise, showing you only the high-converting, profitable creatives that brands continue to fund—ready to deconstruct and remix for your own brand."* (`category: "Radar"`, `order: 2`).
+3. `faq_radar_overview`: *"What is Radar Feed?"* — Ad intelligence engine searching live ads (`category: "Radar"`, `order: 3`).
+4. `faq_brands_overview`: *"What is My Brands?"* — Brand configuration for tailored AI remixes (`category: "Brands"`, `order: 4`).
+5. `faq_tokens_overview`: *"How do Token Deductions Work?"* — Strict integer token ledger, 1 token standard paid rates, and refund request rules (`category: "General"`, `order: 5`).
 
 ### Header & Superadmin Integration
 - **Header FAQs Button:** Displays in top desktop navigation and mobile user account menu. Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.
@@ -385,9 +386,10 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 
 ### Default Knowledge Base Seed Items
 1. `faq_base_radar_search`: *"What is Base Radar Search?"* — *"It is the core platform search that queries the ad libraries (Meta, TikTok, and Google) for any keyword, hook, or competitor brand to find winning ad creatives and performance data."* (`category: "Radar"`, `order: 1`).
-2. `faq_radar_overview`: *"What is Radar Feed?"* — Ad intelligence engine searching live ads (`category: "Radar"`, `order: 2`).
-3. `faq_brands_overview`: *"What is My Brands?"* — Brand configuration for tailored AI remixes (`category: "Brands"`, `order: 3`).
-4. `faq_tokens_overview`: *"How do Token Deductions Work?"* — Strict integer token ledger, 1 token standard paid rates, and refund request rules (`category: "General"`, `order: 4`).
+2. `faq_proven_winners`: *"What is Proven (28+d)?"* — *"In performance marketing, unprofitable ads get turned off quickly. The Proven (28+d) filter isolates ads that have run continuously for 28 days or longer across the ad libraries. This strips away short-lived split tests and noise, showing you only the high-converting, profitable creatives that brands continue to fund—ready to deconstruct and remix for your own brand."* (`category: "Radar"`, `order: 2`).
+3. `faq_radar_overview`: *"What is Radar Feed?"* — Ad intelligence engine searching live ads (`category: "Radar"`, `order: 3`).
+4. `faq_brands_overview`: *"What is My Brands?"* — Brand configuration for tailored AI remixes (`category: "Brands"`, `order: 4`).
+5. `faq_tokens_overview`: *"How do Token Deductions Work?"* — Strict integer token ledger, 1 token standard paid rates, and refund request rules (`category: "General"`, `order: 5`).
 
 ### Header & Superadmin Integration
 - **Header FAQs Button:** Displays in top desktop navigation and mobile user account menu. Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.

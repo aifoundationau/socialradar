@@ -307,3 +307,4 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
     document.body
   );
 }
+

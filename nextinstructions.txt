@@ -18,7 +18,7 @@
    - Fluid responsive wrapping in `max-w-3xl` container with full DOM automation attributes (`data-agent-id`, `data-testid`, `aria-label`).
 6. **Top Header FAQs & Super Admin FAQ Development Suite:**
    - Added FAQs entry in top navigation and mobile account menu opening `FaqModal`.
-   - Seeding "What is Base Radar Search?" as #1 question under Radar.
+   - Seeded "What is Base Radar Search?" (#1) and "What is Proven (28+d)?" (#2) under Radar category.
    - Super Admin can add, edit, reorder, and delete FAQs directly in the Super Admin Panel (`FAQ Development` tab) and from the FAQ modal shortcut.
 7. **All Tests & Verifications Passing:**
    - `npm run test:rules` (40/40 tests passing).
@@ -26,5 +26,5 @@
    - Dev server running on port 3000 (HTTP 200).
 
 ## Next Priority Actions
-1. Check that the "FAQs" button on http://localhost:3000 opens the FAQ modal with "What is Base Radar Search?" and allows Super Admin editing.
+1. Check that the "FAQs" modal displays "What is Proven (28+d)?" under Radar on http://localhost:3000.
 2. Await next user directive.
