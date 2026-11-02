@@ -39,12 +39,23 @@ export const DEFAULT_FAQS: FaqItem[] = [
     updatedAt: "2026-11-03T00:00:00.000Z",
   },
   {
+    faqId: "faq_elite_winners",
+    question: "What is Top Winners (90%+)?",
+    answer:
+      "Top Winners (90%+) isolates the elite top 1% of ad campaigns that score 90 out of 100 or higher on our multi-factor scoring algorithm. The score evaluates longevity, view volume, and horizontal ad set scaling (where an advertiser runs multiple duplicate collations of the same creative across massive budgets). Filtering for 90%+ gives you immediate access to category-dominating ads with unmatched conversion power.",
+    category: "Radar",
+    order: 4,
+    enabled: true,
+    createdAt: "2026-11-03T00:00:00.000Z",
+    updatedAt: "2026-11-03T00:00:00.000Z",
+  },
+  {
     faqId: "faq_radar_overview",
     question: "What is Radar Feed?",
     answer:
       "Radar Feed is an ad intelligence engine that searches and indexes live high-performing advertisements running across the Meta Ad Library (Facebook and Instagram). It analyzes creatives, formats, active running duration, and performance scores so you can discover proven winning ad strategies in your niche and instantly remix them for your own brand.",
     category: "Radar",
-    order: 4,
+    order: 5,
     enabled: true,
     createdAt: "2026-11-01T00:00:00.000Z",
     updatedAt: "2026-11-01T00:00:00.000Z",
@@ -55,7 +66,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "My Brands is where you register and configure your business identity, core value propositions, tone of voice, target audience hooks, and landing page URLs. When you generate an AI Remix from any winning competitor ad in the Radar Feed, Ad Radar uses your active brand profile to rewrite the hooks, headlines, and video scripts specifically tailored to your brand.",
     category: "Brands",
-    order: 5,
+    order: 6,
     enabled: true,
     createdAt: "2026-11-01T00:00:00.000Z",
     updatedAt: "2026-11-01T00:00:00.000Z",
@@ -66,7 +77,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Ad Radar operates on a strict integer token ledger. Standard Paid Rates for all services are 1 token each. If any external provider encounters an error, your tokens are automatically refunded atomically. Refund rules: all refund requests are to be made in writing by sending a message to the Super Admin.",
     category: "General",
-    order: 6,
+    order: 7,
     enabled: true,
     createdAt: "2026-11-01T00:00:00.000Z",
     updatedAt: "2026-11-01T00:00:00.000Z",
