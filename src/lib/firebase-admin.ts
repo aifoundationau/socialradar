@@ -133,6 +133,8 @@ export async function verifyRequest(
   }
 
   const isSuper = isDatabaseAdmin(token, token.email);
+  const rawRole = (token as Record<string, unknown>)?.role;
+  const isMainAdmin = !isSuper && (rawRole === "admin" || (token as Record<string, unknown>)?.admin === true);
   let claims: CustomClaims;
   if (isSuper) {
     claims = {
@@ -141,6 +143,14 @@ export async function verifyRequest(
       isSuperAdmin: true,
       admin: true,
       superadmin: true,
+    };
+  } else if (isMainAdmin) {
+    claims = {
+      role: "admin",
+      tier: "agency",
+      isSuperAdmin: false,
+      admin: true,
+      superadmin: false,
     };
   } else {
     claims = {
@@ -152,10 +162,11 @@ export async function verifyRequest(
     };
   }
 
-  if (opts.requireRole && (opts.requireRole === "admin" || opts.requireRole === "superadmin")) {
-    if (!isSuper) {
-      throw new AuthError("FORBIDDEN", "Super admin role required");
-    }
+  if (opts.requireRole === "superadmin" && !isSuper) {
+    throw new AuthError("FORBIDDEN", "Super admin role required");
+  }
+  if (opts.requireRole === "admin" && !isSuper && !isMainAdmin) {
+    throw new AuthError("FORBIDDEN", "Main Admin or Super Admin role required");
   }
 
   return { uid: token.uid, email: (token.email ?? "").toLowerCase(), claims, token };

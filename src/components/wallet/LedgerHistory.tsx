@@ -13,6 +13,7 @@ const TYPE_LABELS: Record<TokenTxType, string> = {
   REGENERATE_VARIATIONS: "Regenerate variations",
   REFUND: "Refund",
   BRAND_CLONE: "Global brand copy",
+  CUSTOMIZE_SERVICE: "Professional customize service",
 };
 
 const HISTORY_LIMIT = 50;

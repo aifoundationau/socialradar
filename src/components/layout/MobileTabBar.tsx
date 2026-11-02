@@ -72,7 +72,7 @@ function Tabs({ pathname }: { pathname: string | null }) {
         </div>
       )}
 
-      <ul className="grid grid-cols-3">
+      <ul className="grid grid-cols-4">
         {NAV.map(({ href, short, icon }) => {
           const active = isActivePath(pathname, href);
           const isBrands = href === "/brands";

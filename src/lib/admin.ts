@@ -3,6 +3,8 @@ import { randomBytes } from "crypto";
 import { db, setUserClaims } from "./firebase-admin";
 import {
   type AdminMessage,
+  type CustomizeRequestDoc,
+  type CustomizeRequestInput,
   type EquityPartner,
   type PartnerDistribution,
   type RedistributiveLedgerSummary,
@@ -15,6 +17,7 @@ import { TOKEN_PACKS } from "./pricing";
 const CONFIG_DOC_PATH = "system_config/global";
 const PURCHASES_COL = "stripe_purchases";
 const MESSAGES_COL = "admin_messages";
+const CUSTOMIZE_COL = "customize_requests";
 
 export interface ExtendedTokenPack {
   id: TokenPackId | string;
@@ -43,6 +46,7 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
     aiRemix: 1,
     regenerateVariations: 1,
     brandClone: 1,
+    customizeService: 45,
   },
   tokenPacks: [
     { id: "PACK_10", name: "Quick Pack (10)", tokens: TOKEN_PACKS.PACK_10.tokens, priceCents: TOKEN_PACKS.PACK_10.priceCents, enabled: true },
@@ -293,6 +297,8 @@ export async function createAdminMessage(params: {
   senderEmail: string;
   subject: string;
   body: string;
+  requestType?: "general" | "customize_request" | "customize_reply";
+  customizeRequestId?: string;
 }): Promise<AdminMessage> {
   const cleanSubject = params.subject.trim().slice(0, 150);
   const cleanBody = params.body.trim().slice(0, 2000);
@@ -315,11 +321,28 @@ export async function createAdminMessage(params: {
     subject: cleanSubject,
     body: cleanBody,
     status: "unread",
+    ...(params.requestType ? { requestType: params.requestType } : {}),
+    ...(params.customizeRequestId ? { customizeRequestId: params.customizeRequestId } : {}),
     createdAt: now.toISOString(),
     retentionUntil: retentionDate.toISOString(),
   };
 
   await db.collection(MESSAGES_COL).doc(messageId).set(message);
+
+  if (params.customizeRequestId) {
+    try {
+      await db.collection(CUSTOMIZE_COL).doc(params.customizeRequestId).set(
+        {
+          status: message.direction === "admin_to_user" ? "completed" : "pending",
+          ...(message.direction === "admin_to_user" ? { staffCompletedMessageId: messageId } : {}),
+          updatedAt: now.toISOString(),
+        },
+        { merge: true }
+      );
+    } catch {
+      // Non-fatal if customize request doc does not exist yet
+    }
+  }
   return message;
 }
 
@@ -330,6 +353,8 @@ export async function sendSuperadminMessage(params: {
   recipientEmail: string;
   subject: string;
   body: string;
+  requestType?: "general" | "customize_request" | "customize_reply";
+  customizeRequestId?: string;
 }): Promise<AdminMessage> {
   const cleanEmail = params.recipientEmail.toLowerCase().trim();
   const cleanSubject = params.subject.trim().slice(0, 150);
@@ -366,11 +391,28 @@ export async function sendSuperadminMessage(params: {
     subject: cleanSubject,
     body: cleanBody,
     status: "unread",
+    ...(params.requestType ? { requestType: params.requestType } : {}),
+    ...(params.customizeRequestId ? { customizeRequestId: params.customizeRequestId } : {}),
     createdAt: now.toISOString(),
     retentionUntil: retentionDate.toISOString(),
   };
 
   await db.collection(MESSAGES_COL).doc(messageId).set(message);
+
+  if (params.customizeRequestId) {
+    try {
+      await db.collection(CUSTOMIZE_COL).doc(params.customizeRequestId).set(
+        {
+          status: message.direction === "admin_to_user" ? "completed" : "pending",
+          ...(message.direction === "admin_to_user" ? { staffCompletedMessageId: messageId } : {}),
+          updatedAt: now.toISOString(),
+        },
+        { merge: true }
+      );
+    } catch {
+      // Non-fatal if customize request doc does not exist yet
+    }
+  }
   return message;
 }
 
@@ -414,4 +456,169 @@ export async function updateAdminMessageStatus(
   status: "unread" | "read" | "archived"
 ): Promise<void> {
   await db.collection(MESSAGES_COL).doc(messageId).update({ status });
+}
+
+// ============================================================================
+// PROFESSIONAL CUSTOMIZE SERVICE (ROUTED TO SUPERADMIN & MAIN ADMIN)
+// ============================================================================
+
+/**
+ * Converts URLs/domains and strips HTML/markdown links so plain-text statutory messages
+ * preserve all brand/domain context while passing `assertPlainTextNoLinks` (LINK_URL_PATTERN).
+ */
+export function sanitizeForPlainTextArchive(raw: string): string {
+  return raw
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
+    .replace(/https?:\/\//gi, "")
+    .replace(/ftp:\/\//gi, "")
+    .replace(/\bwww\./gi, "www [dot] ")
+    .replace(/\bdata:/gi, "data - ")
+    .replace(/([a-z0-9-]+)\.([a-z]{2,5})\b/gi, "$1 [dot] $2")
+    .replace(/\s+\n/g, "\n")
+    .trim();
+}
+
+/**
+ * Records a paid Customize Request in `customize_requests/{requestId}`, dispatches the full
+ * structured brief to SuperAdmin and Main Admin in `admin_messages`, and sends an immediate
+ * customized confirmation reply to the customer's message panel.
+ */
+export async function submitCustomizeRequest(params: {
+  uid: string;
+  userEmail: string;
+  tokensCharged: number;
+  input: CustomizeRequestInput;
+}): Promise<{
+  request: CustomizeRequestDoc;
+  adminMessage: AdminMessage;
+  customerConfirmationMessage: AdminMessage;
+}> {
+  const now = new Date().toISOString();
+  const requestId = `cust_${Date.now()}_${randomBytes(4).toString("hex")}`;
+  const cleanEmail = params.userEmail.toLowerCase().trim();
+
+  const landingSummary = (params.input.landingPageUrls?.length
+    ? params.input.landingPageUrls
+    : [params.input.destinationUrl]
+  )
+    .map((u, idx) => `  ${idx + 1}. ${sanitizeForPlainTextArchive(u)}`)
+    .join("\n");
+
+  const painPointsSummary = params.input.corePainPoints
+    .map((p, idx) => `  ${idx + 1}. ${sanitizeForPlainTextArchive(p)}`)
+    .join("\n");
+
+  const staffBriefRaw = [
+    `CUSTOMIZE SERVICE BRIEF (${requestId})`,
+    `Customer: ${sanitizeForPlainTextArchive(cleanEmail)} | Fee Paid: ${params.tokensCharged} Tokens`,
+    `Brand Name: ${sanitizeForPlainTextArchive(params.input.brandName)}`,
+    `Tone of Voice: ${params.input.toneOfVoice}${params.input.version ? ` | Version/Tag: ${sanitizeForPlainTextArchive(params.input.version)}` : ""}`,
+    ``,
+    `PRODUCT OR SERVICE:`,
+    sanitizeForPlainTextArchive(params.input.productServiceDescription),
+    ``,
+    `TARGET CUSTOMER AVATAR:`,
+    sanitizeForPlainTextArchive(params.input.targetAudienceAvatar),
+    ``,
+    `CORE PAIN POINTS:`,
+    painPointsSummary,
+    ``,
+    `UNIQUE MECHANISM OR OFFER:`,
+    sanitizeForPlainTextArchive(params.input.uniqueMechanismOrOffer),
+    ``,
+    `LANDING PAGES:`,
+    landingSummary,
+    ``,
+    `EXTRA DETAILS & DESCRIPTIONS TO THINK ABOUT:`,
+    sanitizeForPlainTextArchive(params.input.extraDetailsAndNotes),
+  ].join("\n");
+
+  const staffSubject = sanitizeForPlainTextArchive(
+    `[CUSTOMIZE REQUEST] ${params.input.brandName} (${params.tokensCharged} Tokens)`
+  ).slice(0, 150);
+
+  const staffBody = staffBriefRaw.slice(0, 1980);
+
+  const adminMessage = await createAdminMessage({
+    uid: params.uid,
+    senderEmail: cleanEmail,
+    subject: staffSubject,
+    body: staffBody,
+    requestType: "customize_request",
+    customizeRequestId: requestId,
+  });
+
+  // Immediate customized reply message to the customer acknowledging their specific request
+  const customerSubject = sanitizeForPlainTextArchive(
+    `Customize Request Received: ${params.input.brandName} (Ref ${requestId.slice(-6)})`
+  ).slice(0, 150);
+
+  const customerReplyRaw = [
+    `Hello from the Social Radar Professional Strategy Team,`,
+    ``,
+    `We have received your Customize request for "${sanitizeForPlainTextArchive(params.input.brandName)}" (${params.tokensCharged} tokens) and routed your brief directly to our Super Admin and Main Admin creative strategists.`,
+    ``,
+    `SUMMARY OF YOUR BRIEF IN QUEUE:`,
+    `- Brand & Tone: ${sanitizeForPlainTextArchive(params.input.brandName)} (${params.input.toneOfVoice})`,
+    `- Core Offer / Mechanism: ${sanitizeForPlainTextArchive(params.input.uniqueMechanismOrOffer.slice(0, 220))}`,
+    `- Extra Details Noted: "${sanitizeForPlainTextArchive(params.input.extraDetailsAndNotes.slice(0, 260))}"`,
+    ``,
+    `WHAT HAPPENS NEXT:`,
+    `Our strategists are reviewing your product positioning, buyer avatar, pain points, and extra notes to craft your customized brand & ad strategy package. As soon as your bespoke work is ready, we will deliver the full customized reply right here in your My Messages panel.`,
+  ].join("\n");
+
+  const customerConfirmationMessage = await sendSuperadminMessage({
+    superadminUid: "system_customize_concierge",
+    superadminEmail: "support@aifoundation.net.au",
+    recipientEmail: cleanEmail,
+    subject: customerSubject,
+    body: customerReplyRaw.slice(0, 1980),
+    requestType: "customize_reply",
+  });
+
+  const requestDoc: CustomizeRequestDoc = {
+    ...params.input,
+    requestId,
+    uid: params.uid,
+    userEmail: cleanEmail,
+    tokensCharged: Math.round(params.tokensCharged),
+    status: "pending",
+    adminMessageId: adminMessage.messageId,
+    customerReplyMessageId: customerConfirmationMessage.messageId,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await db.collection(CUSTOMIZE_COL).doc(requestId).set(requestDoc);
+
+  return {
+    request: requestDoc,
+    adminMessage,
+    customerConfirmationMessage,
+  };
+}
+
+/** Fetches Customize requests submitted by a specific customer. */
+export async function getUserCustomizeRequests(uid: string, limit = 30): Promise<CustomizeRequestDoc[]> {
+  try {
+    const snap = await db.collection(CUSTOMIZE_COL).where("uid", "==", uid).limit(limit).get();
+    if (snap.empty) return [];
+    return snap.docs
+      .map((d) => d.data() as CustomizeRequestDoc)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } catch (err) {
+    console.warn("[admin] failed to fetch user customize requests", err);
+    return [];
+  }
+}
+
+/** Fetches a single Customize request by ID (for staff AI reply generation). */
+export async function getCustomizeRequestById(requestId: string): Promise<CustomizeRequestDoc | null> {
+  try {
+    const snap = await db.collection(CUSTOMIZE_COL).doc(requestId).get();
+    return snap.exists ? (snap.data() as CustomizeRequestDoc) : null;
+  } catch {
+    return null;
+  }
 }

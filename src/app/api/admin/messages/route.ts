@@ -12,7 +12,7 @@ const UpdateStatusSchema = z.object({
 
 export async function GET(req: Request) {
   try {
-    await verifyRequest(req, { requireRole: "superadmin" });
+    await verifyRequest(req, { requireRole: "admin" });
 
     const messages = await getAdminMessages(100);
     return NextResponse.json({ messages });
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const caller = await verifyRequest(req, { requireRole: "superadmin" });
+    const caller = await verifyRequest(req, { requireRole: "admin" });
     const body = await readJson(req);
     const parsed = SendAdminMessageRequestSchema.parse(body);
 
@@ -33,6 +33,8 @@ export async function POST(req: Request) {
       recipientEmail: parsed.recipientEmail,
       subject: parsed.subject,
       body: parsed.body,
+      requestType: parsed.requestType,
+      customizeRequestId: parsed.customizeRequestId,
     });
 
     const messages = await getAdminMessages(100);
@@ -49,7 +51,7 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    await verifyRequest(req, { requireRole: "superadmin" });
+    await verifyRequest(req, { requireRole: "admin" });
 
     const body = await readJson(req);
     const { messageId, status } = UpdateStatusSchema.parse(body);

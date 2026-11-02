@@ -17,7 +17,7 @@ import type { EquityPartner } from "@/lib/contracts";
 
 export async function GET(req: Request) {
   try {
-    const caller = await verifyRequest(req, { requireRole: "superadmin" });
+    const caller = await verifyRequest(req, { requireRole: "admin" });
     const [config, ledger, recentPurchases] = await Promise.all([
       getSystemConfig(),
       getRedistributiveLedger(),
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const caller = await verifyRequest(req, { requireRole: "superadmin" });
+    const caller = await verifyRequest(req, { requireRole: "admin" });
 
     const body = (await readJson(req)) as Record<string, unknown>;
 

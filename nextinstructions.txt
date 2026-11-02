@@ -26,8 +26,14 @@
    - **Provisioned Fresh `GEMINI_API_KEY` in `.env.local`:** Created a restricted `Gemini API Key (Ad Radar)` in GCP project `ai-foundation-firebase` and updated `.env.local`.
    - **SearchApi.io Monthly Quota Guard (`src/lib/searchapi.ts`):** When `SEARCHAPI_API_KEY` returns `HTTP 429` (`You have used all of the searches for the month`), serves previously cached real ads if any exist, or throws a clear `UpstreamError` explaining that the SearchApi.io monthly quota has been reached (automatically refunding the user's token).
    - **TikTok & Google Enhancements:** Exact-phrase quoted queries on TikTok (`unique_users_seen_high_to_low`), `c.image.link` extraction for Google Image/Video ads, and `MAX_RESULTS = 100` (`PAGE_SIZE = 18`).
-8. **All Tests & Verifications Passing:**
-   - `npm run test:rules` (40/40 tests passing).
+8. **Top Header `'Customize'` Page, 45-Token Admin Fee, `SuperAdmin` + `Main Admin` Routing & Staff AI Reply Designer:**
+   - Added `'Customize'` (`/customize`) to top header navigation (`src/components/layout/nav.ts`, `TopNavWallet.tsx`) and `MobileTabBar.tsx`.
+   - Built `src/components/customize/CustomizeView.tsx` and `src/app/api/customize/route.ts` with all Brand Card fields, pre-fill from existing Brand Cards, plus the dedicated **"Extra Details & Descriptions to Think About"** box (`extraDetailsAndNotes`).
+   - Added `customizeService` (default **45 tokens**) to `ServiceCostsSchema`, `DEFAULT_CONFIG`, `ACTION_COSTS`, and the Admin Panel `Service Pricing` tab.
+   - Configured `src/lib/firebase-admin.ts`, `SessionProvider.tsx`, and `/api/admin/messages` so both **SuperAdmin** (`superadmin`) and **Main Admin** (`admin` role, below `superadmin`) receive Customize requests, can run the **"Generate AI Work Reply ✨"** automated AI process (`skills/custom-brand-strategist-reply/SKILL.md` & `src/lib/customize-ai.ts`), and send completed work back to the customer's Message Panel.
+   - Automatically dispatches an immediate customized confirmation reply to the customer's Message Panel upon Customize submission.
+9. **All Tests & Verifications Passing:**
+   - `npm run test:rules` (50/50 tests passing, including `customize_requests` and recipient-scoped `admin_messages`).
    - `npx tsc --noEmit` (0 errors).
    - Dev server running on port 3000 (HTTP 200).
 

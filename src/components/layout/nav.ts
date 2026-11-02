@@ -25,7 +25,15 @@ export const NAV: NavItem[] = [
     short: "Radar",
     icon: "radar",
     tooltipTitle: "Radar Feed",
-    tooltipDesc: "Discover high-performing Meta ads running live across Facebook & Instagram with duration and score intelligence.",
+    tooltipDesc: "Discover high-performing Meta, TikTok & Google ads running live with duration and score intelligence.",
+  },
+  {
+    href: "/customize",
+    label: "Customize",
+    short: "Customize",
+    icon: "sparkles",
+    tooltipTitle: "Professional Customize Service",
+    tooltipDesc: "Have our professional strategy team take your brand details and extra notes to craft a bespoke brand & ad blueprint.",
   },
   {
     href: "/wallet",

@@ -442,6 +442,29 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
   3. `filterRelevantDrafts(drafts, intent)` purges off-topic upstream ads prior to scoring and Firestore caching.
 - **Upstream Quota Exhaustion (`HTTP 429`):** When `SEARCHAPI_API_KEY` hits its monthly plan quota on SearchApi.io (`HTTP 429`), `runRadarSearch` serves previously cached *real* ads from Firestore `radar_cache` if available, or throws a clear `UpstreamError` in `src/lib/searchapi.ts` so `withTokenGate` automatically refunds the user's token.
 
+## 12. Professional Customize Service & Staff AI Reply Designer (`custom-brand-strategist-reply`)
+
+### Overview & Pricing Contract
+- **Navigation & Route:** Top header and mobile navigation include `'Customize'` (`/customize`).
+- **Token Fee (`customizeService`):** Default is **`45` tokens** (integer-only), configurable by SuperAdmin in the Admin Panel (`Service Pricing` tab) and enforced via `withTokenGate` (`CUSTOMIZE_SERVICE` transaction type).
+- **Customer Input Contract (`CustomizeRequestInputSchema`):**
+  - `brandName`: string (1..100)
+  - `toneOfVoice`: `"DIRECT_RESPONSE" | "AUTHORITATIVE" | "UGC_CASUAL" | "URGENT"`
+  - `productServiceDescription`: string (1..2000)
+  - `targetAudienceAvatar`: string (1..2000)
+  - `corePainPoints`: string[] (1..10 items, 1..300 chars each)
+  - `uniqueMechanismOrOffer`: string (1..1000)
+  - `destinationUrl`: https URL
+  - `landingPageUrls`: https URL[] (up to 50)
+  - `version`: optional string (up to 50)
+  - `extraDetailsAndNotes`: string (1..2000) — extra strategic details & descriptions to think about
+  - `sourceBrandId`: optional string (up to 128)
+- **Routing to `SuperAdmin` and `Main Admin` (`admin` role):**
+  - Submitting `/api/customize` stores `customize_requests/{requestId}`, creates an `admin_messages` entry (`requestType: "customize_request"`) visible to both `SuperAdmin` (`superadmin`) and `Main Admin` (`admin`), and immediately sends a customized confirmation message (`requestType: "customize_reply"`) to the customer's Message Panel.
+- **Automated Staff AI Reply Process (`POST /api/admin/messages/ai-draft`):**
+  - Implements `skills/custom-brand-strategist-reply/SKILL.md` (`src/lib/customize-ai.ts`), compatible across Gemini 2.5 Flash-Lite, Claude Haiku 4.5, and gpt-6-luna, producing a 7-year-archive-compliant plain-text 4-pillar strategy reply for staff to review and send to the customer's Message Panel.
+
+
 
 
 

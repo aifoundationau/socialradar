@@ -16,7 +16,7 @@ export interface Session {
   brands: BrandProfile[] | null;
   activeBrand: BrandProfile | null;
   isAdmin: boolean;
-  role: "superadmin" | "supporter";
+  role: "superadmin" | "admin" | "supporter";
   claims: Record<string, unknown> | null;
   error: string | null;
 }
@@ -63,8 +63,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   };
 
   // The superadmin should only be the firebase database admin email. Everyone else starts at supporter level.
-  const isAdmin = isSuperAdminEmail(user?.email);
-  const role: "superadmin" | "supporter" = isAdmin ? "superadmin" : "supporter";
+  const isSuper = isSuperAdminEmail(user?.email);
+  const isMainAdmin = !isSuper && (myClaims?.role === "admin" || myClaims?.admin === true);
+  const isAdmin = isSuper || isMainAdmin;
+  const role: "superadmin" | "admin" | "supporter" = isSuper ? "superadmin" : isMainAdmin ? "admin" : "supporter";
 
   useEffect(() => onAuthStateChanged(clientAuth(), setUser), []);
 

@@ -48,7 +48,7 @@ export const UserDocSchema = z
   .strict();
 export type UserDoc = z.infer<typeof UserDocSchema>;
 
-export const TokenTxTypeSchema = z.enum(["TOPUP", "RADAR_SEARCH", "AI_REMIX", "REGENERATE_VARIATIONS", "REFUND", "BRAND_CLONE"]);
+export const TokenTxTypeSchema = z.enum(["TOPUP", "RADAR_SEARCH", "AI_REMIX", "REGENERATE_VARIATIONS", "REFUND", "BRAND_CLONE", "CUSTOMIZE_SERVICE"]);
 export type TokenTxType = z.infer<typeof TokenTxTypeSchema>;
 
 export const TokenTransactionDocSchema = z
@@ -328,6 +328,7 @@ export const ServiceCostsSchema = z
     aiRemix: tokenInt.min(0).default(1),
     regenerateVariations: tokenInt.min(0).default(1),
     brandClone: tokenInt.min(0).default(1),
+    customizeService: tokenInt.min(0).default(45),
   })
   .strict();
 export type ServiceCosts = z.infer<typeof ServiceCostsSchema>;
@@ -420,6 +421,8 @@ export const AdminMessageSchema = z
     subject: z.string().trim().min(1).max(150),
     body: z.string().trim().min(1).max(2000), // strictly plain text only, no attachments, no upload links
     status: z.enum(["unread", "read", "archived"]).default("unread"),
+    requestType: z.enum(["general", "customize_request", "customize_reply"]).optional(),
+    customizeRequestId: z.string().max(128).optional(),
     createdAt: isoDate,
     retentionUntil: isoDate, // strictly 7 years from createdAt for statutory compliance
   })
@@ -451,6 +454,8 @@ export type CreateAdminMessageRequest = z.infer<typeof CreateAdminMessageRequest
 export const SendAdminMessageRequestSchema = z
   .object({
     recipientEmail: z.string().trim().toLowerCase().email("Valid recipient email is required").max(254),
+    requestType: z.enum(["general", "customize_request", "customize_reply"]).optional(),
+    customizeRequestId: z.string().max(128).optional(),
     subject: z
       .string()
       .trim()
@@ -582,3 +587,55 @@ export const UpdateFaqRequestSchema = z
   })
   .strict();
 export type UpdateFaqRequest = z.infer<typeof UpdateFaqRequestSchema>;
+
+// ---------- 11. Professional Customize Service & Staff AI Reply ----------
+export const CustomizeRequestInputSchema = z
+  .object({
+    brandName: safeText(1, 100),
+    productServiceDescription: safeText(1, 2000),
+    targetAudienceAvatar: safeText(1, 2000),
+    corePainPoints: z.array(safeText(1, 300)).min(1).max(10),
+    uniqueMechanismOrOffer: safeText(1, 1000),
+    toneOfVoice: ToneOfVoiceSchema,
+    destinationUrl: httpsUrl,
+    landingPageUrls: z.array(httpsUrl).max(50).default([]),
+    version: z.string().max(50).optional(),
+    extraDetailsAndNotes: safeText(1, 2000),
+    sourceBrandId: z.string().max(128).optional(),
+  })
+  .strict();
+export type CustomizeRequestInput = z.infer<typeof CustomizeRequestInputSchema>;
+
+export const CustomizeRequestDocSchema = CustomizeRequestInputSchema.extend({
+  requestId: z.string().min(1).max(128),
+  uid: z.string().min(1).max(128),
+  userEmail: z.string().trim().toLowerCase().email().max(254),
+  tokensCharged: tokenInt.min(0),
+  status: z.enum(["pending", "in_progress", "completed"]).default("pending"),
+  adminMessageId: z.string().min(1).max(128),
+  customerReplyMessageId: z.string().min(1).max(128),
+  staffCompletedMessageId: z.string().max(128).optional(),
+  createdAt: isoDate,
+  updatedAt: isoDate,
+}).strict();
+export type CustomizeRequestDoc = z.infer<typeof CustomizeRequestDocSchema>;
+
+export const AiCustomizeReplyDraftRequestSchema = z
+  .object({
+    messageId: z.string().max(128).optional(),
+    customizeRequestId: z.string().max(128).optional(),
+    customerEmail: z.string().trim().toLowerCase().email().max(254),
+    subject: z.string().trim().max(150).optional(),
+    customerBriefText: z.string().trim().min(1).max(4000),
+    staffNotes: z.string().trim().max(1000).optional(),
+  })
+  .strict();
+export type AiCustomizeReplyDraftRequest = z.infer<typeof AiCustomizeReplyDraftRequestSchema>;
+
+export const AiCustomizeReplyDraftResponseSchema = z
+  .object({
+    subject: z.string().trim().min(1).max(150),
+    body: z.string().trim().min(1).max(2000),
+  })
+  .strict();
+export type AiCustomizeReplyDraftResponse = z.infer<typeof AiCustomizeReplyDraftResponseSchema>;

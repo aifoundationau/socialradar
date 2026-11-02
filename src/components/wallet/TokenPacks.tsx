@@ -33,6 +33,7 @@ export function TokenPacks() {
     aiRemix: ACTION_COSTS.AI_REMIX,
     regenerateVariations: ACTION_COSTS.REGENERATE_VARIATIONS,
     brandClone: ACTION_COSTS.BRAND_CLONE,
+    customizeService: ACTION_COSTS.CUSTOMIZE_SERVICE,
   });
 
   useEffect(() => {
@@ -160,6 +161,13 @@ export function TokenPacks() {
             Global Brand Copy:{" "}
             <strong className="text-primary">
               {(serviceCosts.brandClone ?? 1) === 0 ? "Free (0)" : `${serviceCosts.brandClone ?? 1} tok`}
+            </strong>
+          </span>
+          <span className="text-white/20">•</span>
+          <span>
+            Customize Service:{" "}
+            <strong className="text-primary">
+              {(serviceCosts.customizeService ?? 45) === 0 ? "Free (0)" : `${serviceCosts.customizeService ?? 45} tok`}
             </strong>
           </span>
         </div>

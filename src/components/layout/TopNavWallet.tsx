@@ -21,6 +21,7 @@ function NavItems({ pathname }: { pathname: string | null }) {
         <Link
           href={href}
           aria-current={active ? "page" : undefined}
+          data-agent-id={`nav-link-${href.replace("/", "")}`}
           data-testid={`nav-link-${href.replace("/", "")}`}
           className={`rounded px-3 py-1.5 text-body transition-colors ${
             active
@@ -150,7 +151,7 @@ function AccountMenu({
   onOpenContact: () => void;
   onOpenFaqs: () => void;
 }) {
-  const { user, isAdmin } = useSession();
+  const { user, isAdmin, role } = useSession();
   const menu = useRef<HTMLDivElement>(null);
   const initial = user?.email?.[0]?.toUpperCase();
 
@@ -181,7 +182,7 @@ function AccountMenu({
                   : "border border-white/10 bg-surface-container-highest text-on-surface-variant"
               }`}
             >
-              {isAdmin ? "Super Admin" : "Supporter"}
+              {role === "superadmin" ? "Super Admin" : role === "admin" ? "Main Admin" : "Supporter"}
             </span>
           </div>
           <p className="mt-1 truncate text-body font-medium">{user?.email}</p>

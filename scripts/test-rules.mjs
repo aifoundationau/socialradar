@@ -9,12 +9,14 @@ const token = execSync("gcloud auth print-access-token", { encoding: "utf8" }).t
 const P = (p) => `/databases/ad-radar/documents/${p}`;
 const U = { uid: "userA", token: { email: "a@example.com" } };
 const V = { uid: "userB", token: { email: "b@example.com" } };
+const W = { uid: "userC", token: { email: "c@example.com" } };
 const Admin = { uid: "adminUser", token: { email: "admin@example.com", role: "admin" } };
 const SuperAdmin = { uid: "superUser", token: { email: "super@example.com", role: "superadmin" } };
 const SuperAdminFlag = { uid: "superFlagUser", token: { email: "superflag@example.com", isSuperAdmin: true } };
 const AdminFlag = { uid: "adminFlagUser", token: { email: "adminflag@example.com", admin: true } };
 const SuperAdminBool = { uid: "superBoolUser", token: { email: "superbool@example.com", superadmin: true } };
 const ownedByA = { data: { uid: "userA" } };
+const messageForB = { data: { uid: "userA", recipientUid: "userB" } };
 
 const cases = [
   ["own user doc: get", "ALLOW", { auth: U, path: P("users/userA"), method: "get" }],
@@ -31,7 +33,9 @@ const cases = [
   ["own remix: get", "ALLOW", { auth: U, path: P("remixes/r1"), method: "get" }, ownedByA],
   ["other user's remix: get", "DENY", { auth: V, path: P("remixes/r1"), method: "get" }, ownedByA],
   ["own admin message: get", "ALLOW", { auth: U, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
+  ["recipient user: get admin message", "ALLOW", { auth: V, path: P("admin_messages/msg_to_b"), method: "get" }, messageForB],
   ["other user's admin message: get", "DENY", { auth: V, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
+  ["third-party user: get admin message with recipientUid", "DENY", { auth: W, path: P("admin_messages/msg_to_b"), method: "get" }, messageForB],
   ["admin: get admin message", "ALLOW", { auth: Admin, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
   ["superadmin: get admin message", "ALLOW", { auth: SuperAdmin, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
   ["superadmin flag: get admin message", "ALLOW", { auth: SuperAdminFlag, path: P("admin_messages/msg1"), method: "get" }, ownedByA],
@@ -47,6 +51,14 @@ const cases = [
   ["stripe purchase: get as superadmin bool", "ALLOW", { auth: SuperAdminBool, path: P("stripe_purchases/sp1"), method: "get" }, ownedByA],
   ["signed out: get stripe purchase", "DENY", { path: P("stripe_purchases/sp1"), method: "get" }, ownedByA],
   ["stripe purchase: create", "DENY", { auth: U, path: P("stripe_purchases/sp2"), method: "create" }],
+  ["own customize request: get", "ALLOW", { auth: U, path: P("customize_requests/req1"), method: "get" }, ownedByA],
+  ["other user customize request: get", "DENY", { auth: V, path: P("customize_requests/req1"), method: "get" }, ownedByA],
+  ["admin: get customize request", "ALLOW", { auth: Admin, path: P("customize_requests/req1"), method: "get" }, ownedByA],
+  ["superadmin: get customize request", "ALLOW", { auth: SuperAdmin, path: P("customize_requests/req1"), method: "get" }, ownedByA],
+  ["signed out: get customize request", "DENY", { path: P("customize_requests/req1"), method: "get" }, ownedByA],
+  ["customize request: create", "DENY", { auth: U, path: P("customize_requests/req2"), method: "create" }],
+  ["customize request: update", "DENY", { auth: U, path: P("customize_requests/req1"), method: "update" }, ownedByA],
+  ["customize request: delete", "DENY", { auth: U, path: P("customize_requests/req1"), method: "delete" }, ownedByA],
   ["signed in user: get global brand", "ALLOW", { auth: U, path: P("global_brands/gb1"), method: "get" }],
   ["other user: get global brand", "ALLOW", { auth: V, path: P("global_brands/gb1"), method: "get" }],
   ["signed out: get global brand", "DENY", { path: P("global_brands/gb1"), method: "get" }],
