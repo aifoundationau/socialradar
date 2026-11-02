@@ -57,8 +57,8 @@ const EXAMPLES = [
   "blue light glasses",
   "heatless curler",
 ];
-/** Results per page: a 3 × 3 grid on desktop. */
-const PAGE_SIZE = 9;
+/** Results per page: a 6 × 3 grid on desktop (up to 100 results per search). */
+const PAGE_SIZE = 18;
 
 // Paid results survive navigating to Brands or Wallet and back (per tab, per user).
 type Saved = {

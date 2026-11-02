@@ -61,12 +61,14 @@ function HighlightedText({ text, keywords }: { text: string; keywords: string[] 
 
 function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
   const [playing, setPlaying] = useState(false);
-  const [errored, setErrored] = useState(false);
+  const [videoErrored, setVideoErrored] = useState(false);
+  const [imgErrored, setImgErrored] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
 
   const isVideo = ad.mediaType === "VIDEO" && Boolean(ad.mediaUrls[0]);
-  const isImage = (ad.mediaType === "IMAGE" || ad.mediaType === "CAROUSEL") && Boolean(ad.mediaUrls[0] || ad.thumbnailUrl);
-  const isText = ad.mediaType === "TEXT" || (!isVideo && !isImage);
+  const imageSrc = ad.thumbnailUrl || ad.mediaUrls[0] || "";
+  const isImage = ad.mediaType !== "TEXT" && Boolean(imageSrc);
+  const isText = ad.mediaType === "TEXT";
   const topRank = rank <= 3;
 
   function toggle() {
@@ -75,7 +77,7 @@ function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
       video.current.pause();
       setPlaying(false);
     } else {
-      video.current.play().then(() => setPlaying(true)).catch(() => setErrored(true));
+      video.current.play().then(() => setPlaying(true)).catch(() => setVideoErrored(true));
     }
   }
 
@@ -91,7 +93,7 @@ function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
         </span>
       )}
 
-      {isVideo && !errored ? (
+      {isVideo && !videoErrored ? (
         <>
           <video
             ref={video}
@@ -102,7 +104,7 @@ function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
             muted
             preload="metadata"
             onEnded={() => setPlaying(false)}
-            onError={() => setErrored(true)}
+            onError={() => setVideoErrored(true)}
             className="size-full object-contain bg-black"
           />
           <button
@@ -116,16 +118,24 @@ function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
             </span>
           </button>
         </>
-      ) : isImage && !errored ? (
-        <Image
-          src={ad.mediaUrls[0] || ad.thumbnailUrl}
-          alt={ad.headline || ad.advertiserName || "Ad creative"}
-          fill
-          unoptimized
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          className="object-cover"
-          onError={() => setErrored(true)}
-        />
+      ) : isImage && !imgErrored ? (
+        <>
+          <Image
+            src={imageSrc}
+            alt={ad.headline || ad.advertiserName || "Ad creative"}
+            fill
+            unoptimized
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover"
+            onError={() => setImgErrored(true)}
+          />
+          {ad.mediaType === "VIDEO" && (
+            <span className="pointer-events-none absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white backdrop-blur-sm">
+              <Icon name="film" className="size-3" />
+              Video preview
+            </span>
+          )}
+        </>
       ) : (
         <div className="flex size-full flex-col items-center justify-center gap-1.5 p-4 text-center">
           <span className="flex size-10 items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant">

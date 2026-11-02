@@ -129,13 +129,16 @@ From the SuperAdmin Control Panel, all rates can be dynamically set to free (`0 
 | `highlightKeywords` | string[] | max 20, resonant keywords overlapping brand profile |
 | `matrixScore` | object | optional `{ brandFitScore, hookStrengthScore, longevityScore, compositeScore, resonanceReason, totalViews, totalLikes, highlightKeywords }` |
 
-- **Winning score:** `raw = activeDaysCount × 2.5 + duplicateCreativeCount × 10` (duplicates = Meta `collation_count − 1`, 0 elsewhere). Results are sorted by `raw` descending; the stored value is `min(100, round(raw))`.
+- **Winning score:** `raw = activeDaysCount × 2.5 + duplicateCreativeCount × 10` (duplicates = Meta `collation_count − 1`, TikTok collated creative count, 0 elsewhere). Results are sorted by `raw` / `compositeScore` descending; the stored value is `min(100, round(raw))`.
 - **Feed Sort Keys:**
   - `SCORE`: Winning score (`compositeScore ?? winningScore`) descending.
   - `LIKES`: Most likes (`totalLikes ?? compositeLikes`) descending.
   - `VIEWS`: Most views (`totalViews ?? compositeViews`) descending.
   - `LONGEST`: Longest ad online (`activeDaysCount`) descending.
-- **countryCode** is the searched country, or `EU` when TikTok (whose library only covers Europe) was searched for a country outside it.
+- **Platform Search Volume & Quality Normalization (`CACHE_VERSION = "4"`, `MAX_RESULTS = 100`, `PAGE_SIZE = 18`):**
+  - **Meta:** Follows `pagination.next_page_token` up to 3 pages (~60–100 ads per search).
+  - **TikTok:** Uses exact-phrase quoted keyword queries (`"..."`, with unquoted fallback) so `sort_by: "unique_users_seen_high_to_low"` surfaces high-reach commercial ads across up to 4 pages, defaults non-European English markets (`AU`, `US`, `CA`, `NZ`) to `GB`, maps `estimated_audience_max` to `totalViews`, and collates duplicate ad variations from the same advertiser.
+  - **Google:** Fetches up to 100 creatives (`num: "100"`, plus page 2 fallback) across up to 5 matched advertiser IDs, extracts `c.image.link` into `mediaUrls` and `thumbnailUrl` for Image/Video ads (plus best-effort detail enrichment for missing visuals), and preserves pure Text ads as `TEXT`.
 - Written by `/api/radar/search` to `normalized_ads/{adId}`; `/api/radar/remix` reads the ad from there and never accepts ad content from the client.
 
 ### `RadarCacheDoc` (`radar_cache/{queryHash}`)

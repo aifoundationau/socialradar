@@ -20,11 +20,15 @@
    - Added FAQs entry in top navigation and mobile account menu opening `FaqModal`.
    - Seeded "What is Base Radar Search?" (#1), "What is Proven (28+d)?" (#2), "What is Extended (60+d)?" (#3), "What is Top Winners (90%+)?" (#4), and "What is AI Creative Remix Studio & how do I use it?" (#5) under Radar category.
    - Super Admin can add, edit, reorder, and delete FAQs directly in the Super Admin Panel (`FAQ Development` tab) and from the FAQ modal shortcut (strictly superadmin gated).
-7. **All Tests & Verifications Passing:**
+7. **TikTok Quality, Google Ad Images & Higher Search Result Volume (`CACHE_VERSION = "4"`, `MAX_RESULTS = 100`, `PAGE_SIZE = 18`):**
+   - **TikTok:** Uses exact-phrase quoted queries (`"..."`, with unquoted fallback) so `unique_users_seen_high_to_low` surfaces high-reach commercial campaigns (`100K–10M` reach), defaults non-DSA English markets (`AU`, `US`, `CA`, `NZ`) to `GB`, maps `estimated_audience_max` to `totalViews`, fetches up to 4 pages, and collates duplicate ad groups from the same advertiser.
+   - **Google:** Extracts `c.image.link` into `mediaUrls` and `thumbnailUrl` for Image and Video ads (with parallel detail enrichment for top dynamic Shopping/Display ads) while keeping pure Text ads formatted as `TEXT`.
+   - **Volume:** Raised `MAX_RESULTS` from 40 to 100 (`PAGE_SIZE` from 9 to 18) with multi-page fetching across Meta (up to 3 pages), TikTok (up to 4 pages), and Google (`num: "100"`, up to 5 advertisers).
+8. **All Tests & Verifications Passing:**
    - `npm run test:rules` (40/40 tests passing).
    - `npx tsc --noEmit` (0 errors).
    - Dev server running on port 3000 (HTTP 200).
 
 ## Next Priority Actions
-1. Check that the "FAQs" modal displays "What is AI Creative Remix Studio & how do I use it?" under Radar on http://localhost:3000.
+1. Test TikTok, Google, and Meta searches on http://localhost:3000 to verify high-reach TikTok winners, Google Image/Video previews, and expanded result counts.
 2. Await next user directive.

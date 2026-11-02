@@ -21,9 +21,9 @@ import type { BrandProfile } from "./contracts";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /** Part of every cache key: bump it when normalization changes so stale result sets aren't served. */
-const CACHE_VERSION = "3";
+const CACHE_VERSION = "4";
 const DAY_MS = 24 * 60 * 60 * 1000;
-const MAX_RESULTS = 40;
+const MAX_RESULTS = 100;
 
 // TikTok's library only covers ads shown in the EU/EEA, Switzerland and the UK (Digital Services Act).
 const TIKTOK_COUNTRIES = new Set(
@@ -165,15 +165,37 @@ function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
 
 // ---------- Meta Ad Library ----------
 async function searchMeta(req: RadarSearchRequest): Promise<LibraryResult> {
-  const json = await searchApi("meta_ad_library", {
+  const baseParams: Record<string, string | undefined> = {
     q: req.query,
     country: req.country,
     active_status: "active",
     media_type: req.mediaType === "ALL" ? undefined : req.mediaType.toLowerCase(),
-  });
+  };
+
+  const firstPage = await searchApi("meta_ad_library", baseParams);
+  const rawAds = [...list(firstPage.ads)];
+  let nextToken = typeof obj(firstPage.pagination).next_page_token === "string"
+    ? String(obj(firstPage.pagination).next_page_token)
+    : "";
+
+  for (let page = 2; page <= 3 && nextToken && rawAds.length < MAX_RESULTS; page++) {
+    try {
+      const nextJson = await searchApi("meta_ad_library", {
+        ...baseParams,
+        next_page_token: nextToken,
+      });
+      rawAds.push(...list(nextJson.ads));
+      nextToken = typeof obj(nextJson.pagination).next_page_token === "string"
+        ? String(obj(nextJson.pagination).next_page_token)
+        : "";
+    } catch {
+      break;
+    }
+  }
+
   const now = new Date().toISOString();
 
-  const drafts = list(json.ads).flatMap((raw): Draft[] => {
+  const drafts = rawAds.flatMap((raw): Draft[] => {
     const ad = obj(raw);
     const snap = obj(ad.snapshot);
     const id = idPart(ad.ad_archive_id);
@@ -213,53 +235,122 @@ async function searchMeta(req: RadarSearchRequest): Promise<LibraryResult> {
 }
 
 // ---------- TikTok Ads Library ----------
+async function fetchTikTokPages(
+  q: string,
+  country: string,
+  maxPages: number,
+  requiredFirstPage: boolean,
+): Promise<unknown[]> {
+  const collected: unknown[] = [];
+  let nextToken: string | undefined;
+
+  for (let page = 1; page <= maxPages; page++) {
+    try {
+      const json = await searchApi("tiktok_ads_library", {
+        q,
+        country,
+        sort_by: "unique_users_seen_high_to_low",
+        next_page_token: nextToken,
+      });
+      const batch = list(json.ads);
+      collected.push(...batch);
+      const token = obj(json.pagination).next_page_token;
+      nextToken = typeof token === "string" && token ? token : undefined;
+      if (!nextToken || batch.length === 0) break;
+    } catch (err) {
+      if (page === 1 && requiredFirstPage) throw err;
+      break;
+    }
+  }
+  return collected;
+}
+
 async function searchTikTok(req: RadarSearchRequest): Promise<LibraryResult> {
   const covered = TIKTOK_COUNTRIES.has(req.country);
-  // Widest reach first: long-running, well-funded ads are the likeliest winners.
-  const json = await searchApi("tiktok_ads_library", {
-    q: req.query,
-    country: covered ? req.country : "ALL",
-    sort_by: "unique_users_seen_high_to_low",
-  });
-  const now = new Date().toISOString();
+  // Default non-European English markets (AU, US, CA, NZ) to GB so high-reach English ads are returned instead of 0-1K micro-ads.
+  const targetCountry = covered ? req.country : "GB";
+  const cleanQuery = req.query.replace(/"/g, "").trim();
+  const quotedQuery = `"${cleanQuery}"`;
 
-  const drafts = list(json.ads).flatMap((raw): Draft[] => {
+  // Exact-match quoted query activates TikTok's commercial keyword index where unique_users_seen_high_to_low works properly.
+  const rawAds = await fetchTikTokPages(quotedQuery, targetCountry, 4, true);
+
+  // If the exact phrase had fewer than 24 raw ads, supplement with broader unquoted keyword results.
+  if (rawAds.length < 24 && cleanQuery !== quotedQuery) {
+    const fallbackAds = await fetchTikTokPages(cleanQuery, targetCountry, 2, false);
+    rawAds.push(...fallbackAds);
+  }
+
+  const now = new Date().toISOString();
+  const collated = new Map<string, Draft>();
+
+  for (const raw of rawAds) {
     const ad = obj(raw);
     const id = idPart(ad.id);
     const first = isoDate(ad.first_shown_datetime);
-    if (!id || !first || ad.is_unavailable === true) return [];
+    if (!id || !first || ad.is_unavailable === true) continue;
     const last = isoDate(ad.last_shown_datetime) ?? now;
     const video = https(ad.video_link);
     const images = list(ad.image_urls).map(https).filter(Boolean);
+    const thumb = https(ad.cover_image) || images[0] || "";
+    if (!video && images.length === 0 && !thumb) continue;
+
     const mediaType = video || ad.format === "video" ? "VIDEO" : images.length > 1 ? "CAROUSEL" : "IMAGE";
     // TikTok has no media filter upstream.
-    if (req.mediaType !== "ALL" && (mediaType === "VIDEO") !== (req.mediaType === "VIDEO")) return [];
+    if (req.mediaType !== "ALL" && (mediaType === "VIDEO") !== (req.mediaType === "VIDEO")) continue;
 
-    return [
-      {
-        adId: `tiktok_${id}`,
-        platform: "TIKTOK",
-        advertiserName: text(ad.advertiser, 300),
-        advertiserId: idPart(ad.advertiser_id),
-        mediaType,
-        mediaUrls: (video ? [video] : images).slice(0, 20),
-        thumbnailUrl: https(ad.cover_image) || images[0] || "",
-        primaryCopy: text(ad.title, 5000),
-        headline: "",
-        ctaText: "",
-        landingPageUrl: "",
-        countryCode: covered ? req.country : "EU",
-        firstSeenDate: first,
-        lastSeenDate: last,
-        activeDaysCount: daysBetween(first, last),
-        duplicates: 0,
-      },
-    ];
-  });
+    const advertiserName = text(ad.advertiser, 300);
+    const primaryCopy = text(ad.title, 5000);
+    const activeDaysCount = daysBetween(first, last);
+    const rawReach = Math.round(Number(ad.estimated_audience_max) || 0);
+    const totalViews = rawReach >= 1000 ? rawReach : undefined;
 
+    const candidate: Draft = {
+      adId: `tiktok_${id}`,
+      platform: "TIKTOK",
+      advertiserName,
+      advertiserId: idPart(ad.advertiser_id),
+      mediaType,
+      mediaUrls: (video ? [video] : images).slice(0, 20),
+      thumbnailUrl: thumb,
+      primaryCopy,
+      headline: "",
+      ctaText: "",
+      landingPageUrl: "",
+      countryCode: targetCountry,
+      firstSeenDate: first,
+      lastSeenDate: last,
+      activeDaysCount,
+      totalViews,
+      duplicates: 0,
+    };
+
+    // Collate identical creative variations launched by the same advertiser so duplicates boost score instead of cluttering the feed.
+    const collationKey = `${advertiserName.toLowerCase()}::${(primaryCopy || thumb || id).toLowerCase().slice(0, 140)}`;
+    const existing = collated.get(collationKey);
+    if (!existing) {
+      collated.set(collationKey, candidate);
+    } else {
+      const mergedFirst = Date.parse(first) < Date.parse(existing.firstSeenDate) ? first : existing.firstSeenDate;
+      const mergedLast = Date.parse(last) > Date.parse(existing.lastSeenDate) ? last : existing.lastSeenDate;
+      const mergedDays = Math.max(existing.activeDaysCount, activeDaysCount, daysBetween(mergedFirst, mergedLast));
+      const mergedViews = Math.max(existing.totalViews ?? 0, totalViews ?? 0) || undefined;
+      const preferCandidateMedia = !existing.mediaUrls.length && candidate.mediaUrls.length > 0;
+      collated.set(collationKey, {
+        ...(preferCandidateMedia ? candidate : existing),
+        firstSeenDate: mergedFirst,
+        lastSeenDate: mergedLast,
+        activeDaysCount: mergedDays,
+        totalViews: mergedViews,
+        duplicates: existing.duplicates + 1,
+      });
+    }
+  }
+
+  const drafts = Array.from(collated.values());
   const notice = covered
     ? ""
-    : `TikTok's ad library only covers ads shown in Europe, so these results aren't limited to ${req.country}.`;
+    : `TikTok's ad library covers European & UK markets, so these high-reach English results are sourced from the UK (${targetCountry}) for ${req.country}.`;
   return { drafts, notice };
 }
 
@@ -282,13 +373,13 @@ async function findGoogleTarget(req: RadarSearchRequest): Promise<{ target: Reco
     const found = await searchApi("google_ads_transparency_center_advertiser_search", {
       q,
       region: req.country,
-      num_advertisers: "5",
-      num_domains: "3",
+      num_advertisers: "10",
+      num_domains: "5",
     });
     const ids = list(found.advertisers)
       .map((a) => String(obj(a).id ?? ""))
       .filter((id) => /^AR\d+$/.test(id))
-      .slice(0, 3);
+      .slice(0, 5);
     if (ids.length) return { target: { advertiser_id: ids.join(",") }, matched: q };
     const domain = list(found.domains)
       .map((d) => String(obj(d).name ?? ""))
@@ -315,15 +406,32 @@ async function searchGoogle(req: RadarSearchRequest): Promise<LibraryResult> {
     if (found.matched !== req.query) notice = `Google's ad library is searched by advertiser, so these are ads from advertisers matching "${found.matched}".`;
   }
 
-  const json = await searchApi("google_ads_transparency_center", {
+  const baseParams: Record<string, string | undefined> = {
     ...target,
     region: req.country,
     ad_format: req.mediaType === "ALL" ? undefined : req.mediaType.toLowerCase(),
-    num: "40",
-  });
+    num: "100",
+  };
+  const json = await searchApi("google_ads_transparency_center", baseParams);
+  const rawCreatives = [...list(json.ad_creatives)];
 
-  // Most Google ads are Search text ads; their copy is what gets modelled.
-  const drafts = list(json.ad_creatives).flatMap((raw): Draft[] => {
+  const nextToken = typeof obj(json.pagination).next_page_token === "string"
+    ? String(obj(json.pagination).next_page_token)
+    : "";
+  if (rawCreatives.length < 60 && nextToken) {
+    try {
+      const page2 = await searchApi("google_ads_transparency_center", {
+        ...baseParams,
+        next_page_token: nextToken,
+      });
+      rawCreatives.push(...list(page2.ad_creatives));
+    } catch {
+      // Keep page 1 results if page 2 fails
+    }
+  }
+
+  // Extract c.image.link for Image and Video ads while keeping pure Text ads formatted as TEXT.
+  const drafts = rawCreatives.flatMap((raw): Draft[] => {
     const c = obj(raw);
     const id = idPart(c.id);
     const first = isoDate(c.first_shown_datetime);
@@ -331,6 +439,8 @@ async function searchGoogle(req: RadarSearchRequest): Promise<LibraryResult> {
     if (!id || !first || !last || (c.format !== "video" && c.format !== "image" && c.format !== "text")) return [];
     const advertiser = obj(c.advertiser);
     const domain = typeof c.target_domain === "string" && DOMAIN.test(c.target_domain) ? c.target_domain : "";
+    const mediaType = c.format === "video" ? "VIDEO" : c.format === "text" ? "TEXT" : "IMAGE";
+    const previewImg = https(obj(c.image).link) || https(c.image);
 
     return [
       {
@@ -338,9 +448,9 @@ async function searchGoogle(req: RadarSearchRequest): Promise<LibraryResult> {
         platform: "GOOGLE",
         advertiserName: text(advertiser.name, 300),
         advertiserId: idPart(advertiser.id),
-        mediaType: c.format === "video" ? "VIDEO" : c.format === "text" ? "TEXT" : "IMAGE",
-        mediaUrls: [],
-        thumbnailUrl: "",
+        mediaType,
+        mediaUrls: mediaType === "IMAGE" && previewImg ? [previewImg] : [],
+        thumbnailUrl: mediaType !== "TEXT" ? previewImg : "",
         primaryCopy: "",
         headline: "",
         ctaText: "",
@@ -353,12 +463,48 @@ async function searchGoogle(req: RadarSearchRequest): Promise<LibraryResult> {
       },
     ];
   });
+
+  // Best-effort enrichment for top Image/Video ads that only had a dynamic script link on the list endpoint.
+  const missingVisuals = drafts
+    .filter((d) => d.mediaType !== "TEXT" && !d.thumbnailUrl && !d.mediaUrls.length && d.advertiserId)
+    .sort((a, b) => b.activeDaysCount - a.activeDaysCount)
+    .slice(0, 6);
+
+  if (missingVisuals.length > 0) {
+    await Promise.allSettled(
+      missingVisuals.map(async (d) => {
+        const det = await searchApi("google_ads_transparency_center_ad_details", {
+          advertiser_id: d.advertiserId,
+          creative_id: d.adId.replace(/^google_/, ""),
+        });
+        const v = obj(list(det.variations)[0]);
+        const videoId = typeof v.video_id === "string" && /^[\w-]{6,20}$/.test(v.video_id) ? v.video_id : "";
+        const videoUrl = https(v.video_link);
+        const firstImg = https(list(v.images)[0]);
+        const imgUrl =
+          https(v.thumbnail) ||
+          https(v.image) ||
+          firstImg ||
+          (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : "");
+        if (videoUrl) {
+          d.mediaUrls = [videoUrl];
+        } else if (d.mediaType === "IMAGE" && imgUrl) {
+          d.mediaUrls = [imgUrl];
+        }
+        if (imgUrl) d.thumbnailUrl = imgUrl;
+        d.primaryCopy = text(v.description, 5000) || text(v.snippet, 5000) || d.primaryCopy;
+        d.headline = text(v.long_headline, 500) || text(v.title, 500) || text(v.product_name, 500) || d.headline;
+        d.ctaText = ctaLabel(v.call_to_action) || d.ctaText;
+      }),
+    );
+  }
+
   return { drafts, notice };
 }
 
 /** True for a Google ad whose creative and copy haven't been fetched yet. */
 export const needsGoogleDetails = (ad: NormalizedAd) =>
-  ad.platform === "GOOGLE" && !ad.thumbnailUrl && !ad.headline && !ad.primaryCopy && !ad.mediaUrls.length;
+  ad.platform === "GOOGLE" && !ad.headline && !ad.primaryCopy;
 
 /**
  * Fills in a Google ad's creative and copy from its detail page (1 SearchApi credit). Best effort:
@@ -376,12 +522,17 @@ export async function enrichGoogleAd(ad: NormalizedAd): Promise<NormalizedAd> {
     return ad;
   }
   const videoId = typeof v.video_id === "string" && /^[\w-]{6,20}$/.test(v.video_id) ? v.video_id : "";
-  const media = https(v.video_link) || https(v.image);
+  const firstImg = https(list(v.images)[0]);
+  const media = https(v.video_link) || (ad.mediaType === "IMAGE" ? https(v.image) || https(v.thumbnail) || firstImg : "");
+  const thumb =
+    https(v.thumbnail) ||
+    https(v.image) ||
+    firstImg ||
+    (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : ad.thumbnailUrl);
   const enriched = NormalizedAdSchema.safeParse({
     ...ad,
     mediaUrls: media ? [media] : ad.mediaUrls,
-    thumbnailUrl:
-      https(v.thumbnail) || https(v.image) || (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : ad.thumbnailUrl),
+    thumbnailUrl: ad.mediaType === "TEXT" ? "" : thumb,
     primaryCopy: text(v.description, 5000) || text(v.snippet, 5000) || ad.primaryCopy,
     headline: text(v.long_headline, 500) || text(v.title, 500) || text(v.product_name, 500) || ad.headline,
     ctaText: ctaLabel(v.call_to_action) || ad.ctaText,
