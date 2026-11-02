@@ -28,12 +28,23 @@ export const DEFAULT_FAQS: FaqItem[] = [
     updatedAt: "2026-11-03T00:00:00.000Z",
   },
   {
+    faqId: "faq_extended_longevity",
+    question: "What is Extended (60+d)?",
+    answer:
+      "The Extended (60+d) filter uncovers rare 'evergreen' ads that have run continuously for more than two months. While most ad creatives suffer audience fatigue within weeks, 60+ day ads are high-performing flagship winners with proven, fatigue-resistant hooks and massive multi-month ad spend behind them—making them prime candidates to study and remix.",
+    category: "Radar",
+    order: 3,
+    enabled: true,
+    createdAt: "2026-11-03T00:00:00.000Z",
+    updatedAt: "2026-11-03T00:00:00.000Z",
+  },
+  {
     faqId: "faq_radar_overview",
     question: "What is Radar Feed?",
     answer:
       "Radar Feed is an ad intelligence engine that searches and indexes live high-performing advertisements running across the Meta Ad Library (Facebook and Instagram). It analyzes creatives, formats, active running duration, and performance scores so you can discover proven winning ad strategies in your niche and instantly remix them for your own brand.",
     category: "Radar",
-    order: 3,
+    order: 4,
     enabled: true,
     createdAt: "2026-11-01T00:00:00.000Z",
     updatedAt: "2026-11-01T00:00:00.000Z",
@@ -44,7 +55,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "My Brands is where you register and configure your business identity, core value propositions, tone of voice, target audience hooks, and landing page URLs. When you generate an AI Remix from any winning competitor ad in the Radar Feed, Ad Radar uses your active brand profile to rewrite the hooks, headlines, and video scripts specifically tailored to your brand.",
     category: "Brands",
-    order: 4,
+    order: 5,
     enabled: true,
     createdAt: "2026-11-01T00:00:00.000Z",
     updatedAt: "2026-11-01T00:00:00.000Z",
@@ -55,7 +66,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Ad Radar operates on a strict integer token ledger. Standard Paid Rates for all services are 1 token each. If any external provider encounters an error, your tokens are automatically refunded atomically. Refund rules: all refund requests are to be made in writing by sending a message to the Super Admin.",
     category: "General",
-    order: 5,
+    order: 6,
     enabled: true,
     createdAt: "2026-11-01T00:00:00.000Z",
     updatedAt: "2026-11-01T00:00:00.000Z",
