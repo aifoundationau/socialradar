@@ -18,7 +18,6 @@ import {
 import { searchApi } from "./searchapi";
 import { calculateMatrixScore } from "./radar-matrix";
 import {
-  buildBenchmarkDrafts,
   filterRelevantDrafts,
   isRelevantGoogleAdvertiser,
   resolveSearchIntent,
@@ -28,7 +27,7 @@ import type { BrandProfile } from "./contracts";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /** Part of every cache key: bump it when normalization changes so stale result sets aren't served. */
-const CACHE_VERSION = "7";
+const CACHE_VERSION = "8";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS = 100;
 
@@ -159,8 +158,7 @@ function rank(drafts: Draft[], brand?: BrandProfile | null): NormalizedAd[] {
     .map(({ ad }) => ad);
 }
 
-async function recoverRelevantDrafts(req: RadarSearchRequest, intent: ResolvedSearchIntent): Promise<Draft[]> {
-  const recovered: Draft[] = [];
+async function recoverRealCachedDrafts(req: RadarSearchRequest, intent: ResolvedSearchIntent): Promise<Draft[]> {
   const queryLower = req.query.replace(/"/g, "").trim().toLowerCase();
   const primaryWord = queryLower.split(/\s+/)[0] || queryLower;
 
@@ -168,7 +166,7 @@ async function recoverRelevantDrafts(req: RadarSearchRequest, intent: ResolvedSe
     const snap = await db
       .collection("radar_cache")
       .where("platform", "==", req.platform)
-      .limit(20)
+      .limit(25)
       .get();
 
     const candidates: Draft[] = [];
@@ -178,8 +176,8 @@ async function recoverRelevantDrafts(req: RadarSearchRequest, intent: ResolvedSe
         const parsed = NormalizedAdSchema.safeParse(rawAd);
         if (!parsed.success) continue;
         const ad = parsed.data;
-        // Skip synthesized benchmark entries from other queries so brand searches stay 100% pure
-        if (ad.adId.includes("_verified_")) continue;
+        // Strictly reject any synthetic/benchmark entries or stock images — ONLY real upstream ads allowed
+        if (ad.adId.includes("_verified_") || ad.thumbnailUrl.includes("images.unsplash.com")) continue;
         const corpus = `${ad.advertiserName} ${ad.headline} ${ad.primaryCopy} ${ad.landingPageUrl}`.toLowerCase();
         const matchesQuery = corpus.includes(queryLower) || (primaryWord.length >= 4 && corpus.includes(primaryWord));
         const matchesPositive = intent.isCategoryQuery
@@ -190,13 +188,10 @@ async function recoverRelevantDrafts(req: RadarSearchRequest, intent: ResolvedSe
         }
       }
     }
-    recovered.push(...filterRelevantDrafts(candidates, intent));
+    return filterRelevantDrafts(candidates, intent);
   } catch {
-    // Ignore cache query errors during fallback
+    return [];
   }
-
-  const benchmarks = await buildBenchmarkDrafts(req, intent);
-  return [...recovered, ...benchmarks];
 }
 
 async function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
@@ -216,26 +211,17 @@ async function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
     }
 
     const filtered = filterRelevantDrafts(rawResult.drafts, intent);
-    if (filtered.length > 0) {
-      return { drafts: filtered, notice: rawResult.notice };
-    }
-
-    const fallbackDrafts = await recoverRelevantDrafts(req, intent);
-    return {
-      drafts: fallbackDrafts,
-      notice:
-        rawResult.notice ||
-        (intent.isCategoryQuery
-          ? `Showing verified ${intent.categoryLabel} benchmark winners matching "${req.query}".`
-          : ""),
-    };
+    return { drafts: filtered, notice: rawResult.notice };
   } catch (err) {
-    console.warn("[radar] upstream search fallback activated for", req.platform, req.query, err);
-    const fallbackDrafts = await recoverRelevantDrafts(req, intent);
-    return {
-      drafts: fallbackDrafts,
-      notice: `Live upstream library quota reached; serving verified ${intent.categoryLabel} winners for "${req.query}".`,
-    };
+    // Only serve previously cached REAL ads if available; otherwise rethrow so token is refunded and quota message shown
+    const realCached = await recoverRealCachedDrafts(req, intent);
+    if (realCached.length > 0) {
+      return {
+        drafts: realCached,
+        notice: `Serving previously cached real ${req.platform} ads matching "${req.query}" (live SearchApi.io quota reached).`,
+      };
+    }
+    throw err;
   }
 }
 

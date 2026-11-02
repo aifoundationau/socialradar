@@ -51,6 +51,7 @@ Every normalized `Draft` ad across **Google**, **TikTok**, and **Meta** is score
 $$R_{\text{semantic}} = \text{clamp}_{0..100}\Big(50 + 20 \cdot N_{\text{positive}} - 60 \cdot N_{\text{negative}}\Big)$$
 - Any ad with $N_{\text{negative}} > 0$ and $N_{\text{positive}} = 0$ (e.g., an ad mentioning `serum`, `moisturizer`, `skin`, `cleanser`, or `Cara HO` during a `"car"` search) yields $R_{\text{semantic}} < 0$ and is **purged** prior to ranking and Firestore caching.
 
-### Stage 4 — Single-Call Credit Saver & Zero-Downtime Fallback
+### Stage 4 — Single-Call Credit Saver & Real-Ads-Only Policy
 1. **Credit Conservation:** For category queries mapped to authoritative domains, `searchGoogle` queries `google_ads_transparency_center` directly by `domain` (1 credit) instead of burning extra credits on ambiguous advertiser lookups and detail-page loops.
-2. **Quota & Outage Recovery:** If SearchApi returns `HTTP 429` (monthly quota exhausted) or a transient upstream error, the engine first queries existing Firestore `normalized_ads` / `radar_cache` documents filtered through Stage 3, and falls back to deterministic, category-verified benchmark ad records so the user never experiences a `502` failure or off-topic results.
+2. **Real Ads & Real Media Only:** Never generate synthetic/benchmark ads or substitute stock/Unsplash images. Only real upstream ads and real ad media (`fbcdn.net`, `tiktokcdn.com`, `googlesyndication.com`, `gstatic.com`, `ytimg.com`, or pure `TEXT` format ads) are stored or displayed. If SearchApi returns `HTTP 429` (monthly quota exhausted), previously cached real ads matching the query in Firestore `radar_cache` are served if available; otherwise a clear `UpstreamError` is thrown so `withTokenGate` automatically refunds the user's token.
+

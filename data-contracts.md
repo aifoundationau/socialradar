@@ -432,5 +432,16 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 - **Interactive Configuration:** Clicking the widget opens a centered popup dialog (with no scrollbar) enabling the user to configure suburb, state/region, country, date format, and clock mode (12h / 24h).
 - **Geolocation Currency Gate:** When country is Australia (`AU`) or New Zealand (`NZ`), visitors strictly view AUD prices. Visitors in all other nations view AUD prices alongside the AUD $1.00 converted to USD indicator.
 
+## 11. Semantic Ad Search & Strict Real-Ads-Only Policy (`CACHE_VERSION = "8"`)
+
+### Strict Real-Ads-Only & Real-Media-Only Contract
+- **No Synthetic Ads or Stock Photos:** The platform strictly stores and displays genuine upstream ad creatives and genuine upstream ad media (`fbcdn.net`, `tiktokcdn.com`, `googlesyndication.com`, `gstatic.com`, `ytimg.com`, or pure `TEXT` ads when `format === "text"`) returned by Meta Ad Library, TikTok Commercial Content Library, and Google Ads Transparency Center. Synthetic/benchmark ad generation and third-party stock images (`images.unsplash.com`) are strictly prohibited.
+- **Semantic Relevance Filtering (`src/lib/radar-relevance.ts`):**
+  1. `resolveSearchIntent(rawQuery)` resolves category queries (e.g. `"car"`) to authoritative domains (`carsales.com.au`, `toyota.com.au`, etc.) and positive/negative collision tokens.
+  2. `isRelevantGoogleAdvertiser(candidate, intent)` enforces word-boundary checks and blocks prefix collisions (such as `"Cara HO"` or `"Skin Care"` when searching `"car"`).
+  3. `filterRelevantDrafts(drafts, intent)` purges off-topic upstream ads prior to scoring and Firestore caching.
+- **Upstream Quota Exhaustion (`HTTP 429`):** When `SEARCHAPI_API_KEY` hits its monthly plan quota on SearchApi.io (`HTTP 429`), `runRadarSearch` serves previously cached *real* ads from Firestore `radar_cache` if available, or throws a clear `UpstreamError` in `src/lib/searchapi.ts` so `withTokenGate` automatically refunds the user's token.
+
+
 
 
