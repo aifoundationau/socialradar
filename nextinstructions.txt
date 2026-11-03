@@ -38,11 +38,20 @@
    - Updated `withTokenGate` in `src/lib/token-ledger.ts` so every search order (including 0-token superadmin searches) and every Stripe purchase, AI Remix, Customize brief, Gift credit, and Refund is recorded in `token_transactions`.
    - Added **SuperAdmin Gift Tokens (Add Tokens at No Charge)** card in `SuperAdminModal.tsx` (`LEDGER` tab) with quick presets (`+10`, `+45`, `+100`, `+500`), custom integer input, recipient email selector, and `$0` charge ledger tracking (`GIFT`).
    - Added **Master Order Ledger** in `SuperAdminModal.tsx` (`LEDGER` tab) with filters (`All Orders`, `Search Orders`, `Stripe Purchases`, `Customize & AI`, `Gifts & Refunds`), search box, and a two-step **Refund Tokens -> Confirm Refund** button that restores integer tokens to the customer's wallet.
-10. **All Tests & Verifications Passing:**
-   - `npm run test:rules` (55/55 tests passing, including `customize_requests`, `admin_messages`, and `token_transactions` admin read access).
+10. **Customer-Perspective FAQs Suite (27 Comprehensive Q&As):**
+   - Standardized 27 customer-perspective questions and answers across 6 core categories in `src/lib/faqs.ts` and `FaqModal.tsx`:
+     - **Radar Search (8 Q&As):** How to search, supported ad platforms (Meta, TikTok, Google), 100% real ads guarantee (no synthetic/stock images), Proven (28+d) filter, Extended (60+d) evergreen filter, Top Winners (90%+) score, Google Search text vs Display/YouTube formats, and Image/Video media filter.
+     - **AI Creative Remix (4 Q&As):** How to model/remix competitor ads, persuasion DNA and 3 script variations (storyboard, voiceover, on-screen text, image prompt), CSV export/copy for video creators, and 1-token variation regeneration.
+     - **Customize Service (4 Q&As):** What the service provides (senior strategy support), how to submit a brief with the "Extra Details" box, 45-token fee with refund protection, and where to view completed work in the Message Panel.
+     - **Brand Cards (3 Q&As):** What My Brands does, creating/activating a brand profile, and managing multiple client/store brands.
+     - **Tokens & Wallet (4 Q&As):** Integer-only token fee breakdown, buying token packs via Stripe, AUD platform billing with live indicative USD conversion, and non-expiring token ledger balance.
+     - **Refunds & Support (4 Q&As):** Instant atomic refund on provider errors, formal written refund requests to SuperAdmin (free of charge under ACL), data privacy/Australian Privacy Principles compliance, and Geo & Time footer status widget.
+   - Self-healing version upgrade (`customer_v1`) automatically provisions all 27 questions into Firestore `system_config/faqs`.
+11. **All Tests & Verifications Passing:**
+   - `npm run test:rules` (55/55 tests passing).
    - `npx tsc --noEmit` (0 errors).
    - Dev server running on port 3000 (HTTP 200).
 
 ## Next Priority Actions
-1. Review the Master Order Ledger, Refund Tokens button, and SuperAdmin Gift Tokens section in the Admin Panel (`Redistributive Ledger` tab) on http://localhost:3000.
+1. Open the FAQ modal from the top navigation on http://localhost:3000 to review the 27 customer-perspective questions and filter categories.
 2. Await next user directive.

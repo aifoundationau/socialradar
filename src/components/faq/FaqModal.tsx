@@ -32,7 +32,7 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
-  const [expandedId, setExpandedId] = useState<string | null>("faq_base_radar_search");
+  const [expandedId, setExpandedId] = useState<string | null>("faq_how_to_search");
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
