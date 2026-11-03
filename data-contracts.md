@@ -26,11 +26,18 @@
   "superadmin"?: boolean
 }
 ```
-- **Superadmin Authority:** Strictly restricted to the Firebase database admin email (`davidrobertson.info@gmail.com` / `support@aifoundation.net.au` or configured via `FIREBASE_DATABASE_ADMIN_EMAIL`).
-- **Supporter Level (Default):** All other users start at supporter level `{ "role": "supporter", "tier": "supporter", "isSuperAdmin": false, "admin": false }`.
+- **Superadmin Authority:** Strictly restricted to the Firebase database admin email (`davidrobertson.info@gmail.com` / `support@aifoundation.net.au` or configured via `FIREBASE_DATABASE_ADMIN_EMAIL`). Super Admin has access to all 8 admin control suites: Currency Controls, Service Pricing, Token Packs (CRUD), Redistributive Ledger, User Messages & 7-Year Archive, RBAC Matrix & Role Assignments, FAQ Development, and Developer Diagnostics.
+- **Main Admin Authority (`role: "admin"`):** Operational administrators assigned the `"admin"` role. Main Admin has access to the Main Admin Panel with 5 operational control tabs:
+  1. **Currency Controls:** System currency toggles (Token Economy, AUD, USD) and Base Token Price (AUD).
+  2. **Service Pricing:** Product and service token amounts (Search, Remix, Regenerate, Customize).
+  3. **Token Packs:** Token pack catalog and Stripe pricing management.
+  4. **User Messages:** User compliance messaging, Customize service requests, and AI strategy replies.
+  5. **FAQ Development:** Creating, editing, reordering, and maintaining customer-facing FAQ questions and answers.
+  - *Super Admin-Exclusive Protections:* Main Admin is strictly barred from viewing or mutating the Redistributive Ledger (equity partners, profit distributions, simulated purchases, order refunds, gift tokens), the RBAC Matrix (elevating accounts or altering security permissions), and Developer Diagnostics (flushing query caches, granting admin claims).
+- **Supporter Level (Default):** All first-time and standard users start at supporter level `{ "role": "supporter", "tier": "supporter", "isSuperAdmin": false, "admin": false }`.
 - Missing/unassigned claims automatically fall back to `{ role: "supporter", tier: "supporter" }`.
-- UI displays a "Super Admin" badge for database admins and a "Supporter" badge for all standard users.
-- The Super Admin Panel is strictly visible and accessible only to the database admin. Non-admin users are provided with the "Message Super Admin" modal.
+- UI displays a "Super Admin" badge for database admins, a "Main Admin" badge for main admins, and a "Supporter" badge for standard users.
+- The Admin Panel button in the account menu displays "Super Admin Panel" for Super Admin and "Main Admin Panel" for Main Admin. Non-admin supporters see "Supporter Admin Panel".
 
 ### `UserDoc`
 | Field | Type | Rules |

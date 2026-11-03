@@ -18,7 +18,7 @@ const DeleteFaqSchema = z.object({ faqId: z.string().min(1) }).strict();
 
 export async function GET(req: Request) {
   try {
-    await verifyRequest(req, { requireRole: "superadmin" });
+    await verifyRequest(req, { requireRole: "admin" });
     const faqs = await getFaqs(true);
     return NextResponse.json({ faqs });
   } catch (err) {
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    await verifyRequest(req, { requireRole: "superadmin" });
+    await verifyRequest(req, { requireRole: "admin" });
     const body = (await readJson(req)) as Record<string, unknown>;
 
     if (body.action === "RESET_DEFAULTS") {
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    await verifyRequest(req, { requireRole: "superadmin" });
+    await verifyRequest(req, { requireRole: "admin" });
     const body = await readJson(req);
     const parsed = UpdateFaqRequestSchema.parse(body);
     const updated = await updateFaq(parsed);
@@ -60,7 +60,7 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    await verifyRequest(req, { requireRole: "superadmin" });
+    await verifyRequest(req, { requireRole: "admin" });
     const body = await readJson(req);
     const { faqId } = DeleteFaqSchema.parse(body);
     await deleteFaq(faqId);

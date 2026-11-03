@@ -561,3 +561,4 @@ export function SupporterModal({ isOpen, onClose, onOpenContact }: SupporterModa
     document.body
   );
 }
+

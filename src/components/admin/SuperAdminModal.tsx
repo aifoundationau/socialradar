@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import { useSession } from "@/components/auth/SessionProvider";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { alertError, alertInfo, btnDanger, btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
@@ -93,13 +94,32 @@ type TabKey = "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" 
 
 export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModalProps) {
   const isClient = useIsClient();
+  const { role } = useSession();
+  const isSuper = role === "superadmin";
+
+  const allowedTabs = useMemo<TabKey[]>(() => {
+    return isSuper
+      ? ["CURRENCY", "PRICING", "PACKS", "LEDGER", "MESSAGES", "RBAC", "FAQS", "DEV"]
+      : ["CURRENCY", "PRICING", "PACKS", "MESSAGES", "FAQS"];
+  }, [isSuper]);
+
   const [tab, setTab] = useState<TabKey>(initialTab ?? "CURRENCY");
 
   useEffect(() => {
     if (initialTab && isOpen) {
-      setTab(initialTab);
+      if (allowedTabs.includes(initialTab)) {
+        setTab(initialTab);
+      } else {
+        setTab("CURRENCY");
+      }
     }
-  }, [initialTab, isOpen]);
+  }, [initialTab, isOpen, allowedTabs]);
+
+  useEffect(() => {
+    if (!allowedTabs.includes(tab)) {
+      setTab("CURRENCY");
+    }
+  }, [tab, allowedTabs]);
   const [config, setConfig] = useState<AdminConfigData | null>(null);
   const [ledger, setLedger] = useState<RedistributiveLedgerSummary | null>(null);
   const [recentPurchases, setRecentPurchases] = useState<StripePurchaseRecord[]>([]);
@@ -885,10 +905,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
             </span>
             <div>
               <h2 id="superadmin-title" className="text-title-sm font-bold text-on-surface">
-                Super Admin Panel
+                {isSuper ? "Super Admin Panel" : "Main Admin Panel"}
               </h2>
               <p className="text-[11px] text-on-surface-variant font-mono">
-                AdRadar System Configuration, Redistributive Ledger & 7-Year Archive
+                {isSuper
+                  ? "AdRadar System Configuration, Redistributive Ledger & 7-Year Archive"
+                  : "AdRadar System Configuration, User Messages & FAQ Development"}
               </p>
             </div>
           </div>
@@ -918,11 +940,15 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
         {/* Responsive Navbar (Single sleek row on lg: desktop/laptop, fluid grid on mobile) */}
         <nav
-          aria-label="Superadmin Navigation"
+          aria-label={isSuper ? "Superadmin Navigation" : "Main Admin Navigation"}
           data-testid="superadmin-navbar"
           className="border-b border-white/[0.08] bg-surface-container p-2 sm:px-5 sm:py-2.5 shrink-0"
         >
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-8 sm:gap-2 lg:gap-1.5">
+          <div
+            className={`grid grid-cols-2 gap-1.5 ${
+              isSuper ? "sm:grid-cols-4 lg:grid-cols-8" : "sm:grid-cols-3 lg:grid-cols-5"
+            } sm:gap-2 lg:gap-1.5`}
+          >
             {[
               { id: "CURRENCY" as const, label: "Currency Controls", icon: "sliders" as IconName },
               { id: "PRICING" as const, label: "Service Pricing", icon: "zap" as IconName },
@@ -940,7 +966,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                 icon: "sparkles" as IconName,
               },
               { id: "DEV" as const, label: "Developer Diagnostics", icon: "flask" as IconName },
-            ].map((t) => {
+            ]
+              .filter((t) => allowedTabs.includes(t.id))
+              .map((t) => {
               const active = tab === t.id;
               return (
                 <button
@@ -1474,8 +1502,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                 </div>
               )}
 
-              {/* TAB 4: REDISTRIBUTIVE LEDGER */}
-              {tab === "LEDGER" && (
+              {/* TAB 4: REDISTRIBUTIVE LEDGER (Super Admin Only) */}
+              {tab === "LEDGER" && isSuper && (
                 <div className="space-y-4 lg:space-y-3.5">
                   {/* Top Bar: Title & Action Buttons */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -2441,8 +2469,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                 </div>
               )}
 
-              {/* TAB 6: RBAC MATRIX & ROLES */}
-              {tab === "RBAC" && (
+              {/* TAB 6: RBAC MATRIX & ROLES (Super Admin Only) */}
+              {tab === "RBAC" && isSuper && (
                 <div className="space-y-8">
                   <div>
                     <h3 className="text-title-sm font-semibold text-on-surface">
@@ -2948,8 +2976,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                 </div>
               )}
 
-              {/* TAB 8: DEVELOPER DIAGNOSTICS */}
-              {tab === "DEV" && (
+              {/* TAB 8: DEVELOPER DIAGNOSTICS (Super Admin Only) */}
+              {tab === "DEV" && isSuper && (
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-title-sm font-semibold text-on-surface">Developer Diagnostics & Next.js Controls</h3>

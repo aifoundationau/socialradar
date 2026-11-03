@@ -55,7 +55,16 @@
    - **Permanent Supporter Role:** Users logging in for the first time are permanently assigned `role: "supporter"` (tier: `"supporter"`) in Firestore and SessionProvider.
    - **Database Search Recording:** Every Ad Radar search (Meta, TikTok, Google) is logged to `token_transactions` as `type: "RADAR_SEARCH"` with descriptive human-readable `referenceId` (e.g., `META Search: "gym" (AU, 28+d)`).
    - **Supporter Admin Panel (`SupporterModal`):** Added to top navigation Account Menu for non-admin users. Allows supporters to view their complete search records (filterable by platform and text search), full order history, and 1-click access to Message Super Admin.
+13. **Main Admin Control Suite (Currency Controls, Service Pricing, Token Packs, User Messages, FAQ Development):**
+   - **Main Admin View:** When logged in with `role: "admin"`, administrators see the "Main Admin Panel" button in the account menu and have full access to:
+     1. **Currency Controls:** System currency toggles (Token Economy, AUD, USD) and Base Token Price (AUD).
+     2. **Service Pricing:** Product and service token amounts (Search, Remix, Regenerate, Customize).
+     3. **Token Packs:** Token pack catalog and Stripe pricing management.
+     4. **User Messages:** User compliance messaging, Customize requests, and AI strategy replies.
+     5. **FAQ Development:** Creating, editing, reordering, and maintaining customer-facing FAQ questions and answers.
+   - **Super Admin Exclusive Privileges:** Redistributive Ledger (equity partners, profit distribution, simulated purchases, order refunds, gift tokens), RBAC Matrix (elevating accounts or altering security permissions), and Developer Diagnostics (flushing query caches, granting admin claims) are strictly restricted to Super Admin (`superadmin`).
+   - **Backend Authorization:** Updated `/api/admin/faqs` to allow `admin` role in addition to `superadmin`.
 
 ## Next Priority Actions
-1. Click your profile avatar / account menu at the top right of http://localhost:3000 to open the Supporter Admin Panel and review your logged search records.
+1. Verify the Main Admin Panel tabs and permissions on http://localhost:3000.
 2. Await next user directive.

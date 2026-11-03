@@ -206,7 +206,7 @@ function AccountMenu({
               className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-primary transition-colors hover:bg-primary-container/20 sm:min-h-10"
             >
               <Icon name="sliders" className="size-4" />
-              Super Admin Panel
+              {role === "superadmin" ? "Super Admin Panel" : "Main Admin Panel"}
             </button>
           ) : (
             <button

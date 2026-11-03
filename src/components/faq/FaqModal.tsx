@@ -141,12 +141,12 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
           </button>
         </div>
 
-        {/* Strictly Super Admin Only: FAQ Development Suite shortcut */}
-        {isSuperAdmin && onOpenFaqDev && (
+        {/* Admin & Super Admin: FAQ Development Suite shortcut */}
+        {isAdmin && onOpenFaqDev && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-primary/20 bg-primary/10 px-5 py-2.5">
             <div className="flex items-center gap-2">
               <span className="rounded bg-primary/20 px-2 py-0.5 font-mono text-[11px] font-bold text-primary uppercase">
-                Super Admin
+                {role === "superadmin" ? "Super Admin" : "Main Admin"}
               </span>
               <span className="text-body-sm text-on-surface">
                 You have administrative authority over knowledge base entries.
