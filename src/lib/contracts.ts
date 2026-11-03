@@ -340,7 +340,7 @@ export const ServiceCostsSchema = z
     aiRemix: tokenInt.min(0).default(1),
     regenerateVariations: tokenInt.min(0).default(1),
     brandClone: tokenInt.min(0).default(1),
-    customizeService: tokenInt.min(0).default(45),
+    customizeService: tokenInt.min(0).default(55),
   })
   .strict();
 export type ServiceCosts = z.infer<typeof ServiceCostsSchema>;

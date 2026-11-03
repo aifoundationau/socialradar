@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     ]);
 
     const costTokens = config.isTokenSystemEnabled
-      ? Math.max(0, Math.round(config.serviceCosts?.customizeService ?? 45))
+      ? Math.max(0, Math.round(config.serviceCosts?.customizeService ?? 55))
       : 0;
 
     return NextResponse.json({
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     const input = CustomizeRequestInputSchema.parse(body);
     const config = await getSystemConfig();
     const costTokens = config.isTokenSystemEnabled
-      ? Math.max(0, Math.round(config.serviceCosts?.customizeService ?? 45))
+      ? Math.max(0, Math.round(config.serviceCosts?.customizeService ?? 55))
       : 0;
 
     return await withTokenGate(

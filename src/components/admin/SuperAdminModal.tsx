@@ -1204,7 +1204,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               aiRemix: 1,
                               regenerateVariations: 1,
                               brandClone: 1,
-                              customizeService: 45,
+                              customizeService: 55,
                             },
                           })
                         }
@@ -1258,7 +1258,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         desc: "Customer submits full brand brief + extra details for SuperAdmin & Main Admin strategy reply (Default: 45 tokens)",
                       },
                     ].map(({ key, label: serviceLabel, desc }) => {
-                      const defaultTok = key === "customizeService" ? 45 : 0;
+                      const defaultTok = key === "customizeService" ? 55 : 0;
                       const tok = config.serviceCosts[key] ?? defaultTok;
                       const displayVal = draftCostInputs[key] !== undefined ? draftCostInputs[key] : String(tok);
                       const audCents = Math.round(tok * (config.audCentsPerToken ?? 100));
@@ -1429,7 +1429,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
                     <div className="rounded-lg border border-primary/20 bg-surface-container-lowest/70 p-3 font-mono text-xs text-on-surface leading-relaxed">
                       <span className="font-bold text-primary">Value Proposition: </span>
-                      Options for every search: Every option is one token. This gives you 1,000 of those. Can also be used to pay for Customize your Brand Strategy with Professional Experts.
+                      Options for every search: Every option is one token. This gives you 1,000 of those. Can also be used to pay for Customize your Brand Strategy with Professional Experts ({config.serviceCosts?.customizeService ?? 55} {(config.serviceCosts?.customizeService ?? 55) === 1 ? "token" : "tokens"}).
                     </div>
 
                     <div className="rounded-lg border border-secondary/30 bg-secondary/10 p-3 font-mono text-xs text-on-surface leading-relaxed">

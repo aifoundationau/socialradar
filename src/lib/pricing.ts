@@ -16,7 +16,7 @@ export const ACTION_COSTS: Record<"RADAR_SEARCH" | "AI_REMIX" | "REGENERATE_VARI
   AI_REMIX: 1,
   REGENERATE_VARIATIONS: 1,
   BRAND_CLONE: 1,
-  CUSTOMIZE_SERVICE: 45,
+  CUSTOMIZE_SERVICE: 55,
 };
 export type ChargeableAction = keyof typeof ACTION_COSTS;
 

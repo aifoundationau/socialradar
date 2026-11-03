@@ -167,7 +167,7 @@ export function TokenPacks() {
           <span>
             Customize Service:{" "}
             <strong className="text-primary">
-              {(serviceCosts.customizeService ?? 45) === 0 ? "Free (0)" : `${serviceCosts.customizeService ?? 45} tok`}
+              {(serviceCosts.customizeService ?? 55) === 0 ? "Free (0)" : `${serviceCosts.customizeService ?? 55} tok`}
             </strong>
           </span>
         </div>

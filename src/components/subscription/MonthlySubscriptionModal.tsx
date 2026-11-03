@@ -7,7 +7,7 @@ import { Icon } from "@/components/ui/Icon";
 import { btnPrimary, btnSecondary, card } from "@/components/ui/styles";
 import { formatAud, formatUsd, audToUsdCents } from "@/lib/pricing";
 import { apiFetch, errorMessage, newIdempotencyKey } from "@/lib/api-client";
-import type { MonthlySubscriptionConfig } from "@/lib/contracts";
+import type { MonthlySubscriptionConfig, ServiceCosts } from "@/lib/contracts";
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -39,6 +39,16 @@ export function MonthlySubscriptionModal({
     description:
       "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those.",
   });
+  const [serviceCosts, setServiceCosts] = useState<ServiceCosts>({
+    searchStandard: 1,
+    searchProvenWinners: 1,
+    searchExtendedDays: 1,
+    searchEliteScore: 1,
+    aiRemix: 1,
+    regenerateVariations: 1,
+    brandClone: 1,
+    customizeService: 55,
+  });
   const [loading, setLoading] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
   const [granting, setGranting] = useState(false);
@@ -67,11 +77,18 @@ export function MonthlySubscriptionModal({
   async function loadConfig() {
     setLoading(true);
     try {
-      const data = await apiFetch<{
-        monthlySubscription?: MonthlySubscriptionConfig;
-      }>("/api/wallet/checkout", { method: "GET" });
-      if (data?.monthlySubscription) {
-        setSubConfig(data.monthlySubscription);
+      const res = await fetch("/api/wallet/checkout", { method: "GET", cache: "no-store" });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          monthlySubscription?: MonthlySubscriptionConfig;
+          serviceCosts?: ServiceCosts;
+        };
+        if (data?.monthlySubscription) {
+          setSubConfig(data.monthlySubscription);
+        }
+        if (data?.serviceCosts) {
+          setServiceCosts((prev) => ({ ...prev, ...data.serviceCosts }));
+        }
       }
     } catch {
       // Fall back to default
@@ -230,26 +247,38 @@ export function MonthlySubscriptionModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
               <div className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-surface-container/70 px-2.5 py-1.5">
                 <Icon name="search" className="size-3.5 text-primary shrink-0" />
-                <span className="font-medium text-on-surface">Base Radar Search (1 token)</span>
+                <span className="font-medium text-on-surface">
+                  Base Radar Search ({serviceCosts.searchStandard} {serviceCosts.searchStandard === 1 ? "token" : "tokens"})
+                </span>
               </div>
 
               <div className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-surface-container/70 px-2.5 py-1.5">
                 <Icon name="zap" className="size-3.5 text-winner shrink-0" />
-                <span className="font-medium text-on-surface">Proven Winners (28+d) (+1 token)</span>
+                <span className="font-medium text-on-surface">
+                  Proven Winners (28+d) (+{serviceCosts.searchProvenWinners} {serviceCosts.searchProvenWinners === 1 ? "token" : "tokens"})
+                </span>
               </div>
 
               <div className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-surface-container/70 px-2.5 py-1.5">
                 <Icon name="layers" className="size-3.5 text-secondary shrink-0" />
-                <span className="font-medium text-on-surface">Extended (60+d) (+1 token)</span>
+                <span className="font-medium text-on-surface">
+                  Extended (60+d) (+{serviceCosts.searchExtendedDays} {serviceCosts.searchExtendedDays === 1 ? "token" : "tokens"})
+                </span>
               </div>
 
               <div className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-surface-container/70 px-2.5 py-1.5">
                 <Icon name="flame" className="size-3.5 text-hot shrink-0" />
-                <span className="font-medium text-on-surface">Top Winners (90%+ Score) (+1 token)</span>
+                <span className="font-medium text-on-surface">
+                  Top Winners (90%+ Score) (+{serviceCosts.searchEliteScore} {serviceCosts.searchEliteScore === 1 ? "token" : "tokens"})
+                </span>
               </div>
             </div>
             <p className="text-[10.5px] text-on-surface-variant font-mono leading-relaxed">
-              Tokens can also be used to pay for <strong className="text-on-surface">Customize your Brand Strategy with Professional Experts</strong>, AI Creative Remixes (1 token) &amp; Variation Regenerations (1 token).
+              Tokens can also be used to pay for{" "}
+              <strong className="text-on-surface">
+                Customize your Brand Strategy with Professional Experts ({serviceCosts.customizeService} {serviceCosts.customizeService === 1 ? "token" : "tokens"})
+              </strong>
+              , AI Creative Remixes ({serviceCosts.aiRemix} {serviceCosts.aiRemix === 1 ? "token" : "tokens"}) &amp; Variation Regenerations ({serviceCosts.regenerateVariations} {serviceCosts.regenerateVariations === 1 ? "token" : "tokens"}).
             </p>
           </div>
 

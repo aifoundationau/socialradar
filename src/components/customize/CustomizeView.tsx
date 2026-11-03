@@ -45,7 +45,7 @@ export function CustomizeView() {
   const [version, setVersion] = useState("");
   const [extraDetailsAndNotes, setExtraDetailsAndNotes] = useState("");
 
-  const [costTokens, setCostTokens] = useState<number>(45);
+  const [costTokens, setCostTokens] = useState<number>(55);
   const [audCentsPerToken, setAudCentsPerToken] = useState<number>(100);
   const [requests, setRequests] = useState<CustomizeRequestDoc[]>([]);
   const [messages, setMessages] = useState<AdminMessage[]>([]);

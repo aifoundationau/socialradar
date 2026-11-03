@@ -48,7 +48,7 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
     aiRemix: 1,
     regenerateVariations: 1,
     brandClone: 1,
-    customizeService: 45,
+    customizeService: 55,
   },
   tokenPacks: [
     { id: "PACK_10", name: "Quick Pack (10)", tokens: TOKEN_PACKS.PACK_10.tokens, priceCents: TOKEN_PACKS.PACK_10.priceCents, enabled: true },
