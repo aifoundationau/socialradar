@@ -178,13 +178,6 @@ export function RadarFilterBar({
                 data-testid="radar-search-input"
                 aria-label="Search keywords, hooks or competitor brands"
                 aria-describedby="radar-search-input-tooltip"
-                title={
-                  "Radar Search Guide:\n" +
-                  "• Search 0 tokens (Admin): Live competitor ad search (1 token standard; 0 tokens for Admin).\n" +
-                  `• Proven (${PROVEN_WINNER_DAYS}+d): Profitable ads running continuously for ${PROVEN_WINNER_DAYS}+ days (+${SERVICE_SURCHARGES.PROVEN_WINNERS} token).\n` +
-                  `• Extended (${EXTENDED_WINNER_DAYS}+d): Evergreen flagship ads running continuously for ${EXTENDED_WINNER_DAYS}+ days (+${SERVICE_SURCHARGES.EXTENDED_DAYS} token).\n` +
-                  `• Top Winners (${ELITE_SCORE_THRESHOLD}%+): Elite top 1% ads with a ${ELITE_SCORE_THRESHOLD}%+ Radar Score (+${SERVICE_SURCHARGES.ELITE_SCORE} token).`
-                }
                 placeholder={filters.platform === "GOOGLE" ? "Brand name or website, e.g. nike.com" : "Keywords, hooks or competitor brands…"}
                 value={filters.query}
                 onChange={(e) => onChange({ query: e.target.value })}
@@ -235,11 +228,6 @@ export function RadarFilterBar({
                 data-agent-id="radar-search-submit-button"
                 data-testid="radar-search-submit-button"
                 aria-describedby="radar-search-button-tooltip"
-                title={
-                  isAdmin
-                    ? "Search 0 tokens (Admin): Superadmin & Main Admin accounts run live ad library searches at 0 tokens."
-                    : `Search (${totalCost} ${totalCost === 1 ? "token" : "tokens"} • ${formatTokenEstimateHover(totalCost, false)}): Runs a live competitor ad search with your selected filters.`
-                }
                 className={`${btnPrimary} shrink-0`}
                 disabled={searching}
                 aria-label={isAdmin ? "Search (0 tokens • Superadmin Free)" : totalCost > 0 ? `Search (${totalCost} tokens)` : "Search (Free)"}
@@ -251,17 +239,11 @@ export function RadarFilterBar({
                 )}
                 <span className="hidden sm:inline">Search</span>
                 {isAdmin ? (
-                  <span
-                    title="Superadmin Token Exemption: 0 tokens"
-                    className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary"
-                  >
+                  <span className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary">
                     0 tokens (Admin)
                   </span>
                 ) : totalCost > 0 ? (
-                  <span
-                    title={formatTokenEstimateHover(totalCost, false)}
-                    className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary"
-                  >
+                  <span className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary">
                     {totalCost} {totalCost === 1 ? "token" : "tokens"}
                   </span>
                 ) : (
@@ -332,7 +314,6 @@ export function RadarFilterBar({
                 aria-describedby="radar-proven-winners-tooltip"
                 data-testid="radar-proven-winners-toggle"
                 data-agent-id="radar-proven-winners-toggle"
-                title={`Proven (${PROVEN_WINNER_DAYS}+d): Isolates profitable competitor ads running continuously for ${PROVEN_WINNER_DAYS}+ days, stripping out short-lived split tests (+${SERVICE_SURCHARGES.PROVEN_WINNERS} token • ${formatTokenEstimateHover(SERVICE_SURCHARGES.PROVEN_WINNERS, false)}).`}
                 onClick={() => onChange({ provenWinnersOnly: !filters.provenWinnersOnly })}
                 className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
                   filters.provenWinnersOnly
@@ -344,10 +325,7 @@ export function RadarFilterBar({
                 <div className="flex flex-col text-left">
                   <span className="text-compact font-medium text-on-surface">Proven ({PROVEN_WINNER_DAYS}+d)</span>
                 </div>
-                <span
-                  title={formatTokenEstimateHover(SERVICE_SURCHARGES.PROVEN_WINNERS, false)}
-                  className="ml-1 rounded bg-winner/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-winner"
-                >
+                <span className="ml-1 rounded bg-winner/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-winner">
                   +{SERVICE_SURCHARGES.PROVEN_WINNERS}
                 </span>
               </button>
@@ -383,7 +361,6 @@ export function RadarFilterBar({
                 aria-describedby="radar-extended-days-tooltip"
                 data-testid="radar-extended-days-toggle"
                 data-agent-id="radar-extended-days-toggle"
-                title={`Extended (${EXTENDED_WINNER_DAYS}+d): Uncovers rare evergreen flagship ads running continuously for ${EXTENDED_WINNER_DAYS}+ days with sustained ad spend (+${SERVICE_SURCHARGES.EXTENDED_DAYS} token • ${formatTokenEstimateHover(SERVICE_SURCHARGES.EXTENDED_DAYS, false)}).`}
                 onClick={() => onChange({ extendedLongevity: !filters.extendedLongevity })}
                 className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
                   filters.extendedLongevity
@@ -395,10 +372,7 @@ export function RadarFilterBar({
                 <div className="flex flex-col text-left">
                   <span className="text-compact font-medium text-on-surface">Extended ({EXTENDED_WINNER_DAYS}+d)</span>
                 </div>
-                <span
-                  title={formatTokenEstimateHover(SERVICE_SURCHARGES.EXTENDED_DAYS, false)}
-                  className="ml-1 rounded bg-secondary/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-secondary"
-                >
+                <span className="ml-1 rounded bg-secondary/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-secondary">
                   +{SERVICE_SURCHARGES.EXTENDED_DAYS}
                 </span>
               </button>
@@ -434,7 +408,6 @@ export function RadarFilterBar({
                 aria-describedby="radar-elite-score-tooltip"
                 data-testid="radar-elite-score-toggle"
                 data-agent-id="radar-elite-score-toggle"
-                title={`Top Winners (${ELITE_SCORE_THRESHOLD}%+): Isolates the elite top 1% of category-dominating ads scoring ${ELITE_SCORE_THRESHOLD}%+ on continuous duration, reach, and multi-adset scaling (+${SERVICE_SURCHARGES.ELITE_SCORE} token • ${formatTokenEstimateHover(SERVICE_SURCHARGES.ELITE_SCORE, false)}).`}
                 onClick={() => onChange({ eliteWinnersOnly: !filters.eliteWinnersOnly })}
                 className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
                   filters.eliteWinnersOnly
@@ -446,10 +419,7 @@ export function RadarFilterBar({
                 <div className="flex flex-col text-left">
                   <span className="text-compact font-medium text-on-surface">Top Winners ({ELITE_SCORE_THRESHOLD}%+)</span>
                 </div>
-                <span
-                  title={formatTokenEstimateHover(SERVICE_SURCHARGES.ELITE_SCORE, false)}
-                  className="ml-1 rounded bg-hot/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-hot"
-                >
+                <span className="ml-1 rounded bg-hot/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-hot">
                   +{SERVICE_SURCHARGES.ELITE_SCORE}
                 </span>
               </button>
