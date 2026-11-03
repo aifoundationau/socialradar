@@ -7,6 +7,8 @@ import { clientAuth, clientDb } from "@/lib/firebase-client";
 import { apiFetch } from "@/lib/api-client";
 import type { BrandProfile, UserDoc } from "@/lib/contracts";
 
+export type ActiveRole = "superadmin" | "admin" | "supporter";
+
 export interface Session {
   status: "loading" | "signed-out" | "signed-in";
   user: User | null;
@@ -16,7 +18,12 @@ export interface Session {
   brands: BrandProfile[] | null;
   activeBrand: BrandProfile | null;
   isAdmin: boolean;
-  role: "superadmin" | "admin" | "supporter";
+  role: ActiveRole;
+  realRole: ActiveRole;
+  isSuperAdmin: boolean;
+  actingAsRole: ActiveRole | null;
+  setActingRole: (role: ActiveRole) => void;
+  resetRole: () => void;
   claims: Record<string, unknown> | null;
   error: string | null;
 }
@@ -65,8 +72,37 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // The superadmin should only be the firebase database admin email. Everyone else starts at supporter level.
   const isSuper = isSuperAdminEmail(user?.email);
   const isMainAdmin = !isSuper && (myClaims?.role === "admin" || myClaims?.admin === true);
-  const isAdmin = isSuper || isMainAdmin;
-  const role: "superadmin" | "admin" | "supporter" = isSuper ? "superadmin" : isMainAdmin ? "admin" : "supporter";
+  const realRole: ActiveRole = isSuper ? "superadmin" : isMainAdmin ? "admin" : "supporter";
+
+  const [actingAsRole, setActingAsRoleState] = useState<ActiveRole | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && isSuper) {
+      const saved = localStorage.getItem("adradar_acting_role") as ActiveRole | null;
+      if (saved && (saved === "superadmin" || saved === "admin" || saved === "supporter")) {
+        setActingAsRoleState(saved);
+      }
+    }
+  }, [isSuper]);
+
+  const setActingRole = (targetRole: ActiveRole) => {
+    if (!isSuper) return;
+    setActingAsRoleState(targetRole);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("adradar_acting_role", targetRole);
+    }
+  };
+
+  const resetRole = () => {
+    setActingAsRoleState("superadmin");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("adradar_acting_role");
+    }
+  };
+
+  // Determine active effective role for UI preview and action simulation
+  const effectiveRole: ActiveRole = isSuper && actingAsRole ? actingAsRole : realRole;
+  const effectiveIsAdmin = effectiveRole === "superadmin" || effectiveRole === "admin";
 
   useEffect(() => onAuthStateChanged(clientAuth(), setUser), []);
 
@@ -114,12 +150,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       profile: myProfile,
       brands: myBrands,
       activeBrand: myBrands?.find((b) => b.brandId === myProfile?.activeBrandId) ?? null,
-      isAdmin,
-      role,
+      isAdmin: effectiveIsAdmin,
+      role: effectiveRole,
+      realRole,
+      isSuperAdmin: isSuper,
+      actingAsRole: isSuper ? actingAsRole : null,
+      setActingRole,
+      resetRole,
       claims: myClaims,
       error: mine(error),
     };
-  }, [uid, user, profile, brands, error, isAdmin, role, myClaims]);
+  }, [uid, user, profile, brands, error, effectiveIsAdmin, effectiveRole, realRole, isSuper, actingAsRole, myClaims]);
 
   return <SessionContext value={session}>{children}</SessionContext>;
 }

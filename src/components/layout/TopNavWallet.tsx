@@ -150,7 +150,7 @@ function AccountMenu({
   onOpenAdmin: (tab?: "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV") => void;
   onOpenSupporter: () => void;
 }) {
-  const { user, isAdmin, role } = useSession();
+  const { user, isAdmin, role, isSuperAdmin, actingAsRole, setActingRole, resetRole } = useSession();
   const menu = useRef<HTMLDivElement>(null);
   const initial = user?.email?.[0]?.toUpperCase();
 
@@ -186,6 +186,63 @@ function AccountMenu({
           </div>
           <p className="mt-1 truncate text-body font-medium">{user?.email}</p>
         </div>
+
+        {/* Superadmin Role View Switcher: allows Superadmin to act as any role */}
+        {isSuperAdmin && (
+          <div className="border-b border-white/[0.08] p-3 space-y-2 bg-surface-container-highest/40">
+            <div className="flex items-center justify-between">
+              <p className={monoLabel}>Act As Role View</p>
+              {actingAsRole && actingAsRole !== "superadmin" && (
+                <button
+                  type="button"
+                  onClick={() => resetRole()}
+                  className="font-mono text-[10px] text-primary hover:underline"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              <button
+                type="button"
+                onClick={() => setActingRole("superadmin")}
+                className={`rounded-lg py-1 px-1 text-center font-mono text-[10px] font-semibold transition ${
+                  role === "superadmin"
+                    ? "bg-primary text-on-primary shadow-sm ring-1 ring-primary/40"
+                    : "border border-white/10 text-on-surface-variant hover:text-on-surface hover:bg-white/[0.04]"
+                }`}
+                data-testid="act-as-superadmin-button"
+              >
+                Super Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => setActingRole("admin")}
+                className={`rounded-lg py-1 px-1 text-center font-mono text-[10px] font-semibold transition ${
+                  role === "admin"
+                    ? "bg-primary text-on-primary shadow-sm ring-1 ring-primary/40"
+                    : "border border-white/10 text-on-surface-variant hover:text-on-surface hover:bg-white/[0.04]"
+                }`}
+                data-testid="act-as-admin-button"
+              >
+                Main Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => setActingRole("supporter")}
+                className={`rounded-lg py-1 px-1 text-center font-mono text-[10px] font-semibold transition ${
+                  role === "supporter"
+                    ? "bg-secondary text-on-secondary shadow-sm ring-1 ring-secondary/40"
+                    : "border border-white/10 text-on-surface-variant hover:text-on-surface hover:bg-white/[0.04]"
+                }`}
+                data-testid="act-as-supporter-button"
+              >
+                Supporter
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2 border-b border-white/[0.08] px-4 py-3 lg:hidden">
           <p className={monoLabel}>Active brand</p>
           <BrandSwitcher />
@@ -219,6 +276,22 @@ function AccountMenu({
               Supporter Admin Panel
             </button>
           )}
+
+          {/* When Superadmin is in native Superadmin mode, also give direct 1-click preview of other panels */}
+          {isSuperAdmin && role === "superadmin" && (
+            <button
+              type="button"
+              onClick={() => {
+                menu.current?.hidePopover();
+                onOpenSupporter();
+              }}
+              data-testid="preview-supporter-panel-button"
+              className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-secondary/80 transition-colors hover:bg-secondary/10 sm:min-h-10"
+            >
+              <Icon name="user" className="size-4" />
+              <span>Preview Supporter Panel</span>
+            </button>
+          )}
         </div>
         <button
           type="button"
@@ -238,7 +311,7 @@ function AccountMenu({
 
 /** Sticky app header: live token balance, active-brand switcher and the "Top-up" entry point. */
 export function TopNavWallet() {
-  const { isAdmin } = useSession();
+  const { isAdmin, isSuperAdmin, actingAsRole, resetRole } = useSession();
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<
     "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV" | undefined
@@ -249,6 +322,32 @@ export function TopNavWallet() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-surface-container-lowest/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
+      {/* Superadmin "Acting as Role" Notification Banner */}
+      {isSuperAdmin && actingAsRole && actingAsRole !== "superadmin" && (
+        <div
+          data-testid="acting-as-banner"
+          className="bg-primary/20 border-b border-primary/30 px-3 sm:px-6 py-1.5 flex items-center justify-between text-xs font-mono"
+        >
+          <div className="flex items-center gap-2 text-on-surface">
+            <span className="flex size-2 rounded-full bg-primary animate-pulse" />
+            <span>
+              Acting as <strong>{actingAsRole === "admin" ? "Main Admin" : "Supporter"}</strong>
+            </span>
+            <span className="text-on-surface-variant hidden md:inline">
+              ({actingAsRole === "admin" ? "Main Admin Panel view with 5 tabs" : "Supporter Admin Panel view with 3 tabs"})
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => resetRole()}
+            data-testid="reset-role-button"
+            className="rounded bg-primary px-2.5 py-0.5 font-bold text-on-primary hover:bg-primary-fixed transition text-[11px]"
+          >
+            Return to Super Admin
+          </button>
+        </div>
+      )}
+
       <div className="flex h-14 items-center gap-3 px-3 sm:px-6">
         <Link href="/" aria-label="AdRadar home page" className="shrink-0">
           <Logo />

@@ -94,7 +94,7 @@ type TabKey = "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" 
 
 export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModalProps) {
   const isClient = useIsClient();
-  const { role } = useSession();
+  const { role, isSuperAdmin, setActingRole } = useSession();
   const isSuper = role === "superadmin";
 
   const allowedTabs = useMemo<TabKey[]>(() => {
@@ -914,7 +914,35 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <div className="hidden sm:flex items-center gap-1 rounded-xl bg-surface-container p-1 border border-white/[0.08] font-mono text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => setActingRole("superadmin")}
+                  className={`rounded-lg px-2.5 py-1 font-semibold transition ${
+                    role === "superadmin"
+                      ? "bg-primary text-on-primary shadow-sm"
+                      : "text-on-surface-variant hover:text-on-surface"
+                  }`}
+                  data-testid="modal-view-superadmin"
+                >
+                  Super Admin (8 tabs)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActingRole("admin")}
+                  className={`rounded-lg px-2.5 py-1 font-semibold transition ${
+                    role === "admin"
+                      ? "bg-primary text-on-primary shadow-sm"
+                      : "text-on-surface-variant hover:text-on-surface"
+                  }`}
+                  data-testid="modal-view-mainadmin"
+                >
+                  Main Admin (5 tabs)
+                </button>
+              </div>
+            )}
             <button
               type="button"
               onClick={reloadConfig}

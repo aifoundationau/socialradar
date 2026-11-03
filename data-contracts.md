@@ -27,6 +27,11 @@
 }
 ```
 - **Superadmin Authority:** Strictly restricted to the Firebase database admin email (`davidrobertson.info@gmail.com` / `support@aifoundation.net.au` or configured via `FIREBASE_DATABASE_ADMIN_EMAIL`). Super Admin has access to all 8 admin control suites: Currency Controls, Service Pricing, Token Packs (CRUD), Redistributive Ledger, User Messages & 7-Year Archive, RBAC Matrix & Role Assignments, FAQ Development, and Developer Diagnostics.
+- **Superadmin "Act As Role" Simulation:** The Super Admin can dynamically view and act as all other roles (`admin`, `supporter`) throughout the application:
+  - *Super Admin View (`superadmin`):* Full 8-tab governance and control.
+  - *Main Admin View (`admin`):* Simulates the exact 5-tab Main Admin Panel, Main Admin badge, and operational controls.
+  - *Supporter View (`supporter`):* Simulates the exact 3-tab Supporter Admin Panel (Tokens, Buy More Tokens, Messages only), Supporter badge, and customer navigation.
+  - Dynamic notification banner in the top navigation and 1-click "Return to Super Admin" reset in the header, account menu, and modals.
 - **Main Admin Authority (`role: "admin"`):** Operational administrators assigned the `"admin"` role. Main Admin has access to the Main Admin Panel with 5 operational control tabs:
   1. **Currency Controls:** System currency toggles (Token Economy, AUD, USD) and Base Token Price (AUD).
   2. **Service Pricing:** Product and service token amounts (Search, Remix, Regenerate, Customize).

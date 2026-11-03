@@ -31,7 +31,7 @@ export type SupporterTab = "TOKENS" | "BUY_TOKENS" | "MESSAGES";
 
 export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalProps) {
   const isClient = useIsClient();
-  const { user, profile, activeBrand, role } = useSession();
+  const { user, profile, activeBrand, role, isSuperAdmin, resetRole } = useSession();
   const uid = user?.uid;
 
   const [tab, setTab] = useState<SupporterTab>(initialTab ?? "TOKENS");
@@ -227,15 +227,35 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close Supporter Panel"
-            data-testid="close-supporter-modal-button"
-            className="flex size-9 items-center justify-center rounded-xl text-on-surface-variant hover:bg-white/[0.06] hover:text-on-surface transition"
-          >
-            <Icon name="x" className="size-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <div className="flex items-center gap-2">
+                <span className="hidden sm:inline font-mono text-[10px] text-on-surface-variant">
+                  Acting as Supporter
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetRole();
+                    onClose();
+                  }}
+                  className="rounded-lg bg-primary/20 border border-primary/30 px-2.5 py-1 font-mono text-[11px] font-bold text-primary hover:bg-primary/30 transition"
+                  data-testid="supporter-switch-to-superadmin"
+                >
+                  Return to Super Admin
+                </button>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close Supporter Panel"
+              data-testid="close-supporter-modal-button"
+              className="flex size-9 items-center justify-center rounded-xl text-on-surface-variant hover:bg-white/[0.06] hover:text-on-surface transition"
+            >
+              <Icon name="x" className="size-5" />
+            </button>
+          </div>
         </div>
 
         {/* 3 Dedicated Navigation Tabs: Tokens, Buy More Tokens, Messages */}

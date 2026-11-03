@@ -65,7 +65,11 @@
      1. **Tokens:** Live integer token balance and database search/transaction records ledger.
      2. **Buy More Tokens:** Token pack catalog (10, 50, 100, Custom) with instant Stripe Checkout.
      3. **Messages:** Direct communications, Super Admin replies, and plain-text message composer with 7-year statutory audit archiving.
+15. **Superadmin "Act As Role" & Multi-Role View Simulation:**
+   - **Full Role Simulation:** Superadmin can view the application and act as all other roles (`admin` / Main Admin, `supporter` / Supporter) directly from the Account Menu, the Super Admin modal header, or quick-preview buttons.
+   - **Dynamic App State:** Switching roles immediately transforms UI badges, permissions, navigation links, and admin modals to match the target role.
+   - **Return to Super Admin:** Persistent notification banner and 1-click "Return to Super Admin" button in the header, account menu, and modals.
 
 ## Next Priority Actions
-1. Open http://localhost:3000 to verify the 3-tab Supporter Admin Panel (Tokens, Buy More Tokens, Messages) and check that FAQs and Message Super Admin are behind the Admin Panel for admin accounts.
+1. Open http://localhost:3000, click your user avatar to open the account menu, and use the "Act As Role View" buttons to test the Super Admin, Main Admin, and Supporter role views.
 2. Await next user directive.
