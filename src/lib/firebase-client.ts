@@ -3,8 +3,6 @@ import { getAuth, type Auth } from "firebase/auth";
 import {
   initializeFirestore,
   getFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
   setLogLevel,
   type Firestore,
 } from "firebase/firestore";
@@ -39,13 +37,6 @@ export const clientDb = (): Firestore => {
       a,
       {
         experimentalAutoDetectLongPolling: true,
-        ...(typeof window !== "undefined"
-          ? {
-              localCache: persistentLocalCache({
-                tabManager: persistentMultipleTabManager(),
-              }),
-            }
-          : {}),
       },
       FIRESTORE_DATABASE_ID,
     );

@@ -57,7 +57,12 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<{ faqs: FaqItem[] }>("/api/faqs", { method: "GET" });
+      const res = await fetch("/api/faqs", { method: "GET", cache: "no-store" });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        throw new Error(errBody?.error?.message ?? `Request failed (${res.status})`);
+      }
+      const data = (await res.json()) as { faqs: FaqItem[] };
       if (data?.faqs) {
         setFaqs(data.faqs);
         // Expand the first FAQ by default if nothing selected

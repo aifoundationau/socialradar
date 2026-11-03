@@ -1,8 +1,16 @@
 import "server-only";
+import dns from "node:dns";
 import { cert, getApps, initializeApp, applicationDefault, type App } from "firebase-admin/app";
 import { getAuth, type DecodedIdToken } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, initializeFirestore, type Firestore } from "firebase-admin/firestore";
 import { CustomClaimsSchema, type CustomClaims } from "./contracts";
+
+// Prevent 21–44s IPv6 connection timeouts to Google Cloud / Firebase endpoints on Windows
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch {
+  // ignore if unsupported in edge runtime
+}
 
 /** Named Firestore database (nam5, Standard, native). */
 export const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || "ad-radar";
@@ -36,7 +44,16 @@ function createAdminApp(): App {
 const adminApp: App = getApps()[0] ?? createAdminApp();
 
 export const adminAuth = getAuth(adminApp);
-export const db = getFirestore(adminApp, FIRESTORE_DATABASE_ID);
+
+function initAdminFirestore(): Firestore {
+  try {
+    return initializeFirestore(adminApp, { preferRest: true }, FIRESTORE_DATABASE_ID);
+  } catch {
+    return getFirestore(adminApp, FIRESTORE_DATABASE_ID);
+  }
+}
+
+export const db: Firestore = initAdminFirestore();
 
 export const DEFAULT_CLAIMS: CustomClaims = {
   role: "supporter",

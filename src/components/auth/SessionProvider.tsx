@@ -104,7 +104,38 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const effectiveRole: ActiveRole = isSuper && actingAsRole ? actingAsRole : realRole;
   const effectiveIsAdmin = effectiveRole === "superadmin" || effectiveRole === "admin";
 
-  useEffect(() => onAuthStateChanged(clientAuth(), setUser), []);
+  useEffect(() => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) {
+        setUser((prev) => (prev === undefined ? (clientAuth().currentUser ?? null) : prev));
+      }
+    }, 3500);
+
+    try {
+      const unsub = onAuthStateChanged(
+        clientAuth(),
+        (u) => {
+          settled = true;
+          clearTimeout(timer);
+          setUser(u);
+        },
+        () => {
+          settled = true;
+          clearTimeout(timer);
+          setUser(null);
+        },
+      );
+      return () => {
+        clearTimeout(timer);
+        unsub();
+      };
+    } catch {
+      clearTimeout(timer);
+      setUser(null);
+      return;
+    }
+  }, []);
 
   const uid = user?.uid;
   useEffect(() => {
@@ -118,8 +149,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setError({ uid, value: err.message });
     };
 
-    // Creates users/{uid} on first sign-in; the profile listener picks it up.
-    apiFetch("/api/me").catch(fail);
+    // Creates users/{uid} on first sign-in and immediately hydrates profile + brands
+    apiFetch<{ user?: UserDoc; brands?: BrandProfile[] }>("/api/me")
+      .then((res) => {
+        if (res?.user) {
+          setProfile((prev) => (prev?.uid === uid && prev.value ? prev : { uid, value: res.user! }));
+        }
+        if (Array.isArray(res?.brands)) {
+          setBrands((prev) => (prev?.uid === uid ? prev : { uid, value: res.brands! }));
+        }
+      })
+      .catch(fail);
+
     const stopProfile = onSnapshot(
       doc(db, "users", uid),
       (snap) => setProfile({ uid, value: snap.exists() ? (snap.data() as UserDoc) : null }),
