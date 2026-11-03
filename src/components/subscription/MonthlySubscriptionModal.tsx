@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { useSession } from "@/components/auth/SessionProvider";
 import { Icon } from "@/components/ui/Icon";
 import { btnPrimary, btnSecondary, card } from "@/components/ui/styles";
@@ -27,9 +28,9 @@ export interface MonthlySubscriptionModalProps {
 export function MonthlySubscriptionModal({
   isOpen,
   onClose,
-  onOpenPricing,
 }: MonthlySubscriptionModalProps) {
   const isClient = useIsClient();
+  const router = useRouter();
   const { user, isAdmin, role } = useSession();
   const [subConfig, setSubConfig] = useState<MonthlySubscriptionConfig>({
     enabled: true,
@@ -244,42 +245,126 @@ export function MonthlySubscriptionModal({
             <h4 className="font-mono text-[10px] font-bold text-on-surface uppercase tracking-wider">
               Search Options &amp; Feature Breakdown
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-              <div className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-surface-container/70 px-2.5 py-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  router.push("/radar");
+                }}
+                data-agent-id="sub-option-base-search"
+                data-testid="sub-option-base-search"
+                aria-label={`Base Radar Search (${serviceCosts.searchStandard} ${serviceCosts.searchStandard === 1 ? "token" : "tokens"})`}
+                className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-primary/40 hover:bg-surface-container-high"
+              >
                 <Icon name="search" className="size-3.5 text-primary shrink-0" />
                 <span className="font-medium text-on-surface">
                   Base Radar Search ({serviceCosts.searchStandard} {serviceCosts.searchStandard === 1 ? "token" : "tokens"})
                 </span>
-              </div>
+              </button>
 
-              <div className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-surface-container/70 px-2.5 py-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  router.push("/radar");
+                }}
+                data-agent-id="sub-option-proven-winners"
+                data-testid="sub-option-proven-winners"
+                aria-label={`Proven Winners (28+d) (+${serviceCosts.searchProvenWinners} ${serviceCosts.searchProvenWinners === 1 ? "token" : "tokens"})`}
+                className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-winner/40 hover:bg-surface-container-high"
+              >
                 <Icon name="zap" className="size-3.5 text-winner shrink-0" />
                 <span className="font-medium text-on-surface">
                   Proven Winners (28+d) (+{serviceCosts.searchProvenWinners} {serviceCosts.searchProvenWinners === 1 ? "token" : "tokens"})
                 </span>
-              </div>
+              </button>
 
-              <div className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-surface-container/70 px-2.5 py-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  router.push("/radar");
+                }}
+                data-agent-id="sub-option-extended-days"
+                data-testid="sub-option-extended-days"
+                aria-label={`Extended (60+d) (+${serviceCosts.searchExtendedDays} ${serviceCosts.searchExtendedDays === 1 ? "token" : "tokens"})`}
+                className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-secondary/40 hover:bg-surface-container-high"
+              >
                 <Icon name="layers" className="size-3.5 text-secondary shrink-0" />
                 <span className="font-medium text-on-surface">
                   Extended (60+d) (+{serviceCosts.searchExtendedDays} {serviceCosts.searchExtendedDays === 1 ? "token" : "tokens"})
                 </span>
-              </div>
+              </button>
 
-              <div className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-surface-container/70 px-2.5 py-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  router.push("/radar");
+                }}
+                data-agent-id="sub-option-top-winners"
+                data-testid="sub-option-top-winners"
+                aria-label={`Top Winners (90%+ Score) (+${serviceCosts.searchEliteScore} ${serviceCosts.searchEliteScore === 1 ? "token" : "tokens"})`}
+                className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-hot/40 hover:bg-surface-container-high"
+              >
                 <Icon name="flame" className="size-3.5 text-hot shrink-0" />
                 <span className="font-medium text-on-surface">
                   Top Winners (90%+ Score) (+{serviceCosts.searchEliteScore} {serviceCosts.searchEliteScore === 1 ? "token" : "tokens"})
                 </span>
-              </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  router.push("/radar");
+                }}
+                data-agent-id="sub-option-ai-remix"
+                data-testid="sub-option-ai-remix"
+                aria-label={`AI Creative Remixes (${serviceCosts.aiRemix} ${serviceCosts.aiRemix === 1 ? "token" : "tokens"})`}
+                className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-primary/40 hover:bg-surface-container-high"
+              >
+                <Icon name="sparkles" className="size-3.5 text-primary shrink-0" />
+                <span className="font-medium text-on-surface">
+                  AI Creative Remixes ({serviceCosts.aiRemix} {serviceCosts.aiRemix === 1 ? "token" : "tokens"})
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  router.push("/radar");
+                }}
+                data-agent-id="sub-option-regenerate-variations"
+                data-testid="sub-option-regenerate-variations"
+                aria-label={`Variation Regenerations (${serviceCosts.regenerateVariations} ${serviceCosts.regenerateVariations === 1 ? "token" : "tokens"})`}
+                className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-primary/40 hover:bg-surface-container-high"
+              >
+                <Icon name="refresh" className="size-3.5 text-primary shrink-0" />
+                <span className="font-medium text-on-surface">
+                  Variation Regenerations ({serviceCosts.regenerateVariations} {serviceCosts.regenerateVariations === 1 ? "token" : "tokens"})
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  router.push("/customize");
+                }}
+                data-agent-id="sub-option-customize-strategy"
+                data-testid="sub-option-customize-strategy"
+                aria-label={`Customize your Brand Strategy with Professional Experts (${serviceCosts.customizeService} ${serviceCosts.customizeService === 1 ? "token" : "tokens"})`}
+                className="sm:col-span-2 flex items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-center transition hover:border-primary/50 hover:bg-primary/20"
+              >
+                <Icon name="sparkles" className="size-3.5 text-primary shrink-0" />
+                <span className="font-semibold text-on-surface">
+                  Customize your Brand Strategy with Professional Experts ({serviceCosts.customizeService} {serviceCosts.customizeService === 1 ? "token" : "tokens"})
+                </span>
+              </button>
             </div>
-            <p className="text-[10.5px] text-on-surface-variant font-mono leading-relaxed">
-              Tokens can also be used to pay for{" "}
-              <strong className="text-on-surface">
-                Customize your Brand Strategy with Professional Experts ({serviceCosts.customizeService} {serviceCosts.customizeService === 1 ? "token" : "tokens"})
-              </strong>
-              , AI Creative Remixes ({serviceCosts.aiRemix} {serviceCosts.aiRemix === 1 ? "token" : "tokens"}) &amp; Variation Regenerations ({serviceCosts.regenerateVariations} {serviceCosts.regenerateVariations === 1 ? "token" : "tokens"}).
-            </p>
           </div>
 
           {/* Status Message */}
