@@ -639,6 +639,14 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 - `data-agent-id="subscribe-monthly-button"`, `data-testid="subscribe-monthly-button"`
 - `data-agent-id="admin-grant-subscription-button"`, `data-testid="admin-grant-subscription-button"`
 - `data-agent-id="sub-price-input"`, `data-testid="sub-price-input"`
+- `data-agent-id="sub-option-base-search"`, `data-testid="sub-option-base-search"`, `data-agent-id="sub-tooltip-base-search"`
+- `data-agent-id="sub-option-proven-winners"`, `data-testid="sub-option-proven-winners"`, `data-agent-id="sub-tooltip-proven-winners"`
+- `data-agent-id="sub-option-extended-days"`, `data-testid="sub-option-extended-days"`, `data-agent-id="sub-tooltip-extended-days"`
+- `data-agent-id="sub-option-top-winners"`, `data-testid="sub-option-top-winners"`, `data-agent-id="sub-tooltip-top-winners"`
+- `data-agent-id="sub-option-ai-remix"`, `data-testid="sub-option-ai-remix"`, `data-agent-id="sub-tooltip-ai-remix"`
+- `data-agent-id="sub-option-regenerate-variations"`, `data-testid="sub-option-regenerate-variations"`, `data-agent-id="sub-tooltip-regenerate-variations"`
+- `data-agent-id="sub-option-customize-strategy"`, `data-testid="sub-option-customize-strategy"`, `data-agent-id="sub-tooltip-customize-strategy"`
+
 
 
 

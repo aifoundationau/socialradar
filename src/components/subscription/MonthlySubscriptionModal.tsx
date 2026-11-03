@@ -246,112 +246,227 @@ export function MonthlySubscriptionModal({
               Search Options &amp; Feature Breakdown
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  router.push("/radar");
-                }}
-                data-agent-id="sub-option-base-search"
-                data-testid="sub-option-base-search"
-                aria-label="Base Radar Search"
-                className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-primary/40 hover:bg-surface-container-high"
-              >
-                <Icon name="search" className="size-3.5 text-primary shrink-0" />
-                <span className="font-medium text-on-surface">Base Radar Search</span>
-              </button>
+              {/* 1. Base Radar Search */}
+              <div className="group relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    router.push("/radar");
+                  }}
+                  data-agent-id="sub-option-base-search"
+                  data-testid="sub-option-base-search"
+                  aria-label="Base Radar Search"
+                  className="flex w-full items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-primary/40 hover:bg-surface-container-high"
+                >
+                  <Icon name="search" className="size-3.5 text-primary shrink-0" />
+                  <span className="font-medium text-on-surface">Base Radar Search</span>
+                </button>
+                <div
+                  role="tooltip"
+                  data-agent-id="sub-tooltip-base-search"
+                  data-testid="sub-tooltip-base-search"
+                  className="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-1.5 w-72 max-w-[calc(100vw-3rem)] -translate-x-1/2 rounded-xl border border-primary/30 bg-surface-container-highest/98 p-2.5 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100"
+                >
+                  <p className="font-mono text-[10px] font-bold text-primary uppercase">
+                    Base Radar Search
+                  </p>
+                  <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">
+                    Queries live Meta, TikTok, or Google ad transparency libraries for active competitor ads in your niche.
+                  </p>
+                </div>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  router.push("/radar");
-                }}
-                data-agent-id="sub-option-proven-winners"
-                data-testid="sub-option-proven-winners"
-                aria-label="Proven Winners (28+d)"
-                className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-winner/40 hover:bg-surface-container-high"
-              >
-                <Icon name="zap" className="size-3.5 text-winner shrink-0" />
-                <span className="font-medium text-on-surface">Proven Winners (28+d)</span>
-              </button>
+              {/* 2. Proven Winners (28+d) */}
+              <div className="group relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    router.push("/radar");
+                  }}
+                  data-agent-id="sub-option-proven-winners"
+                  data-testid="sub-option-proven-winners"
+                  aria-label="Proven Winners (28+d)"
+                  className="flex w-full items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-winner/40 hover:bg-surface-container-high"
+                >
+                  <Icon name="zap" className="size-3.5 text-winner shrink-0" />
+                  <span className="font-medium text-on-surface">Proven Winners (28+d)</span>
+                </button>
+                <div
+                  role="tooltip"
+                  data-agent-id="sub-tooltip-proven-winners"
+                  data-testid="sub-tooltip-proven-winners"
+                  className="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-1.5 w-72 max-w-[calc(100vw-3rem)] -translate-x-1/2 rounded-xl border border-winner/30 bg-surface-container-highest/98 p-2.5 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100"
+                >
+                  <p className="font-mono text-[10px] font-bold text-winner uppercase">
+                    Proven Winners (28+d)
+                  </p>
+                  <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">
+                    Isolates profitable competitor ads that have run continuously for 28+ days, filtering out short-lived split tests.
+                  </p>
+                </div>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  router.push("/radar");
-                }}
-                data-agent-id="sub-option-extended-days"
-                data-testid="sub-option-extended-days"
-                aria-label="Extended (60+d)"
-                className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-secondary/40 hover:bg-surface-container-high"
-              >
-                <Icon name="layers" className="size-3.5 text-secondary shrink-0" />
-                <span className="font-medium text-on-surface">Extended (60+d)</span>
-              </button>
+              {/* 3. Extended (60+d) */}
+              <div className="group relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    router.push("/radar");
+                  }}
+                  data-agent-id="sub-option-extended-days"
+                  data-testid="sub-option-extended-days"
+                  aria-label="Extended (60+d)"
+                  className="flex w-full items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-secondary/40 hover:bg-surface-container-high"
+                >
+                  <Icon name="layers" className="size-3.5 text-secondary shrink-0" />
+                  <span className="font-medium text-on-surface">Extended (60+d)</span>
+                </button>
+                <div
+                  role="tooltip"
+                  data-agent-id="sub-tooltip-extended-days"
+                  data-testid="sub-tooltip-extended-days"
+                  className="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-1.5 w-72 max-w-[calc(100vw-3rem)] -translate-x-1/2 rounded-xl border border-secondary/30 bg-surface-container-highest/98 p-2.5 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100"
+                >
+                  <p className="font-mono text-[10px] font-bold text-secondary uppercase">
+                    Extended (60+d)
+                  </p>
+                  <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">
+                    Uncovers rare evergreen flagship ads running continuously for 60+ days with fatigue-resistant hooks and sustained multi-month ad spend.
+                  </p>
+                </div>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  router.push("/radar");
-                }}
-                data-agent-id="sub-option-top-winners"
-                data-testid="sub-option-top-winners"
-                aria-label="Top Winners (90%+ Score)"
-                className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-hot/40 hover:bg-surface-container-high"
-              >
-                <Icon name="flame" className="size-3.5 text-hot shrink-0" />
-                <span className="font-medium text-on-surface">Top Winners (90%+ Score)</span>
-              </button>
+              {/* 4. Top Winners (90%+ Score) */}
+              <div className="group relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    router.push("/radar");
+                  }}
+                  data-agent-id="sub-option-top-winners"
+                  data-testid="sub-option-top-winners"
+                  aria-label="Top Winners (90%+ Score)"
+                  className="flex w-full items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-hot/40 hover:bg-surface-container-high"
+                >
+                  <Icon name="flame" className="size-3.5 text-hot shrink-0" />
+                  <span className="font-medium text-on-surface">Top Winners (90%+ Score)</span>
+                </button>
+                <div
+                  role="tooltip"
+                  data-agent-id="sub-tooltip-top-winners"
+                  data-testid="sub-tooltip-top-winners"
+                  className="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-1.5 w-72 max-w-[calc(100vw-3rem)] -translate-x-1/2 rounded-xl border border-hot/30 bg-surface-container-highest/98 p-2.5 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100"
+                >
+                  <p className="font-mono text-[10px] font-bold text-hot uppercase">
+                    Top Winners (90%+ Score)
+                  </p>
+                  <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">
+                    Filters for the elite top 1% of category-dominating ads scoring 90%+ on longevity, reach, and multi-adset scaling.
+                  </p>
+                </div>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  router.push("/radar");
-                }}
-                data-agent-id="sub-option-ai-remix"
-                data-testid="sub-option-ai-remix"
-                aria-label="AI Creative Remixes"
-                className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-primary/40 hover:bg-surface-container-high"
-              >
-                <Icon name="sparkles" className="size-3.5 text-primary shrink-0" />
-                <span className="font-medium text-on-surface">AI Creative Remixes</span>
-              </button>
+              {/* 5. AI Creative Remixes */}
+              <div className="group relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    router.push("/radar");
+                  }}
+                  data-agent-id="sub-option-ai-remix"
+                  data-testid="sub-option-ai-remix"
+                  aria-label="AI Creative Remixes"
+                  className="flex w-full items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-primary/40 hover:bg-surface-container-high"
+                >
+                  <Icon name="sparkles" className="size-3.5 text-primary shrink-0" />
+                  <span className="font-medium text-on-surface">AI Creative Remixes</span>
+                </button>
+                <div
+                  role="tooltip"
+                  data-agent-id="sub-tooltip-ai-remix"
+                  data-testid="sub-tooltip-ai-remix"
+                  className="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-1.5 w-72 max-w-[calc(100vw-3rem)] -translate-x-1/2 rounded-xl border border-primary/30 bg-surface-container-highest/98 p-2.5 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100"
+                >
+                  <p className="font-mono text-[10px] font-bold text-primary uppercase">
+                    AI Creative Remixes
+                  </p>
+                  <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">
+                    Deconstructs competitor persuasion DNA and generates 3 tailored script variations (headlines, storyboards, voiceovers) for your active brand.
+                  </p>
+                </div>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  router.push("/radar");
-                }}
-                data-agent-id="sub-option-regenerate-variations"
-                data-testid="sub-option-regenerate-variations"
-                aria-label="Variation Regenerations"
-                className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-primary/40 hover:bg-surface-container-high"
-              >
-                <Icon name="refresh" className="size-3.5 text-primary shrink-0" />
-                <span className="font-medium text-on-surface">Variation Regenerations</span>
-              </button>
+              {/* 6. Variation Regenerations */}
+              <div className="group relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    router.push("/radar");
+                  }}
+                  data-agent-id="sub-option-regenerate-variations"
+                  data-testid="sub-option-regenerate-variations"
+                  aria-label="Variation Regenerations"
+                  className="flex w-full items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-container/70 px-2.5 py-1.5 text-left transition hover:border-primary/40 hover:bg-surface-container-high"
+                >
+                  <Icon name="refresh" className="size-3.5 text-primary shrink-0" />
+                  <span className="font-medium text-on-surface">Variation Regenerations</span>
+                </button>
+                <div
+                  role="tooltip"
+                  data-agent-id="sub-tooltip-regenerate-variations"
+                  data-testid="sub-tooltip-regenerate-variations"
+                  className="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-1.5 w-72 max-w-[calc(100vw-3rem)] -translate-x-1/2 rounded-xl border border-primary/30 bg-surface-container-highest/98 p-2.5 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100"
+                >
+                  <p className="font-mono text-[10px] font-bold text-primary uppercase">
+                    Variation Regenerations
+                  </p>
+                  <p className="mt-1 text-[11px] leading-snug text-on-surface-variant">
+                    Generates 3 fresh marketing hook angles (PAS, AIDA, UGC Story, Social Proof) without losing your original ad deconstruction.
+                  </p>
+                </div>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  router.push("/customize");
-                }}
-                data-agent-id="sub-option-customize-strategy"
-                data-testid="sub-option-customize-strategy"
-                aria-label="Customize your Brand Strategy with Professional Experts"
-                className="sm:col-span-2 flex items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-center transition hover:border-primary/50 hover:bg-primary/20"
-              >
-                <Icon name="sparkles" className="size-3.5 text-primary shrink-0" />
-                <span className="font-semibold text-on-surface">
-                  Customize your Brand Strategy with Professional Experts
-                </span>
-              </button>
+              {/* 7. Customize your Brand Strategy with Professional Experts (Long full-width button) */}
+              <div className="group relative sm:col-span-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    router.push("/customize");
+                  }}
+                  data-agent-id="sub-option-customize-strategy"
+                  data-testid="sub-option-customize-strategy"
+                  aria-label="Customize your Brand Strategy with Professional Experts (Expert reviews, builds best case model for customer)"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-center transition hover:border-primary/50 hover:bg-primary/20"
+                >
+                  <Icon name="sparkles" className="size-3.5 text-primary shrink-0" />
+                  <span className="font-semibold text-on-surface">
+                    Customize your Brand Strategy with Professional Experts
+                  </span>
+                </button>
+                <div
+                  role="tooltip"
+                  data-agent-id="sub-tooltip-customize-strategy"
+                  data-testid="sub-tooltip-customize-strategy"
+                  className="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-1.5 w-80 sm:w-96 max-w-[calc(100vw-3rem)] -translate-x-1/2 rounded-xl border border-primary/40 bg-surface-container-highest/98 p-3 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100"
+                >
+                  <p className="font-mono text-[10px] font-bold text-primary uppercase">
+                    Customize your Brand Strategy with Professional Experts
+                  </p>
+                  <p className="mt-1 text-[11px] leading-snug text-on-surface font-medium">
+                    Expert reviews, builds best case model for customer.
+                  </p>
+                  <p className="mt-0.5 text-[10.5px] leading-snug text-on-surface-variant">
+                    Submit your brief to our strategy team for a bespoke positioning framework &amp; complete video ad script package returned to your Message Panel.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
