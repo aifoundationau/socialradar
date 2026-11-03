@@ -210,13 +210,10 @@ export function CustomizeView() {
               <span>Professional Strategist Concierge</span>
             </div>
             <h1 className="text-headline-md sm:text-headline-lg font-bold text-on-surface">
-              Customize — Done-With-You Brand & Ad Strategy
+              Customize your Brand Strategy with Professional Experts
             </h1>
             <p className="text-body text-on-surface-variant leading-relaxed">
-              Submit your brand details along with your extra thoughts, angles, and descriptions below. Your complete form is routed directly to our{" "}
-              <strong className="text-on-surface">Super Admin</strong> and{" "}
-              <strong className="text-on-surface">Main Admin</strong> strategy team, who craft your customized positioning & ad script package and deliver it back to your{" "}
-              <strong className="text-on-surface">Message Panel</strong>.
+              Submit your brand details along with your extra thoughts, angles, and descriptions below. Your complete form is routed directly to our strategy team, who craft your customized positioning &amp; ad script package and deliver it back to your Message Panel.
             </p>
           </div>
 
