@@ -13,6 +13,7 @@ import { SuperAdminModal } from "@/components/admin/SuperAdminModal";
 import { SupporterModal } from "@/components/supporter/SupporterModal";
 import { ContactAdminModal } from "@/components/contact/ContactAdminModal";
 import { FaqModal } from "@/components/faq/FaqModal";
+import { MonthlySubscriptionModal } from "@/components/subscription/MonthlySubscriptionModal";
 
 function NavItems({ pathname }: { pathname: string | null }) {
   return NAV.map(({ href, label, tooltipTitle, tooltipDesc }) => {
@@ -366,6 +367,7 @@ export function TopNavWallet() {
   const [isSupporterOpen, setIsSupporterOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [isFaqOpen, setIsFaqOpen] = useState(false);
+  const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-surface-container-lowest/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
@@ -425,6 +427,19 @@ export function TopNavWallet() {
           >
             FAQs
           </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setIsSubscriptionOpen(true)}
+              data-agent-id="nav-link-subscription"
+              data-testid="nav-link-subscription"
+              aria-label="Monthly Search Subscription (1,000 searches)"
+              className="flex items-center gap-1.5 rounded border border-primary/30 bg-primary/10 px-2.5 py-1 font-mono text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+            >
+              <Icon name="sparkles" className="size-3.5" />
+              <span>Subscription (1K)</span>
+            </button>
+          )}
         </nav>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
@@ -440,6 +455,20 @@ export function TopNavWallet() {
             <Icon name="helpCircle" className="size-4 text-primary" />
             <span className="text-[12px] font-medium">FAQs</span>
           </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setIsSubscriptionOpen(true)}
+              aria-label="Monthly Search Subscription"
+              data-agent-id="mobile-header-subscription"
+              data-testid="mobile-header-subscription"
+              className="flex h-10 items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 text-primary hover:bg-primary/20 transition-colors md:hidden text-[11px] font-mono font-bold"
+              title="Monthly Search Subscription (SuperAdmin & MainAdmin)"
+            >
+              <Icon name="sparkles" className="size-3.5" />
+              <span>Sub 1K</span>
+            </button>
+          )}
           <BrandSwitcher className="hidden lg:flex" />
           <TokenPill />
           <AccountMenu
@@ -459,6 +488,19 @@ export function TopNavWallet() {
         onOpenFaqDev={() => {
           setIsFaqOpen(false);
           setAdminInitialTab("FAQS");
+          setIsAdminOpen(true);
+        }}
+        onOpenSubscription={() => {
+          setIsFaqOpen(false);
+          setIsSubscriptionOpen(true);
+        }}
+      />
+      <MonthlySubscriptionModal
+        isOpen={isSubscriptionOpen}
+        onClose={() => setIsSubscriptionOpen(false)}
+        onOpenPricing={() => {
+          setIsSubscriptionOpen(false);
+          setAdminInitialTab("PRICING");
           setIsAdminOpen(true);
         }}
       />

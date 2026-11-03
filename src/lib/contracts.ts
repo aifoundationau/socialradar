@@ -295,7 +295,7 @@ export const ActiveBrandRequestSchema = z
   .object({ activeBrandId: z.union([z.literal(""), BrandIdSchema]) })
   .strict();
 
-export const TokenPackIdSchema = z.enum(["PACK_10", "PACK_50", "PACK_100", "PACK_CUSTOM"]);
+export const TokenPackIdSchema = z.enum(["PACK_10", "PACK_50", "PACK_100", "PACK_CUSTOM", "SUB_MONTHLY_1000"]);
 export type TokenPackId = z.infer<typeof TokenPackIdSchema>;
 
 export const CheckoutRequestSchema = z
@@ -345,6 +345,19 @@ export const ServiceCostsSchema = z
   .strict();
 export type ServiceCosts = z.infer<typeof ServiceCostsSchema>;
 
+export const MonthlySubscriptionConfigSchema = z
+  .object({
+    enabled: z.boolean().default(true),
+    priceAud: tokenInt.min(1).default(500),
+    searchesPerMonth: tokenInt.min(1).default(1000),
+    name: z.string().default("Monthly Search Subscription"),
+    description: z.string().default(
+      "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those."
+    ),
+  })
+  .strict();
+export type MonthlySubscriptionConfig = z.infer<typeof MonthlySubscriptionConfigSchema>;
+
 export const SystemConfigSchema = z
   .object({
     isTokenSystemEnabled: z.boolean(),
@@ -353,6 +366,7 @@ export const SystemConfigSchema = z
     audCentsPerToken: tokenInt.min(1).default(100),
     usdCentsPerToken: tokenInt.min(1).optional(),
     serviceCosts: ServiceCostsSchema,
+    monthlySubscription: MonthlySubscriptionConfigSchema.optional(),
     updatedAt: isoDate,
   })
   .strict();

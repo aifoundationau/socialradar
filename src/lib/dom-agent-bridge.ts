@@ -18,6 +18,7 @@ export type AgentTaskId =
   | "DELETE_BRAND"
   | "SUBMIT_CUSTOMIZE_BRIEF"
   | "BUY_TOKEN_PACK"
+  | "BUY_MONTHLY_SUBSCRIPTION"
   | "SEND_SUPERADMIN_MESSAGE"
   | "SEARCH_FAQS"
   | "CONFIGURE_GEO_TIME";
@@ -747,6 +748,33 @@ export const AGENT_TASK_DEFINITIONS: Record<AgentTaskId, AgentTaskDefinition> = 
     ],
   },
 
+  BUY_MONTHLY_SUBSCRIPTION: {
+    taskId: "BUY_MONTHLY_SUBSCRIPTION",
+    title: "Subscribe to 1,000 Monthly Searches (SuperAdmin & MainAdmin)",
+    route: "/radar",
+    description:
+      "Open the Monthly Search Subscription dialog advertised next to FAQs in the top header and subscribe to 1,000 monthly searches for AUD $500/month.",
+    tokenCostNote: "AUD $500/month (1,000 monthly searches / tokens).",
+    confirmationRequiredBeforeFinalClick: true,
+    slots: [],
+    steps: [
+      {
+        stepNumber: 1,
+        action: "click",
+        targetAgentId: "nav-link-subscription",
+        description: "Click the Subscription button next to FAQs in the top header.",
+        expectedMutation: "monthly-subscription-modal dialog opens.",
+      },
+      {
+        stepNumber: 2,
+        action: "click",
+        targetAgentId: "subscribe-monthly-button",
+        description: "Click Subscribe button to start Stripe Checkout.",
+        expectedMutation: "Redirects to Stripe Checkout session.",
+      },
+    ],
+  },
+
   SEND_SUPERADMIN_MESSAGE: {
     taskId: "SEND_SUPERADMIN_MESSAGE",
     title: "Send a Plain-Text Message or Refund Request to Super Admin",
@@ -968,6 +996,9 @@ export function detectUserIntent(utterance: string): AgentTaskId | null {
   }
   if (/\b(customize|done-with-you|concierge|strategy brief|strategist)\b/.test(q)) {
     return "SUBMIT_CUSTOMIZE_BRIEF";
+  }
+  if (/\b(monthly subscription|1000 searches|1,000 searches|500 subscription|sub 1k)\b/.test(q)) {
+    return "BUY_MONTHLY_SUBSCRIPTION";
   }
   if (/\b(buy token|top up|top-up|purchase token|add token|stripe|more tokens)\b/.test(q)) {
     return "BUY_TOKEN_PACK";

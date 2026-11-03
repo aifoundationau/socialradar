@@ -608,5 +608,38 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
   - `preCheckElement(agentId)` and `waitForLayoutStability(agentId)` verify DOM presence, non-zero bounding box, computed visibility, enabled state, and two-frame layout stability before any click or fill.
   - `click(agentId)` and `fill(agentId, value)` verify post-action DOM mutation (`MutationObserver` + React-controlled value verification).
 
+## 17. Monthly Search Subscription Contract (SuperAdmin & MainAdmin)
+
+### 17.1 Subscription Specification
+- **Allowance:** 1,000 monthly searches (1,000 tokens/month).
+- **Pricing:** AUD $500/month default (50,000 AUD cents). Zero decimal places for platform AUD pricing.
+- **Value Proposition:** Options for every search: Every option is one token. This gives you 1,000 of those (e.g. 1,000 base searches, or combinations of Proven winners, Extended days, Top winners, and AI remix tokens).
+- **SuperAdmin & MainAdmin Exclusive:**
+  - Only visible and accessible when `role === "superadmin"` or `role === "admin"`.
+  - Only advertised strictly next to "FAQs" in the top header (`TopNavWallet.tsx` desktop nav and mobile header) and inside the Admin FAQ panel.
+  - The monthly AUD price can be changed at any time through the SuperAdmin / MainAdmin panel under the "PRICING" tab with instant debounced Firestore synchronization (`system_config/global.monthlySubscription.priceAud`).
+
+### 17.2 Schema & State Contract
+```json
+{
+  "monthlySubscription": {
+    "enabled": true,
+    "priceAud": 500,
+    "searchesPerMonth": 1000,
+    "name": "Monthly Search Subscription",
+    "description": "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those."
+  }
+}
+```
+
+### 17.3 Interactive DOM Bindings
+- `data-agent-id="nav-link-subscription"`, `data-testid="nav-link-subscription"`
+- `data-agent-id="mobile-header-subscription"`, `data-testid="mobile-header-subscription"`
+- `data-agent-id="monthly-subscription-modal"`, `data-testid="monthly-subscription-modal"`
+- `data-agent-id="subscribe-monthly-button"`, `data-testid="subscribe-monthly-button"`
+- `data-agent-id="admin-grant-subscription-button"`, `data-testid="admin-grant-subscription-button"`
+- `data-agent-id="sub-price-input"`, `data-testid="sub-price-input"`
+
+
 
 

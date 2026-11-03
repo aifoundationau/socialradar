@@ -23,6 +23,7 @@ export async function GET(req: Request) {
       audCentsPerToken: config.audCentsPerToken ?? DEFAULT_AUD_CENTS_PER_TOKEN,
       serviceCosts: config.serviceCosts,
       tokenPacks: config.tokenPacks,
+      monthlySubscription: config.monthlySubscription,
       isTokenSystemEnabled: config.isTokenSystemEnabled,
       isAudEnabled: config.isAudEnabled,
       isUsdEnabled: config.isUsdEnabled,
@@ -46,7 +47,17 @@ export async function POST(req: Request) {
     const audCentsPerToken = config.audCentsPerToken ?? DEFAULT_AUD_CENTS_PER_TOKEN;
 
     let pack: TokenPack;
-    if (packId === "PACK_CUSTOM") {
+    if (packId === "SUB_MONTHLY_1000") {
+      const sub = config.monthlySubscription ?? { priceAud: 500, searchesPerMonth: 1000 };
+      const tokens = sub.searchesPerMonth ?? 1000;
+      const priceCents = Math.round((sub.priceAud ?? 500) * 100);
+      pack = {
+        id: "SUB_MONTHLY_1000",
+        tokens,
+        priceCents,
+        priceUsdCents: audToUsdCents(priceCents),
+      };
+    } else if (packId === "PACK_CUSTOM") {
       const tokens = customTokens!;
       pack = buildTokenPack(packId, tokens, audCentsPerToken);
     } else {

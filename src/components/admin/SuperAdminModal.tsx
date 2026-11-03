@@ -11,6 +11,7 @@ import type {
   AdminMessage,
   EquityPartner,
   FaqItem,
+  MonthlySubscriptionConfig,
   RbacMatrix,
   RbacPermission,
   RbacRole,
@@ -81,6 +82,7 @@ interface AdminConfigData {
   serviceCosts: ServiceCosts;
   tokenPacks: TokenPackItem[];
   equityPartners: EquityPartner[];
+  monthlySubscription?: MonthlySubscriptionConfig;
   updatedAt?: string;
 }
 
@@ -151,6 +153,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [rbacUsers, setRbacUsers] = useState<RbacUserItem[]>([]);
   const [rbacLoading, setRbacLoading] = useState(false);
   const [rbacSaving, setRbacSaving] = useState(false);
+
+  // Monthly Search Subscription Price State
+  const [draftSubPrice, setDraftSubPrice] = useState<string | null>(null);
+  const subSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [quickAssignEmail, setQuickAssignEmail] = useState("");
   const [quickAssignRole, setQuickAssignRole] = useState<Exclude<RbacRole, "superadmin">>("supporter");
@@ -1391,6 +1397,150 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         </div>
                       );
                     })}
+                  </div>
+
+                  {/* MONTHLY SEARCH SUBSCRIPTION CONFIGURATION */}
+                  <div className="mt-8 rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-surface-container-high to-surface-container p-5 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <span className="flex size-10 items-center justify-center rounded-xl border border-primary-container/40 bg-primary-container/20 text-primary">
+                          <Icon name="sparkles" className="size-5" />
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-title-sm font-bold text-on-surface">
+                              Monthly Search Subscription (SuperAdmin &amp; MainAdmin)
+                            </h4>
+                            <span className="rounded bg-primary/20 px-2 py-0.5 font-mono text-[10px] font-bold text-primary uppercase">
+                              Privileged Tier
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-compact text-on-surface-variant">
+                            1,000 monthly searches advertised next to FAQs in the top header (SuperAdmin &amp; MainAdmin view only).
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-surface-container-lowest/80 px-3 py-1 font-mono text-xs font-semibold text-primary border border-white/10">
+                          1,000 Searches / mo
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-primary/20 bg-surface-container-lowest/70 p-3 font-mono text-xs text-on-surface leading-relaxed">
+                      <span className="font-bold text-primary">Value Proposition: </span>
+                      Options for every search: Every option is one token. This gives you 1,000 of those.
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
+                      <div className="rounded-xl border border-white/10 bg-surface-container p-4 space-y-2">
+                        <label className={label}>Monthly Subscription Fee (AUD $)</label>
+                        <p className="text-[11px] text-on-surface-variant">
+                          Change the monthly subscription amount at any time. Changes apply to the Stripe Checkout price and system ledger.
+                        </p>
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            aria-label="Decrease subscription price by $25"
+                            disabled={saving}
+                            onClick={() => {
+                              const curr = config.monthlySubscription?.priceAud ?? 500;
+                              const nextVal = Math.max(1, curr - 25);
+                              setDraftSubPrice(null);
+                              saveConfig({
+                                monthlySubscription: {
+                                  ...(config.monthlySubscription ?? { searchesPerMonth: 1000, enabled: true, name: "Monthly Search Subscription", description: "" }),
+                                  priceAud: nextVal,
+                                },
+                              });
+                            }}
+                            className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-container-highest font-mono text-sm font-bold text-on-surface hover:border-primary/40 hover:text-primary disabled:opacity-40"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            aria-label="Monthly Subscription Price in AUD"
+                            data-testid="sub-price-input"
+                            data-agent-id="sub-price-input"
+                            value={draftSubPrice !== null ? draftSubPrice : String(config.monthlySubscription?.priceAud ?? 500)}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^0-9]/g, "");
+                              setDraftSubPrice(raw);
+                              const val = raw === "" ? 1 : Math.max(1, Math.round(Number(raw) || 1));
+                              if (subSaveTimerRef.current) clearTimeout(subSaveTimerRef.current);
+                              subSaveTimerRef.current = setTimeout(() => {
+                                setDraftSubPrice(null);
+                                saveConfig({
+                                  monthlySubscription: {
+                                    ...(config.monthlySubscription ?? { searchesPerMonth: 1000, enabled: true, name: "Monthly Search Subscription", description: "" }),
+                                    priceAud: val,
+                                  },
+                                });
+                              }, 800);
+                            }}
+                            onBlur={() => {
+                              if (draftSubPrice === null) return;
+                              if (subSaveTimerRef.current) clearTimeout(subSaveTimerRef.current);
+                              const val = draftSubPrice === "" ? 1 : Math.max(1, Math.round(Number(draftSubPrice) || 1));
+                              setDraftSubPrice(null);
+                              saveConfig({
+                                monthlySubscription: {
+                                  ...(config.monthlySubscription ?? { searchesPerMonth: 1000, enabled: true, name: "Monthly Search Subscription", description: "" }),
+                                  priceAud: val,
+                                },
+                              });
+                            }}
+                            className={`${field} text-center font-mono`}
+                          />
+                          <button
+                            type="button"
+                            aria-label="Increase subscription price by $25"
+                            disabled={saving}
+                            onClick={() => {
+                              const curr = config.monthlySubscription?.priceAud ?? 500;
+                              const nextVal = curr + 25;
+                              setDraftSubPrice(null);
+                              saveConfig({
+                                monthlySubscription: {
+                                  ...(config.monthlySubscription ?? { searchesPerMonth: 1000, enabled: true, name: "Monthly Search Subscription", description: "" }),
+                                  priceAud: nextVal,
+                                },
+                              });
+                            }}
+                            className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-container-highest font-mono text-sm font-bold text-on-surface hover:border-primary/40 hover:text-primary disabled:opacity-40"
+                          >
+                            +
+                          </button>
+                          <span className="font-mono text-xs font-semibold text-on-surface-variant whitespace-nowrap">
+                            AUD / mo
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-white/10 bg-surface-container p-4 space-y-2">
+                        <span className="font-mono text-xs font-semibold text-on-surface">Dual-Currency Rate Breakdown</span>
+                        <div className="space-y-1.5 pt-1 text-xs font-mono">
+                          <div className="flex items-center justify-between text-on-surface">
+                            <span>Australia &amp; NZ (AUD):</span>
+                            <span className="font-bold text-primary">
+                              {formatAud(Math.round((config.monthlySubscription?.priceAud ?? 500) * 100))} / mo
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-on-surface-variant">
+                            <span>International (USD):</span>
+                            <span>
+                              ≈ {formatUsd(audToUsdCents(Math.round((config.monthlySubscription?.priceAud ?? 500) * 100)))} / mo
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-outline pt-1 border-t border-white/[0.06]">
+                            <span>Searches Allowance:</span>
+                            <span className="font-bold text-on-surface">1,000 searches/mo</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

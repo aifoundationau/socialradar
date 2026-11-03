@@ -21,9 +21,10 @@ export interface FaqModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenFaqDev?: () => void;
+  onOpenSubscription?: () => void;
 }
 
-export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
+export function FaqModal({ isOpen, onClose, onOpenFaqDev, onOpenSubscription }: FaqModalProps) {
   const isClient = useIsClient();
   const { isAdmin, role } = useSession();
   const isSuperAdmin = Boolean(isAdmin && role === "superadmin");
@@ -158,19 +159,37 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
                 You have administrative authority over knowledge base entries.
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onOpenFaqDev();
-              }}
-              data-agent-id="open-faq-dev-shortcut"
-              data-testid="open-faq-dev-shortcut"
-              className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/20 px-3 py-1 font-mono text-xs font-semibold text-primary transition-colors hover:bg-primary/30"
-            >
-              <Icon name="sliders" className="size-3.5" />
-              <span>FAQ Development Suite</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {onOpenSubscription && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenSubscription();
+                  }}
+                  data-agent-id="open-sub-modal-from-faq"
+                  data-testid="open-sub-modal-from-faq"
+                  aria-label="Open Monthly Search Subscription details"
+                  className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/20 px-3 py-1 font-mono text-xs font-semibold text-primary transition-colors hover:bg-primary/30"
+                >
+                  <Icon name="sparkles" className="size-3.5" />
+                  <span>1,000 Searches / mo Subscription</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenFaqDev();
+                }}
+                data-agent-id="open-faq-dev-shortcut"
+                data-testid="open-faq-dev-shortcut"
+                className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/20 px-3 py-1 font-mono text-xs font-semibold text-primary transition-colors hover:bg-primary/30"
+              >
+                <Icon name="sliders" className="size-3.5" />
+                <span>FAQ Development Suite</span>
+              </button>
+            </div>
           </div>
         )}
 

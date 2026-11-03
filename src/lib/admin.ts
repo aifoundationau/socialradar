@@ -55,6 +55,13 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
     { id: "PACK_50", name: "Creator Pack (50)", tokens: TOKEN_PACKS.PACK_50.tokens, priceCents: TOKEN_PACKS.PACK_50.priceCents, enabled: true },
     { id: "PACK_100", name: "Pro Pack (100)", tokens: TOKEN_PACKS.PACK_100.tokens, priceCents: TOKEN_PACKS.PACK_100.priceCents, enabled: true },
   ],
+  monthlySubscription: {
+    enabled: true,
+    priceAud: 500,
+    searchesPerMonth: 1000,
+    name: "Monthly Search Subscription",
+    description: "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those.",
+  },
   equityPartners: [],
   updatedAt: new Date().toISOString(),
 };
@@ -81,6 +88,10 @@ export async function getSystemConfig(): Promise<AdminSystemConfig> {
         Array.isArray(data.tokenPacks) && data.tokenPacks.some((p: { id?: string }) => p.id === "PACK_10")
           ? data.tokenPacks
           : DEFAULT_CONFIG.tokenPacks,
+      monthlySubscription: {
+        ...DEFAULT_CONFIG.monthlySubscription!,
+        ...(data.monthlySubscription || {}),
+      },
     };
   } catch (err) {
     console.warn("[admin] failed to fetch system config, using default", err);
@@ -98,6 +109,12 @@ export async function updateSystemConfig(patch: Partial<AdminSystemConfig>): Pro
       ...current.serviceCosts,
       ...(patch.serviceCosts ?? {}),
     },
+    monthlySubscription: patch.monthlySubscription
+      ? {
+          ...(current.monthlySubscription ?? DEFAULT_CONFIG.monthlySubscription!),
+          ...patch.monthlySubscription,
+        }
+      : current.monthlySubscription,
     updatedAt: new Date().toISOString(),
   };
   await db.doc(CONFIG_DOC_PATH).set(next);
