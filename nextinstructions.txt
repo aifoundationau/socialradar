@@ -89,5 +89,18 @@
    - **AI Agent Skill (`skills/website-user-assistant/SKILL.md`):** Created model-agnostic skill compatible with all AI models (including Gemini 2.5 Flash-Lite, Claude Haiku 4.5, and gpt-6-luna) for listening to users, asking one clarifying question at a time, and completing tasks end-to-end.
 
 ## Next Priority Actions
-1. Open http://localhost:3000 to verify that the UI design is 100% untouched and `window.__AD_RADAR_AGENT__` is active in the browser DOM.
+1. Re-test all features on http://localhost:3005 (Radar, Customize, Wallet, FAQs, Admin panels).
 2. Await next user directive.
+
+## Recent Progress (November 3, 2026):
+19. **Port 3005 Fast Hydration & gRPC IPv6 Timeout Resolution (`f192f94`):**
+    - Enforced `dns.setDefaultResultOrder("ipv4first")` and REST mode on server-side Firestore to eliminate 44s Windows IPv6 gRPC timeouts.
+    - Simplified client Firestore multi-tab manager and added 3.5s safety fallback in `SessionProvider.tsx`.
+    - Made `GET /api/faqs` public so top-header FAQs open instantly whether signed in or signed out.
+20. **Search Bar Hover Explanation Tooltips & Browser Native Tooltip Elimination (`cfac420`, `41f069f`):**
+    - Added dark-theme hover explanation card on the search input detailing all four tiers (Search 0 tokens Admin, Proven 28+d, Extended 60+d, Top Winners 90%+).
+    - Added dedicated hover tooltips for each filter button and eliminated native browser `title` attributes so only the dark popup displays.
+21. **Customize Page Hero Copy Update (`7e1fc84`):**
+    - Updated hero heading to "Customize your Brand Strategy with Professional Experts".
+    - Updated description to: "Submit your brand details along with your extra thoughts, angles, and descriptions below. Your complete form is routed directly to our strategy team, who craft your customized positioning & ad script package and deliver it back to your Message Panel."
+
