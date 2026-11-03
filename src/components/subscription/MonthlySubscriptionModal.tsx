@@ -151,23 +151,23 @@ export function MonthlySubscriptionModal({
       />
 
       {/* Modal Dialog Content */}
-      <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface-container-low shadow-2xl">
+      <div className="relative flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface-container-low shadow-2xl transition-all duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-4 bg-gradient-to-r from-primary-container/20 to-surface-container-low">
-          <div className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center rounded-xl border border-primary-container/40 bg-primary-container/30 text-primary shadow-sm">
-              <Icon name="sparkles" className="size-5" />
+        <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-3 sm:py-3.5 bg-gradient-to-r from-primary-container/20 to-surface-container-low">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <span className="flex size-9 sm:size-10 items-center justify-center rounded-xl border border-primary-container/40 bg-primary-container/30 text-primary shadow-sm shrink-0">
+              <Icon name="sparkles" className="size-4 sm:size-5" />
             </span>
             <div>
               <div className="flex items-center gap-2">
-                <h2 id="monthly-sub-title" className="text-title-md font-bold text-on-surface">
+                <h2 id="monthly-sub-title" className="text-title-sm sm:text-title-md font-bold text-on-surface">
                   Monthly Search Subscription
                 </h2>
-                <span className="rounded bg-primary/20 px-2 py-0.5 font-mono text-[10px] font-bold text-primary uppercase">
-                  {role === "superadmin" ? "Super Admin" : "Main Admin"} Only
+                <span className="rounded bg-primary/20 px-2 py-0.5 font-mono text-[9px] sm:text-[10px] font-bold text-primary uppercase">
+                  {role === "superadmin" ? "Super Admin" : "Main Admin"}
                 </span>
               </div>
-              <p className="text-compact text-on-surface-variant">
+              <p className="text-[11px] sm:text-compact text-on-surface-variant">
                 1,000 monthly searches for competitive intelligence &amp; creative scaling
               </p>
             </div>
@@ -178,105 +178,85 @@ export function MonthlySubscriptionModal({
             aria-label="Close subscription dialog"
             data-agent-id="close-subscription-modal-button"
             data-testid="close-subscription-modal-button"
-            className="flex size-8 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-white/[0.08] hover:text-on-surface"
+            className="flex size-8 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-white/[0.08] hover:text-on-surface shrink-0"
           >
-            <Icon name="x" className="size-5" />
+            <Icon name="x" className="size-4 sm:size-5" />
           </button>
         </div>
 
-        {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
+        {/* Content Body - Perfectly centered with zero scrollbars */}
+        <div className="p-4 sm:p-5 space-y-3">
           {/* Main Price & Search Allowance Banner */}
-          <div className="relative overflow-hidden rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-surface-container-high to-surface-container p-5 text-on-surface">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="relative overflow-hidden rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-surface-container-high to-surface-container p-3.5 sm:p-4 text-on-surface">
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-primary">
+                <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-primary">
                   Privileged Search Tier
                 </span>
-                <h3 className="text-headline-sm sm:text-headline-md font-bold text-on-surface mt-0.5">
+                <h3 className="text-title-md sm:text-title-lg font-bold text-on-surface mt-0.5">
                   {searchesCount.toLocaleString()} Monthly Searches
                 </h3>
-                <p className="text-body-sm text-on-surface-variant mt-1">
-                  Billed monthly at {formatAud(audCents)} AUD (≈ {formatUsd(usdCents)} USD for international)
+                <p className="text-[11px] text-on-surface-variant mt-0.5">
+                  Billed monthly at {formatAud(audCents)} AUD (≈ {formatUsd(usdCents)} USD)
                 </p>
               </div>
 
-              <div className="flex flex-col sm:items-end gap-1 rounded-xl border border-white/10 bg-surface-container-lowest/80 p-3.5 backdrop-blur-sm">
-                <span className="font-mono text-[10px] text-outline uppercase tracking-wider">
+              <div className="flex flex-col items-end shrink-0 rounded-xl border border-white/10 bg-surface-container-lowest/80 px-3 py-1.5 sm:py-2 backdrop-blur-sm">
+                <span className="font-mono text-[9px] text-outline uppercase tracking-wider">
                   Monthly Fee
                 </span>
-                <span className="font-mono text-title-lg font-bold text-primary">
+                <span className="font-mono text-title-md sm:text-title-lg font-bold text-primary">
                   {formatAud(audCents)}
-                  <span className="text-body-sm font-normal text-on-surface-variant"> / mo</span>
+                  <span className="text-[11px] font-normal text-on-surface-variant"> / mo</span>
                 </span>
-                <span className="font-mono text-[11px] text-on-surface-variant">
+                <span className="font-mono text-[10px] text-on-surface-variant">
                   ≈ {formatUsd(usdCents)} USD
                 </span>
               </div>
             </div>
 
             {/* Explanation Quote from Specification */}
-            <div className="mt-4 rounded-lg border border-primary/20 bg-surface-container-lowest/60 p-3 font-mono text-xs text-on-surface leading-relaxed">
+            <div className="mt-2.5 rounded-lg border border-primary/20 bg-surface-container-lowest/60 px-3 py-2 font-mono text-[11px] text-on-surface leading-snug">
               <span className="font-bold text-primary">Options for every search: </span>
               Every option is one token. This gives you {searchesCount.toLocaleString()} of those.
             </div>
           </div>
 
           {/* Breakdown of What the 1,000 Searches/Tokens Cover */}
-          <div className={`${card} space-y-3`}>
-            <h4 className="font-mono text-xs font-bold text-on-surface uppercase tracking-wider">
+          <div className="rounded-xl border border-white/[0.08] bg-surface-container-lowest/60 p-3 space-y-2">
+            <h4 className="font-mono text-[10px] font-bold text-on-surface uppercase tracking-wider">
               Search Options &amp; Feature Breakdown
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="flex items-start gap-2.5 rounded-lg border border-white/[0.06] bg-surface-container p-3">
-                <Icon name="search" className="size-4 text-primary shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-on-surface">Base Radar Search (1 token)</p>
-                  <p className="text-on-surface-variant mt-0.5">
-                    Query Meta, TikTok, or Google live ad transparency libraries.
-                  </p>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+              <div className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-surface-container/70 px-2.5 py-1.5">
+                <Icon name="search" className="size-3.5 text-primary shrink-0" />
+                <span className="font-medium text-on-surface">Base Radar Search (1 token)</span>
               </div>
 
-              <div className="flex items-start gap-2.5 rounded-lg border border-white/[0.06] bg-surface-container p-3">
-                <Icon name="zap" className="size-4 text-winner shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-on-surface">Proven Winners (28+d) (+1 token)</p>
-                  <p className="text-on-surface-variant mt-0.5">
-                    Isolate profitable competitor ads running for 28+ continuous days.
-                  </p>
-                </div>
+              <div className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-surface-container/70 px-2.5 py-1.5">
+                <Icon name="zap" className="size-3.5 text-winner shrink-0" />
+                <span className="font-medium text-on-surface">Proven Winners (28+d) (+1 token)</span>
               </div>
 
-              <div className="flex items-start gap-2.5 rounded-lg border border-white/[0.06] bg-surface-container p-3">
-                <Icon name="layers" className="size-4 text-secondary shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-on-surface">Extended (60+d) (+1 token)</p>
-                  <p className="text-on-surface-variant mt-0.5">
-                    Uncover evergreen flagship ads running for 60+ days with sustained spend.
-                  </p>
-                </div>
+              <div className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-surface-container/70 px-2.5 py-1.5">
+                <Icon name="layers" className="size-3.5 text-secondary shrink-0" />
+                <span className="font-medium text-on-surface">Extended (60+d) (+1 token)</span>
               </div>
 
-              <div className="flex items-start gap-2.5 rounded-lg border border-white/[0.06] bg-surface-container p-3">
-                <Icon name="flame" className="size-4 text-hot shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-on-surface">Top Winners (90%+ Score) (+1 token)</p>
-                  <p className="text-on-surface-variant mt-0.5">
-                    Filter for the elite top 1% category winners by longevity &amp; scaling.
-                  </p>
-                </div>
+              <div className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-surface-container/70 px-2.5 py-1.5">
+                <Icon name="flame" className="size-3.5 text-hot shrink-0" />
+                <span className="font-medium text-on-surface">Top Winners (90%+ Score) (+1 token)</span>
               </div>
             </div>
-            <p className="text-[11px] text-on-surface-variant font-mono">
-              Tokens from your 1,000 monthly allowance can also be used for AI Creative Remixes (1 token) and Variation Regenerations (1 token).
+            <p className="text-[10px] text-on-surface-variant font-mono">
+              Tokens can also be used for AI Creative Remixes (1 token) &amp; Variation Regenerations (1 token).
             </p>
           </div>
 
           {/* Status Message */}
           {message && (
             <div
-              className={`rounded-xl border p-3.5 text-xs font-medium ${
+              className={`rounded-xl border p-2.5 text-[11px] font-medium ${
                 message.type === "success"
                   ? "border-winner/40 bg-winner/10 text-winner"
                   : "border-error/40 bg-error/10 text-error"
@@ -288,14 +268,14 @@ export function MonthlySubscriptionModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/[0.08] bg-surface-container-lowest/80 px-5 py-3.5">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 border-t border-white/[0.08] bg-surface-container-lowest/80 px-4 sm:px-5 py-3">
           <button
             type="button"
             onClick={onClose}
             data-agent-id="sub-modal-close-button"
             data-testid="sub-modal-close-button"
             aria-label="Close subscription dialog"
-            className={`${btnSecondary} w-full sm:w-auto text-xs`}
+            className={`${btnSecondary} w-full sm:w-auto text-xs py-1.5`}
           >
             Close
           </button>
@@ -309,7 +289,7 @@ export function MonthlySubscriptionModal({
                 data-agent-id="admin-grant-subscription-button"
                 data-testid="admin-grant-subscription-button"
                 aria-label={`Allocate ${searchesCount} subscription searches to ${user?.email}`}
-                className={`${btnSecondary} text-xs font-mono`}
+                className={`${btnSecondary} text-xs font-mono py-1.5`}
                 title="SuperAdmin / MainAdmin allocation"
               >
                 {granting ? (
@@ -328,7 +308,7 @@ export function MonthlySubscriptionModal({
               data-agent-id="subscribe-monthly-button"
               data-testid="subscribe-monthly-button"
               aria-label={`Subscribe Monthly for ${formatAud(audCents)} AUD`}
-              className={`${btnPrimary} text-xs font-mono`}
+              className={`${btnPrimary} text-xs font-mono py-1.5`}
             >
               {subscribing ? (
                 <span className="size-3.5 animate-spin rounded-full border-2 border-on-primary/30 border-t-on-primary" />
