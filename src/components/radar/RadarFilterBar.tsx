@@ -167,8 +167,8 @@ export function RadarFilterBar({
               onChange={(brandId) => onChange({ brandId })}
             />
           </div>
-                    <div className="flex gap-2 lg:order-2 lg:max-w-2xl lg:flex-1">
-            <div className="relative min-w-0 flex-1">
+          <div className="flex gap-2 lg:order-2 lg:max-w-2xl lg:flex-1">
+            <div className="group relative min-w-0 flex-1">
               <Icon name="search" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-on-surface-variant" />
               <input
                 ref={input}
@@ -177,6 +177,14 @@ export function RadarFilterBar({
                 data-agent-id="radar-search-input"
                 data-testid="radar-search-input"
                 aria-label="Search keywords, hooks or competitor brands"
+                aria-describedby="radar-search-input-tooltip"
+                title={
+                  "Radar Search Guide:\n" +
+                  "• Search 0 tokens (Admin): Live competitor ad search (1 token standard; 0 tokens for Admin).\n" +
+                  `• Proven (${PROVEN_WINNER_DAYS}+d): Profitable ads running continuously for ${PROVEN_WINNER_DAYS}+ days (+${SERVICE_SURCHARGES.PROVEN_WINNERS} token).\n` +
+                  `• Extended (${EXTENDED_WINNER_DAYS}+d): Evergreen flagship ads running continuously for ${EXTENDED_WINNER_DAYS}+ days (+${SERVICE_SURCHARGES.EXTENDED_DAYS} token).\n` +
+                  `• Top Winners (${ELITE_SCORE_THRESHOLD}%+): Elite top 1% ads with a ${ELITE_SCORE_THRESHOLD}%+ Radar Score (+${SERVICE_SURCHARGES.ELITE_SCORE} token).`
+                }
                 placeholder={filters.platform === "GOOGLE" ? "Brand name or website, e.g. nike.com" : "Keywords, hooks or competitor brands…"}
                 value={filters.query}
                 onChange={(e) => onChange({ query: e.target.value })}
@@ -186,39 +194,104 @@ export function RadarFilterBar({
               <kbd className="pointer-events-none absolute top-1/2 right-2.5 hidden -translate-y-1/2 rounded bg-surface-container-highest/60 px-1.5 py-0.5 font-mono text-[10px] text-outline sm:block">
                 {apple ? "⌘K" : "Ctrl K"}
               </kbd>
+
+              {/* Hover explanation for the Search Bar & Filter Tiers (hides while typing) */}
+              <div
+                id="radar-search-input-tooltip"
+                role="tooltip"
+                data-agent-id="radar-search-input-tooltip"
+                data-testid="radar-search-input-tooltip"
+                className="pointer-events-none invisible absolute top-full left-0 z-50 mt-2 w-80 max-w-[calc(100vw-1.5rem)] rounded-xl border border-white/15 bg-surface-container-highest/95 p-3 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:invisible group-focus-within:opacity-0 sm:w-96"
+              >
+                <p className="mb-2 font-mono text-[10px] font-bold tracking-wider text-primary uppercase">
+                  Radar Search &amp; Winner Filters Guide
+                </p>
+                <ul className="space-y-1.5 text-[11px] leading-snug text-on-surface-variant">
+                  <li>
+                    <span className="font-semibold text-on-surface">
+                      Search {isAdmin ? "0 tokens (Admin)" : `${totalCost} ${totalCost === 1 ? "token" : "tokens"}`}:
+                    </span>{" "}
+                    Queries live Meta, TikTok, or Google ad libraries. Base search is 1 token (0 tokens for Admin).
+                  </li>
+                  <li>
+                    <span className="font-semibold text-winner">Proven ({PROVEN_WINNER_DAYS}+d):</span>{" "}
+                    Isolates profitable ads running continuously for {PROVEN_WINNER_DAYS}+ days, filtering out short split-tests (+{SERVICE_SURCHARGES.PROVEN_WINNERS} token).
+                  </li>
+                  <li>
+                    <span className="font-semibold text-secondary">Extended ({EXTENDED_WINNER_DAYS}+d):</span>{" "}
+                    Uncovers evergreen flagship ads running continuously for {EXTENDED_WINNER_DAYS}+ days with sustained spend (+{SERVICE_SURCHARGES.EXTENDED_DAYS} token).
+                  </li>
+                  <li>
+                    <span className="font-semibold text-hot">Top Winners ({ELITE_SCORE_THRESHOLD}%+):</span>{" "}
+                    Isolates the elite top 1% of ads scoring {ELITE_SCORE_THRESHOLD}%+ on longevity, reach &amp; scaling (+{SERVICE_SURCHARGES.ELITE_SCORE} token).
+                  </li>
+                </ul>
+              </div>
             </div>
-            <button
-              type="submit"
-              data-agent-id="radar-search-submit-button"
-              data-testid="radar-search-submit-button"
-              className={`${btnPrimary} shrink-0`}
-              disabled={searching}
-              aria-label={isAdmin ? "Search (0 tokens • Superadmin Free)" : totalCost > 0 ? `Search (${totalCost} tokens)` : "Search (Free)"}
-            >
-              {searching ? (
-                <span className="size-4 animate-spin rounded-full border-2 border-on-primary/30 border-t-on-primary" />
-              ) : (
-                <Icon name="search" />
-              )}
-              <span className="hidden sm:inline">Search</span>
-              {isAdmin ? (
-                <span
-                  title="Superadmin Token Exemption: 0 tokens"
-                  className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary"
-                >
-                  0 tokens (Admin)
-                </span>
-              ) : totalCost > 0 ? (
-                <span
-                  title={formatTokenEstimateHover(totalCost)}
-                  className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary"
-                >
-                  {totalCost} {totalCost === 1 ? "token" : "tokens"}
-                </span>
-              ) : (
-                <CostTag action="RADAR_SEARCH" />
-              )}
-            </button>
+
+            <div className="group relative flex shrink-0">
+              <button
+                type="submit"
+                data-agent-id="radar-search-submit-button"
+                data-testid="radar-search-submit-button"
+                aria-describedby="radar-search-button-tooltip"
+                title={
+                  isAdmin
+                    ? "Search 0 tokens (Admin): Superadmin & Main Admin accounts run live ad library searches at 0 tokens."
+                    : `Search (${totalCost} ${totalCost === 1 ? "token" : "tokens"} • ${formatTokenEstimateHover(totalCost, false)}): Runs a live competitor ad search with your selected filters.`
+                }
+                className={`${btnPrimary} shrink-0`}
+                disabled={searching}
+                aria-label={isAdmin ? "Search (0 tokens • Superadmin Free)" : totalCost > 0 ? `Search (${totalCost} tokens)` : "Search (Free)"}
+              >
+                {searching ? (
+                  <span className="size-4 animate-spin rounded-full border-2 border-on-primary/30 border-t-on-primary" />
+                ) : (
+                  <Icon name="search" />
+                )}
+                <span className="hidden sm:inline">Search</span>
+                {isAdmin ? (
+                  <span
+                    title="Superadmin Token Exemption: 0 tokens"
+                    className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary"
+                  >
+                    0 tokens (Admin)
+                  </span>
+                ) : totalCost > 0 ? (
+                  <span
+                    title={formatTokenEstimateHover(totalCost, false)}
+                    className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary"
+                  >
+                    {totalCost} {totalCost === 1 ? "token" : "tokens"}
+                  </span>
+                ) : (
+                  <CostTag action="RADAR_SEARCH" />
+                )}
+              </button>
+
+              {/* Hover explanation for Search 0 tokens (Admin) / Search button */}
+              <div
+                id="radar-search-button-tooltip"
+                role="tooltip"
+                data-agent-id="radar-search-button-tooltip"
+                data-testid="radar-search-button-tooltip"
+                className="pointer-events-none invisible absolute top-full right-0 z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-white/15 bg-surface-container-highest/95 p-3 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100 sm:left-1/2 sm:right-auto sm:-translate-x-1/2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[11px] font-bold text-primary">
+                    {isAdmin ? "Search 0 tokens (Admin)" : `Search (${totalCost} ${totalCost === 1 ? "token" : "tokens"})`}
+                  </span>
+                  <span className="rounded bg-primary/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-primary">
+                    {isAdmin ? "Admin Exempt" : formatTokenEstimateHover(totalCost, false)}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-[11px] leading-snug text-on-surface-variant">
+                  {isAdmin
+                    ? "Runs a live competitor ad search across the selected platform. Admin accounts are exempt from token charges (0 tokens)."
+                    : `Runs a live competitor ad search (1 token base + active filter surcharges = ${totalCost} ${totalCost === 1 ? "token" : "tokens"}). Auto-refunded if an upstream library fails.`}
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="-mx-3 overflow-x-auto px-3 no-scrollbar sm:mx-0 sm:px-0 lg:order-1">
@@ -251,82 +324,157 @@ export function RadarFilterBar({
 
           <div className="flex flex-wrap items-center gap-2.5 self-start lg:order-3 lg:ml-auto lg:self-auto">
             {/* 1. Proven winners 28+ days toggle */}
-            <button
-              type="button"
-              role="switch"
-              aria-checked={filters.provenWinnersOnly}
-              data-testid="radar-proven-winners-toggle"
-              data-agent-id="radar-proven-winners-toggle"
-              onClick={() => onChange({ provenWinnersOnly: !filters.provenWinnersOnly })}
-              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
-                filters.provenWinnersOnly
-                  ? "border-winner/50 bg-winner/15 text-on-surface shadow-[0_0_12px_rgba(16,185,129,0.2)]"
-                  : "border-white/[0.08] bg-surface-container-low text-on-surface-variant hover:border-white/20"
-              }`}
-            >
-              <Icon name="zap" className="size-3.5 text-winner" />
-              <div className="flex flex-col text-left">
-                <span className="text-compact font-medium text-on-surface">Proven ({PROVEN_WINNER_DAYS}+d)</span>
-              </div>
-              <span
-                title={formatTokenEstimateHover(SERVICE_SURCHARGES.PROVEN_WINNERS)}
-                className="ml-1 rounded bg-winner/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-winner"
+            <div className="group relative">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={filters.provenWinnersOnly}
+                aria-describedby="radar-proven-winners-tooltip"
+                data-testid="radar-proven-winners-toggle"
+                data-agent-id="radar-proven-winners-toggle"
+                title={`Proven (${PROVEN_WINNER_DAYS}+d): Isolates profitable competitor ads running continuously for ${PROVEN_WINNER_DAYS}+ days, stripping out short-lived split tests (+${SERVICE_SURCHARGES.PROVEN_WINNERS} token • ${formatTokenEstimateHover(SERVICE_SURCHARGES.PROVEN_WINNERS, false)}).`}
+                onClick={() => onChange({ provenWinnersOnly: !filters.provenWinnersOnly })}
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
+                  filters.provenWinnersOnly
+                    ? "border-winner/50 bg-winner/15 text-on-surface shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                    : "border-white/[0.08] bg-surface-container-low text-on-surface-variant hover:border-white/20"
+                }`}
               >
-                +{SERVICE_SURCHARGES.PROVEN_WINNERS}
-              </span>
-            </button>
+                <Icon name="zap" className="size-3.5 text-winner" />
+                <div className="flex flex-col text-left">
+                  <span className="text-compact font-medium text-on-surface">Proven ({PROVEN_WINNER_DAYS}+d)</span>
+                </div>
+                <span
+                  title={formatTokenEstimateHover(SERVICE_SURCHARGES.PROVEN_WINNERS, false)}
+                  className="ml-1 rounded bg-winner/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-winner"
+                >
+                  +{SERVICE_SURCHARGES.PROVEN_WINNERS}
+                </span>
+              </button>
+
+              <div
+                id="radar-proven-winners-tooltip"
+                role="tooltip"
+                data-agent-id="radar-proven-winners-tooltip"
+                data-testid="radar-proven-winners-tooltip"
+                className="pointer-events-none invisible absolute top-full left-0 z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-winner/30 bg-surface-container-highest/95 p-3 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100 lg:left-1/2 lg:-translate-x-1/2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[11px] font-bold text-winner">
+                    Proven ({PROVEN_WINNER_DAYS}+d)
+                  </span>
+                  <span className="rounded bg-winner/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-winner">
+                    {isAdmin ? "+0 tokens (Admin)" : `+${SERVICE_SURCHARGES.PROVEN_WINNERS} token (${formatTokenEstimateHover(SERVICE_SURCHARGES.PROVEN_WINNERS, false)})`}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-[11px] leading-snug text-on-surface-variant">
+                  Unprofitable ads get turned off quickly. This filter isolates profitable ads that have run continuously for{" "}
+                  <span className="font-semibold text-on-surface">{PROVEN_WINNER_DAYS}+ days</span>, stripping away short-lived split tests.
+                </p>
+              </div>
+            </div>
 
             {/* 2. Extended 60+ days toggle */}
-            <button
-              type="button"
-              role="switch"
-              aria-checked={filters.extendedLongevity}
-              data-testid="radar-extended-days-toggle"
-              data-agent-id="radar-extended-days-toggle"
-              onClick={() => onChange({ extendedLongevity: !filters.extendedLongevity })}
-              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
-                filters.extendedLongevity
-                  ? "border-secondary/50 bg-secondary/15 text-on-surface shadow-[0_0_12px_rgba(245,158,11,0.2)]"
-                  : "border-white/[0.08] bg-surface-container-low text-on-surface-variant hover:border-white/20"
-              }`}
-            >
-              <Icon name="layers" className="size-3.5 text-secondary" />
-              <div className="flex flex-col text-left">
-                <span className="text-compact font-medium text-on-surface">Extended ({EXTENDED_WINNER_DAYS}+d)</span>
-              </div>
-              <span
-                title={formatTokenEstimateHover(SERVICE_SURCHARGES.EXTENDED_DAYS)}
-                className="ml-1 rounded bg-secondary/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-secondary"
+            <div className="group relative">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={filters.extendedLongevity}
+                aria-describedby="radar-extended-days-tooltip"
+                data-testid="radar-extended-days-toggle"
+                data-agent-id="radar-extended-days-toggle"
+                title={`Extended (${EXTENDED_WINNER_DAYS}+d): Uncovers rare evergreen flagship ads running continuously for ${EXTENDED_WINNER_DAYS}+ days with sustained ad spend (+${SERVICE_SURCHARGES.EXTENDED_DAYS} token • ${formatTokenEstimateHover(SERVICE_SURCHARGES.EXTENDED_DAYS, false)}).`}
+                onClick={() => onChange({ extendedLongevity: !filters.extendedLongevity })}
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
+                  filters.extendedLongevity
+                    ? "border-secondary/50 bg-secondary/15 text-on-surface shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+                    : "border-white/[0.08] bg-surface-container-low text-on-surface-variant hover:border-white/20"
+                }`}
               >
-                +{SERVICE_SURCHARGES.EXTENDED_DAYS}
-              </span>
-            </button>
+                <Icon name="layers" className="size-3.5 text-secondary" />
+                <div className="flex flex-col text-left">
+                  <span className="text-compact font-medium text-on-surface">Extended ({EXTENDED_WINNER_DAYS}+d)</span>
+                </div>
+                <span
+                  title={formatTokenEstimateHover(SERVICE_SURCHARGES.EXTENDED_DAYS, false)}
+                  className="ml-1 rounded bg-secondary/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-secondary"
+                >
+                  +{SERVICE_SURCHARGES.EXTENDED_DAYS}
+                </span>
+              </button>
+
+              <div
+                id="radar-extended-days-tooltip"
+                role="tooltip"
+                data-agent-id="radar-extended-days-tooltip"
+                data-testid="radar-extended-days-tooltip"
+                className="pointer-events-none invisible absolute top-full right-0 z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-secondary/30 bg-surface-container-highest/95 p-3 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 lg:right-0 lg:left-auto lg:translate-x-0"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[11px] font-bold text-secondary">
+                    Extended ({EXTENDED_WINNER_DAYS}+d)
+                  </span>
+                  <span className="rounded bg-secondary/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-secondary">
+                    {isAdmin ? "+0 tokens (Admin)" : `+${SERVICE_SURCHARGES.EXTENDED_DAYS} token (${formatTokenEstimateHover(SERVICE_SURCHARGES.EXTENDED_DAYS, false)})`}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-[11px] leading-snug text-on-surface-variant">
+                  Uncovers rare evergreen flagship ads running continuously for{" "}
+                  <span className="font-semibold text-on-surface">{EXTENDED_WINNER_DAYS}+ days</span> with fatigue-resistant hooks and sustained multi-month ad spend.
+                </p>
+              </div>
+            </div>
 
             {/* 3. Top Winners (90%+ Score) toggle */}
-            <button
-              type="button"
-              role="switch"
-              aria-checked={filters.eliteWinnersOnly}
-              data-testid="radar-elite-score-toggle"
-              data-agent-id="radar-elite-score-toggle"
-              onClick={() => onChange({ eliteWinnersOnly: !filters.eliteWinnersOnly })}
-              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
-                filters.eliteWinnersOnly
-                  ? "border-hot/50 bg-hot/15 text-on-surface shadow-[0_0_12px_rgba(239,68,68,0.2)]"
-                  : "border-white/[0.08] bg-surface-container-low text-on-surface-variant hover:border-white/20"
-              }`}
-            >
-              <Icon name="flame" className="size-3.5 text-hot" />
-              <div className="flex flex-col text-left">
-                <span className="text-compact font-medium text-on-surface">Top Winners ({ELITE_SCORE_THRESHOLD}%+)</span>
-              </div>
-              <span
-                title={formatTokenEstimateHover(SERVICE_SURCHARGES.ELITE_SCORE)}
-                className="ml-1 rounded bg-hot/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-hot"
+            <div className="group relative">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={filters.eliteWinnersOnly}
+                aria-describedby="radar-elite-score-tooltip"
+                data-testid="radar-elite-score-toggle"
+                data-agent-id="radar-elite-score-toggle"
+                title={`Top Winners (${ELITE_SCORE_THRESHOLD}%+): Isolates the elite top 1% of category-dominating ads scoring ${ELITE_SCORE_THRESHOLD}%+ on continuous duration, reach, and multi-adset scaling (+${SERVICE_SURCHARGES.ELITE_SCORE} token • ${formatTokenEstimateHover(SERVICE_SURCHARGES.ELITE_SCORE, false)}).`}
+                onClick={() => onChange({ eliteWinnersOnly: !filters.eliteWinnersOnly })}
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
+                  filters.eliteWinnersOnly
+                    ? "border-hot/50 bg-hot/15 text-on-surface shadow-[0_0_12px_rgba(239,68,68,0.2)]"
+                    : "border-white/[0.08] bg-surface-container-low text-on-surface-variant hover:border-white/20"
+                }`}
               >
-                +{SERVICE_SURCHARGES.ELITE_SCORE}
-              </span>
-            </button>
+                <Icon name="flame" className="size-3.5 text-hot" />
+                <div className="flex flex-col text-left">
+                  <span className="text-compact font-medium text-on-surface">Top Winners ({ELITE_SCORE_THRESHOLD}%+)</span>
+                </div>
+                <span
+                  title={formatTokenEstimateHover(SERVICE_SURCHARGES.ELITE_SCORE, false)}
+                  className="ml-1 rounded bg-hot/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-hot"
+                >
+                  +{SERVICE_SURCHARGES.ELITE_SCORE}
+                </span>
+              </button>
+
+              <div
+                id="radar-elite-score-tooltip"
+                role="tooltip"
+                data-agent-id="radar-elite-score-tooltip"
+                data-testid="radar-elite-score-tooltip"
+                className="pointer-events-none invisible absolute top-full left-0 z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-hot/30 bg-surface-container-highest/95 p-3 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100 sm:right-0 sm:left-auto"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[11px] font-bold text-hot">
+                    Top Winners ({ELITE_SCORE_THRESHOLD}%+)
+                  </span>
+                  <span className="rounded bg-hot/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-hot">
+                    {isAdmin ? "+0 tokens (Admin)" : `+${SERVICE_SURCHARGES.ELITE_SCORE} token (${formatTokenEstimateHover(SERVICE_SURCHARGES.ELITE_SCORE, false)})`}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-[11px] leading-snug text-on-surface-variant">
+                  Isolates the elite top 1% of category-dominating ads with a{" "}
+                  <span className="font-semibold text-on-surface">{ELITE_SCORE_THRESHOLD}%+ Radar Score</span> based on continuous duration, reach, and multi-adset scaling.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
