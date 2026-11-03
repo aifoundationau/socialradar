@@ -468,6 +468,7 @@ export function CustomizeView() {
                         onClick={() => removeLandingUrl(idx)}
                         className="flex size-10 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-error/15 hover:text-error"
                         aria-label={`Remove URL ${idx + 1}`}
+                        data-agent-id={`customize-remove-landing-url-${idx}`}
                         data-testid={`customize-remove-landing-url-${idx}`}
                       >
                         <Icon name="trash" className="size-4" />
@@ -573,6 +574,7 @@ export function CustomizeView() {
                 type="button"
                 onClick={loadCustomizeState}
                 aria-label="Refresh customize requests"
+                data-agent-id="customize-refresh-button"
                 data-testid="customize-refresh-button"
                 className="flex size-8 items-center justify-center rounded-lg text-on-surface-variant hover:bg-white/[0.08] hover:text-on-surface transition"
               >

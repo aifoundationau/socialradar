@@ -99,13 +99,23 @@ function Pager({ page, pageCount, onPage }: { page: number; pageCount: number; o
   const step = "flex size-11 items-center justify-center rounded border border-white/[0.08] bg-white/[0.03] text-on-surface transition-colors hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40 sm:size-9";
   return (
     <nav aria-label="Result pages" className="flex items-center justify-center gap-1.5">
-      <button type="button" className={step} disabled={page === 0} onClick={() => onPage(page - 1)} aria-label="Previous page">
+      <button
+        type="button"
+        data-agent-id="radar-page-prev"
+        data-testid="radar-page-prev"
+        className={step}
+        disabled={page === 0}
+        onClick={() => onPage(page - 1)}
+        aria-label="Previous page"
+      >
         <Icon name="chevronLeft" />
       </button>
       {Array.from({ length: pageCount }, (_, i) => (
         <button
           key={i}
           type="button"
+          data-agent-id={`radar-page-${i + 1}`}
+          data-testid={`radar-page-${i + 1}`}
           onClick={() => onPage(i)}
           aria-label={`Page ${i + 1}`}
           aria-current={i === page ? "page" : undefined}
@@ -120,6 +130,8 @@ function Pager({ page, pageCount, onPage }: { page: number; pageCount: number; o
       ))}
       <button
         type="button"
+        data-agent-id="radar-page-next"
+        data-testid="radar-page-next"
         className={step}
         disabled={page === pageCount - 1}
         onClick={() => onPage(page + 1)}
@@ -263,10 +275,16 @@ export function RadarView() {
 
       <div className="relative mx-auto w-full max-w-[1600px] space-y-5 px-3 py-5 sm:space-y-6 sm:px-6 sm:py-6">
         {searchError && (
-          <p className={alertError} role="alert">
+          <p className={alertError} role="alert" data-agent-id="radar-search-error" data-testid="radar-search-error">
             {searchError.message}{" "}
             {searchError.code === "INSUFFICIENT_TOKENS" && (
-              <Link href="/wallet#packs" className="font-semibold underline">
+              <Link
+                href="/wallet#packs"
+                data-agent-id="radar-error-buy-tokens-link"
+                data-testid="radar-error-buy-tokens-link"
+                aria-label="Buy tokens"
+                className="font-semibold underline"
+              >
                 Buy tokens
               </Link>
             )}
@@ -332,6 +350,9 @@ export function RadarView() {
                 {hiddenNewer > 0 && (
                   <button
                     type="button"
+                    data-agent-id="radar-show-newer-ads-button"
+                    data-testid="radar-show-newer-ads-button"
+                    aria-label={`Show ${hiddenNewer} newer ads`}
                     className={btnSecondary}
                     onClick={() => {
                       const next = { ...searched, provenWinnersOnly: false };

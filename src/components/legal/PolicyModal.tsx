@@ -90,6 +90,7 @@ export function PolicyModal({ initialPolicyId = "founder", isOpen, onClose }: Po
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
+            data-agent-id="close-policy-modal-button"
             data-testid="close-policy-modal-button"
             className="flex size-9 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-white/[0.08] hover:text-on-surface"
           >
@@ -106,6 +107,9 @@ export function PolicyModal({ initialPolicyId = "founder", isOpen, onClose }: Po
                 key={p.id}
                 type="button"
                 onClick={() => setSelectedId(p.id)}
+                data-agent-id={`policy-tab-${p.id}`}
+                data-testid={`policy-tab-${p.id}`}
+                aria-label={`View ${p.title}`}
                 className={`rounded-lg px-3 py-1.5 font-mono text-[11px] font-semibold transition whitespace-nowrap ${
                   isSelected
                     ? "bg-primary text-on-primary shadow-sm"
@@ -153,6 +157,9 @@ export function PolicyModal({ initialPolicyId = "founder", isOpen, onClose }: Po
           <button
             type="button"
             onClick={onClose}
+            data-agent-id="policy-footer-close-button"
+            data-testid="policy-footer-close-button"
+            aria-label="Close policy modal"
             className={btnSecondary}
           >
             Close

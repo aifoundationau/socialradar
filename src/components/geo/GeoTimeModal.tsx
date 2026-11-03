@@ -104,6 +104,8 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
           <button
             type="button"
             onClick={onClose}
+            data-agent-id="close-geo-modal-button"
+            data-testid="close-geo-modal-button"
             aria-label="Close modal"
             className="flex size-8 items-center justify-center rounded-lg text-on-surface-variant hover:bg-white/[0.08] hover:text-on-surface"
           >
@@ -112,7 +114,12 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
         </div>
 
         {/* Content Form */}
-        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          data-agent-id="geo-time-form"
+          data-testid="geo-time-form"
+          className="p-5 sm:p-6 space-y-4"
+        >
           {/* Autofind Trigger Button */}
           <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/10 p-3">
             <div className="text-xs">
@@ -128,6 +135,9 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
               type="button"
               onClick={handleAutofind}
               disabled={isAutofinding}
+              data-agent-id="geo-autofind-button"
+              data-testid="geo-autofind-button"
+              aria-label="Auto-detect location and weather"
               className="shrink-0 flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/20 px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary hover:text-on-primary disabled:opacity-50"
             >
               {isAutofinding ? (
@@ -162,6 +172,9 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
                 id="geo-suburb"
                 type="text"
                 required
+                data-agent-id="geo-suburb-input"
+                data-testid="geo-suburb-input"
+                aria-label="Suburb or City"
                 value={formData.suburb}
                 onChange={(e) => setFormData({ ...formData, suburb: e.target.value })}
                 className={field}
@@ -174,6 +187,9 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
                 id="geo-state"
                 type="text"
                 required
+                data-agent-id="geo-state-input"
+                data-testid="geo-state-input"
+                aria-label="State or Region"
                 value={formData.state}
                 onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                 className={field}
@@ -187,6 +203,9 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
               <label htmlFor="geo-country" className={label}>Country</label>
               <select
                 id="geo-country"
+                data-agent-id="geo-country-select"
+                data-testid="geo-country-select"
+                aria-label="Country"
                 value={formData.country}
                 onChange={(e) => {
                   const country = e.target.value;
@@ -207,6 +226,9 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
               <label htmlFor="geo-time-format" className={label}>Clock Format</label>
               <select
                 id="geo-time-format"
+                data-agent-id="geo-time-format-select"
+                data-testid="geo-time-format-select"
+                aria-label="Clock Format"
                 value={formData.timeFormat}
                 onChange={(e) => setFormData({ ...formData, timeFormat: e.target.value as "12h" | "24h" })}
                 className={field}
@@ -221,6 +243,9 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
             <label htmlFor="geo-date-format" className={label}>Date Format</label>
             <select
               id="geo-date-format"
+              data-agent-id="geo-date-format-select"
+              data-testid="geo-date-format-select"
+              aria-label="Date Format"
               value={formData.dateFormat}
               onChange={(e) => setFormData({ ...formData, dateFormat: e.target.value as any })}
               className={field}
@@ -235,12 +260,18 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
             <button
               type="button"
               onClick={onClose}
+              data-agent-id="geo-cancel-button"
+              data-testid="geo-cancel-button"
+              aria-label="Cancel location changes"
               className={btnSecondary}
             >
               Cancel
             </button>
             <button
               type="submit"
+              data-agent-id="geo-save-button"
+              data-testid="geo-save-button"
+              aria-label="Save Location"
               className={btnPrimary}
             >
               Save Location

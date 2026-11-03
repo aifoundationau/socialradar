@@ -57,6 +57,9 @@ export function VariationEditor({
                 type="button"
                 role="tab"
                 id={`variation-tab-${i}`}
+                data-agent-id={`variation-tab-${i}`}
+                data-testid={`variation-tab-${i}`}
+                aria-label={`Variation ${variationLetter(i)}: ${variation.angleName}`}
                 aria-selected={i === active}
                 aria-controls="variation-panel"
                 onClick={() => onSelect(i)}

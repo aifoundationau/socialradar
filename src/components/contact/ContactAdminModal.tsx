@@ -174,6 +174,7 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
             type="button"
             onClick={handleModalClose}
             aria-label="Close message window"
+            data-agent-id="close-contact-modal-button"
             data-testid="close-contact-modal-button"
             className="flex size-9 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-white/[0.08] hover:text-on-surface"
           >
@@ -305,7 +306,9 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
                 type="button"
                 onClick={handleModalClose}
                 className={btnSecondary}
+                data-agent-id="contact-cancel-button"
                 data-testid="contact-cancel-button"
+                aria-label="Cancel message"
               >
                 Cancel
               </button>
@@ -315,6 +318,7 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
                 className={btnPrimary}
                 data-testid="contact-submit-button"
                 data-agent-id="contact-submit-btn"
+                aria-label="Send message to Super Admin"
               >
                 {sending ? (
                   <>

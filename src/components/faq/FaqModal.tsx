@@ -134,6 +134,7 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
             type="button"
             onClick={onClose}
             aria-label="Close FAQ dialog"
+            data-agent-id="close-faq-modal-button"
             data-testid="close-faq-modal-button"
             className="flex size-8 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-white/[0.08] hover:text-on-surface"
           >
@@ -222,6 +223,9 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
               <button
                 type="button"
                 onClick={loadFaqs}
+                data-agent-id="faq-retry-button"
+                data-testid="faq-retry-button"
+                aria-label="Retry loading FAQs"
                 className={`${btnSecondary} mt-3 text-xs`}
               >
                 Retry
@@ -251,6 +255,9 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
                   <button
                     type="button"
                     onClick={() => setExpandedId(isExpanded ? null : faq.faqId)}
+                    data-agent-id={`faq-toggle-${faq.faqId}`}
+                    data-testid={`faq-toggle-${faq.faqId}`}
+                    aria-label={faq.question}
                     aria-expanded={isExpanded}
                     aria-controls={`faq-answer-${faq.faqId}`}
                     className="flex w-full items-start justify-between gap-3 p-4 text-left transition-colors"
@@ -295,6 +302,9 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
           <button
             type="button"
             onClick={onClose}
+            data-agent-id="faq-footer-close-button"
+            data-testid="faq-footer-close-button"
+            aria-label="Close FAQ window"
             className={`${btnSecondary} text-xs`}
           >
             Close

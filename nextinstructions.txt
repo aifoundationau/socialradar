@@ -83,7 +83,11 @@
 17. **Permanent Universal Top Header FAQ:**
    - **Header Nav & Mobile Action:** "FAQs" is unconditionally displayed at the top of the header across all screens (desktop nav link and mobile top header button with `helpCircle` icon) and inside the Account Menu.
    - **Universal Accessibility:** Visible to all users regardless of authentication status or role (`guest`, `supporter`, `admin`, `superadmin`).
+18. **100% DOM Automation Readiness & Website User Assistant Skill (`window.__AD_RADAR_AGENT__` & `skills/website-user-assistant/SKILL.md`):**
+   - **Zero Visual UI Impact:** Preserved the exact visual design, layout, colors, and typography across the entire app while adding comprehensive `data-agent-id`, `data-testid`, and `aria-label` bindings to every interactive element (`TopNavWallet`, `MobileTabBar`, `AppFooter`, `GeoTimeModal`, `PolicyModal`, `RadarFilterBar`, `RadarView`, `AdWinnerCard`, `RemixStudio`, `VariationEditor`, `CsvExportButton`, `BrandsManager`, `BrandForm`, `WalletView`, `TokenPacks`, `CheckoutBanner`, `CustomizeView`, `FaqModal`, `ContactAdminModal`, `SupporterModal`, `HomeCta`, `SignInCard`).
+   - **Headless DOM Agent Bridge (`src/lib/dom-agent-bridge.ts` & `src/components/agent/AgentDomBridge.tsx`):** Mounted `<AgentDomBridge />` in `src/app/layout.tsx`, exposing `<script id="ad-radar-agent-manifest" type="application/json">` and `window.__AD_RADAR_AGENT__` with 12 structured user workflows, slot-filling clarifying questions (`evaluateTaskReadiness`), intent detection (`detectUserIntent`), visibility & two-frame layout stability pre-checks (`preCheckElement`, `waitForLayoutStability`), and verified DOM actions (`click`, `fill`, `getLiveState`).
+   - **AI Agent Skill (`skills/website-user-assistant/SKILL.md`):** Created model-agnostic skill compatible with all AI models (including Gemini 2.5 Flash-Lite, Claude Haiku 4.5, and gpt-6-luna) for listening to users, asking one clarifying question at a time, and completing tasks end-to-end.
 
 ## Next Priority Actions
-1. Open http://localhost:3000 to verify that the FAQs button is visible at the top of the header across all roles and viewports.
+1. Open http://localhost:3000 to verify that the UI design is 100% untouched and `window.__AD_RADAR_AGENT__` is active in the browser DOM.
 2. Await next user directive.

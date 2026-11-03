@@ -317,6 +317,7 @@ export function BrandForm({ brand, onDone, onCancel }: { brand?: BrandProfile; o
                   onClick={() => removeLandingUrl(idx)}
                   className="flex size-10 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-error/15 hover:text-error"
                   aria-label={`Remove URL ${idx + 1}`}
+                  data-agent-id={`remove-landing-url-${idx}`}
                   data-testid={`remove-landing-url-${idx}`}
                   title="Remove this URL"
                 >

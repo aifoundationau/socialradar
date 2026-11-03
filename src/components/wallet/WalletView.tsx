@@ -17,10 +17,18 @@ export function WalletView() {
         <CheckoutBanner />
       </Suspense>
 
-      <section className={`${card} flex flex-wrap items-end justify-between gap-4`}>
+      <section
+        data-agent-id="wallet-balance-section"
+        data-testid="wallet-balance-section"
+        className={`${card} flex flex-wrap items-end justify-between gap-4`}
+      >
         <div>
           <h1 className={monoLabel}>Token balance</h1>
-          <p className="mt-2 flex items-center gap-2 font-mono text-[2.5rem] leading-none font-semibold text-secondary tabular-nums">
+          <p
+            data-agent-id="wallet-token-balance-value"
+            data-testid="wallet-token-balance-value"
+            className="mt-2 flex items-center gap-2 font-mono text-[2.5rem] leading-none font-semibold text-secondary tabular-nums"
+          >
             <Icon name="zap" className="size-7" />
             {profile ? profile.tokenBalance.toLocaleString("en-AU") : "–"}
           </p>

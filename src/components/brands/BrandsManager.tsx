@@ -209,7 +209,9 @@ export function BrandsManager() {
         <button
           type="button"
           onClick={() => setActiveTab("personal")}
+          data-agent-id="tab-personal-brands"
           data-testid="tab-personal-brands"
+          aria-label="View My Personal Brands"
           className={`flex items-center gap-2 rounded-xl px-4 py-2 font-mono text-sm font-semibold transition ${
             activeTab === "personal"
               ? "border border-primary/50 bg-primary/15 text-primary shadow-sm"
@@ -226,7 +228,9 @@ export function BrandsManager() {
         <button
           type="button"
           onClick={() => setActiveTab("global")}
+          data-agent-id="tab-global-brands"
           data-testid="tab-global-brands"
+          aria-label="View Global Brand Library"
           className={`flex items-center gap-2 rounded-xl px-4 py-2 font-mono text-sm font-semibold transition ${
             activeTab === "global"
               ? "border border-primary/50 bg-primary/15 text-primary shadow-sm"
@@ -309,6 +313,7 @@ export function BrandsManager() {
               role="dialog"
               aria-modal="true"
               className="rounded-2xl border border-secondary/40 bg-surface-container-high p-5 space-y-3 shadow-xl animate-fadeIn"
+              data-agent-id="duplicate-brand-dialog"
               data-testid="duplicate-brand-dialog"
             >
               <div className="flex items-center justify-between">
@@ -321,6 +326,9 @@ export function BrandsManager() {
                 <button
                   type="button"
                   onClick={() => setDuplicateTarget(null)}
+                  data-agent-id="close-duplicate-dialog-btn"
+                  data-testid="close-duplicate-dialog-btn"
+                  aria-label="Close duplicate brand dialog"
                   className="text-on-surface-variant hover:text-on-surface"
                 >
                   <Icon name="x" className="size-4" />
@@ -334,10 +342,12 @@ export function BrandsManager() {
                   type="text"
                   required
                   maxLength={100}
+                  aria-label="New Version Name"
                   className={`${field} flex-1`}
                   placeholder="New Version Name (e.g. Acme - Winter Campaign)"
                   value={duplicateVersionName}
                   onChange={(e) => setDuplicateVersionName(e.target.value)}
+                  data-agent-id="duplicate-version-name-input"
                   data-testid="duplicate-version-name-input"
                 />
                 <div className="flex items-center gap-2 shrink-0">
@@ -345,7 +355,9 @@ export function BrandsManager() {
                     type="submit"
                     className={btnPrimary}
                     disabled={busyId !== null}
+                    data-agent-id="confirm-duplicate-btn"
                     data-testid="confirm-duplicate-btn"
+                    aria-label="Create Duplicate Brand"
                   >
                     <Icon name="copy" className="size-4" />
                     {busyId ? "Duplicating…" : "Create Duplicate"}
@@ -353,6 +365,9 @@ export function BrandsManager() {
                   <button
                     type="button"
                     onClick={() => setDuplicateTarget(null)}
+                    data-agent-id="cancel-duplicate-btn"
+                    data-testid="cancel-duplicate-btn"
+                    aria-label="Cancel duplicate brand"
                     className={btnSecondary}
                   >
                     Cancel
@@ -365,6 +380,7 @@ export function BrandsManager() {
           {/* Empty State */}
           {brands.length === 0 ? (
             <div
+              data-agent-id="empty-brands-container"
               data-testid="empty-brands-container"
               className={`${card} flex flex-col items-center justify-center p-12 text-center`}
             >
@@ -380,6 +396,7 @@ export function BrandsManager() {
                   type="button"
                   data-testid="create-first-brand-empty-btn"
                   data-agent-id="create-first-brand-empty-btn"
+                  aria-label="Create your first brand"
                   className={btnPrimary}
                   onClick={() => setSlideOver({ isOpen: true, mode: "create" })}
                 >
@@ -389,6 +406,9 @@ export function BrandsManager() {
                 <button
                   type="button"
                   onClick={() => setActiveTab("global")}
+                  data-agent-id="browse-global-library-empty-btn"
+                  data-testid="browse-global-library-empty-btn"
+                  aria-label="Browse Global Library"
                   className={btnSecondary}
                 >
                   <Icon name="globe" className="size-4" />
@@ -482,6 +502,7 @@ export function BrandsManager() {
                       {urls.length > 1 ? (
                         <select
                           aria-label={`Landing page URLs for ${b.brandName}`}
+                          data-agent-id={`brand-url-select-${b.brandId}`}
                           data-testid={`brand-url-select-${b.brandId}`}
                           className={`${field} py-1 text-compact`}
                           value={activeUrl}
@@ -500,6 +521,9 @@ export function BrandsManager() {
                         href={activeUrl}
                         target="_blank"
                         rel="noopener noreferrer"
+                        data-agent-id={`brand-active-url-link-${b.brandId}`}
+                        data-testid={`brand-active-url-link-${b.brandId}`}
+                        aria-label={`Open ${activeUrl}`}
                         className="flex items-center gap-1.5 truncate font-mono text-mono-code text-primary hover:underline pt-0.5"
                         title={activeUrl}
                       >
@@ -512,6 +536,7 @@ export function BrandsManager() {
                     <div className="mt-auto pt-2">
                       {isDeleting ? (
                         <div
+                          data-agent-id={`confirm-delete-box-${b.brandId}`}
                           data-testid={`confirm-delete-box-${b.brandId}`}
                           className="rounded-lg border border-error/40 bg-error/10 p-3 space-y-2.5"
                         >
@@ -524,6 +549,7 @@ export function BrandsManager() {
                               className={btnDanger}
                               data-testid="confirm-delete-button"
                               data-agent-id="confirm-delete-button"
+                              aria-label={`Confirm delete ${b.brandName}`}
                               onClick={() => remove(b)}
                               disabled={busyId !== null}
                             >
@@ -533,6 +559,9 @@ export function BrandsManager() {
                             <button
                               type="button"
                               className={btnSecondary}
+                              data-agent-id={`cancel-delete-brand-${b.brandId}`}
+                              data-testid={`cancel-delete-brand-${b.brandId}`}
+                              aria-label="Cancel delete brand"
                               onClick={() => setConfirmDeleteId(null)}
                               disabled={busyId !== null}
                             >
@@ -548,6 +577,9 @@ export function BrandsManager() {
                               className={`${btnSecondary} py-1 px-2.5 text-xs`}
                               onClick={() => makeActive(b)}
                               disabled={busyId !== null}
+                              data-agent-id={`make-active-brand-${b.brandId}`}
+                              data-testid={`make-active-brand-${b.brandId}`}
+                              aria-label={`Make ${b.brandName} active`}
                               title="Make this your active brand for searches and remixes"
                             >
                               Make active
@@ -558,6 +590,9 @@ export function BrandsManager() {
                             className={`${btnSecondary} py-1 px-2.5 text-xs`}
                             onClick={() => setSlideOver({ isOpen: true, mode: "edit", brand: b })}
                             disabled={busyId !== null}
+                            data-agent-id={`edit-brand-btn-${b.brandId}`}
+                            data-testid={`edit-brand-btn-${b.brandId}`}
+                            aria-label={`Edit ${b.brandName}`}
                             title="Edit this brand"
                           >
                             <Icon name="pencil" className="size-3" />
@@ -572,7 +607,9 @@ export function BrandsManager() {
                             }}
                             disabled={busyId !== null}
                             title="Duplicate this brand to create a new campaign or iteration"
+                            data-agent-id={`duplicate-brand-btn-${b.brandId}`}
                             data-testid={`duplicate-brand-btn-${b.brandId}`}
+                            aria-label={`Duplicate ${b.brandName}`}
                           >
                             <Icon name="copy" className="size-3" />
                             Duplicate
@@ -585,7 +622,9 @@ export function BrandsManager() {
                             onClick={() => handleToggleGlobal(b)}
                             disabled={busyId !== null}
                             title={b.isGlobal ? "Make this brand private" : "Share this brand globally"}
+                            data-agent-id={`toggle-global-btn-${b.brandId}`}
                             data-testid={`toggle-global-btn-${b.brandId}`}
+                            aria-label={b.isGlobal ? `Make ${b.brandName} private` : `Make ${b.brandName} global`}
                           >
                             <Icon name="globe" className="size-3" />
                             {b.isGlobal ? "Make Private" : "Make Global"}
@@ -595,6 +634,9 @@ export function BrandsManager() {
                             className={`${btnDanger} py-1 px-2.5 text-xs ml-auto`}
                             onClick={() => setConfirmDeleteId(b.brandId)}
                             disabled={busyId !== null}
+                            data-agent-id={`delete-brand-btn-${b.brandId}`}
+                            data-testid={`delete-brand-btn-${b.brandId}`}
+                            aria-label={`Delete ${b.brandName}`}
                             title="Delete brand"
                           >
                             <Icon name="trash" className="size-3" />
@@ -629,8 +671,10 @@ export function BrandsManager() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") fetchGlobalBrands(searchQuery, selectedTone);
                   }}
+                  aria-label="Search global brands"
                   placeholder="Search global brands by name, product, audience, or pain points..."
                   className={`${field} pl-9`}
+                  data-agent-id="global-search-input"
                   data-testid="global-search-input"
                 />
               </div>
@@ -641,7 +685,9 @@ export function BrandsManager() {
                   setSelectedTone(e.target.value);
                   fetchGlobalBrands(searchQuery, e.target.value);
                 }}
+                aria-label="Filter global brands by tone of voice"
                 className={`${field} sm:w-48`}
+                data-agent-id="global-tone-filter"
                 data-testid="global-tone-filter"
               >
                 <option value="ALL">All Tones</option>
@@ -656,7 +702,9 @@ export function BrandsManager() {
                 onClick={() => fetchGlobalBrands(searchQuery, selectedTone)}
                 disabled={globalLoading}
                 className={btnPrimary}
+                data-agent-id="global-search-btn"
                 data-testid="global-search-btn"
+                aria-label="Search Global Brand Library"
               >
                 <Icon name="search" className="size-4" />
                 {globalLoading ? "Searching…" : "Search"}
@@ -786,7 +834,9 @@ export function BrandsManager() {
                         disabled={isCloning}
                         title={cloneFee === 0 ? "Free to copy" : formatTokenEstimateHover(cloneFee, false, audRate)}
                         className={`${btnPrimary} py-1.5 px-3 text-xs flex items-center gap-1.5 cursor-pointer`}
+                        data-agent-id={`clone-global-brand-${gb.brandId}`}
                         data-testid={`clone-global-brand-${gb.brandId}`}
+                        aria-label={`Make a copy of ${gb.brandName} for myself`}
                       >
                         <Icon name="copy" className="size-3.5" />
                         {isCloning ? (

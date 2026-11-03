@@ -23,7 +23,11 @@ export function SignInCard({ title = "Sign in to AdRadar" }: { title?: string })
   }
 
   return (
-    <div className={`${card} relative mx-auto w-full max-w-sm space-y-5 text-center shadow-[0_12px_32px_-4px_rgba(0,0,0,0.6)]`}>
+    <div
+      className={`${card} relative mx-auto w-full max-w-sm space-y-5 text-center shadow-[0_12px_32px_-4px_rgba(0,0,0,0.6)]`}
+      data-agent-id="signin-card"
+      data-testid="signin-card"
+    >
       <div className="flex justify-center">
         <Logo />
       </div>
@@ -31,10 +35,18 @@ export function SignInCard({ title = "Sign in to AdRadar" }: { title?: string })
         <h1 className="text-headline-md font-semibold">{title}</h1>
         <p className="text-body text-on-surface-variant">Find ads that have been running for weeks, then remix them for your brand.</p>
       </div>
-      <button type="button" className={`${btnPrimary} w-full`} onClick={handleSignIn} disabled={pending}>
+      <button
+        type="button"
+        className={`${btnPrimary} w-full`}
+        onClick={handleSignIn}
+        disabled={pending}
+        data-agent-id="signin-card-google-button"
+        data-testid="signin-card-google-button"
+        aria-label="Continue with Google to sign in"
+      >
         {pending ? "Opening Google…" : "Continue with Google"}
       </button>
-      {error && <p className={alertError}>{error}</p>}
+      {error && <p className={alertError} role="alert">{error}</p>}
     </div>
   );
 }

@@ -110,6 +110,8 @@ function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
           <button
             type="button"
             onClick={toggle}
+            data-agent-id={`ad-video-toggle-${ad.adId}`}
+            data-testid={`ad-video-toggle-${ad.adId}`}
             aria-label={playing ? "Pause ad video" : "Play ad video"}
             className="group absolute inset-0 flex items-center justify-center bg-black/25 transition hover:bg-black/40 focus:outline-none"
           >
@@ -198,6 +200,8 @@ export function AdWinnerCard({
 
   return (
     <article
+      data-agent-id={`ad-winner-card-${ad.adId}`}
+      data-testid={`ad-winner-card-${ad.adId}`}
       className={`relative flex h-full flex-col rounded-xl border bg-surface-container-low transition ${
         selected
           ? "border-primary-container shadow-[0_0_24px_rgba(128,131,255,0.18)] ring-1 ring-primary-container"
@@ -259,6 +263,9 @@ export function AdWinnerCard({
               <button
                 type="button"
                 onClick={() => setExpanded((e) => !e)}
+                data-agent-id={`ad-expand-copy-${ad.adId}`}
+                data-testid={`ad-expand-copy-${ad.adId}`}
+                aria-label={expanded ? "Show less ad copy" : "Show full ad copy"}
                 aria-expanded={expanded}
                 className="self-start py-1 font-mono text-[11px] text-primary hover:underline"
               >
@@ -270,6 +277,9 @@ export function AdWinnerCard({
                 href={ad.landingPageUrl}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
+                data-agent-id={`ad-landing-link-${ad.adId}`}
+                data-testid={`ad-landing-link-${ad.adId}`}
+                aria-label={`Open landing page for ${ad.advertiserName || "advertiser"}`}
                 className="flex items-center gap-1 self-start font-mono text-[11px] text-on-surface-variant hover:text-primary"
               >
                 <span className="truncate">{hostname(ad.landingPageUrl)}</span>
@@ -346,6 +356,9 @@ export function AdWinnerCard({
         <button
           type="button"
           onClick={onModel}
+          data-agent-id={`ad-model-button-${ad.adId}`}
+          data-testid={`ad-model-button-${ad.adId}`}
+          aria-label={`Model ad by ${ad.advertiserName || "advertiser"}`}
           className={`mt-auto flex h-11 w-full items-center justify-center gap-1.5 rounded-lg text-body transition sm:h-9 ${
             selected
               ? "bg-gradient-to-r from-primary-container via-primary to-secondary font-bold text-surface-container-lowest shadow-[0_0_18px_rgba(128,131,255,0.4)] hover:brightness-110"

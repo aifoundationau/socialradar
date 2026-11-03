@@ -127,7 +127,14 @@ export function CsvExportButton({ onExported, ...input }: ExportInput & { onExpo
 
   return (
     <>
-      <button type="button" popoverTarget="csv-export-menu" className={`${btnSecondary} hover:border-secondary hover:text-secondary`}>
+      <button
+        type="button"
+        popoverTarget="csv-export-menu"
+        data-agent-id="csv-export-trigger-button"
+        data-testid="csv-export-trigger-button"
+        aria-label="Open CSV export menu"
+        className={`${btnSecondary} hover:border-secondary hover:text-secondary`}
+      >
         <Icon name="download" className="text-secondary" />
         Export CSV
         <Icon name="chevronDown" className="size-3.5" />
@@ -136,6 +143,8 @@ export function CsvExportButton({ onExported, ...input }: ExportInput & { onExpo
         id="csv-export-menu"
         ref={menu}
         popover="auto"
+        data-agent-id="csv-export-menu"
+        data-testid="csv-export-menu"
         className="inset-x-3 top-auto bottom-[calc(4.5rem+env(safe-area-inset-bottom))] m-0 w-auto rounded-xl border border-white/[0.12] bg-surface-container-high p-1 text-on-surface shadow-[0_12px_32px_-4px_rgba(0,0,0,0.6)] sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-80 sm:-translate-x-1/2 sm:-translate-y-1/2"
       >
         <p className="px-3 pt-2 pb-1 font-mono text-mono-label text-outline uppercase">Export as CSV</p>
@@ -143,6 +152,9 @@ export function CsvExportButton({ onExported, ...input }: ExportInput & { onExpo
           <button
             key={e.id}
             type="button"
+            data-agent-id={`csv-export-option-${e.id}`}
+            data-testid={`csv-export-option-${e.id}`}
+            aria-label={`Export CSV for ${e.label}`}
             onClick={() => {
               const { name, rows } = e.build(input);
               downloadCsv(`adradar-${slug(input.ad.advertiserName)}-${name}.csv`, rows);

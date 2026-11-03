@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { SessionProvider } from "@/components/auth/SessionProvider";
+import { AgentDomBridge } from "@/components/agent/AgentDomBridge";
 import "./globals.css";
 
 const inter = Inter({
@@ -31,7 +32,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}>
       <body className="flex min-h-dvh flex-col bg-background font-sans text-on-surface">
-        <SessionProvider>{children}</SessionProvider>
+        <SessionProvider>
+          {children}
+          <AgentDomBridge />
+        </SessionProvider>
       </body>
     </html>
   );

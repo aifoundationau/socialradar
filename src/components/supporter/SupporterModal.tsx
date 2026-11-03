@@ -240,7 +240,9 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                     onClose();
                   }}
                   className="rounded-lg bg-primary/20 border border-primary/30 px-2.5 py-1 font-mono text-[11px] font-bold text-primary hover:bg-primary/30 transition"
+                  data-agent-id="supporter-switch-to-superadmin"
                   data-testid="supporter-switch-to-superadmin"
+                  aria-label="Return to Super Admin"
                 >
                   Return to Super Admin
                 </button>
@@ -250,6 +252,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
               type="button"
               onClick={onClose}
               aria-label="Close Supporter Panel"
+              data-agent-id="close-supporter-modal-button"
               data-testid="close-supporter-modal-button"
               className="flex size-9 items-center justify-center rounded-xl text-on-surface-variant hover:bg-white/[0.06] hover:text-on-surface transition"
             >
@@ -351,7 +354,9 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                   <button
                     type="button"
                     onClick={() => setTab("BUY_TOKENS")}
+                    data-agent-id="tokens-tab-buy-more-button"
                     data-testid="tokens-tab-buy-more-button"
+                    aria-label="Buy More Tokens"
                     className={`${btnPrimary} flex items-center gap-2`}
                   >
                     <Icon name="plus" className="size-4" />
@@ -389,6 +394,8 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                       onChange={(e) => setSearchFilter(e.target.value)}
                       placeholder="Search query, reference or tx ID…"
                       className={`${field} pl-9 font-mono text-xs`}
+                      aria-label="Filter token activity by keyword or transaction ID"
+                      data-agent-id="supporter-search-input"
                       data-testid="supporter-search-input"
                     />
                   </div>
@@ -398,6 +405,8 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                       value={platformFilter}
                       onChange={(e) => setPlatformFilter(e.target.value as typeof platformFilter)}
                       className={`${field} font-mono text-xs`}
+                      aria-label="Filter token activity by platform"
+                      data-agent-id="supporter-platform-filter"
                       data-testid="supporter-platform-filter"
                     >
                       <option value="ALL">All Platforms</option>
@@ -412,6 +421,8 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                       value={typeFilter}
                       onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
                       className={`${field} font-mono text-xs`}
+                      aria-label="Filter token activity by transaction type"
+                      data-agent-id="supporter-type-filter"
                       data-testid="supporter-type-filter"
                     >
                       <option value="ALL">All Activity</option>
@@ -533,6 +544,9 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                 <button
                   type="button"
                   onClick={() => setTab("TOKENS")}
+                  data-agent-id="supporter-view-balance-btn"
+                  data-testid="supporter-view-balance-btn"
+                  aria-label="View token balance"
                   className="font-mono text-xs text-primary hover:underline flex items-center gap-1"
                 >
                   <Icon name="chevronLeft" className="size-3" />
@@ -570,7 +584,9 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                         ? "bg-primary text-on-primary shadow-sm"
                         : "text-on-surface-variant hover:text-on-surface"
                     }`}
+                    data-agent-id="message-tab-history"
                     data-testid="message-tab-history"
+                    aria-label="View Message Inbox"
                   >
                     Inbox ({messages.length})
                   </button>
@@ -582,7 +598,9 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                         ? "bg-primary text-on-primary shadow-sm"
                         : "text-on-surface-variant hover:text-on-surface"
                     }`}
+                    data-agent-id="message-tab-compose"
                     data-testid="message-tab-compose"
+                    aria-label="Compose Message"
                   >
                     Compose Message
                   </button>
@@ -612,6 +630,9 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                       <button
                         type="button"
                         onClick={() => setMessageTab("COMPOSE")}
+                        data-agent-id="supporter-send-first-message-btn"
+                        data-testid="supporter-send-first-message-btn"
+                        aria-label="Send First Message"
                         className={btnPrimary}
                       >
                         Send First Message
@@ -675,6 +696,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                       placeholder="e.g. Question about custom brand strategy or token receipt"
                       className={field}
                       required
+                      data-agent-id="supporter-compose-subject"
                       data-testid="supporter-compose-subject"
                     />
                   </div>
@@ -697,6 +719,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                       placeholder="Type your message clearly here. Links and external URLs are prohibited for safety."
                       className={`${field} resize-none font-sans`}
                       required
+                      data-agent-id="supporter-compose-body"
                       data-testid="supporter-compose-body"
                     />
                   </div>
@@ -709,6 +732,9 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                       <button
                         type="button"
                         onClick={() => setMessageTab("HISTORY")}
+                        data-agent-id="supporter-cancel-compose"
+                        data-testid="supporter-cancel-compose"
+                        aria-label="Cancel message"
                         className={btnSecondary}
                       >
                         Cancel
@@ -717,7 +743,9 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                         type="submit"
                         disabled={sendingMessage || composeHasLinks}
                         className={btnPrimary}
+                        data-agent-id="supporter-submit-message"
                         data-testid="supporter-submit-message"
+                        aria-label="Send Message"
                       >
                         {sendingMessage ? "Sending…" : "Send Message"}
                       </button>

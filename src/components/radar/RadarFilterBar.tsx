@@ -26,12 +26,14 @@ const isApple = () => /Mac|iPhone|iPad/.test(navigator.userAgent);
 
 function SelectPill<T extends string>({
   label,
+  agentId,
   icon,
   value,
   options,
   onChange,
 }: {
   label: string;
+  agentId: string;
   icon: IconName;
   value: T;
   options: { value: T; label: string }[];
@@ -42,6 +44,9 @@ function SelectPill<T extends string>({
       <span className="sr-only">{label}</span>
       <Icon name={icon} className="pointer-events-none absolute left-2.5 size-3.5 text-secondary" />
       <select
+        data-agent-id={agentId}
+        data-testid={agentId}
+        aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
         className="h-10 appearance-none rounded border border-white/[0.08] bg-surface-container-low pr-7 pl-8 font-mono text-base text-on-surface transition hover:border-outline-variant focus:border-primary-container focus:outline-none sm:h-8 sm:text-mono-code"
@@ -146,7 +151,13 @@ export function RadarFilterBar({
       aria-label="Radar filters"
       className="relative z-30 border-b border-white/[0.06] bg-surface-container-lowest/95 shadow-lg backdrop-blur-xl md:sticky md:top-[calc(3.5rem+env(safe-area-inset-top))]"
     >
-      <form role="search" onSubmit={submit} className="mx-auto flex w-full max-w-[1600px] flex-col gap-3 px-3 py-3 sm:px-6">
+      <form
+        role="search"
+        onSubmit={submit}
+        data-agent-id="radar-search-form"
+        data-testid="radar-search-form"
+        className="mx-auto flex w-full max-w-[1600px] flex-col gap-3 px-3 py-3 sm:px-6"
+      >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           {/* Brand selector */}
           <div className="flex shrink-0 items-center lg:order-1">
@@ -163,6 +174,8 @@ export function RadarFilterBar({
                 ref={input}
                 type="search"
                 enterKeyHint="search"
+                data-agent-id="radar-search-input"
+                data-testid="radar-search-input"
                 aria-label="Search keywords, hooks or competitor brands"
                 placeholder={filters.platform === "GOOGLE" ? "Brand name or website, e.g. nike.com" : "Keywords, hooks or competitor brands…"}
                 value={filters.query}
@@ -176,6 +189,8 @@ export function RadarFilterBar({
             </div>
             <button
               type="submit"
+              data-agent-id="radar-search-submit-button"
+              data-testid="radar-search-submit-button"
               className={`${btnPrimary} shrink-0`}
               disabled={searching}
               aria-label={isAdmin ? "Search (0 tokens • Superadmin Free)" : totalCost > 0 ? `Search (${totalCost} tokens)` : "Search (Free)"}
@@ -216,6 +231,9 @@ export function RadarFilterBar({
                     type="button"
                     role="radio"
                     aria-checked={active}
+                    aria-label={`Select ${PLATFORMS[p].label} ad library`}
+                    data-agent-id={`radar-platform-${p.toLowerCase()}`}
+                    data-testid={`radar-platform-${p.toLowerCase()}`}
                     onClick={() => onChange({ platform: p })}
                     className={`flex h-9 items-center gap-2 rounded px-3 font-mono text-mono-code font-medium whitespace-nowrap transition sm:h-7 ${
                       active
@@ -313,9 +331,17 @@ export function RadarFilterBar({
         </div>
 
         <div className="-mx-3 flex items-center gap-2 overflow-x-auto border-t border-white/[0.04] px-3 pt-3 no-scrollbar sm:mx-0 sm:flex-wrap sm:px-0">
-          <SelectPill label="Country" icon="globe" value={filters.country} options={COUNTRIES} onChange={(country) => onChange({ country })} />
+          <SelectPill
+            label="Country"
+            agentId="radar-country-select"
+            icon="globe"
+            value={filters.country}
+            options={COUNTRIES}
+            onChange={(country) => onChange({ country })}
+          />
           <SelectPill
             label="Format"
+            agentId="radar-format-select"
             icon="film"
             value={filters.mediaType}
             options={MEDIA_FILTERS}
@@ -330,6 +356,9 @@ export function RadarFilterBar({
                 type="button"
                 role="radio"
                 aria-checked={sort === s.value}
+                aria-label={`Sort by ${s.label}`}
+                data-agent-id={`radar-sort-${s.value.toLowerCase()}`}
+                data-testid={`radar-sort-${s.value.toLowerCase()}`}
                 onClick={() => onSort(s.value)}
                 className={`flex h-9 items-center gap-1 rounded px-2.5 text-compact whitespace-nowrap transition-colors sm:h-7 ${
                   sort === s.value

@@ -18,6 +18,9 @@ export function CheckoutBanner() {
       </p>
       <button
         type="button"
+        data-agent-id="checkout-banner-dismiss"
+        data-testid="checkout-banner-dismiss"
+        aria-label="Dismiss checkout status banner"
         className="shrink-0 font-medium underline-offset-2 hover:underline"
         onClick={() => router.replace("/wallet", { scroll: false })}
       >

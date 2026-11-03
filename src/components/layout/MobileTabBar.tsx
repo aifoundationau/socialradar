@@ -16,6 +16,7 @@ function Tabs({ pathname }: { pathname: string | null }) {
         <div
           role="region"
           aria-label="My Brands Guide"
+          data-agent-id="brands-mobile-explanation"
           data-testid="brands-mobile-explanation"
           className="absolute bottom-full left-2 right-2 mb-2 rounded-2xl border border-white/[0.16] bg-surface-container-high p-4 text-on-surface shadow-[0_-12px_36px_rgba(0,0,0,0.6)] backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-200"
         >
@@ -27,6 +28,8 @@ function Tabs({ pathname }: { pathname: string | null }) {
             <button
               type="button"
               onClick={() => setIsBrandsHelpOpen(false)}
+              data-agent-id="brands-mobile-help-close"
+              data-testid="brands-mobile-help-close"
               aria-label="Close explanation"
               className="rounded-full p-1 text-on-surface-variant hover:bg-white/[0.08] hover:text-on-surface"
             >
@@ -61,6 +64,9 @@ function Tabs({ pathname }: { pathname: string | null }) {
             <Link
               href="/brands"
               onClick={() => setIsBrandsHelpOpen(false)}
+              data-agent-id="brands-mobile-help-open-link"
+              data-testid="brands-mobile-help-open-link"
+              aria-label="Open Brands workspace"
               className="rounded-lg bg-primary px-3 py-1 font-mono text-[11px] font-semibold text-on-primary hover:bg-primary-fixed transition"
             >
               Open Brands →
@@ -76,11 +82,15 @@ function Tabs({ pathname }: { pathname: string | null }) {
         {NAV.map(({ href, short, icon }) => {
           const active = isActivePath(pathname, href);
           const isBrands = href === "/brands";
+          const slug = href.replace(/^\//, "");
 
           return (
             <li key={href} className="relative">
               <Link
                 href={href}
+                data-agent-id={`mobile-tab-${slug}`}
+                data-testid={`mobile-tab-${slug}`}
+                aria-label={`Navigate to ${short}`}
                 aria-current={active ? "page" : undefined}
                 className={`relative flex h-14 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors ${
                   active ? "text-primary" : "text-on-surface-variant"
@@ -101,6 +111,7 @@ function Tabs({ pathname }: { pathname: string | null }) {
                       }}
                       title="Explain My Brands section"
                       aria-label="Explain My Brands section"
+                      data-agent-id="brands-info-toggle-btn"
                       data-testid="brands-info-toggle-btn"
                       className="absolute -top-1 -right-3 flex size-3.5 items-center justify-center rounded-full border border-primary/40 bg-primary/20 text-[9px] font-bold text-primary transition hover:scale-110 hover:bg-primary hover:text-on-primary"
                     >

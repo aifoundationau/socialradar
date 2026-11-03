@@ -68,7 +68,9 @@ export function AppFooter() {
               <button
                 type="button"
                 onClick={() => setIsGeoModalOpen(true)}
+                data-agent-id="geo-chip-location"
                 data-testid="geo-chip-location"
+                aria-label={`Change location or autofind (current: ${geoConfig.suburb}, ${geoConfig.state})`}
                 title="Click to change location or autofind"
                 className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container px-3 py-1 text-on-surface transition-all hover:border-primary/40 hover:text-primary active:scale-95"
               >
@@ -87,7 +89,9 @@ export function AppFooter() {
               <button
                 type="button"
                 onClick={() => setIsGeoModalOpen(true)}
+                data-agent-id="geo-chip-weather"
                 data-testid="geo-chip-weather"
+                aria-label="Configure location and live weather"
                 title="Live weather for detected location"
                 className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container px-3 py-1 text-on-surface-variant transition-all hover:border-amber-400/40 hover:text-amber-300 active:scale-95"
               >
@@ -101,6 +105,7 @@ export function AppFooter() {
             {/* Right chips: Currency Gate, Live Clock & Settings Button */}
             <div className="flex flex-wrap items-center gap-2">
               <div
+                data-agent-id="geo-chip-currency"
                 data-testid="geo-chip-currency"
                 className="flex items-center gap-1.5 rounded-full border border-secondary/30 bg-secondary/10 px-3 py-1 text-[11px] font-medium text-secondary"
               >
@@ -115,7 +120,9 @@ export function AppFooter() {
               <button
                 type="button"
                 onClick={() => setIsGeoModalOpen(true)}
+                data-agent-id="geo-chip-clock"
                 data-testid="geo-chip-clock"
+                aria-label="Configure clock, date format, and location"
                 title="Click to configure clock, date format, and location"
                 className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container px-3 py-1 text-on-surface transition-all hover:border-primary/40 hover:text-primary active:scale-95"
               >
@@ -153,6 +160,7 @@ export function AppFooter() {
               type="button"
               data-testid="policy-btn-founder"
               data-agent-id="policy-btn-founder"
+              aria-label="Open Founder Welcome (David Robertson)"
               onClick={() => setActivePolicy("founder")}
               className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1.5 text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
             >
@@ -163,6 +171,7 @@ export function AppFooter() {
               type="button"
               data-testid="policy-btn-privacy"
               data-agent-id="policy-btn-privacy"
+              aria-label="Open Privacy Policy"
               onClick={() => setActivePolicy("privacy")}
               className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1.5 text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
             >
@@ -173,6 +182,7 @@ export function AppFooter() {
               type="button"
               data-testid="policy-btn-terms"
               data-agent-id="policy-btn-terms"
+              aria-label="Open Terms of Service"
               onClick={() => setActivePolicy("terms")}
               className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1.5 text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
             >
@@ -183,6 +193,7 @@ export function AppFooter() {
               type="button"
               data-testid="policy-btn-aipolicy"
               data-agent-id="policy-btn-aipolicy"
+              aria-label="Open AI Policy (ISO/IEC 42001)"
               onClick={() => setActivePolicy("aiPolicy")}
               className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1.5 text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
             >
@@ -193,6 +204,7 @@ export function AppFooter() {
               type="button"
               data-testid="policy-btn-securitypolicy"
               data-agent-id="policy-btn-securitypolicy"
+              aria-label="Open Security Policy (ISO/IEC 27001)"
               onClick={() => setActivePolicy("securityPolicy")}
               className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1.5 text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
             >

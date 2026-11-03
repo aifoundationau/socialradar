@@ -222,6 +222,7 @@ export function TokenPacks() {
                 type="button"
                 data-testid={`buy-${pack.id.toLowerCase()}`}
                 data-agent-id={`buy-${pack.id.toLowerCase()}`}
+                aria-label={`Buy ${pack.tokens} tokens for ${audPriceStr}`}
                 className={`${best ? btnPrimary : btnSecondary} mt-auto w-full`}
                 onClick={() => buy(pack.id)}
                 disabled={pending !== null}
@@ -234,6 +235,7 @@ export function TokenPacks() {
 
         {/* 4th Card: Custom Pack */}
         <li
+          data-agent-id="pack-custom"
           data-testid="pack-custom"
           className={`${card} relative flex flex-col gap-3 border-white/20`}
         >
@@ -257,6 +259,9 @@ export function TokenPacks() {
                 type="number"
                 min={1}
                 max={100000}
+                data-agent-id="custom-token-input"
+                data-testid="custom-token-input"
+                aria-label="Custom quantity of tokens"
                 value={customTokens || ""}
                 onChange={(e) => setCustomTokens(Math.max(1, parseInt(e.target.value, 10) || 1))}
                 className={`${field} py-1.5 px-2.5 font-mono text-sm`}
@@ -269,6 +274,9 @@ export function TokenPacks() {
                 <button
                   key={n}
                   type="button"
+                  data-agent-id={`custom-token-add-${n}`}
+                  data-testid={`custom-token-add-${n}`}
+                  aria-label={`Add ${n} tokens to custom quantity`}
                   onClick={() => setCustomTokens((prev) => Math.min(100000, (prev || 0) + n))}
                   className="rounded bg-white/5 border border-white/10 px-1.5 py-0.5 text-[10px] font-mono text-on-surface-variant hover:border-primary/40 hover:text-primary transition"
                 >
@@ -277,6 +285,9 @@ export function TokenPacks() {
               ))}
               <button
                 type="button"
+                data-agent-id="custom-token-reset"
+                data-testid="custom-token-reset"
+                aria-label="Reset custom token quantity to 10"
                 onClick={() => setCustomTokens(10)}
                 className="rounded bg-white/5 border border-white/10 px-1.5 py-0.5 text-[10px] font-mono text-outline hover:text-on-surface transition"
               >
@@ -304,6 +315,7 @@ export function TokenPacks() {
             type="button"
             data-testid="buy-pack-custom"
             data-agent-id="buy-pack-custom"
+            aria-label={`Buy ${customTokens || 0} custom tokens`}
             className={`${btnSecondary} mt-auto w-full`}
             onClick={() => buy("PACK_CUSTOM", customTokens)}
             disabled={pending !== null || !customTokens || customTokens < 1}

@@ -20,7 +20,13 @@ function ErrorNote({ error, className = "" }: { error: RemixError; className?: s
     <p className={`${alertError} ${className}`}>
       {error.message}{" "}
       {error.code === "INSUFFICIENT_TOKENS" && (
-        <Link href="/wallet#packs" className="font-semibold underline">
+        <Link
+          href="/wallet#packs"
+          data-agent-id="remix-error-buy-tokens-link"
+          data-testid="remix-error-buy-tokens-link"
+          aria-label="Buy tokens"
+          className="font-semibold underline"
+        >
           Buy tokens
         </Link>
       )}
@@ -119,6 +125,8 @@ export function RemixStudio({
     <section
       ref={ref}
       aria-labelledby="remix-studio-title"
+      data-agent-id="remix-studio-section"
+      data-testid="remix-studio-section"
       className="scroll-mt-20 overflow-hidden rounded-2xl border border-white/[0.08] bg-surface-container-lowest shadow-2xl md:scroll-mt-44"
     >
       <header className="flex flex-col gap-3 border-b border-white/[0.08] bg-surface-container-low px-3 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
@@ -144,7 +152,14 @@ export function RemixStudio({
         {remix && (
           <div className="flex flex-wrap gap-2">
             <CsvExportButton remix={remix} ad={ad} brand={brand} onExported={notify} />
-            <button type="button" onClick={copyScript} className={btnSecondary}>
+            <button
+              type="button"
+              onClick={copyScript}
+              data-agent-id="remix-copy-script-button"
+              data-testid="remix-copy-script-button"
+              aria-label="Copy current variation script to clipboard"
+              className={btnSecondary}
+            >
               <Icon name="copy" />
               Copy script
             </button>
@@ -176,13 +191,26 @@ export function RemixStudio({
           </div>
           {error && <ErrorNote error={error} className="max-w-md text-left" />}
           {brand ? (
-            <button type="button" data-agent-id="remix-generate-button" data-testid="remix-generate-button" onClick={() => onGenerate(false)} className={`${btnPrimary} w-full max-w-xs sm:w-auto`}>
+            <button
+              type="button"
+              data-agent-id="remix-generate-button"
+              data-testid="remix-generate-button"
+              aria-label={error ? "Try generating remix again" : "Generate AI remix for selected ad"}
+              onClick={() => onGenerate(false)}
+              className={`${btnPrimary} w-full max-w-xs sm:w-auto`}
+            >
               <Icon name="sparkles" />
               {error ? "Try again" : "Generate remix"}
               <CostTag action="AI_REMIX" />
             </button>
           ) : (
-            <Link href="/brands" className={`${btnPrimary} w-full max-w-xs sm:w-auto`}>
+            <Link
+              href="/brands"
+              data-agent-id="remix-add-brand-first-link"
+              data-testid="remix-add-brand-first-link"
+              aria-label="Add your brand first"
+              className={`${btnPrimary} w-full max-w-xs sm:w-auto`}
+            >
               <Icon name="plus" />
               Add your brand first
             </Link>
@@ -213,7 +241,14 @@ export function RemixStudio({
                 : "Not quite right? Generate a fresh set of angles."}
             </p>
             {brand && (
-              <button type="button" data-agent-id="remix-regenerate-variations-button" data-testid="remix-regenerate-variations-button" onClick={() => onGenerate(true)} className={btnPrimary}>
+              <button
+                type="button"
+                data-agent-id="remix-regenerate-variations-button"
+                data-testid="remix-regenerate-variations-button"
+                aria-label="Regenerate ad variations"
+                onClick={() => onGenerate(true)}
+                className={btnPrimary}
+              >
                 <Icon name="refresh" />
                 Regenerate variations
                 <CostTag action="REGENERATE_VARIATIONS" />

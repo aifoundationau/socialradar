@@ -70,6 +70,9 @@ export function BrandSwitcher({ className = "" }: { className?: string }) {
     return (
       <Link
         href="/brands"
+        data-agent-id="header-add-brand-link"
+        data-testid="header-add-brand-link"
+        aria-label="Add a brand profile"
         className={`items-center gap-1.5 rounded border border-dashed border-white/15 px-3 py-2 text-body font-medium text-primary hover:border-primary-container ${className || "flex"}`}
       >
         <Icon name="plus" className="size-3.5" />
@@ -95,6 +98,9 @@ export function BrandSwitcher({ className = "" }: { className?: string }) {
       <span className="sr-only">Active brand</span>
       <span aria-hidden="true" className="pointer-events-none absolute left-3 size-2 rounded-full bg-tertiary-container" />
       <select
+        data-agent-id="header-brand-switcher-select"
+        data-testid="header-brand-switcher-select"
+        aria-label="Select active brand for remixes"
         className="h-11 w-full min-w-0 appearance-none truncate rounded border border-white/[0.08] bg-surface-container-low pr-8 pl-7 text-base font-medium text-on-surface transition hover:border-outline-variant focus:border-primary-container focus:outline-none disabled:opacity-60 lg:h-9 lg:max-w-[13rem] lg:text-compact"
         value={profile.activeBrandId}
         onChange={(e) => select(e.target.value)}
@@ -117,10 +123,13 @@ export function BrandSwitcher({ className = "" }: { className?: string }) {
 function TokenPill() {
   const { profile } = useSession();
   return (
-    <div className="flex h-10 items-center rounded border border-white/[0.08] bg-surface-container-low pr-1 pl-2.5 sm:h-9">
+    <div className="flex h-10 items-center rounded border border-white/[0.08] bg-surface-container-low pr-1 pl-2.5 sm:h-9" data-agent-id="header-token-pill" data-testid="header-token-pill">
       <Link
         href="/wallet"
         title="Token balance"
+        aria-label="View token balance in wallet"
+        data-agent-id="header-wallet-balance-link"
+        data-testid="header-wallet-balance-link"
         className="flex items-center gap-1.5 font-mono text-mono-code font-medium text-secondary tabular-nums"
       >
         <span className="relative flex size-2">
@@ -134,6 +143,8 @@ function TokenPill() {
       <Link
         href="/wallet#packs"
         aria-label="Buy tokens"
+        data-agent-id="header-topup-link"
+        data-testid="header-topup-link"
         className="ml-2 flex h-8 min-w-8 items-center justify-center gap-0.5 rounded bg-primary px-1.5 font-mono text-mono-label font-semibold text-on-primary transition-colors hover:bg-primary-fixed sm:h-7 sm:px-2"
       >
         <Icon name="plus" className="size-3" />
@@ -162,6 +173,7 @@ function AccountMenu({
         type="button"
         popoverTarget="account-menu"
         aria-label="Account menu"
+        data-agent-id="account-menu-button"
         data-testid="account-menu-button"
         className="flex size-10 items-center justify-center rounded-full bg-primary text-on-primary transition-colors hover:bg-primary-fixed sm:size-8"
       >
@@ -171,6 +183,8 @@ function AccountMenu({
         id="account-menu"
         ref={menu}
         popover="auto"
+        data-agent-id="account-menu-popover"
+        data-testid="account-menu-popover"
         className="inset-auto top-[calc(3.75rem+env(safe-area-inset-top))] right-3 m-0 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-white/[0.12] bg-surface-container-high p-0 text-on-surface shadow-[0_12px_32px_-4px_rgba(0,0,0,0.6)] sm:right-6"
       >
         <div className="border-b border-white/[0.08] px-4 py-3">
@@ -198,6 +212,9 @@ function AccountMenu({
                 <button
                   type="button"
                   onClick={() => resetRole()}
+                  data-agent-id="account-menu-reset-role"
+                  data-testid="account-menu-reset-role"
+                  aria-label="Reset role view to Super Admin"
                   className="font-mono text-[10px] text-primary hover:underline"
                 >
                   Reset
@@ -213,7 +230,9 @@ function AccountMenu({
                     ? "bg-primary text-on-primary shadow-sm ring-1 ring-primary/40"
                     : "border border-white/10 text-on-surface-variant hover:text-on-surface hover:bg-white/[0.04]"
                 }`}
+                data-agent-id="act-as-superadmin-button"
                 data-testid="act-as-superadmin-button"
+                aria-label="Act as Super Admin"
               >
                 Super Admin
               </button>
@@ -225,7 +244,9 @@ function AccountMenu({
                     ? "bg-primary text-on-primary shadow-sm ring-1 ring-primary/40"
                     : "border border-white/10 text-on-surface-variant hover:text-on-surface hover:bg-white/[0.04]"
                 }`}
+                data-agent-id="act-as-admin-button"
                 data-testid="act-as-admin-button"
+                aria-label="Act as Main Admin"
               >
                 Main Admin
               </button>
@@ -237,7 +258,9 @@ function AccountMenu({
                     ? "bg-secondary text-on-secondary shadow-sm ring-1 ring-secondary/40"
                     : "border border-white/10 text-on-surface-variant hover:text-on-surface hover:bg-white/[0.04]"
                 }`}
+                data-agent-id="act-as-supporter-button"
                 data-testid="act-as-supporter-button"
+                aria-label="Act as Supporter"
               >
                 Supporter
               </button>
@@ -256,7 +279,9 @@ function AccountMenu({
               menu.current?.hidePopover();
               onOpenFaq();
             }}
+            data-agent-id="account-menu-faqs-button"
             data-testid="account-menu-faqs-button"
+            aria-label="Open Frequently Asked Questions"
             className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-on-surface-variant transition-colors hover:bg-white/[0.04] hover:text-on-surface sm:min-h-10"
           >
             <Icon name="helpCircle" className="size-4 text-primary" />
@@ -269,7 +294,9 @@ function AccountMenu({
                 menu.current?.hidePopover();
                 onOpenAdmin();
               }}
+              data-agent-id="open-superadmin-button"
               data-testid="open-superadmin-button"
+              aria-label={role === "superadmin" ? "Open Super Admin Panel" : "Open Main Admin Panel"}
               className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-primary transition-colors hover:bg-primary-container/20 sm:min-h-10"
             >
               <Icon name="sliders" className="size-4" />
@@ -284,6 +311,7 @@ function AccountMenu({
               }}
               data-agent-id="account-menu-supporter-button"
               data-testid="open-supporter-button"
+              aria-label="Open Supporter Admin Panel"
               className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-secondary transition-colors hover:bg-secondary/15 sm:min-h-10"
             >
               <Icon name="sliders" className="size-4" />
@@ -299,7 +327,9 @@ function AccountMenu({
                 menu.current?.hidePopover();
                 onOpenSupporter();
               }}
+              data-agent-id="preview-supporter-panel-button"
               data-testid="preview-supporter-panel-button"
+              aria-label="Preview Supporter Admin Panel"
               className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-secondary/80 transition-colors hover:bg-secondary/10 sm:min-h-10"
             >
               <Icon name="user" className="size-4" />
@@ -313,6 +343,9 @@ function AccountMenu({
             menu.current?.hidePopover();
             signOutUser();
           }}
+          data-agent-id="account-menu-signout-button"
+          data-testid="account-menu-signout-button"
+          aria-label="Sign out of account"
           className="flex min-h-11 w-full items-center gap-2 px-4 text-body text-on-surface-variant transition-colors hover:bg-white/[0.04] hover:text-on-surface sm:min-h-10"
         >
           <Icon name="logOut" />
@@ -339,6 +372,7 @@ export function TopNavWallet() {
       {/* Superadmin "Acting as Role" Notification Banner */}
       {isSuperAdmin && actingAsRole && actingAsRole !== "superadmin" && (
         <div
+          data-agent-id="acting-as-banner"
           data-testid="acting-as-banner"
           className="bg-primary/20 border-b border-primary/30 px-3 sm:px-6 py-1.5 flex items-center justify-between text-xs font-mono"
         >
@@ -354,7 +388,9 @@ export function TopNavWallet() {
           <button
             type="button"
             onClick={() => resetRole()}
+            data-agent-id="reset-role-button"
             data-testid="reset-role-button"
+            aria-label="Return to Super Admin role"
             className="rounded bg-primary px-2.5 py-0.5 font-bold text-on-primary hover:bg-primary-fixed transition text-[11px]"
           >
             Return to Super Admin
@@ -363,7 +399,13 @@ export function TopNavWallet() {
       )}
 
       <div className="flex h-14 items-center gap-3 px-3 sm:px-6">
-        <Link href="/" aria-label="AdRadar home page" className="shrink-0">
+        <Link
+          href="/"
+          data-agent-id="header-home-logo-link"
+          data-testid="header-home-logo-link"
+          aria-label="AdRadar home page"
+          className="shrink-0"
+        >
           <Logo />
         </Link>
         <span className="hidden rounded-full border border-primary-container/40 bg-primary-container/20 px-2 py-0.5 font-mono text-mono-label uppercase text-primary lg:inline">

@@ -581,4 +581,32 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
   - `data-testid="act-as-role-superadmin"`, `data-testid="act-as-role-admin"`, `data-testid="act-as-role-supporter"`
   - `data-testid="acting-as-banner"`, `data-testid="reset-acting-role-button"`
 
+## 16. 100% DOM Automation & Website User Assistant Contract (`window.__AD_RADAR_AGENT__`)
+
+### 16.1 Universal Interactive Element Contract
+- Every interactive element (`<button>`, `<a href>`, `<input>`, `<select>`, `<textarea>`, `[role="button"]`, `[role="tab"]`, `[role="radio"]`, `[role="switch"]`) across the application carries:
+  - `data-agent-id`: Deterministic automation selector ID.
+  - `data-testid`: Matching test selector ID.
+  - `aria-label` (or `aria-labelledby`): Accessible label describing the element's purpose.
+- `<AgentDomBridge />` (`src/components/agent/AgentDomBridge.tsx`) renders a non-visual `<script id="ad-radar-agent-manifest" type="application/json">` tag and maintains a runtime `MutationObserver` that guarantees any dynamically mounted modal or popover interactive element has synchronized `data-agent-id`, `data-testid`, and `aria-label` attributes with zero visual UI impact.
+
+### 16.2 AI Assistant Slot-Filling & DOM Execution Engine (`src/lib/dom-agent-bridge.ts`)
+- **Supported `AgentTaskId` Workflows:**
+  1. `SEARCH_ADS`: Requires `query` (2–100 chars); optional `platform`, `country`, `mediaType`, `provenWinnersOnly`, `extendedLongevity`, `eliteWinnersOnly`.
+  2. `MODEL_AND_REMIX_AD`: Requires `adId`.
+  3. `CREATE_BRAND`: Requires `brandName`, `productServiceDescription`, `targetAudienceAvatar`, `corePainPoints`, `uniqueMechanismOrOffer`, `destinationUrl`; optional `toneOfVoice`.
+  4. `SWITCH_ACTIVE_BRAND`: Requires `brandId`.
+  5. `DUPLICATE_BRAND`: Requires `brandId`, `versionName`.
+  6. `CLONE_GLOBAL_BRAND`: Requires `globalBrandId`.
+  7. `DELETE_BRAND`: Requires `brandId` and explicit `userConfirmedDelete: true` (mandatory 2-step confirmation).
+  8. `SUBMIT_CUSTOMIZE_BRIEF`: Requires `brandName`, `productServiceDescription`, `targetAudienceAvatar`, `corePainPoints`, `uniqueMechanismOrOffer`, `destinationUrl`, `extraDetailsAndNotes`.
+  9. `BUY_TOKEN_PACK`: Requires `packId` (`PACK_10` | `PACK_50` | `PACK_100` | `PACK_CUSTOM`) and integer `customTokens` when `PACK_CUSTOM`.
+  10. `SEND_SUPERADMIN_MESSAGE`: Requires plain-text `subject` and `body` (no external URLs/links).
+  11. `SEARCH_FAQS`: Optional `searchQuery`.
+  12. `CONFIGURE_GEO_TIME`: Requires `suburb`, `state`; optional `country`, `timeFormat`.
+- **Pre-Check & Post-Mutation Verification:**
+  - `preCheckElement(agentId)` and `waitForLayoutStability(agentId)` verify DOM presence, non-zero bounding box, computed visibility, enabled state, and two-frame layout stability before any click or fill.
+  - `click(agentId)` and `fill(agentId, value)` verify post-action DOM mutation (`MutationObserver` + React-controlled value verification).
+
+
 
