@@ -80,7 +80,10 @@
      - `token_transactions`: Atomic write, verification read, and cleanup verified.
      - `users`, `admin_messages`, `customize_requests`: Verified readable.
    - **Git & Server:** Committed and pushed `047e460` to `origin/main`. Next.js dev server running on port 3000 (HTTP 200).
+17. **Permanent Universal Top Header FAQ:**
+   - **Header Nav & Mobile Action:** "FAQs" is unconditionally displayed at the top of the header across all screens (desktop nav link and mobile top header button with `helpCircle` icon) and inside the Account Menu.
+   - **Universal Accessibility:** Visible to all users regardless of authentication status or role (`guest`, `supporter`, `admin`, `superadmin`).
 
 ## Next Priority Actions
-1. Open http://localhost:3000 to verify that all features and role views are operating smoothly with the live database.
+1. Open http://localhost:3000 to verify that the FAQs button is visible at the top of the header across all roles and viewports.
 2. Await next user directive.

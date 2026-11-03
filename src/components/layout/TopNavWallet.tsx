@@ -146,9 +146,11 @@ function TokenPill() {
 function AccountMenu({
   onOpenAdmin,
   onOpenSupporter,
+  onOpenFaq,
 }: {
   onOpenAdmin: (tab?: "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV") => void;
   onOpenSupporter: () => void;
+  onOpenFaq: () => void;
 }) {
   const { user, isAdmin, role, isSuperAdmin, actingAsRole, setActingRole, resetRole } = useSession();
   const menu = useRef<HTMLDivElement>(null);
@@ -248,6 +250,18 @@ function AccountMenu({
           <BrandSwitcher />
         </div>
         <div className="border-b border-white/[0.08] p-1.5 space-y-0.5">
+          <button
+            type="button"
+            onClick={() => {
+              menu.current?.hidePopover();
+              onOpenFaq();
+            }}
+            data-testid="account-menu-faqs-button"
+            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-on-surface-variant transition-colors hover:bg-white/[0.04] hover:text-on-surface sm:min-h-10"
+          >
+            <Icon name="helpCircle" className="size-4 text-primary" />
+            <span>Frequently Asked Questions</span>
+          </button>
           {isAdmin ? (
             <button
               type="button"
@@ -359,21 +373,31 @@ export function TopNavWallet() {
           <Suspense fallback={<NavItems pathname={null} />}>
             <NavLinks />
           </Suspense>
-          {!isAdmin && (
-            <button
-              type="button"
-              onClick={() => setIsFaqOpen(true)}
-              data-agent-id="nav-link-faqs"
-              data-testid="nav-link-faqs"
-              aria-label="Frequently Asked Questions"
-              className="rounded px-3 py-1.5 text-body text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
-            >
-              FAQs
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setIsFaqOpen(true)}
+            data-agent-id="nav-link-faqs"
+            data-testid="nav-link-faqs"
+            aria-label="Frequently Asked Questions"
+            className="rounded px-3 py-1.5 text-body text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+          >
+            FAQs
+          </button>
         </nav>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={() => setIsFaqOpen(true)}
+            aria-label="Frequently Asked Questions"
+            data-agent-id="mobile-header-faqs"
+            data-testid="mobile-header-faqs"
+            className="flex h-10 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-surface-container-low px-2.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors md:hidden text-compact font-medium"
+            title="Frequently Asked Questions"
+          >
+            <Icon name="helpCircle" className="size-4 text-primary" />
+            <span className="text-[12px] font-medium">FAQs</span>
+          </button>
           <BrandSwitcher className="hidden lg:flex" />
           <TokenPill />
           <AccountMenu
@@ -382,6 +406,7 @@ export function TopNavWallet() {
               setIsAdminOpen(true);
             }}
             onOpenSupporter={() => setIsSupporterOpen(true)}
+            onOpenFaq={() => setIsFaqOpen(true)}
           />
         </div>
       </div>

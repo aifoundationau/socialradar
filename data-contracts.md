@@ -548,9 +548,12 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
      - Plain-text message composer (subject, body, 0 tokens / free).
      - Statutory 7-year compliance archive and customized strategy deliverable replies.
 
-### Admin Logon Navigation Rules
+### Global FAQ & Navigation Rules
+- **Universal Top Header FAQ:**
+  - "FAQs" is permanently and unconditionally rendered at the top of the header navigation across all viewports (desktop nav button and mobile header action button) and in the Account Menu for all user states (unauthenticated, supporter, main admin, super admin).
 - **For all admin roles (`superadmin`, `admin`):**
-  - The standalone "Frequently Asked Questions" navigation tab and "Message Super Admin" action are hidden from public/header views upon logging in; both are accessed strictly behind the Admin Panel (`User Messages` and `FAQ Development` tabs).
+  - Admins can open FAQs directly from the top header or manage full FAQ CRUD via the `FAQ Development` tab in the Admin Panel.
+  - "Message Super Admin" is accessed strictly behind the Admin Panel (`User Messages` tab).
 - **For supporters (`supporter`):**
   - The Account Menu provides single-click access to the Supporter Admin Panel containing Tokens, Buy More Tokens, and Messages only.
 
