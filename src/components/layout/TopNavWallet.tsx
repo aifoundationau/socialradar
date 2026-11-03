@@ -146,13 +146,9 @@ function TokenPill() {
 function AccountMenu({
   onOpenAdmin,
   onOpenSupporter,
-  onOpenContact,
-  onOpenFaqs,
 }: {
   onOpenAdmin: (tab?: "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV") => void;
   onOpenSupporter: () => void;
-  onOpenContact: () => void;
-  onOpenFaqs: () => void;
 }) {
   const { user, isAdmin, role } = useSession();
   const menu = useRef<HTMLDivElement>(null);
@@ -223,31 +219,6 @@ function AccountMenu({
               Supporter Admin Panel
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              menu.current?.hidePopover();
-              onOpenFaqs();
-            }}
-            data-agent-id="account-menu-faqs-button"
-            data-testid="open-faqs-button"
-            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-on-surface-variant transition-colors hover:bg-white/[0.04] hover:text-on-surface sm:min-h-10"
-          >
-            <Icon name="helpCircle" className="size-4" />
-            Frequently Asked Questions
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              menu.current?.hidePopover();
-              onOpenContact();
-            }}
-            data-testid="open-contact-button"
-            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-on-surface-variant transition-colors hover:bg-white/[0.04] hover:text-on-surface sm:min-h-10"
-          >
-            <Icon name="sparkles" className="size-4" />
-            Message Super Admin
-          </button>
         </div>
         <button
           type="button"
@@ -267,6 +238,7 @@ function AccountMenu({
 
 /** Sticky app header: live token balance, active-brand switcher and the "Top-up" entry point. */
 export function TopNavWallet() {
+  const { isAdmin } = useSession();
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<
     "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV" | undefined
@@ -288,16 +260,18 @@ export function TopNavWallet() {
           <Suspense fallback={<NavItems pathname={null} />}>
             <NavLinks />
           </Suspense>
-          <button
-            type="button"
-            onClick={() => setIsFaqOpen(true)}
-            data-agent-id="nav-link-faqs"
-            data-testid="nav-link-faqs"
-            aria-label="Frequently Asked Questions"
-            className="rounded px-3 py-1.5 text-body text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
-          >
-            FAQs
-          </button>
+          {!isAdmin && (
+            <button
+              type="button"
+              onClick={() => setIsFaqOpen(true)}
+              data-agent-id="nav-link-faqs"
+              data-testid="nav-link-faqs"
+              aria-label="Frequently Asked Questions"
+              className="rounded px-3 py-1.5 text-body text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+            >
+              FAQs
+            </button>
+          )}
         </nav>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
@@ -309,8 +283,6 @@ export function TopNavWallet() {
               setIsAdminOpen(true);
             }}
             onOpenSupporter={() => setIsSupporterOpen(true)}
-            onOpenContact={() => setIsContactOpen(true)}
-            onOpenFaqs={() => setIsFaqOpen(true)}
           />
         </div>
       </div>
@@ -335,7 +307,6 @@ export function TopNavWallet() {
       <SupporterModal
         isOpen={isSupporterOpen}
         onClose={() => setIsSupporterOpen(false)}
-        onOpenContact={() => setIsContactOpen(true)}
       />
       <ContactAdminModal isOpen={isContactOpen} onClose={() => setIsContactOpen(false)} />
     </header>

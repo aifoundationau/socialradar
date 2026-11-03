@@ -8,7 +8,7 @@ import { Icon } from "@/components/ui/Icon";
 import { btnPrimary, btnSecondary, card, field } from "@/components/ui/styles";
 import type { FaqItem } from "@/lib/contracts";
 
-const emptySubscribe = () => () => {};
+const emptySubscribe = () => () => { };
 function useIsClient() {
   return useSyncExternalStore(
     emptySubscribe,
@@ -197,11 +197,10 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
                   onClick={() => setSelectedCategory(cat)}
                   data-agent-id={`faq-category-${cat.toLowerCase()}`}
                   data-testid={`faq-category-${cat.toLowerCase()}`}
-                  className={`rounded-full px-3 py-1 font-mono text-xs font-semibold transition-colors ${
-                    active
-                      ? "bg-primary text-on-primary shadow-sm"
-                      : "border border-white/10 bg-surface-container text-on-surface-variant hover:border-white/20 hover:text-on-surface"
-                  }`}
+                  className={`rounded-full px-3 py-1 font-mono text-xs font-semibold transition-colors ${active
+                    ? "bg-primary text-on-primary shadow-sm"
+                    : "border border-white/10 bg-surface-container text-on-surface-variant hover:border-white/20 hover:text-on-surface"
+                    }`}
                 >
                   {cat}
                 </button>
@@ -244,11 +243,10 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
                   key={faq.faqId}
                   data-agent-id={`faq-item-${faq.faqId}`}
                   data-testid={`faq-item-${faq.faqId}`}
-                  className={`rounded-xl border transition-all duration-150 ${
-                    isExpanded
-                      ? "border-primary/40 bg-surface-container-high/90 shadow-md ring-1 ring-primary/20"
-                      : "border-white/[0.08] bg-surface-container hover:border-white/15"
-                  }`}
+                  className={`rounded-xl border transition-all duration-150 ${isExpanded
+                    ? "border-primary/40 bg-surface-container-high/90 shadow-md ring-1 ring-primary/20"
+                    : "border-white/[0.08] bg-surface-container hover:border-white/15"
+                    }`}
                 >
                   <button
                     type="button"
@@ -268,9 +266,8 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev }: FaqModalProps) {
                       </h3>
                     </div>
                     <span
-                      className={`flex size-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-container-highest transition-transform duration-200 ${
-                        isExpanded ? "rotate-180 text-primary" : "text-on-surface-variant"
-                      }`}
+                      className={`flex size-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-container-highest transition-transform duration-200 ${isExpanded ? "rotate-180 text-primary" : "text-on-surface-variant"
+                        }`}
                     >
                       <Icon name="chevronDown" className="size-4" />
                     </span>

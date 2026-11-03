@@ -528,17 +528,26 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 
 ### Supporter Admin Panel (`SupporterModal`)
 - **Trigger:** Accessible from the top-navigation Account Menu via the "Supporter Admin Panel" button (`data-testid="open-supporter-button"`).
-- **Views & Capabilities:**
-  1. **My Search Records Tab:**
-     - Chronological listing of all user searches recorded in `token_transactions` (`type === "RADAR_SEARCH"`).
-     - Platform filter tabs (`ALL`, `META`, `TIKTOK`, `GOOGLE`).
-     - Query keyword search bar.
-     - Details displayed: Search query, platform badge, country code, longevity filter status, tokens deducted, resulting balance, timestamp, and delivery/refund status.
-  2. **Complete Order History Tab:**
-     - Chronological view of all user transactions (`TOPUP`, `GIFT`, `RADAR_SEARCH`, `AI_REMIX`, `CUSTOMIZE_SERVICE`, `REFUND`).
-  3. **Supporter Details & Support Tab:**
-     - Lifetime supporter membership status, account email, token balance, and active brand name.
-     - Direct "Message Super Admin" action button (0 tokens, 7-year statutory compliance recordkeeping).
+- **Navigation & Architectural Structure (Strictly 3 tabs: Tokens, Buy More Tokens, Messages, only):**
+  1. **Tokens (`TOKENS`):**
+     - Live integer token balance card (`1 Token = $1.00 AUD` default rate, non-expiring, integer economy).
+     - Direct "Buy More Tokens" action button.
+     - Chronological activity & search ledger from `token_transactions` (query details, country code, longevity filter, tokens deducted/credited, balance after, delivery status).
+     - Search and platform filters (`ALL`, `META`, `TIKTOK`, `GOOGLE`, and action types).
+  2. **Buy More Tokens (`BUY_TOKENS`):**
+     - Embedded token pack catalog (`PACK_10`, `PACK_50`, `PACK_100`, `PACK_CUSTOM`) powered by Stripe Checkout.
+     - AUD platform pricing with USD indicative estimate for non-AU/NZ supporters.
+     - Statutory Australian Consumer Law 100% money-back guarantee.
+  3. **Messages (`MESSAGES`):**
+     - Direct communications and message history with Super Admin (`/api/contact`).
+     - Plain-text message composer (subject, body, 0 tokens / free).
+     - Statutory 7-year compliance archive and customized strategy deliverable replies.
+
+### Admin Logon Navigation Rules
+- **For all admin roles (`superadmin`, `admin`):**
+  - The standalone "Frequently Asked Questions" navigation tab and "Message Super Admin" action are hidden from public/header views upon logging in; both are accessed strictly behind the Admin Panel (`User Messages` and `FAQ Development` tabs).
+- **For supporters (`supporter`):**
+  - The Account Menu provides single-click access to the Supporter Admin Panel containing Tokens, Buy More Tokens, and Messages only.
 
 
 
