@@ -25,10 +25,12 @@ export async function POST(req: Request) {
     ? calculateSearchCost(input, config.serviceCosts)
     : 0;
 
+  const searchLabel = `${input.platform} Search: "${input.query}" (${input.country}${input.provenWinnersOnly ? ", 28+d" : ""})`;
+
   return withTokenGate(
     req,
     "RADAR_SEARCH",
-    queryHash,
+    searchLabel,
     async ({ caller, replayed, balanceAfter }) => {
       let brand = null;
       if (caller && input.brandId) {

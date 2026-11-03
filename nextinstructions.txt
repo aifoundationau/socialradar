@@ -51,7 +51,11 @@
    - `npm run test:rules` (55/55 tests passing).
    - `npx tsc --noEmit` (0 errors).
    - Dev server running on port 3000 (HTTP 200).
+12. **Permanent Supporter Role, Database Search Recording & Supporter Admin Panel:**
+   - **Permanent Supporter Role:** Users logging in for the first time are permanently assigned `role: "supporter"` (tier: `"supporter"`) in Firestore and SessionProvider.
+   - **Database Search Recording:** Every Ad Radar search (Meta, TikTok, Google) is logged to `token_transactions` as `type: "RADAR_SEARCH"` with descriptive human-readable `referenceId` (e.g., `META Search: "gym" (AU, 28+d)`).
+   - **Supporter Admin Panel (`SupporterModal`):** Added to top navigation Account Menu for non-admin users. Allows supporters to view their complete search records (filterable by platform and text search), full order history, and 1-click access to Message Super Admin.
 
 ## Next Priority Actions
-1. Open the FAQ modal from the top navigation on http://localhost:3000 to review the 27 customer-perspective questions and filter categories.
+1. Click your profile avatar / account menu at the top right of http://localhost:3000 to open the Supporter Admin Panel and review your logged search records.
 2. Await next user directive.

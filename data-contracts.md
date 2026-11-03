@@ -506,6 +506,33 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
   - `note`: optional string (up to 200 chars)
 - **Behavior:** Credits integer tokens at `$0` charge (`type: "GIFT"`) to the recipient's wallet without creating a `stripe_purchases` revenue record.
 
+## 14. Permanent Supporter Role, Human-Readable Search Recording & Supporter Admin Panel
+
+### Permanent Supporter Role
+- **First-Time Login Assignment:** When a user logs in for the first time, they are permanently assigned `role: "supporter"` (tier: `"supporter"`). They remain supporters indefinitely across all sessions unless granted `superadmin` / `admin` authority.
+- **Authority Scope:** Supporters have full access to Radar Search, Remix Studio, Brand Cards, Token Wallet, Customize Service, Message Super Admin, and their own **Supporter Admin Panel**.
+
+### Database Search Recording (`type: "RADAR_SEARCH"`)
+- **Collection:** `token_transactions/{txId}`
+- **Logging Trigger:** Every search executed on Meta Ad Library, TikTok Creative Center, or Google Ads Transparency Center is recorded atomically via `withTokenGate`.
+- **Human-Readable Query Description:** The `referenceId` field stores the descriptive search metadata rather than an opaque hash, e.g.:
+  `${platform} Search: "${query}" (${country}${provenWinnersOnly ? ", 28+d" : ""})`
+- **Zero-Token Tracking:** Even searches conducted at 0 tokens (e.g. when `searchStandard === 0` or executed by admins) are recorded with `delta: 0` so supporters have a complete historical search log.
+
+### Supporter Admin Panel (`SupporterModal`)
+- **Trigger:** Accessible from the top-navigation Account Menu via the "Supporter Admin Panel" button (`data-testid="open-supporter-button"`).
+- **Views & Capabilities:**
+  1. **My Search Records Tab:**
+     - Chronological listing of all user searches recorded in `token_transactions` (`type === "RADAR_SEARCH"`).
+     - Platform filter tabs (`ALL`, `META`, `TIKTOK`, `GOOGLE`).
+     - Query keyword search bar.
+     - Details displayed: Search query, platform badge, country code, longevity filter status, tokens deducted, resulting balance, timestamp, and delivery/refund status.
+  2. **Complete Order History Tab:**
+     - Chronological view of all user transactions (`TOPUP`, `GIFT`, `RADAR_SEARCH`, `AI_REMIX`, `CUSTOMIZE_SERVICE`, `REFUND`).
+  3. **Supporter Details & Support Tab:**
+     - Lifetime supporter membership status, account email, token balance, and active brand name.
+     - Direct "Message Super Admin" action button (0 tokens, 7-year statutory compliance recordkeeping).
+
 
 
 

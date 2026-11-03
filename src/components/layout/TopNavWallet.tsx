@@ -10,6 +10,7 @@ import { Logo } from "@/components/ui/Logo";
 import { monoLabel } from "@/components/ui/styles";
 import { NAV, isActivePath } from "./nav";
 import { SuperAdminModal } from "@/components/admin/SuperAdminModal";
+import { SupporterModal } from "@/components/supporter/SupporterModal";
 import { ContactAdminModal } from "@/components/contact/ContactAdminModal";
 import { FaqModal } from "@/components/faq/FaqModal";
 
@@ -144,10 +145,12 @@ function TokenPill() {
 
 function AccountMenu({
   onOpenAdmin,
+  onOpenSupporter,
   onOpenContact,
   onOpenFaqs,
 }: {
   onOpenAdmin: (tab?: "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV") => void;
+  onOpenSupporter: () => void;
   onOpenContact: () => void;
   onOpenFaqs: () => void;
 }) {
@@ -179,7 +182,7 @@ function AccountMenu({
               className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${
                 isAdmin
                   ? "border border-primary/30 bg-primary-container/30 text-primary"
-                  : "border border-white/10 bg-surface-container-highest text-on-surface-variant"
+                  : "border border-secondary/30 bg-secondary/15 text-secondary"
               }`}
             >
               {role === "superadmin" ? "Super Admin" : role === "admin" ? "Main Admin" : "Supporter"}
@@ -192,7 +195,7 @@ function AccountMenu({
           <BrandSwitcher />
         </div>
         <div className="border-b border-white/[0.08] p-1.5 space-y-0.5">
-          {isAdmin && (
+          {isAdmin ? (
             <button
               type="button"
               onClick={() => {
@@ -204,6 +207,20 @@ function AccountMenu({
             >
               <Icon name="sliders" className="size-4" />
               Super Admin Panel
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                menu.current?.hidePopover();
+                onOpenSupporter();
+              }}
+              data-agent-id="account-menu-supporter-button"
+              data-testid="open-supporter-button"
+              className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-secondary transition-colors hover:bg-secondary/15 sm:min-h-10"
+            >
+              <Icon name="sliders" className="size-4" />
+              Supporter Admin Panel
             </button>
           )}
           <button
@@ -254,6 +271,7 @@ export function TopNavWallet() {
   const [adminInitialTab, setAdminInitialTab] = useState<
     "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV" | undefined
   >(undefined);
+  const [isSupporterOpen, setIsSupporterOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [isFaqOpen, setIsFaqOpen] = useState(false);
 
@@ -290,6 +308,7 @@ export function TopNavWallet() {
               setAdminInitialTab(tab);
               setIsAdminOpen(true);
             }}
+            onOpenSupporter={() => setIsSupporterOpen(true)}
             onOpenContact={() => setIsContactOpen(true)}
             onOpenFaqs={() => setIsFaqOpen(true)}
           />
@@ -312,6 +331,11 @@ export function TopNavWallet() {
           setAdminInitialTab(undefined);
         }}
         initialTab={adminInitialTab}
+      />
+      <SupporterModal
+        isOpen={isSupporterOpen}
+        onClose={() => setIsSupporterOpen(false)}
+        onOpenContact={() => setIsContactOpen(true)}
       />
       <ContactAdminModal isOpen={isContactOpen} onClose={() => setIsContactOpen(false)} />
     </header>
