@@ -647,6 +647,40 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 - `data-agent-id="sub-option-regenerate-variations"`, `data-testid="sub-option-regenerate-variations"`, `data-agent-id="sub-tooltip-regenerate-variations"`
 - `data-agent-id="sub-option-customize-strategy"`, `data-testid="sub-option-customize-strategy"`, `data-agent-id="sub-tooltip-customize-strategy"`
 
+## 18. Stripe Sandbox AUD GST-Inclusive Payments & Subscription Fulfillment Contract
+
+### 18.1 Zero Pre-Created Stripe Products (`price_data` + `product_data`)
+- **No Static Stripe Products:** All Checkout Sessions use dynamic inline `price_data` and `product_data` so SuperAdmin and MainAdmin price/token modifications in `system_config/global` apply immediately without creating or editing products in the Stripe Dashboard.
+- **Currency & Tax Invariant:** Strictly settled in Australian Dollars (`currency: "aud"`) with Australian GST included (`tax_behavior: "inclusive"`).
+- **Two Payment Modes:**
+  1. **Buy Tokens (`PACK_10`, `PACK_50`, `PACK_100`, `PACK_CUSTOM`):**
+     - `mode: "payment"`
+     - `price_data`: `{ currency: "aud", tax_behavior: "inclusive", unit_amount: pack.priceCents, product_data: { name, description } }`
+     - Upon payment confirmation, the purchased integer tokens are atomically distributed to `users/{uid}.tokenBalance` and logged in `token_transactions/{sessionId}` and `stripe_purchases/{sessionId}`.
+  2. **Buy Monthly Search Subscription (`SUB_MONTHLY_1000`):**
+     - `mode: "subscription"`
+     - `price_data`: `{ currency: "aud", tax_behavior: "inclusive", unit_amount: pack.priceCents, recurring: { interval: "month" }, product_data: { name: "Monthly Search Subscription", description } }`
+     - Upon payment confirmation, the subscription starts (`subscriptionStatus: "active"`, `stripeSubscriptionId`, `subscriptionTokensPerMonth: 1000`) and 1,000 tokens are atomically distributed to `users/{uid}.tokenBalance`.
+
+### 18.2 Direct Session Confirmation Endpoint (`POST /api/wallet/confirm`)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConfirmCheckoutSessionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sessionId"],
+  "properties": {
+    "sessionId": {
+      "type": "string",
+      "pattern": "^cs_(test|live)_[A-Za-z0-9_]+$"
+    }
+  }
+}
+```
+- **Idempotency Guarantee:** Both `POST /api/wallet/confirm` (triggered on return to `/wallet?checkout=success&session_id={CHECKOUT_SESSION_ID}`) and `POST /api/webhooks/stripe` (`checkout.session.completed`, `checkout.session.async_payment_succeeded`, `invoice.paid`) share `fulfillCheckoutSession(session)` with deterministic `txId = session.id`, preventing any possibility of double-crediting.
+
+
 
 
 

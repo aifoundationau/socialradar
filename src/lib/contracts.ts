@@ -43,6 +43,12 @@ export const UserDocSchema = z
     tokenBalance: tokenInt.min(0),
     activeBrandId: z.string().max(128),
     stripeCustomerId: z.union([z.literal(""), z.string().regex(/^cus_[A-Za-z0-9]+$/)]),
+    subscriptionStatus: z.enum(["none", "active", "canceled", "past_due"]).optional(),
+    stripeSubscriptionId: z.string().max(128).optional(),
+    subscriptionPackId: z.string().max(64).optional(),
+    subscriptionTokensPerMonth: tokenInt.min(0).optional(),
+    subscriptionPriceAudCents: tokenInt.min(0).optional(),
+    subscriptionStartedAt: isoDate.optional(),
     updatedAt: isoDate,
   })
   .strict();
@@ -318,6 +324,13 @@ export const TopupMetadataSchema = z
     tokens: z.coerce.number().pipe(tokenInt.min(1).max(1_000_000)),
   })
   .strict();
+
+export const ConfirmCheckoutSessionRequestSchema = z
+  .object({
+    sessionId: z.string().trim().regex(/^cs_(test|live)_[A-Za-z0-9_]+$/, "Must be a valid Stripe Checkout Session ID"),
+  })
+  .strict();
+export type ConfirmCheckoutSessionRequest = z.infer<typeof ConfirmCheckoutSessionRequestSchema>;
 
 export const ErrorCodeSchema = z.enum([
   "UNAUTHENTICATED",

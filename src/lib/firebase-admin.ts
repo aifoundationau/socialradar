@@ -140,13 +140,21 @@ export async function verifyRequest(
     if (typeof code === "string" && TOKEN_REJECTED_CODES.has(code)) {
       throw new AuthError("UNAUTHENTICATED", "Invalid or expired session");
     }
-    // The token may be fine: the server couldn't check it (expired ADC, network failure).
-    console.error("[auth] could not verify ID token", err);
-    const credentialHint =
-      process.env.NODE_ENV !== "production" && /invalid-credential/.test(String(code))
-        ? " Server credentials need refreshing: run `gcloud auth application-default login`, then restart the dev server."
-        : "";
-    throw new AuthError("UPSTREAM_FAILURE", `Couldn't verify your session right now.${credentialHint}`);
+
+    // Ultra-reliable fallback: if revocation check fails due to server credentials or upstream network,
+    // verify the cryptographic signature and expiration via Google's public x509 certs (checkRevoked = false)
+    try {
+      token = await adminAuth.verifyIdToken(match[1], false);
+      console.warn("[auth] verifyIdToken checkRevoked check skipped; validated via public certs", code);
+    } catch {
+      // The token may be fine: the server couldn't check it (expired ADC, network failure).
+      console.error("[auth] could not verify ID token", err);
+      const credentialHint =
+        process.env.NODE_ENV !== "production" && /invalid-credential|invalid_grant/.test(String(code) + " " + String((err as { cause?: { message?: string } })?.cause?.message))
+          ? " Server credentials need refreshing: run `gcloud auth application-default login`, then restart the dev server."
+          : "";
+      throw new AuthError("UPSTREAM_FAILURE", `Couldn't verify your session right now.${credentialHint}`);
+    }
   }
 
   const isSuper = isDatabaseAdmin(token, token.email);

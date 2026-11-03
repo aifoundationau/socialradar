@@ -11,7 +11,7 @@ import {
   type TokenPack,
 } from "@/lib/pricing";
 import { getSystemConfig } from "@/lib/admin";
-import { buildCheckoutParams, getStripe } from "@/lib/stripe";
+import { buildCheckoutParams, ensureAuGstTaxRateId, getStripe } from "@/lib/stripe";
 
 /** Returns the active public pricing configuration (AUD base rate, service token amounts, and packs). */
 export async function GET(req: Request) {
@@ -33,12 +33,14 @@ export async function GET(req: Request) {
   }
 }
 
-/** Starts a Stripe Checkout Session for a token pack (settled in AUD). Body: `{ packId, customTokens? }`. Returns `{ url }`. */
+/** Starts a Stripe Checkout Session for a token pack or monthly subscription (settled in AUD, GST inclusive). Body: `{ packId, customTokens? }`. Returns `{ url }`. */
 export async function POST(req: Request) {
   try {
-    const caller = await verifyRequest(req);
+    const body = CheckoutRequestSchema.parse(await readJson(req));
+    const { packId, customTokens } = body;
+    // Monthly Search Subscription is a SuperAdmin and MainAdmin function only
+    const caller = await verifyRequest(req, packId === "SUB_MONTHLY_1000" ? { requireRole: "admin" } : undefined);
     const key = requireIdempotencyKey(req);
-    const { packId, customTokens } = CheckoutRequestSchema.parse(await readJson(req));
     const [user, config] = await Promise.all([
       ensureUserDoc(caller.uid, caller.email),
       getSystemConfig(),
@@ -49,8 +51,8 @@ export async function POST(req: Request) {
     let pack: TokenPack;
     if (packId === "SUB_MONTHLY_1000") {
       const sub = config.monthlySubscription ?? { priceAud: 500, searchesPerMonth: 1000 };
-      const tokens = sub.searchesPerMonth ?? 1000;
-      const priceCents = Math.round((sub.priceAud ?? 500) * 100);
+      const tokens = Math.max(1, Math.round(sub.searchesPerMonth ?? 1000));
+      const priceCents = Math.max(100, Math.round((sub.priceAud ?? 500) * 100));
       pack = {
         id: "SUB_MONTHLY_1000",
         tokens,
@@ -82,19 +84,47 @@ export async function POST(req: Request) {
       }
     }
 
-    const session = await getStripe().checkout.sessions.create(
-      buildCheckoutParams({
-        uid: caller.uid,
-        email: caller.email,
-        stripeCustomerId: user.stripeCustomerId,
-        pack,
-        appUrl: process.env.APP_URL || new URL(req.url).origin,
-      }),
-      // A double-clicked "Buy" reuses the same session instead of opening two.
-      { idempotencyKey: buildTxId(caller.uid, key) },
-    );
+    const appUrl = new URL(req.url).origin || process.env.APP_URL || "http://localhost:3000";
+    const stripe = getStripe();
+    const gstTaxRateId = await ensureAuGstTaxRateId();
+    const baseIdempotencyKey = buildTxId(caller.uid, `${key}_gst_inv`);
+
+    let session;
+    try {
+      session = await stripe.checkout.sessions.create(
+        buildCheckoutParams({
+          uid: caller.uid,
+          email: caller.email,
+          stripeCustomerId: user.stripeCustomerId,
+          pack,
+          appUrl,
+          subscriptionName: config.monthlySubscription?.name,
+          gstTaxRateId,
+        }),
+        { idempotencyKey: baseIdempotencyKey },
+      );
+    } catch (stripeErr) {
+      const msg = stripeErr instanceof Error ? stripeErr.message : String(stripeErr);
+      if (user.stripeCustomerId && /No such customer/i.test(msg)) {
+        session = await stripe.checkout.sessions.create(
+          buildCheckoutParams({
+            uid: caller.uid,
+            email: caller.email,
+            stripeCustomerId: "",
+            pack,
+            appUrl,
+            subscriptionName: config.monthlySubscription?.name,
+            gstTaxRateId,
+          }),
+          { idempotencyKey: `${baseIdempotencyKey}_freshcus` },
+        );
+      } else {
+        throw stripeErr;
+      }
+    }
+
     if (!session.url) throw new Error(`Checkout Session ${session.id} has no URL`);
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: session.url, sessionId: session.id });
   } catch (err) {
     return errorResponse(err);
   }

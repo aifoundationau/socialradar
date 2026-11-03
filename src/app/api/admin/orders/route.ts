@@ -33,9 +33,9 @@ export async function POST(req: Request) {
     }
 
     if (action === "GIFT_TOKENS") {
-      const caller = await verifyRequest(req, { requireRole: "superadmin" });
+      const caller = await verifyRequest(req, { requireRole: "admin" });
       const parsed = AdminGiftTokensRequestSchema.parse({
-        recipientEmail: body.recipientEmail,
+        recipientEmail: body.recipientEmail || body.targetEmail,
         tokens: Number(body.tokens),
         note: body.note ? String(body.note) : undefined,
       });
@@ -48,6 +48,8 @@ export async function POST(req: Request) {
       const orders = await getMasterOrderLedger(150);
       return NextResponse.json({
         success: true,
+        creditedTokens: giftResult.tokens,
+        balanceAfter: giftResult.balanceAfter,
         giftResult,
         orders,
       });

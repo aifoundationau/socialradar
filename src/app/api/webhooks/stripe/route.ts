@@ -2,15 +2,20 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { creditTokens } from "@/lib/token-ledger";
 import { recordStripePurchase } from "@/lib/admin";
+import { db } from "@/lib/firebase-admin";
 import { jsonError } from "@/lib/api";
 import { TopupMetadataSchema } from "@/lib/contracts";
-import { getStripe } from "@/lib/stripe";
+import { fulfillCheckoutSession, getStripe } from "@/lib/stripe";
 
 /**
- * Credits token packs from `checkout.session.completed` (card payments) and
- * `checkout.session.async_payment_succeeded` (delayed methods). The Checkout Session id is
- * the ledger txId, so Stripe's retries and duplicate deliveries never double-credit.
- * Non-2xx responses make Stripe retry, so only ledger failures return 500.
+ * Credits token packs and Monthly Search Subscriptions from:
+ * - `checkout.session.completed` (card payments & initial subscription checkout)
+ * - `checkout.session.async_payment_succeeded` (delayed payment methods)
+ * - `invoice.paid` (`subscription_cycle` renewals for recurring monthly 1,000-search allocations)
+ * - `customer.subscription.deleted` (marks subscription canceled on user profile)
+ *
+ * The Checkout Session id (or Invoice id for recurring renewals) is the ledger `txId`,
+ * so Stripe's retries and duplicate deliveries never double-credit.
  */
 export async function POST(req: Request) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -28,47 +33,99 @@ export async function POST(req: Request) {
     return jsonError("INVALID_INPUT", "Invalid webhook signature", 400);
   }
 
-  if (event.type !== "checkout.session.completed" && event.type !== "checkout.session.async_payment_succeeded") {
-    return NextResponse.json({ received: true });
-  }
-  const session = event.data.object;
-  if (session.mode !== "payment" || session.payment_status !== "paid") {
-    // Async methods complete unpaid first; async_payment_succeeded follows when funds clear.
-    return NextResponse.json({ received: true, credited: false });
-  }
-
-  const meta = TopupMetadataSchema.safeParse(session.metadata ?? {});
-  if (!meta.success || meta.data.uid !== session.client_reference_id) {
-    // Not one of ours (or tampered). Retrying won't fix it, so acknowledge and flag it.
-    console.error("[stripe-webhook] paid session with unusable metadata — reconcile manually", session.id);
-    return NextResponse.json({ received: true, credited: false });
-  }
-
   try {
-    const result = await creditTokens({
-      uid: meta.data.uid,
-      email: session.customer_details?.email ?? undefined,
-      amount: meta.data.tokens,
-      referenceId: session.id,
-      txId: session.id,
-      stripeCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id,
-    });
+    if (
+      event.type === "checkout.session.completed" ||
+      event.type === "checkout.session.async_payment_succeeded"
+    ) {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const result = await fulfillCheckoutSession(session);
+      return NextResponse.json({
+        received: true,
+        credited: result.credited,
+        balanceAfter: result.balanceAfter,
+      });
+    }
 
-    // Record to immutable redistributive purchase ledger
-    await recordStripePurchase({
-      purchaseId: session.id,
-      uid: meta.data.uid,
-      email: session.customer_details?.email ?? undefined,
-      packId: meta.data.packId,
-      tokens: meta.data.tokens,
-      amountCents: session.amount_total ?? 0,
-      currency: session.currency ?? "aud",
-      createdAt: new Date().toISOString(),
-    });
+    if (event.type === "invoice.paid") {
+      const invoice = event.data.object as Stripe.Invoice;
+      // Initial subscription invoice is already fulfilled by checkout.session.completed (`cs_...`).
+      // Only credit on recurring monthly renewals (`subscription_cycle`).
+      if (invoice.billing_reason !== "subscription_cycle") {
+        return NextResponse.json({ received: true, credited: false });
+      }
 
-    return NextResponse.json({ received: true, credited: !result.replayed, balanceAfter: result.balanceAfter });
+      const subDetails = invoice.parent?.subscription_details;
+      const rawMeta = subDetails?.metadata ?? invoice.metadata ?? {};
+      const meta = TopupMetadataSchema.safeParse(rawMeta);
+      if (!meta.success) {
+        return NextResponse.json({ received: true, credited: false });
+      }
+
+      const stripeCustomerId =
+        typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+      const subId =
+        typeof subDetails?.subscription === "string"
+          ? subDetails.subscription
+          : subDetails?.subscription?.id;
+      const amountCents = invoice.amount_paid ?? 0;
+      const audDollars = Math.round(amountCents / 100);
+
+      const result = await creditTokens({
+        uid: meta.data.uid,
+        email: invoice.customer_email ?? undefined,
+        amount: meta.data.tokens,
+        referenceId: `Stripe Monthly Subscription Renewal (${meta.data.tokens.toLocaleString("en-AU")} searches · $${audDollars} AUD inc. GST) [${invoice.id}]`,
+        txId: invoice.id,
+        stripeCustomerId,
+        subscription: {
+          status: "active",
+          stripeSubscriptionId: subId,
+          packId: meta.data.packId,
+          tokensPerMonth: meta.data.tokens,
+          priceAudCents: amountCents,
+        },
+      });
+
+      await recordStripePurchase({
+        purchaseId: invoice.id,
+        uid: meta.data.uid,
+        email: invoice.customer_email ?? undefined,
+        packId: meta.data.packId,
+        tokens: meta.data.tokens,
+        amountCents,
+        currency: invoice.currency ?? "aud",
+        createdAt: new Date().toISOString(),
+      });
+
+      return NextResponse.json({
+        received: true,
+        credited: !result.replayed,
+        balanceAfter: result.balanceAfter,
+      });
+    }
+
+    if (event.type === "customer.subscription.deleted") {
+      const subscription = event.data.object as Stripe.Subscription;
+      const uid = subscription.metadata?.uid;
+      if (uid) {
+        await db
+          .collection("users")
+          .doc(uid)
+          .set(
+            {
+              subscriptionStatus: "canceled",
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+      }
+      return NextResponse.json({ received: true });
+    }
+
+    return NextResponse.json({ received: true });
   } catch (err) {
-    console.error("[stripe-webhook] credit failed; Stripe will retry", session.id, err);
+    console.error("[stripe-webhook] credit failed; Stripe will retry", event.id, err);
     return jsonError("INTERNAL", "Ledger write failed", 500);
   }
 }

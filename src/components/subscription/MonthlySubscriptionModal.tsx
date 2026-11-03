@@ -125,18 +125,25 @@ export function MonthlySubscriptionModal({
     setGranting(true);
     setMessage(null);
     try {
-      const res = await apiFetch<{ creditedTokens: number; balanceAfter: number }>("/api/admin/orders", {
+      const res = await apiFetch<{
+        creditedTokens?: number;
+        balanceAfter?: number;
+        giftResult?: { tokens: number; balanceAfter: number };
+      }>("/api/admin/orders", {
         method: "POST",
         idempotencyKey: newIdempotencyKey(),
         body: {
-          targetEmail: user.email,
+          action: "GIFT_TOKENS",
+          recipientEmail: user.email,
           tokens: subConfig.searchesPerMonth,
-          note: `Monthly Search Subscription allocation (${subConfig.searchesPerMonth} searches / $${subConfig.priceAud} AUD)`,
+          note: `Monthly Search Subscription allocation (${subConfig.searchesPerMonth} searches / $${subConfig.priceAud} AUD inc. GST)`,
         },
       });
+      const credited = res.creditedTokens ?? res.giftResult?.tokens ?? subConfig.searchesPerMonth;
+      const balanceAfter = res.balanceAfter ?? res.giftResult?.balanceAfter ?? 0;
       setMessage({
         type: "success",
-        text: `Allocated ${res.creditedTokens.toLocaleString()} subscription searches to ${user.email}. New balance: ${res.balanceAfter.toLocaleString()} tokens.`,
+        text: `Allocated ${credited.toLocaleString()} subscription searches to ${user.email}. New balance: ${balanceAfter.toLocaleString()} tokens.`,
       });
     } catch (err) {
       setMessage({ type: "error", text: errorMessage(err) });

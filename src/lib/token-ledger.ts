@@ -162,6 +162,14 @@ export async function creditTokens(params: {
   txId: string;
   stripeCustomerId?: string;
   txType?: "TOPUP" | "GIFT";
+  subscription?: {
+    status: "active" | "canceled" | "past_due";
+    stripeSubscriptionId?: string;
+    packId?: string;
+    tokensPerMonth?: number;
+    priceAudCents?: number;
+    startedAt?: string;
+  };
 }): Promise<LedgerResult> {
   const amount = toInt(params.amount);
   if (!Number.isInteger(amount) || amount <= 0) throw new Error("amount must be a positive integer");
@@ -177,12 +185,27 @@ export async function creditTokens(params: {
     const now = new Date().toISOString();
     const balanceAfter = toInt(Number(userSnap.exists ? userSnap.get("tokenBalance") ?? 0 : 0) + amount);
     const customer = params.stripeCustomerId && /^cus_[A-Za-z0-9]+$/.test(params.stripeCustomerId) ? params.stripeCustomerId : undefined;
+    const subFields = params.subscription
+      ? {
+          subscriptionStatus: params.subscription.status,
+          ...(params.subscription.stripeSubscriptionId ? { stripeSubscriptionId: params.subscription.stripeSubscriptionId } : {}),
+          ...(params.subscription.packId ? { subscriptionPackId: params.subscription.packId } : {}),
+          ...(typeof params.subscription.tokensPerMonth === "number"
+            ? { subscriptionTokensPerMonth: toInt(params.subscription.tokensPerMonth) }
+            : {}),
+          ...(typeof params.subscription.priceAudCents === "number"
+            ? { subscriptionPriceAudCents: toInt(params.subscription.priceAudCents) }
+            : {}),
+          subscriptionStartedAt: params.subscription.startedAt ?? now,
+        }
+      : {};
 
     if (userSnap.exists) {
       t.update(userRef, {
         tokenBalance: FieldValue.increment(amount),
         updatedAt: now,
         ...(customer ? { stripeCustomerId: customer } : {}),
+        ...subFields,
       });
     } else {
       t.set(userRef, {
@@ -192,6 +215,7 @@ export async function creditTokens(params: {
         activeBrandId: "",
         stripeCustomerId: customer ?? "",
         updatedAt: now,
+        ...subFields,
       });
     }
     t.create(txRef, {

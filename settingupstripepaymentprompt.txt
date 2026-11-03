@@ -1,0 +1,225 @@
+================================================================================
+MASTER PROMPT FOR ANTIGRAVITY:
+STRIPE AUD GST-INCLUSIVE PAYMENTS (ONE-TIME & MONTHLY SUBSCRIPTIONS)
+WITH ZERO PRE-CREATED STRIPE PRODUCTS & INSTANT TOKEN/SERVICE FULFILLMENT
+================================================================================
+
+Copy and paste everything below into any other web app project to instruct the
+AI agent on how to set up Stripe Sandbox & Live payments using the exact
+proven Australian GST-inclusive architecture (verified against `sub_1UXpfSI8bClhBF4PwMByBJqe`).
+
+--------------------------------------------------------------------------------
+PROMPT TO PASTE INTO YOUR OTHER WEB APPS:
+--------------------------------------------------------------------------------
+
+We are setting up Stripe Payments (Sandbox / Live) for this web app. Follow these exact architectural rules without exception:
+
+### 1. CORE BUSINESS & TAX INVARIANTS
+1. **Currency:** All payments, checkouts, and invoices MUST be strictly in Australian Dollars (`currency: "aud"`).
+2. **Prices Include 10% Australian GST (GST-Inclusive):**
+   - The price shown to the customer is the final total price including 10% Australian GST (for example: $10 AUD total = $9.09 AUD ex-GST + $0.91 AUD GST; $500 AUD/mo total = $454.55 AUD ex-GST + $45.45 AUD GST).
+   - Formula for inclusive 10% GST in integer cents:
+     - `gstCents = Math.round(priceCents - priceCents / 1.1)`
+     - `exGstCents = priceCents - gstCents`
+3. **Do NOT Create Static Products or Prices in Stripe:**
+   - Because product prices, token packs, and subscription tiers are modified dynamically via the SuperAdmin Control Panel at any time, NEVER hardcode or pre-create `prod_...` or `price_...` IDs in Stripe.
+   - Always use inline `price_data` + `product_data` inside `stripe.checkout.sessions.create(...)`.
+4. **Why Stripe `PaymentIntent` (`pi_...`) vs `Invoice` (`in_...`) & `Subscription` (`sub_...`) Differ in the Stripe Dashboard:**
+   - In Stripe's Dashboard, a raw `PaymentIntent` (`pi_...`) in the "Payments" tab only displays the gross card charge and Stripe's own processing fee (e.g. Stripe fee + GST on Stripe's fee). It does NOT display the customer's 10% GST breakdown unless an **Invoice (`in_...`)** is generated with an attached **Inclusive 10% Australian GST `TaxRate` (`txr_...`)**.
+   - Subscriptions (`mode: "subscription"`) automatically create an Invoice (`in_...`).
+   - One-time payments (`mode: "payment"`) do NOT create an Invoice by default unless you pass `invoice_creation: { enabled: true }`.
+   - Therefore:
+     a) Always attach the active **10% Inclusive Australian GST `TaxRate`** (`tax_rates: [gstTaxRateId]`, where `inclusive: true`, `percentage: 10`, `country: "AU"`, `jurisdiction: "AU"`, `display_name: "GST"`) to every `line_items[]` entry on BOTH one-time payments and subscriptions.
+     b) Always pass `invoice_creation: { enabled: true }` on all `mode: "payment"` Checkout Sessions so one-time purchases generate a formal Stripe Tax Invoice (`in_...`) with the exact same 10% GST breakdown (`subtotal_excluding_tax`, `total_taxes`, `total`) as subscriptions.
+
+---
+
+### 2. TWO PAYMENT FLOWS TO IMPLEMENT
+
+1. **One-Time Token / Service Purchases (`mode: "payment"`):**
+   - Examples: 10 Tokens for $10 AUD, 20 Tokens for $20 AUD, 50 Tokens for $50 AUD, 100 Tokens for $100 AUD, or Custom Token quantities.
+   - Uses `mode: "payment"`, `invoice_creation: { enabled: true }`, `payment_intent_data: { metadata }`, `tax_rates: [gstTaxRateId]`, and inline `price_data` (`currency: "aud"`, `tax_behavior: "inclusive"`, `unit_amount: priceCents`).
+   - After payment is confirmed, the purchased tokens are atomically distributed to the user's account (`users/{uid}.tokenBalance`).
+
+2. **Monthly Subscription (`mode: "subscription"`):**
+   - Example: Monthly Search Subscription — Allocate 1,000 Searches / Tokens per month for $500 AUD / mo (editable at any time in SuperAdmin).
+   - Uses `mode: "subscription"`, `subscription_data: { metadata }`, `tax_rates: [gstTaxRateId]`, and inline `price_data` (`currency: "aud"`, `tax_behavior: "inclusive"`, `unit_amount: priceCents`, `recurring: { interval: "month" }`).
+   - **Important Stripe API Rule for `mode: "subscription"`:**
+     - Do NOT pass `payment_intent_data` when `mode === "subscription"` (use `subscription_data: { metadata }` instead).
+     - Do NOT pass `customer_creation: "always"` when `mode === "subscription"` (Stripe always creates a customer automatically in subscription mode and throws an error if `customer_creation` is passed).
+   - After payment is confirmed, the subscription is marked active on `users/{uid}` (`subscriptionStatus: "active"`, `stripeSubscriptionId`) and the monthly tokens (e.g. 1,000 tokens) are immediately distributed to the user's account.
+
+---
+
+### 3. SERVER-SIDE STRIPE HELPER (`src/lib/stripe.ts`)
+
+Implement `ensureAuGstTaxRateId()`, `buildCheckoutParams()`, and `fulfillCheckoutSession()` using this pattern:
+
+```ts
+import "server-only";
+import Stripe from "stripe";
+
+let client: Stripe | null = null;
+let cachedAuGstTaxRateId: string | null = null;
+
+export function getStripe(): Stripe {
+  if (!client) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
+    client = new Stripe(key);
+  }
+  return client;
+}
+
+/**
+ * Finds or creates the active 10% Inclusive Australian GST TaxRate in Stripe (`txr_...`).
+ * Attaching this TaxRate to `line_items[].tax_rates` ensures Stripe Checkout and Stripe Invoices
+ * always calculate and deduct the 1/11th (10%) GST component from the AUD GST-inclusive price.
+ */
+export async function ensureAuGstTaxRateId(): Promise<string> {
+  if (cachedAuGstTaxRateId) return cachedAuGstTaxRateId;
+  const stripe = getStripe();
+  const existing = await stripe.taxRates.list({ active: true, limit: 50 });
+  const found = existing.data.find(
+    (tr) =>
+      tr.inclusive === true &&
+      tr.percentage === 10 &&
+      tr.country === "AU" &&
+      tr.display_name === "GST"
+  );
+  if (found) {
+    cachedAuGstTaxRateId = found.id;
+    return found.id;
+  }
+
+  const created = await stripe.taxRates.create({
+    display_name: "GST",
+    description: "Australian Goods and Services Tax (10% GST Included)",
+    jurisdiction: "AU",
+    country: "AU",
+    percentage: 10,
+    inclusive: true,
+    active: true,
+  });
+  cachedAuGstTaxRateId = created.id;
+  return created.id;
+}
+
+/**
+ * Builds Stripe Checkout Session parameters for either:
+ * - One-off Token Pack (`mode: "payment"`, `invoice_creation: { enabled: true }`)
+ * - Monthly Subscription (`mode: "subscription"`, `recurring: { interval: "month" }`)
+ * No pre-created Stripe products are required.
+ */
+export function buildCheckoutParams(opts: {
+  uid: string;
+  email: string;
+  stripeCustomerId?: string;
+  pack: { id: string; tokens: number; priceCents: number };
+  isSubscription: boolean;
+  productName: string;
+  appUrl: string;
+  gstTaxRateId: string;
+}): Stripe.Checkout.SessionCreateParams {
+  const { uid, email, stripeCustomerId, pack, isSubscription, productName, appUrl, gstTaxRateId } = opts;
+  const metadata = {
+    uid,
+    packId: pack.id,
+    tokens: String(pack.tokens),
+  };
+
+  const audDollars = Math.round(pack.priceCents / 100);
+  const gstCents = Math.round(pack.priceCents - pack.priceCents / 1.1);
+  const exGstCents = pack.priceCents - gstCents;
+  const gstFormatted = (gstCents / 100).toFixed(2);
+  const exGstFormatted = (exGstCents / 100).toFixed(2);
+  const tokensFormatted = pack.tokens.toLocaleString("en-AU");
+
+  if (isSubscription) {
+    return {
+      mode: "subscription",
+      client_reference_id: uid,
+      metadata,
+      subscription_data: { metadata },
+      ...(stripeCustomerId
+        ? { customer: stripeCustomerId }
+        : email
+          ? { customer_email: email }
+          : {}),
+      line_items: [
+        {
+          quantity: 1,
+          tax_rates: [gstTaxRateId],
+          price_data: {
+            currency: "aud",
+            tax_behavior: "inclusive",
+            unit_amount: pack.priceCents,
+            recurring: { interval: "month" },
+            product_data: {
+              name: productName,
+              description: `Allocate ${tokensFormatted} Searches / Month — $${audDollars.toLocaleString("en-AU")} AUD / mo (Ex-GST: $${exGstFormatted} AUD + 10% GST: $${gstFormatted} AUD)`,
+            },
+          },
+        },
+      ],
+      success_url: `${appUrl}/wallet?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/wallet?checkout=cancelled`,
+    };
+  }
+
+  return {
+    mode: "payment",
+    invoice_creation: { enabled: true },
+    client_reference_id: uid,
+    metadata,
+    payment_intent_data: { metadata },
+    ...(stripeCustomerId
+      ? { customer: stripeCustomerId }
+      : { customer_creation: "always", ...(email ? { customer_email: email } : {}) }),
+    line_items: [
+      {
+        quantity: 1,
+        tax_rates: [gstTaxRateId],
+        price_data: {
+          currency: "aud",
+          tax_behavior: "inclusive",
+          unit_amount: pack.priceCents,
+          product_data: {
+            name: productName,
+            description: `${tokensFormatted} tokens — $${audDollars.toLocaleString("en-AU")} AUD (Ex-GST: $${exGstFormatted} AUD + 10% GST: $${gstFormatted} AUD)`,
+          },
+        },
+      },
+    ],
+    success_url: `${appUrl}/wallet?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appUrl}/wallet?checkout=cancelled`,
+  };
+}
+```
+
+---
+
+### 4. STALE CUSTOMER AUTO-RETRY & ORIGIN PRESERVATION (`POST /api/wallet/checkout`)
+1. Always derive `appUrl` from `new URL(req.url).origin || process.env.APP_URL` so Stripe redirects back to the exact local port (e.g. `http://localhost:3000` or `http://localhost:3005`) or production domain the user initiated checkout from.
+2. If `user.stripeCustomerId` is stored in Firestore from an older Stripe account and `stripe.checkout.sessions.create` throws `No such customer`, catch the error and immediately retry with `stripeCustomerId: ""` so a fresh Stripe Customer is created automatically without failing checkout.
+
+---
+
+### 5. DUAL PAYMENT CONFIRMATION & IDEMPOTENT TOKEN DISTRIBUTION
+Never rely solely on webhooks during local development or if a webhook is delayed:
+1. **Shared Idempotent Fulfillment (`fulfillCheckoutSession(session)`):**
+   - Verifies `(session.mode === "payment" || session.mode === "subscription") && session.payment_status === "paid"`.
+   - Verifies `session.metadata.uid === session.client_reference_id`.
+   - Credits `Number(session.metadata.tokens)` to `users/{uid}.tokenBalance` inside an atomic Firestore transaction (`db.runTransaction`) using `txId = session.id` (`token_transactions/{session.id}`).
+   - If `token_transactions/{session.id}` already exists, returns `{ replayed: true }` without crediting twice.
+   - If `session.mode === "subscription"`, also updates `users/{uid}` with `subscriptionStatus: "active"`, `stripeSubscriptionId`, `subscriptionTokensPerMonth`, and `subscriptionPriceAudCents`.
+2. **Direct Return Confirmation Endpoint (`POST /api/wallet/confirm`):**
+   - When the browser lands on `/wallet?checkout=success&session_id=cs_test_...`, the frontend banner immediately calls `POST /api/wallet/confirm` with `{ sessionId }`.
+   - The server calls `await getStripe().checkout.sessions.retrieve(sessionId)`, verifies `session.client_reference_id === caller.uid`, and runs `fulfillCheckoutSession(session)`.
+   - Tokens and subscription status are distributed immediately within 1 second of returning from Stripe Checkout.
+3. **Stripe Webhook Endpoint (`POST /api/webhooks/stripe`):**
+   - Handles `checkout.session.completed` and `checkout.session.async_payment_succeeded` by calling the exact same `fulfillCheckoutSession(session)` (idempotent on `session.id`).
+   - Handles `invoice.paid` where `invoice.billing_reason === "subscription_cycle"` (for Month 2+ recurring monthly renewals), crediting the monthly token allowance using `txId = invoice.id`.
+   - Handles `customer.subscription.deleted` to set `subscriptionStatus: "canceled"` on `users/{uid}`.
+================================================================================
+
