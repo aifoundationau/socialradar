@@ -69,7 +69,16 @@
    - **Full Role Simulation:** Superadmin can view the application and act as all other roles (`admin` / Main Admin, `supporter` / Supporter) directly from the Account Menu, the Super Admin modal header, or quick-preview buttons.
    - **Dynamic App State:** Switching roles immediately transforms UI badges, permissions, navigation links, and admin modals to match the target role.
    - **Return to Super Admin:** Persistent notification banner and 1-click "Return to Super Admin" button in the header, account menu, and modals.
+16. **Firebase Client SDK Update & Full Database Health Verification:**
+   - **SDK Update:** Upgraded Firebase Client SDK to `13.2.0` (Stripe kept strictly at `23.0.1`).
+   - **RBAC Matrix Alignment:** Refined `DEFAULT_RBAC_MATRIX` in `src/lib/rbac.ts` so `admin` holds strictly operational permissions, keeping ledger, user mutation, and developer diagnostics reserved exclusively for Super Admin.
+   - **Live Database Health Check:** Built and ran automated diagnostic test `scripts/verify-database.mjs` against live Firestore database `ad-radar`:
+     - `system_config/global`: Active (100c base rate, Token economy toggle).
+     - `system_config/faqs`: Active (27 customer-perspective FAQ items).
+     - `system_config/rbac`: Active (5 roles synchronized).
+     - `token_transactions`: Atomic write, verification read, and cleanup verified.
+     - `users`, `admin_messages`, `customize_requests`: Verified readable.
 
 ## Next Priority Actions
-1. Open http://localhost:3000, click your user avatar to open the account menu, and use the "Act As Role View" buttons to test the Super Admin, Main Admin, and Supporter role views.
+1. Open http://localhost:3000 to verify that all features and role views are operating smoothly with the live database.
 2. Await next user directive.

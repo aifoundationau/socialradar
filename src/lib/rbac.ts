@@ -15,17 +15,13 @@ export const DEFAULT_RBAC_MATRIX: RbacMatrix = {
   admin: [
     "view_analytics",
     "manage_config",
-    "manage_ledger",
-    "flush_cache",
     "manage_messages",
-    "manage_users",
     "search_radar",
     "ai_remix",
     "manage_brands",
   ],
   moderator: [
     "view_analytics",
-    "flush_cache",
     "manage_messages",
     "search_radar",
     "ai_remix",
