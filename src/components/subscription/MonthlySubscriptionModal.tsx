@@ -248,8 +248,8 @@ export function MonthlySubscriptionModal({
                 <span className="font-medium text-on-surface">Top Winners (90%+ Score) (+1 token)</span>
               </div>
             </div>
-            <p className="text-[10px] text-on-surface-variant font-mono">
-              Tokens can also be used for AI Creative Remixes (1 token) &amp; Variation Regenerations (1 token).
+            <p className="text-[10.5px] text-on-surface-variant font-mono leading-relaxed">
+              Tokens can also be used to pay for <strong className="text-on-surface">Customize your Brand Strategy with Professional Experts</strong>, AI Creative Remixes (1 token) &amp; Variation Regenerations (1 token).
             </p>
           </div>
 

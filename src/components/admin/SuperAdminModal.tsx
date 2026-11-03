@@ -1429,7 +1429,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
                     <div className="rounded-lg border border-primary/20 bg-surface-container-lowest/70 p-3 font-mono text-xs text-on-surface leading-relaxed">
                       <span className="font-bold text-primary">Value Proposition: </span>
-                      Options for every search: Every option is one token. This gives you 1,000 of those.
+                      Options for every search: Every option is one token. This gives you 1,000 of those. Can also be used to pay for Customize your Brand Strategy with Professional Experts.
                     </div>
 
                     <div className="rounded-lg border border-secondary/30 bg-secondary/10 p-3 font-mono text-xs text-on-surface leading-relaxed">
