@@ -554,8 +554,28 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 - **For supporters (`supporter`):**
   - The Account Menu provides single-click access to the Supporter Admin Panel containing Tokens, Buy More Tokens, and Messages only.
 
+## 15. Main Admin Authority Scope & Superadmin Multi-Role View Simulation
 
+### Main Admin Panel (`role === "admin"`)
+- **Permitted Admin Tabs (Strictly 5 Tabs):**
+  1. `CURRENCY` (Currency Controls: `isTokenSystemEnabled`, `isAudEnabled`, `isUsdEnabled`, `audToUsdRate`, `baseTokenRateAudCents`)
+  2. `PRICING` (Service Pricing: integer token fees across all 7 platform actions)
+  3. `PACKS` (Token Packs: `PACK_10`, `PACK_50`, `PACK_100` integer pricing)
+  4. `MESSAGES` (User Messages: customer threads, 45-token Customize briefs, and AI Strategy Reply Designer)
+  5. `FAQS` (FAQ Development: full CRUD over `system_config/faqs` via `/api/admin/faqs` with `requireRole: "admin"`)
+- **Restricted SuperAdmin Exclusive Privileges:**
+  - `LEDGER` (Redistributive Pool, Master Order Ledger, Token Refunds, SuperAdmin Gift Tokens)
+  - `RBAC` (Role-Based Access Control matrix mutations & user tier assignments)
+  - `DIAGNOSTICS` (Developer Diagnostics & system health telemetry)
 
-
+### Superadmin Multi-Role View Simulation (`actingAsRole`)
+- **State Contract (`SessionValue` in `src/components/auth/SessionProvider.tsx`):**
+  - `isActualSuperadmin`: boolean (`true` strictly when authenticated user holds `superadmin` authority)
+  - `actingAsRole`: `"superadmin" | "admin" | "supporter" | null`
+  - `setActingRole(role)`: switches active UI role, permissions, navigation bar, and admin modal view in real time
+  - `resetRole()`: immediately restores `superadmin` authority and clears simulation state
+- **DOM Automation Bindings:**
+  - `data-testid="act-as-role-superadmin"`, `data-testid="act-as-role-admin"`, `data-testid="act-as-role-supporter"`
+  - `data-testid="acting-as-banner"`, `data-testid="reset-acting-role-button"`
 
 
