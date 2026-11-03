@@ -69,8 +69,9 @@
    - **Full Role Simulation:** Superadmin can view the application and act as all other roles (`admin` / Main Admin, `supporter` / Supporter) directly from the Account Menu, the Super Admin modal header, or quick-preview buttons.
    - **Dynamic App State:** Switching roles immediately transforms UI badges, permissions, navigation links, and admin modals to match the target role.
    - **Return to Super Admin:** Persistent notification banner and 1-click "Return to Super Admin" button in the header, account menu, and modals.
-16. **Firebase Client SDK Update & Full Database Health Verification:**
-   - **SDK Update:** Upgraded Firebase Client SDK to `13.2.0` (Stripe kept strictly at `23.0.1`).
+16. **Firebase Client SDK Pin & Full Database Health Verification:**
+   - **SDK Pin & Fix:** Pinned `firebase` to `13.1.0` in `package.json` to eliminate duplicate `@firebase/app` containers (`0.16.4` vs `0.16.5`) that triggered `Component auth has not been registered yet` at `clientAuth`.
+   - **Stripe:** Kept strictly at `23.0.1` as directed.
    - **RBAC Matrix Alignment:** Refined `DEFAULT_RBAC_MATRIX` in `src/lib/rbac.ts` so `admin` holds strictly operational permissions, keeping ledger, user mutation, and developer diagnostics reserved exclusively for Super Admin.
    - **Live Database Health Check:** Built and ran automated diagnostic test `scripts/verify-database.mjs` against live Firestore database `ad-radar`:
      - `system_config/global`: Active (100c base rate, Token economy toggle).
@@ -78,6 +79,7 @@
      - `system_config/rbac`: Active (5 roles synchronized).
      - `token_transactions`: Atomic write, verification read, and cleanup verified.
      - `users`, `admin_messages`, `customize_requests`: Verified readable.
+   - **Git & Server:** Committed and pushed `047e460` to `origin/main`. Next.js dev server running on port 3000 (HTTP 200).
 
 ## Next Priority Actions
 1. Open http://localhost:3000 to verify that all features and role views are operating smoothly with the live database.
