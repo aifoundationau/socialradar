@@ -1432,6 +1432,16 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       Options for every search: Every option is one token. This gives you 1,000 of those.
                     </div>
 
+                    <div className="rounded-lg border border-secondary/30 bg-secondary/10 p-3 font-mono text-xs text-on-surface leading-relaxed">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Icon name="sliders" className="size-4 text-secondary" />
+                        <span className="font-bold text-secondary uppercase tracking-wider">
+                          SuperAdmin &amp; MainAdmin Controls
+                        </span>
+                      </div>
+                      The monthly price is currently set to <strong>{formatAud(Math.round((config.monthlySubscription?.priceAud ?? 500) * 100))} AUD/month</strong>. Super Admin and Main Admin can adjust the price at any time directly through the Admin Control Panel in Service Pricing.
+                    </div>
+
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
                       <div className="rounded-xl border border-white/10 bg-surface-container p-4 space-y-2">
                         <label className={label}>Monthly Subscription Fee (AUD $)</label>

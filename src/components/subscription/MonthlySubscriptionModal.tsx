@@ -273,36 +273,6 @@ export function MonthlySubscriptionModal({
             </p>
           </div>
 
-          {/* SuperAdmin & MainAdmin Management Notice */}
-          <div className="rounded-xl border border-secondary/30 bg-secondary/10 p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Icon name="sliders" className="size-4 text-secondary" />
-                <span className="font-mono text-xs font-bold text-secondary uppercase">
-                  SuperAdmin &amp; MainAdmin Controls
-                </span>
-              </div>
-              {onOpenPricing && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onOpenPricing();
-                  }}
-                  data-agent-id="open-sub-pricing-control"
-                  data-testid="open-sub-pricing-control"
-                  aria-label="Open pricing settings in Admin Panel"
-                  className="font-mono text-xs font-semibold text-secondary hover:underline"
-                >
-                  Change Price in Admin Panel &rarr;
-                </button>
-              )}
-            </div>
-            <p className="text-xs text-on-surface leading-relaxed">
-              The monthly price is currently set to <strong>{formatAud(audCents)} AUD/month</strong>. Super Admin and Main Admin can adjust the price at any time directly through the Admin Control Panel.
-            </p>
-          </div>
-
           {/* Status Message */}
           {message && (
             <div
