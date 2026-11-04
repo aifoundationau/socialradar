@@ -56,3 +56,6 @@ safetyprotocols.txt
 *(1).*
 
 
+
+.vercel
+.env*
