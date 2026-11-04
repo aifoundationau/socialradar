@@ -154,10 +154,23 @@ export function AppFooter() {
 
         {/* Main Footer Links & Copyright */}
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-5 px-4 py-6 sm:px-6 lg:flex-row pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-6">
-          <div className="flex flex-col items-center gap-1 text-center lg:items-start lg:text-left">
-            <p className="font-mono text-xs text-on-surface">
-              Copyright © 2026 AI Foundation · All rights reserved.
-            </p>
+          <div className="flex flex-col items-center gap-2 text-center lg:items-start lg:text-left">
+            <div className="flex flex-wrap items-center justify-center gap-2 font-mono text-xs text-on-surface lg:justify-start">
+              <a
+                href="https://aifoundation.net.au/"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="footer-btn-ai-foundation"
+                data-agent-id="footer-btn-ai-foundation"
+                aria-label="Visit AI Foundation website at https://aifoundation.net.au (opens in new tab)"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1 text-xs text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
+              >
+                <Icon name="globe" className="size-3 text-primary" />
+                <span>© 2026 AI Foundation</span>
+                <Icon name="externalLink" className="size-2.5 text-primary/70" />
+              </a>
+              <span className="text-outline">· All rights reserved.</span>
+            </div>
             <p className="font-mono text-[11px] text-outline">
               AdRadarHQ Intelligence · Australian Registered Business · Strict 7-Year Statutory Compliance Archive
             </p>
