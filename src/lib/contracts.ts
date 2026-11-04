@@ -63,6 +63,8 @@ export const TokenTxTypeSchema = z.enum([
   "REFUND",
   "BRAND_CLONE",
   "CUSTOMIZE_SERVICE",
+  "ADMIN_DEDUCT",
+  "ADMIN_RESET",
 ]);
 export type TokenTxType = z.infer<typeof TokenTxTypeSchema>;
 
@@ -308,6 +310,7 @@ export const CheckoutRequestSchema = z
   .object({
     packId: TokenPackIdSchema,
     customTokens: tokenInt.min(1).max(1_000_000).optional(),
+    buyerCountry: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/).optional(),
   })
   .strict()
   .refine(
@@ -322,6 +325,12 @@ export const TopupMetadataSchema = z
     uid: UserDocSchema.shape.uid,
     packId: TokenPackIdSchema,
     tokens: z.coerce.number().pipe(tokenInt.min(1).max(1_000_000)),
+    buyerCountry: z.string().max(8).optional(),
+    taxApplied: z.enum(["true", "false"]).optional(),
+    priceExGstAud: z.string().max(64).optional(),
+    gstTaxAud: z.string().max(64).optional(),
+    totalIncGstAud: z.string().max(64).optional(),
+    taxType: z.string().max(64).optional(),
   })
   .strict();
 
@@ -445,6 +454,13 @@ export const RedistributiveLedgerSummarySchema = z
   })
   .strict();
 export type RedistributiveLedgerSummary = z.infer<typeof RedistributiveLedgerSummarySchema>;
+
+export const AdminResetRedistributiveLedgerRequestSchema = z
+  .object({
+    action: z.literal("RESET_REDISTRIBUTIVE_LEDGER"),
+  })
+  .strict();
+export type AdminResetRedistributiveLedgerRequest = z.infer<typeof AdminResetRedistributiveLedgerRequestSchema>;
 
 // ---------- 8. Admin Messaging (7-Year Plain Text Retention) ----------
 export const LINK_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.|data:|[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?|\[.*?\]\(.*?\))/i;
@@ -688,6 +704,23 @@ export const AdminGiftTokensRequestSchema = z
   })
   .strict();
 export type AdminGiftTokensRequest = z.infer<typeof AdminGiftTokensRequestSchema>;
+
+export const AdminDeductTokensRequestSchema = z
+  .object({
+    recipientEmail: z.string().trim().toLowerCase().email("Valid email address is required").max(254),
+    tokens: tokenInt.min(1, "Tokens must be at least 1").max(1_000_000),
+    note: safeText(0, 200).optional(),
+  })
+  .strict();
+export type AdminDeductTokensRequest = z.infer<typeof AdminDeductTokensRequestSchema>;
+
+export const AdminResetTokensRequestSchema = z
+  .object({
+    recipientEmail: z.string().trim().toLowerCase().email("Valid email address is required").max(254),
+    note: safeText(0, 200).optional(),
+  })
+  .strict();
+export type AdminResetTokensRequest = z.infer<typeof AdminResetTokensRequestSchema>;
 
 export const AdminRefundOrderRequestSchema = z
   .object({

@@ -53,6 +53,7 @@ export interface RbacUserItem {
   tier: string;
   createdAt: string;
   isPermanentSuperAdmin: boolean;
+  tokenBalance?: number;
 }
 
 /** Fetches RBAC config from Firestore or bootstraps defaults. */
@@ -172,13 +173,28 @@ export async function assignUserRole(
 /** Lists registered users for the RBAC management table. */
 export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]> {
   try {
-    const listResult = await adminAuth.listUsers(limitCount);
+    const [listResult, usersSnap] = await Promise.all([
+      adminAuth.listUsers(limitCount),
+      db.collection("users").get(),
+    ]);
+
+    const balanceMap = new Map<string, number>();
+    usersSnap.forEach((doc) => {
+      const data = doc.data();
+      const bal = Number(data.tokenBalance ?? 0);
+      balanceMap.set(doc.id, bal);
+      if (data.email) {
+        balanceMap.set(String(data.email).toLowerCase().trim(), bal);
+      }
+    });
+
     return listResult.users.map((u) => {
       const email = (u.email || "").toLowerCase().trim();
       const isSuper = isDatabaseAdmin(u.customClaims, email);
       const rawRole = (u.customClaims?.role as RbacRole) || (isSuper ? "superadmin" : "supporter");
       const role: RbacRole = isSuper ? "superadmin" : (RBAC_ROLES_LIST.includes(rawRole) ? rawRole : "supporter");
       const tier = (u.customClaims?.tier as string) || (isSuper ? "agency" : "supporter");
+      const tokenBalance = balanceMap.get(u.uid) ?? balanceMap.get(email) ?? 0;
 
       return {
         uid: u.uid,
@@ -189,6 +205,7 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
         tier,
         createdAt: u.metadata.creationTime || new Date().toISOString(),
         isPermanentSuperAdmin: isSuper,
+        tokenBalance,
       };
     });
   } catch (err) {

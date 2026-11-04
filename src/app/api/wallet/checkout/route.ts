@@ -33,11 +33,22 @@ export async function GET(req: Request) {
   }
 }
 
-/** Starts a Stripe Checkout Session for a token pack or monthly subscription (settled in AUD, GST inclusive). Body: `{ packId, customTokens? }`. Returns `{ url }`. */
+/** Starts a Stripe Checkout Session for a token pack or monthly subscription (settled in AUD; 10% inclusive GST for AU/NZ, no tax for non-AU/NZ). Body: `{ packId, customTokens?, buyerCountry? }`. Returns `{ url }`. */
 export async function POST(req: Request) {
   try {
     const body = CheckoutRequestSchema.parse(await readJson(req));
     const { packId, customTokens } = body;
+    const headerCountry = (
+      req.headers.get("x-vercel-ip-country") ||
+      req.headers.get("cf-ipcountry") ||
+      req.headers.get("x-country-code") ||
+      ""
+    )
+      .toUpperCase()
+      .trim();
+    const buyerCountry = (body.buyerCountry || headerCountry || "AU").toUpperCase().trim();
+    const isAuNz = buyerCountry === "AU" || buyerCountry === "NZ";
+
     // Monthly Search Subscription is a SuperAdmin and MainAdmin function only
     const caller = await verifyRequest(req, packId === "SUB_MONTHLY_1000" ? { requireRole: "admin" } : undefined);
     const key = requireIdempotencyKey(req);
@@ -86,8 +97,8 @@ export async function POST(req: Request) {
 
     const appUrl = new URL(req.url).origin || process.env.APP_URL || "http://localhost:3000";
     const stripe = getStripe();
-    const gstTaxRateId = await ensureAuGstTaxRateId();
-    const baseIdempotencyKey = buildTxId(caller.uid, `${key}_gst_inv`);
+    const gstTaxRateId = isAuNz ? await ensureAuGstTaxRateId() : undefined;
+    const baseIdempotencyKey = buildTxId(caller.uid, `${key}_${buyerCountry}_ex`);
 
     let session;
     try {
@@ -99,6 +110,7 @@ export async function POST(req: Request) {
           pack,
           appUrl,
           subscriptionName: config.monthlySubscription?.name,
+          buyerCountry,
           gstTaxRateId,
         }),
         { idempotencyKey: baseIdempotencyKey },
@@ -114,6 +126,7 @@ export async function POST(req: Request) {
             pack,
             appUrl,
             subscriptionName: config.monthlySubscription?.name,
+            buyerCountry,
             gstTaxRateId,
           }),
           { idempotencyKey: `${baseIdempotencyKey}_freshcus` },

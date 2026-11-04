@@ -60,10 +60,16 @@ export function TokenPacks() {
     setPending(packId);
     setError(null);
     try {
+      const currentGeo = loadGeoConfig();
+      setGeo(currentGeo);
       const body =
         packId === "PACK_CUSTOM"
-          ? { packId, customTokens: Math.max(1, Math.ceil(amount || customTokens || 10)) }
-          : { packId };
+          ? {
+              packId,
+              customTokens: Math.max(1, Math.ceil(amount || customTokens || 10)),
+              buyerCountry: currentGeo.country,
+            }
+          : { packId, buyerCountry: currentGeo.country };
       const { url } = await apiFetch<{ url: string }>("/api/wallet/checkout", { body });
       window.location.assign(url);
     } catch (err) {
@@ -206,7 +212,12 @@ export function TokenPacks() {
                 )}
               </div>
               <p className="text-compact text-outline">tokens</p>
-              <p className="text-title-sm font-semibold text-on-surface">{audPriceStr}</p>
+              <p className="text-title-sm font-semibold text-on-surface">
+                {audPriceStr}{" "}
+                <span className="text-xs font-normal text-on-surface-variant">
+                  {geo.isAuNz ? "+ GST" : "(No Tax)"}
+                </span>
+              </p>
               {!geo.isAuNz && (
                 <p
                   data-testid={`usd-conversion-${pack.id.toLowerCase()}`}
@@ -216,7 +227,9 @@ export function TokenPacks() {
                 </p>
               )}
               <p className="font-mono text-[11px] text-outline">
-                {perTokenAud} AUD per token · Billed in AUD
+                {geo.isAuNz
+                  ? `${perTokenAud} AUD/tok · +10% GST (${formatAud(Math.round(pack.priceCents * 1.1))} AUD total)`
+                  : `${perTokenAud} AUD/tok · No Tax (${geo.country})`}
               </p>
               <button
                 type="button"
@@ -297,7 +310,10 @@ export function TokenPacks() {
           </div>
 
           <p className="text-title-sm font-semibold mt-1 text-on-surface">
-            {formatAud(customPack.priceCents)} AUD
+            {formatAud(customPack.priceCents)} AUD{" "}
+            <span className="text-xs font-normal text-on-surface-variant">
+              {geo.isAuNz ? "+ GST" : "(No Tax)"}
+            </span>
           </p>
           {!geo.isAuNz && (
             <p
@@ -308,7 +324,9 @@ export function TokenPacks() {
             </p>
           )}
           <p className="font-mono text-[11px] text-outline">
-            All invoices billed in Australian Dollars (AUD)
+            {geo.isAuNz
+              ? `+10% GST added at checkout (${formatAud(Math.round(customPack.priceCents * 1.1))} AUD total)`
+              : `No Tax (${geo.country}) · Price locked to Admin Panel`}
           </p>
 
           <button

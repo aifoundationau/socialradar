@@ -243,6 +243,49 @@ export async function getRedistributiveLedger(): Promise<RedistributiveLedgerSum
   };
 }
 
+/**
+ * Safely resets the redistributive ledger to 0 by archiving all records from
+ * `stripe_purchases` into `archived_stripe_purchases` (with audit metadata)
+ * and deleting them from `stripe_purchases`.
+ * Recomputes and returns the fresh, zeroed-out RedistributiveLedgerSummary.
+ */
+export async function resetRedistributiveLedger(callerUid?: string): Promise<{
+  deletedCount: number;
+  ledger: RedistributiveLedgerSummary;
+  recentPurchases: StripePurchaseRecord[];
+}> {
+  const purchasesSnap = await db.collection(PURCHASES_COL).get();
+  const deletedCount = purchasesSnap.size;
+
+  if (!purchasesSnap.empty) {
+    const archivedAt = new Date().toISOString();
+    const docs = purchasesSnap.docs;
+    const CHUNK_SIZE = 200; // 2 ops per doc (set + delete) = 400 ops <= 500 max per batch
+    for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
+      const chunk = docs.slice(i, i + CHUNK_SIZE);
+      const batch = db.batch();
+      for (const doc of chunk) {
+        const data = doc.data();
+        const archiveRef = db.collection("archived_stripe_purchases").doc(doc.id);
+        batch.set(archiveRef, {
+          ...data,
+          archivedAt,
+          archivedBy: callerUid || "admin",
+        });
+        batch.delete(doc.ref);
+      }
+      await batch.commit();
+    }
+  }
+
+  const [ledger, recentPurchases] = await Promise.all([
+    getRedistributiveLedger(),
+    getStripePurchases(50),
+  ]);
+
+  return { deletedCount, ledger, recentPurchases };
+}
+
 /** Adds a new equity partner to system config. */
 export async function addEquityPartner(
   partner: Omit<EquityPartner, "createdAt" | "partnerId">
@@ -749,8 +792,8 @@ export async function giftTokensToUser(params: {
 
   const txId = `gift_${Date.now()}_${randomBytes(4).toString("hex")}`;
   const refNote = params.note?.trim()
-    ? `Gift from Super Admin (${params.giftedByEmail}): ${params.note.trim()}`
-    : `Gift from Super Admin (${params.giftedByEmail}) — No Charge`;
+    ? `Gift from Admin (${params.giftedByEmail}): ${params.note.trim()}`
+    : `Gift from Admin (${params.giftedByEmail}) — No Charge`;
 
   const res = await creditTokens({
     uid: targetUid,
@@ -768,4 +811,149 @@ export async function giftTokensToUser(params: {
     tokens: cleanTokens,
     balanceAfter: res.balanceAfter,
   };
+}
+
+/**
+ * SuperAdmin & Main Admin Deduct Tokens: removes integer tokens from a user's wallet
+ * (clamped to 0 so balance never goes negative) and logs an immutable `ADMIN_DEDUCT`
+ * transaction in `token_transactions`.
+ */
+export async function deductTokensFromUser(params: {
+  recipientEmail: string;
+  tokens: number;
+  note?: string;
+  deductedByEmail: string;
+}): Promise<{
+  txId: string;
+  uid: string;
+  email: string;
+  deductedTokens: number;
+  balanceAfter: number;
+}> {
+  const cleanEmail = params.recipientEmail.trim().toLowerCase();
+  const cleanTokens = Math.max(1, Math.round(params.tokens));
+
+  let targetUid: string | null = null;
+  try {
+    const authUser = await adminAuth.getUserByEmail(cleanEmail);
+    targetUid = authUser.uid;
+  } catch {
+    const snap = await db.collection("users").where("email", "==", cleanEmail).limit(1).get();
+    if (!snap.empty) {
+      targetUid = snap.docs[0].id;
+    }
+  }
+
+  if (!targetUid) {
+    throw new Error(`No registered account found for "${cleanEmail}".`);
+  }
+
+  const userRef = db.collection("users").doc(targetUid);
+  const txId = `deduct_${Date.now()}_${randomBytes(4).toString("hex")}`;
+  const txRef = db.collection("token_transactions").doc(txId);
+
+  return db.runTransaction(async (t) => {
+    const userSnap = await t.get(userRef);
+    if (!userSnap.exists) {
+      throw new Error(`User wallet not initialized for "${cleanEmail}".`);
+    }
+    const currentBalance = Math.max(0, Math.round(Number(userSnap.get("tokenBalance") ?? 0)));
+    const actualDeduct = Math.min(currentBalance, cleanTokens);
+    const balanceAfter = Math.max(0, currentBalance - actualDeduct);
+    const now = new Date().toISOString();
+
+    const refNote = params.note?.trim()
+      ? `Token deduction by Admin (${params.deductedByEmail}): ${params.note.trim()}`
+      : `Token deduction by Admin (${params.deductedByEmail})`;
+
+    t.update(userRef, { tokenBalance: balanceAfter, updatedAt: now });
+    t.create(txRef, {
+      txId,
+      uid: targetUid!,
+      email: cleanEmail,
+      type: "ADMIN_DEDUCT",
+      delta: -actualDeduct,
+      balanceAfter,
+      referenceId: refNote,
+      createdAt: now,
+    });
+
+    return {
+      txId,
+      uid: targetUid!,
+      email: cleanEmail,
+      deductedTokens: actualDeduct,
+      balanceAfter,
+    };
+  });
+}
+
+/**
+ * SuperAdmin & Main Admin Reset Tokens: resets a user's token balance directly to 0
+ * and logs an immutable `ADMIN_RESET` transaction in `token_transactions`.
+ */
+export async function resetTokensForUser(params: {
+  recipientEmail: string;
+  note?: string;
+  resetByEmail: string;
+}): Promise<{
+  txId: string;
+  uid: string;
+  email: string;
+  clearedTokens: number;
+  balanceAfter: number;
+}> {
+  const cleanEmail = params.recipientEmail.trim().toLowerCase();
+
+  let targetUid: string | null = null;
+  try {
+    const authUser = await adminAuth.getUserByEmail(cleanEmail);
+    targetUid = authUser.uid;
+  } catch {
+    const snap = await db.collection("users").where("email", "==", cleanEmail).limit(1).get();
+    if (!snap.empty) {
+      targetUid = snap.docs[0].id;
+    }
+  }
+
+  if (!targetUid) {
+    throw new Error(`No registered account found for "${cleanEmail}".`);
+  }
+
+  const userRef = db.collection("users").doc(targetUid);
+  const txId = `reset_${Date.now()}_${randomBytes(4).toString("hex")}`;
+  const txRef = db.collection("token_transactions").doc(txId);
+
+  return db.runTransaction(async (t) => {
+    const userSnap = await t.get(userRef);
+    if (!userSnap.exists) {
+      throw new Error(`User wallet not initialized for "${cleanEmail}".`);
+    }
+    const currentBalance = Math.max(0, Math.round(Number(userSnap.get("tokenBalance") ?? 0)));
+    const now = new Date().toISOString();
+
+    const refNote = params.note?.trim()
+      ? `Token balance reset to 0 by Admin (${params.resetByEmail}): ${params.note.trim()}`
+      : `Token balance reset to 0 by Admin (${params.resetByEmail})`;
+
+    t.update(userRef, { tokenBalance: 0, updatedAt: now });
+    t.create(txRef, {
+      txId,
+      uid: targetUid!,
+      email: cleanEmail,
+      type: "ADMIN_RESET",
+      delta: -currentBalance,
+      balanceAfter: 0,
+      referenceId: refNote,
+      createdAt: now,
+    });
+
+    return {
+      txId,
+      uid: targetUid!,
+      email: cleanEmail,
+      clearedTokens: currentBalance,
+      balanceAfter: 0,
+    };
+  });
 }

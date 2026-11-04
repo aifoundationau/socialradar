@@ -20,34 +20,38 @@ export function getStripe(): Stripe {
 }
 
 /**
- * Ensures the active 10% inclusive Australian GST TaxRate (`txr_1UXpYQI8bClhBF4PcV9rhBuy`,
- * `inclusive: true`, `percentage: 10`, `country: "AU"`, `display_name: "GST"`) is resolved and cached.
- * Used by `sub_1UXpfSI8bClhBF4PwMByBJqe` and all Token Pack / Subscription checkouts so Stripe
- * always calculates and records the exact 10% GST on the Checkout session and Tax Invoice.
+ * Ensures the active 10% EXCLUSIVE Australian GST TaxRate (`txr_1UWRnsI8bClhBF4PWROuyTyt`,
+ * `inclusive: false`, `percentage: 10`, `jurisdiction: "AU"`, `display_name: "GST"`) is resolved and cached.
+ * Used ONLY for Australia (`AU`) and New Zealand (`NZ`) geolocated purchases so 10% GST is added on top
+ * of the Admin Panel price (`Price + 10% GST`).
+ * For all non-AU/NZ geolocated purchases, no TaxRate is attached and no tax is recorded or added.
  */
 export async function ensureAuGstTaxRateId(): Promise<string> {
   if (cachedAuGstTaxRateId) return cachedAuGstTaxRateId;
   const stripe = getStripe();
-  const existing = await stripe.taxRates.list({ active: true, limit: 50 });
+  const existing = await stripe.taxRates.list({ limit: 50 });
   const found = existing.data.find(
     (tr) =>
-      tr.inclusive === true &&
+      tr.inclusive === false &&
       tr.percentage === 10 &&
-      tr.country === "AU" &&
+      (tr.jurisdiction === "AU" || tr.country === "AU") &&
       tr.display_name === "GST"
   );
   if (found) {
+    if (!found.active) {
+      await stripe.taxRates.update(found.id, { active: true });
+    }
     cachedAuGstTaxRateId = found.id;
     return found.id;
   }
 
   const created = await stripe.taxRates.create({
     display_name: "GST",
-    description: "Australian Goods and Services Tax (10% GST Included)",
+    description: "Australian Goods and Services Tax",
     jurisdiction: "AU",
     country: "AU",
     percentage: 10,
-    inclusive: true,
+    inclusive: false,
     active: true,
   });
   cachedAuGstTaxRateId = created.id;
@@ -56,12 +60,8 @@ export async function ensureAuGstTaxRateId(): Promise<string> {
 
 /**
  * Hosted Checkout for either:
- * 1. One-off Token Packs (`mode: "payment"`, `invoice_creation: { enabled: true }`) — e.g. 10 Tokens for $10 AUD, 20 Tokens for $20 AUD, etc.
- * 2. Monthly Search Subscription (`mode: "subscription"`, `pack.id === "SUB_MONTHLY_1000"`) — 1,000 monthly searches for $500 AUD/mo.
- *
- * Uses inline `price_data` + `product_data` (no pre-created Stripe products required, allowing instant SuperAdmin modifications)
- * settled strictly in AUD (`currency: "aud"`) with the 10% inclusive Australian GST TaxRate (`tax_rates: [gstTaxRateId]`)
- * matching `sub_1UXpfSI8bClhBF4PwMByBJqe`.
+ * 1. One-off Token Packs (`mode: "payment"`, NO `invoice_creation` so Stripe displays the inline Checkout summary directly on the `pi_...` Payment page) — Price + 10% GST for AU/NZ (e.g. $50 + $5 GST = $55 AUD), or Price with No Tax for non-AU/NZ.
+ * 2. Monthly Search Subscription (`mode: "subscription"`, `pack.id === "SUB_MONTHLY_1000"`) — $500 AUD/mo + $50 GST = $550 AUD/mo for AU/NZ, or $500 AUD/mo with No Tax for non-AU/NZ.
  */
 export function buildCheckoutParams(opts: {
   uid: string;
@@ -70,29 +70,52 @@ export function buildCheckoutParams(opts: {
   pack: TokenPack;
   appUrl: string;
   subscriptionName?: string;
+  buyerCountry?: string;
   gstTaxRateId?: string;
 }): Stripe.Checkout.SessionCreateParams {
-  const { uid, email, stripeCustomerId, pack, appUrl, subscriptionName, gstTaxRateId } = opts;
+  const {
+    uid,
+    email,
+    stripeCustomerId,
+    pack,
+    appUrl,
+    subscriptionName,
+    buyerCountry = "AU",
+    gstTaxRateId,
+  } = opts;
   const isSubscription = pack.id === "SUB_MONTHLY_1000";
-  const metadata: Record<keyof z.output<typeof TopupMetadataSchema>, string> = {
+  const normalizedCountry = buyerCountry.toUpperCase().trim() || "AU";
+  const isAuNz = normalizedCountry === "AU" || normalizedCountry === "NZ";
+  const applyGst = isAuNz && Boolean(gstTaxRateId);
+
+  const exGstCents = pack.priceCents;
+  const gstCents = applyGst ? Math.round(exGstCents * 0.1) : 0;
+  const totalCents = exGstCents + gstCents;
+  const exGstFormatted = (exGstCents / 100).toFixed(2);
+  const gstFormatted = (gstCents / 100).toFixed(2);
+  const totalFormatted = (totalCents / 100).toFixed(2);
+  const tokensFormatted = pack.tokens.toLocaleString("en-AU");
+
+  const metadata: Record<string, string> = {
     uid,
     packId: pack.id,
     tokens: String(pack.tokens),
+    buyerCountry: normalizedCountry,
+    taxApplied: applyGst ? "true" : "false",
+    priceExGstAud: `$${exGstFormatted} AUD`,
+    gstTaxAud: `$${gstFormatted} AUD`,
+    totalIncGstAud: `$${totalFormatted} AUD`,
+    taxType: applyGst ? "Australian GST 10% (Exclusive)" : `No Tax (${normalizedCountry} — Non-AU/NZ)`,
   };
-
-  const audDollars = Math.round(pack.priceCents / 100);
-  const gstCents = Math.round(pack.priceCents - pack.priceCents / 1.1);
-  const exGstCents = pack.priceCents - gstCents;
-  const gstFormatted = (gstCents / 100).toFixed(2);
-  const exGstFormatted = (exGstCents / 100).toFixed(2);
-  const tokensFormatted = pack.tokens.toLocaleString("en-AU");
 
   if (isSubscription) {
     return {
       mode: "subscription",
       client_reference_id: uid,
       metadata,
-      subscription_data: { metadata },
+      subscription_data: {
+        metadata,
+      },
       ...(stripeCustomerId
         ? { customer: stripeCustomerId }
         : email
@@ -101,17 +124,19 @@ export function buildCheckoutParams(opts: {
       line_items: [
         {
           quantity: 1,
-          ...(gstTaxRateId ? { tax_rates: [gstTaxRateId] } : {}),
+          ...(applyGst && gstTaxRateId ? { tax_rates: [gstTaxRateId] } : {}),
           price_data: {
             currency: TOKEN_PACK_CURRENCY,
-            tax_behavior: "inclusive",
+            tax_behavior: "exclusive",
             unit_amount: pack.priceCents,
             recurring: {
               interval: "month",
             },
             product_data: {
               name: subscriptionName || "Monthly Search Subscription",
-              description: `Allocate ${tokensFormatted} Searches / Month — $${audDollars.toLocaleString("en-AU")} AUD / mo (Ex-GST: $${exGstFormatted} AUD + 10% GST: $${gstFormatted} AUD)`,
+              description: applyGst
+                ? `Allocate ${tokensFormatted} Searches / Month — $${exGstFormatted} AUD + $${gstFormatted} AUD (10% GST) = $${totalFormatted} AUD / mo`
+                : `Allocate ${tokensFormatted} Searches / Month — $${exGstFormatted} AUD / mo (No Tax · ${normalizedCountry})`,
             },
           },
         },
@@ -123,24 +148,45 @@ export function buildCheckoutParams(opts: {
 
   return {
     mode: "payment",
-    invoice_creation: { enabled: true },
+    invoice_creation: {
+      enabled: true,
+      invoice_data: {
+        description: applyGst
+          ? `Tax Invoice — ${tokensFormatted} Ad Radar Tokens ($${exGstFormatted} AUD + $${gstFormatted} AUD 10% GST = $${totalFormatted} AUD)`
+          : `Invoice — ${tokensFormatted} Ad Radar Tokens ($${exGstFormatted} AUD · No Tax · ${normalizedCountry})`,
+        custom_fields: applyGst
+          ? [
+              { name: "Price (Ex-GST)", value: `$${exGstFormatted} AUD` },
+              { name: "GST (10%)", value: `$${gstFormatted} AUD` },
+            ]
+          : [{ name: "Tax", value: `No Tax (${normalizedCountry})` }],
+        metadata,
+      },
+    },
     client_reference_id: uid,
     metadata,
-    payment_intent_data: { metadata },
+    payment_intent_data: {
+      description: applyGst
+        ? `${tokensFormatted} Ad Radar Tokens — $${exGstFormatted} AUD + $${gstFormatted} AUD 10% GST = $${totalFormatted} AUD`
+        : `${tokensFormatted} Ad Radar Tokens — $${exGstFormatted} AUD (No Tax · ${normalizedCountry})`,
+      metadata,
+    },
     ...(stripeCustomerId
       ? { customer: stripeCustomerId }
       : { customer_creation: "always", ...(email ? { customer_email: email } : {}) }),
     line_items: [
       {
         quantity: 1,
-        ...(gstTaxRateId ? { tax_rates: [gstTaxRateId] } : {}),
+        ...(applyGst && gstTaxRateId ? { tax_rates: [gstTaxRateId] } : {}),
         price_data: {
           currency: TOKEN_PACK_CURRENCY,
-          tax_behavior: "inclusive",
+          tax_behavior: "exclusive",
           unit_amount: pack.priceCents,
           product_data: {
             name: `${tokensFormatted} Ad Radar Tokens`,
-            description: `${tokensFormatted} Ad Radar tokens — $${audDollars.toLocaleString("en-AU")} AUD (Ex-GST: $${exGstFormatted} AUD + 10% GST: $${gstFormatted} AUD)`,
+            description: applyGst
+              ? `${tokensFormatted} Ad Radar tokens ($${exGstFormatted} AUD + $${gstFormatted} AUD 10% GST = $${totalFormatted} AUD)`
+              : `${tokensFormatted} Ad Radar tokens ($${exGstFormatted} AUD · No Tax · ${normalizedCountry})`,
           },
         },
       },
@@ -160,6 +206,8 @@ export interface CheckoutFulfillmentResult {
   amountCents?: number;
   taxCents?: number;
   exGstCents?: number;
+  buyerCountry?: string;
+  taxApplied?: boolean;
   reason?: string;
 }
 
@@ -190,13 +238,23 @@ export async function fulfillCheckoutSession(
   const stripeSubscriptionId =
     typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
   const amountCents = session.amount_total ?? 0;
-  const taxCents = session.total_details?.amount_tax ?? Math.round(amountCents - amountCents / 1.1);
-  const exGstCents = amountCents - taxCents;
-  const audDollars = Math.round(amountCents / 100);
+  const buyerCountry = (meta.data.buyerCountry || "AU").toUpperCase();
+  const isAuNz = buyerCountry === "AU" || buyerCountry === "NZ";
+  const taxApplied = meta.data.taxApplied === "false" ? false : isAuNz;
+
+  const taxCents = taxApplied
+    ? session.total_details?.amount_tax ?? (amountCents - (session.amount_subtotal ?? Math.round(amountCents / 1.1)))
+    : 0;
+  const exGstCents = taxApplied ? session.amount_subtotal ?? (amountCents - taxCents) : amountCents;
+  const exGstDollarsStr = (exGstCents / 100).toFixed(2);
   const gstDollarsStr = (taxCents / 100).toFixed(2);
+  const totalDollarsStr = (amountCents / 100).toFixed(2);
+  const taxNote = taxApplied
+    ? `$${exGstDollarsStr} + $${gstDollarsStr} GST = $${totalDollarsStr} AUD`
+    : `$${totalDollarsStr} AUD (No Tax · ${buyerCountry})`;
   const referenceId = isSubscription
-    ? `Stripe Monthly Subscription (${meta.data.tokens.toLocaleString("en-AU")} searches · $${audDollars} AUD inc. $${gstDollarsStr} GST) [${session.id}]`
-    : `Stripe Token Pack (${meta.data.tokens.toLocaleString("en-AU")} tokens · $${audDollars} AUD inc. $${gstDollarsStr} GST) [${session.id}]`;
+    ? `Stripe Monthly Subscription (${meta.data.tokens.toLocaleString("en-AU")} searches · ${taxNote}) [${session.id}]`
+    : `Stripe Token Pack (${meta.data.tokens.toLocaleString("en-AU")} tokens · ${taxNote}) [${session.id}]`;
 
   const result = await creditTokens({
     uid: meta.data.uid,
@@ -240,6 +298,8 @@ export async function fulfillCheckoutSession(
     amountCents,
     taxCents,
     exGstCents,
+    buyerCountry,
+    taxApplied,
   };
 }
 

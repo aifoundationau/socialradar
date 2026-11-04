@@ -8,7 +8,9 @@ import { alertError, card, monoLabel } from "@/components/ui/styles";
 
 const TYPE_LABELS: Record<TokenTxType, string> = {
   TOPUP: "Top-up",
-  GIFT: "Gifted tokens (Super Admin)",
+  GIFT: "Gifted tokens (Admin)",
+  ADMIN_DEDUCT: "Admin token deduction",
+  ADMIN_RESET: "Admin token reset to 0",
   RADAR_SEARCH: "Radar search",
   AI_REMIX: "AI remix",
   REGENERATE_VARIATIONS: "Regenerate variations",

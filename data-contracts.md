@@ -261,9 +261,12 @@ No body. Creates `users/{uid}` on first sign-in (balance 0) and returns `{ user,
 
 ### `POST /api/wallet/checkout`
 ```json
-{ "packId": "PACK_10|PACK_50|PACK_100|PACK_CUSTOM", "customTokens": 25 }
+{ "packId": "PACK_10|PACK_50|PACK_100|PACK_CUSTOM|SUB_MONTHLY_1000", "customTokens": 25, "buyerCountry": "AU" }
 ```
-`customTokens` is required when `packId` is `"PACK_CUSTOM"` (integer $\ge 1$). Requires `x-idempotency-key` (reused as the Stripe idempotency key). Returns `{ "url": "https://checkout.stripe.com/..." }`.
+`customTokens` is required when `packId` is `"PACK_CUSTOM"` (integer $\ge 1$). `buyerCountry` (optional 2-letter ISO country code, fallback to IP geo headers) governs tax treatment:
+- **Australia (`AU`) & New Zealand (`NZ`):** 10% inclusive GST is recorded (`tax_behavior: "inclusive"`), keeping the token/subscription price strictly as set in the Admin Panel.
+- **All non-AU / non-NZ geolocated purchases:** No tax is recorded (`tax_rates` omitted) and no tax is deducted at all, keeping the token/subscription price strictly as set in the Admin Panel.
+Requires `x-idempotency-key` (reused as the Stripe idempotency key). Returns `{ "url": "https://checkout.stripe.com/..." }`.
 
 ### `POST /api/webhooks/stripe`
 Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles `checkout.session.completed` and `checkout.session.async_payment_succeeded` when `payment_status = "paid"`. Returns `500` only when the ledger write fails, so Stripe retries.
@@ -476,13 +479,15 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 - **Automated Staff AI Reply Process (`POST /api/admin/messages/ai-draft`):**
   - Implements `skills/custom-brand-strategist-reply/SKILL.md` (`src/lib/customize-ai.ts`), compatible across Gemini 2.5 Flash-Lite, Claude Haiku 4.5, and gpt-6-luna, producing a 7-year-archive-compliant plain-text 4-pillar strategy reply for staff to review and send to the customer's Message Panel.
 
-## 13. Master Order Ledger, Token Refunds & SuperAdmin Gift Tokens (`/api/admin/orders`)
+## 13. Master Order Ledger, Token Refunds & SuperAdmin / Main Admin Token Controls (`/api/admin/orders`)
 
 ### Master Order Ledger (`TokenTransactionDocSchema`)
 - **Collection:** `token_transactions/{txId}` (Firestore rules: `allow read: if ownsDoc() || isAdmin(); allow write: if false;`)
 - **Transaction Types (`TokenTxTypeSchema`):**
   - `"TOPUP"` (Stripe purchase credit)
-  - `"GIFT"` (SuperAdmin no-charge complimentary token gift)
+  - `"GIFT"` (SuperAdmin / Main Admin no-charge complimentary token gift)
+  - `"ADMIN_DEDUCT"` (SuperAdmin / Main Admin token deduction with explicit confirmation)
+  - `"ADMIN_RESET"` (SuperAdmin / Main Admin token balance reset to 0 with explicit confirmation)
   - `"RADAR_SEARCH"` (Every Ad Radar search order, including 0-token superadmin searches)
   - `"AI_REMIX"`
   - `"REGENERATE_VARIATIONS"`
@@ -509,14 +514,37 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
   - `txId`: string (1..128)
 - **Behavior:** Requires `Confirm Refund` confirmation in UI; atomically credits `Math.abs(delta)` integer tokens back to `users/{uid}.tokenBalance`, writes a `REFUND` record in `token_transactions`, and marks the original order `refunded: true`.
 
-### SuperAdmin Gift Tokens Contract (`AdminGiftTokensRequestSchema`)
-- **Endpoint:** `POST /api/admin/orders` (`action: "GIFT_TOKENS"`) — restricted exclusively to `SuperAdmin` (`superadmin` role).
+### SuperAdmin & Main Admin Gift Tokens Contract (`AdminGiftTokensRequestSchema`)
+- **Endpoint:** `POST /api/admin/orders` (`action: "GIFT_TOKENS"`) — authorized for `superadmin` and `admin` roles.
 - **Fields (`additionalProperties: false`):**
   - `action`: `"GIFT_TOKENS"`
   - `recipientEmail`: valid email string (up to 254 chars)
   - `tokens`: positive integer (`1..1,000,000`, `Math.round()`)
   - `note`: optional string (up to 200 chars)
 - **Behavior:** Credits integer tokens at `$0` charge (`type: "GIFT"`) to the recipient's wallet without creating a `stripe_purchases` revenue record.
+
+### SuperAdmin & Main Admin Deduct Tokens Contract (`AdminDeductTokensRequestSchema`)
+- **Endpoint:** `POST /api/admin/orders` (`action: "DEDUCT_TOKENS"`) — authorized for `superadmin` and `admin` roles.
+- **Fields (`additionalProperties: false`):**
+  - `action`: `"DEDUCT_TOKENS"`
+  - `recipientEmail`: valid email string (up to 254 chars)
+  - `tokens`: positive integer (`1..1,000,000`, `Math.round()`)
+  - `note`: optional string (up to 200 chars)
+- **Behavior:** Deducts specified integer tokens (clamped to 0 so balance never becomes negative, `type: "ADMIN_DEDUCT"`). Mandatory 2-step confirmation with explicit confirmation button required in UI.
+
+### SuperAdmin & Main Admin Reset Tokens Contract (`AdminResetTokensRequestSchema`)
+- **Endpoint:** `POST /api/admin/orders` (`action: "RESET_TOKENS"`) — authorized for `superadmin` and `admin` roles.
+- **Fields (`additionalProperties: false`):**
+  - `action`: `"RESET_TOKENS"`
+  - `recipientEmail`: valid email string (up to 254 chars)
+  - `note`: optional string (up to 200 chars)
+- **Behavior:** Clears the user's token balance completely to `0` (`delta = -currentBalance`, `type: "ADMIN_RESET"`). Mandatory 2-step confirmation with explicit confirmation button required in UI before execution.
+
+### SuperAdmin & Main Admin Reset Redistributive Ledger Contract (`AdminResetRedistributiveLedgerRequestSchema`)
+- **Endpoint:** `PUT /api/admin/config` (`action: "RESET_REDISTRIBUTIVE_LEDGER"`) — authorized for `superadmin` and `admin` roles.
+- **Fields (`additionalProperties: false`):**
+  - `action`: `"RESET_REDISTRIBUTIVE_LEDGER"`
+- **Behavior:** Safely archives all active records from `stripe_purchases` into `archived_stripe_purchases` (with `archivedAt` timestamp and admin UID) and clears `stripe_purchases`. Resets Total Tokens, Sum Amount (AUD), Sum Amount (USD), transaction count, and partner distribution amounts completely to `0`. Mandatory 2-step confirmation with explicit confirmation button required in UI before execution.
 
 ## 14. Permanent Supporter Role, Human-Readable Search Recording & Supporter Admin Panel
 
@@ -647,19 +675,19 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 - `data-agent-id="sub-option-regenerate-variations"`, `data-testid="sub-option-regenerate-variations"`, `data-agent-id="sub-tooltip-regenerate-variations"`
 - `data-agent-id="sub-option-customize-strategy"`, `data-testid="sub-option-customize-strategy"`, `data-agent-id="sub-tooltip-customize-strategy"`
 
-## 18. Stripe Sandbox AUD GST-Inclusive Payments & Subscription Fulfillment Contract
+## 18. Stripe Sandbox AUD Payments (10% GST Added On Top / Exclusive) & Subscription Fulfillment Contract
 
 ### 18.1 Zero Pre-Created Stripe Products (`price_data` + `product_data`)
 - **No Static Stripe Products:** All Checkout Sessions use dynamic inline `price_data` and `product_data` so SuperAdmin and MainAdmin price/token modifications in `system_config/global` apply immediately without creating or editing products in the Stripe Dashboard.
-- **Currency & Tax Invariant:** Strictly settled in Australian Dollars (`currency: "aud"`) with Australian GST included (`tax_behavior: "inclusive"`).
+- **Currency & Tax Invariant:** Strictly settled in Australian Dollars (`currency: "aud"`) with 10% Australian GST added on top (`tax_behavior: "exclusive"`, `tax_rates: [gstTaxRateId]` using `txr_1UWRnsI8bClhBF4PWROuyTyt`).
 - **Two Payment Modes:**
   1. **Buy Tokens (`PACK_10`, `PACK_50`, `PACK_100`, `PACK_CUSTOM`):**
-     - `mode: "payment"`
-     - `price_data`: `{ currency: "aud", tax_behavior: "inclusive", unit_amount: pack.priceCents, product_data: { name, description } }`
+     - `mode: "payment"`, `invoice_creation: { enabled: true }`
+     - `price_data`: `{ currency: "aud", tax_behavior: "exclusive", unit_amount: pack.priceCents, product_data: { name, description } }` + `tax_rates: [gstTaxRateId]`
      - Upon payment confirmation, the purchased integer tokens are atomically distributed to `users/{uid}.tokenBalance` and logged in `token_transactions/{sessionId}` and `stripe_purchases/{sessionId}`.
   2. **Buy Monthly Search Subscription (`SUB_MONTHLY_1000`):**
      - `mode: "subscription"`
-     - `price_data`: `{ currency: "aud", tax_behavior: "inclusive", unit_amount: pack.priceCents, recurring: { interval: "month" }, product_data: { name: "Monthly Search Subscription", description } }`
+     - `price_data`: `{ currency: "aud", tax_behavior: "exclusive", unit_amount: pack.priceCents, recurring: { interval: "month" }, product_data: { name: "Monthly Search Subscription", description } }` + `tax_rates: [gstTaxRateId]`
      - Upon payment confirmation, the subscription starts (`subscriptionStatus: "active"`, `stripeSubscriptionId`, `subscriptionTokensPerMonth: 1000`) and 1,000 tokens are atomically distributed to `users/{uid}.tokenBalance`.
 
 ### 18.2 Direct Session Confirmation Endpoint (`POST /api/wallet/confirm`)

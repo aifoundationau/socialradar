@@ -39,6 +39,7 @@ interface RbacUserItem {
   tier: string;
   createdAt: string;
   isPermanentSuperAdmin: boolean;
+  tokenBalance?: number;
 }
 
 const PERMISSION_METADATA: Record<RbacPermission, { label: string; desc: string }> = {
@@ -102,7 +103,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const allowedTabs = useMemo<TabKey[]>(() => {
     return isSuper
       ? ["CURRENCY", "PRICING", "PACKS", "LEDGER", "MESSAGES", "RBAC", "FAQS", "DEV"]
-      : ["CURRENCY", "PRICING", "PACKS", "MESSAGES", "FAQS"];
+      : ["CURRENCY", "PRICING", "PACKS", "LEDGER", "MESSAGES", "FAQS"];
   }, [isSuper]);
 
   const [tab, setTab] = useState<TabKey>(initialTab ?? "CURRENCY");
@@ -134,6 +135,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [giftTokensInput, setGiftTokensInput] = useState("0");
   const [giftNote, setGiftNote] = useState("");
   const [gifting, setGifting] = useState(false);
+  const [tokenActionMode, setTokenActionMode] = useState<"GIFT" | "DEDUCT" | "RESET">("GIFT");
+  const [confirmDeductOpen, setConfirmDeductOpen] = useState(false);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+  const [confirmResetLedgerOpen, setConfirmResetLedgerOpen] = useState(false);
   const [adminMessages, setAdminMessages] = useState<AdminMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<AdminMessage | null>(null);
   // Superadmin Messaging Anyone state
@@ -427,8 +432,106 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       if (data.orders) setOrderLedger(data.orders);
       setGiftNote("");
       setGiftTokensInput("0");
+      const gifted = data.tokens ?? (data as Record<string, unknown>).creditedTokens ?? tokens;
+      const bal = data.newBalance ?? (data as Record<string, unknown>).balanceAfter ?? 0;
       setStatusMsg(
-        `Gifted +${data.tokens.toLocaleString("en-AU")} tokens at no charge to ${data.recipientEmail} (new balance: ${data.newBalance.toLocaleString("en-AU")} ⚡).`
+        `Gifted +${Number(gifted).toLocaleString("en-AU")} tokens at no charge to ${recipientEmail} (new balance: ${Number(bal).toLocaleString("en-AU")} ⚡).`
+      );
+      setRbacUsers((prev) =>
+        prev.map((u) => (u.email.toLowerCase() === recipientEmail ? { ...u, tokenBalance: Number(bal) } : u))
+      );
+      window.dispatchEvent(new CustomEvent("wallet-updated"));
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setGifting(false);
+    }
+  }
+
+  async function handleDeductTokens() {
+    const recipientEmail = giftEmail.trim().toLowerCase();
+    const tokens = Math.round(Number(giftTokensInput) || 0);
+    if (!recipientEmail) {
+      setErrorMsg("Enter a recipient email address to deduct tokens.");
+      return;
+    }
+    if (tokens <= 0) {
+      setErrorMsg("Token deduction amount must be a positive integer (1 or more).");
+      return;
+    }
+
+    setGifting(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{
+        success: boolean;
+        deductedTokens?: number;
+        balanceAfter?: number;
+        orders: TokenTransactionDoc[];
+      }>("/api/admin/orders", {
+        method: "POST",
+        body: {
+          action: "DEDUCT_TOKENS",
+          recipientEmail,
+          tokens,
+          note: giftNote.trim() || undefined,
+        },
+      });
+      if (data.orders) setOrderLedger(data.orders);
+      setConfirmDeductOpen(false);
+      setGiftNote("");
+      setGiftTokensInput("0");
+      const deducted = data.deductedTokens ?? tokens;
+      const balance = data.balanceAfter ?? 0;
+      setStatusMsg(
+        `Successfully deducted ${deducted.toLocaleString("en-AU")} tokens from ${recipientEmail}. New balance: ${balance.toLocaleString("en-AU")} ⚡.`
+      );
+      setRbacUsers((prev) =>
+        prev.map((u) => (u.email.toLowerCase() === recipientEmail ? { ...u, tokenBalance: balance } : u))
+      );
+      window.dispatchEvent(new CustomEvent("wallet-updated"));
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setGifting(false);
+    }
+  }
+
+  async function handleResetTokens() {
+    const recipientEmail = giftEmail.trim().toLowerCase();
+    if (!recipientEmail) {
+      setErrorMsg("Enter a recipient email address to reset tokens.");
+      return;
+    }
+
+    setGifting(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{
+        success: boolean;
+        clearedTokens?: number;
+        balanceAfter?: number;
+        orders: TokenTransactionDoc[];
+      }>("/api/admin/orders", {
+        method: "POST",
+        body: {
+          action: "RESET_TOKENS",
+          recipientEmail,
+          note: giftNote.trim() || undefined,
+        },
+      });
+      if (data.orders) setOrderLedger(data.orders);
+      setConfirmResetOpen(false);
+      setGiftNote("");
+      setGiftTokensInput("0");
+      const cleared = data.clearedTokens ?? 0;
+      setStatusMsg(
+        `Successfully reset token balance to 0 for ${recipientEmail} (cleared ${cleared.toLocaleString("en-AU")} tokens).`
+      );
+      setRbacUsers((prev) =>
+        prev.map((u) => (u.email.toLowerCase() === recipientEmail ? { ...u, tokenBalance: 0 } : u))
       );
       window.dispatchEvent(new CustomEvent("wallet-updated"));
     } catch (err) {
@@ -783,6 +886,36 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     }
   }
 
+  async function handleResetLedgerToZero() {
+    setSaving(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{
+        success: boolean;
+        deletedCount: number;
+        ledger: RedistributiveLedgerSummary;
+        recentPurchases: StripePurchaseRecord[];
+      }>("/api/admin/config", {
+        method: "PUT",
+        body: {
+          action: "RESET_REDISTRIBUTIVE_LEDGER",
+        },
+      });
+      setLedger(data.ledger);
+      setRecentPurchases(data.recentPurchases);
+      setConfirmResetLedgerOpen(false);
+      await reloadOrders();
+      setStatusMsg(
+        `Redistributive ledger refreshed to zero (${data.deletedCount} transaction(s) archived). Total tokens: 0, Sum AUD: $0.00.`
+      );
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSendSuperadminMessage(e: React.FormEvent) {
     e.preventDefault();
     if (composeHasLinks) {
@@ -987,7 +1120,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
               { id: "CURRENCY" as const, label: "Currency Controls", icon: "sliders" as IconName },
               { id: "PRICING" as const, label: "Service Pricing", icon: "zap" as IconName },
               { id: "PACKS" as const, label: "Token Packs (CRUD)", icon: "plus" as IconName },
-              { id: "LEDGER" as const, label: "Redistributive Ledger", icon: "wallet" as IconName },
+              { id: "LEDGER" as const, label: "Token Controls & Ledger", icon: "wallet" as IconName },
               {
                 id: "MESSAGES" as const,
                 label: `User Messages (${adminMessages.filter((m) => m.status === "unread").length})`,
@@ -1690,8 +1823,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                 </div>
               )}
 
-              {/* TAB 4: REDISTRIBUTIVE LEDGER (Super Admin Only) */}
-              {tab === "LEDGER" && isSuper && (
+              {/* TAB 4: TOKEN CONTROLS & LEDGER (Super Admin & Main Admin) */}
+              {tab === "LEDGER" && (
                 <div className="space-y-4 lg:space-y-3.5">
                   {/* Top Bar: Title & Action Buttons */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -1706,7 +1839,20 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         Calculates equity partner ownership from total Stripe token revenue and purchased tokens.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmResetLedgerOpen(true)}
+                        disabled={saving || ((ledger?.totalTokens ?? 0) === 0 && (ledger?.totalPurchasesCount ?? 0) === 0)}
+                        className={`${btnDanger} text-xs py-1.5 px-3 flex items-center gap-1.5`}
+                        title="Refresh redistributive ledger to zero (requires confirmation)"
+                        data-agent-id="reset-ledger-button"
+                        data-testid="reset-ledger-button"
+                        aria-label="Refresh Redistributive Ledger to 0"
+                      >
+                        <Icon name="refresh" className="size-3.5" />
+                        Refresh Ledger to 0
+                      </button>
                       <button
                         type="button"
                         onClick={handleSimulatePurchase}
@@ -1729,6 +1875,47 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       </button>
                     </div>
                   </div>
+
+                  {/* CONFIRMATION BANNER FOR REFRESH REDISTRIBUTIVE LEDGER TO 0 */}
+                  {confirmResetLedgerOpen && (
+                    <div
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-error/50 bg-error/10 p-3.5 animate-fadeIn"
+                      data-agent-id="confirm-reset-ledger-dialog"
+                      data-testid="confirm-reset-ledger-dialog"
+                      role="alert"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Icon name="alert" className="size-5 text-error shrink-0" />
+                        <div className="font-mono text-xs text-on-surface">
+                          <p className="font-bold text-error">Confirm Refreshing Redistributive Ledger to Zero?</p>
+                          <p className="text-on-surface-variant text-[11px] mt-0.5">
+                            This will refresh Total Tokens (<strong className="text-primary">{(ledger?.totalTokens ?? 0).toLocaleString("en-AU")}</strong>), Sum Amount (<strong className="text-on-surface">{formatAud(ledger?.totalGrossAudCents ?? ledger?.totalGrossCents ?? 0)} AUD</strong> / <strong className="text-on-surface">{formatUsd(ledger?.totalGrossUsdCents ?? Math.round((ledger?.totalGrossCents ?? 0) * 0.65))} USD</strong>), and clear <strong className="text-on-surface">{ledger?.totalPurchasesCount ?? 0} transaction(s)</strong> to 0. Historical records are preserved in archive.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setConfirmResetLedgerOpen(false)}
+                          className={`${btnSecondary} text-xs py-1.5 px-3`}
+                          data-agent-id="cancel-reset-ledger-button"
+                          data-testid="cancel-reset-ledger-button"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResetLedgerToZero}
+                          disabled={saving}
+                          className={`${btnDanger} text-xs py-1.5 px-3 font-bold`}
+                          data-agent-id="confirm-reset-ledger-button"
+                          data-testid="confirm-reset-ledger-button"
+                        >
+                          {saving ? "Refreshing..." : "Confirm Refresh to 0"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Top Stats Cards: Total Tokens and Sum in USD & AUD */}
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:gap-2.5">
@@ -2006,69 +2193,188 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     </div>
                   </div>
 
-                  {/* SUPERADMIN GIFT TOKENS SECTION (ADD TOKENS AT NO CHARGE) */}
-                  <form
-                    onSubmit={handleGiftTokens}
-                    className={`${card} p-4 border border-primary/30 bg-primary/[0.03] space-y-3`}
-                    data-agent-id="superadmin-gift-tokens-form"
-                    data-testid="superadmin-gift-tokens-form"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Icon name="sparkles" className="size-4 text-primary" />
-                          <h4 className="text-compact font-bold text-on-surface">
-                            SuperAdmin Gift Tokens (Add Tokens at No Charge)
-                          </h4>
-                          <span className="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
-                            $0 Charge · Strict Integer
-                          </span>
-                        </div>
-                        <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                          Credit complimentary integer tokens directly to any customer wallet at no charge. Recorded in the Master Order Ledger as GIFT without inflating Stripe revenue.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {[10, 45, 100, 500].map((preset) => (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() => setGiftTokensInput(String(preset))}
-                            className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
-                              Math.round(Number(giftTokensInput) || 0) === preset
-                                ? "border-primary bg-primary/20 text-primary"
-                                : "border-white/10 bg-surface-container-highest text-on-surface-variant hover:border-primary/40 hover:text-on-surface"
-                            }`}
-                            data-testid={`gift-preset-${preset}`}
-                          >
-                            +{preset} ⚡
-                          </button>
+              {/* USER TOKEN MANAGEMENT: GIFT, DEDUCT & REFRESH TO 0 (SuperAdmin & Main Admin) */}
+              <div
+                className={`${card} p-4 border border-primary/30 bg-primary/[0.03] space-y-3.5`}
+                data-agent-id="user-token-management-card"
+                data-testid="user-token-management-card"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Icon name="sparkles" className="size-4 text-primary" />
+                      <h4 className="text-compact font-bold text-on-surface">
+                        User Token Controls (Gift, Deduct &amp; Reset to 0)
+                      </h4>
+                      <span className="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
+                        SuperAdmin &amp; Main Admin
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-on-surface-variant">
+                      Give complimentary gift tokens, take away tokens, or refresh a user&apos;s token balance to 0 with explicit confirmation.
+                    </p>
+                  </div>
+
+                  {/* Action Mode Toggle */}
+                  <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-surface-container-high/60 p-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTokenActionMode("GIFT");
+                        setConfirmDeductOpen(false);
+                        setConfirmResetOpen(false);
+                      }}
+                      data-agent-id="token-mode-gift-btn"
+                      data-testid="token-mode-gift-btn"
+                      className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                        tokenActionMode === "GIFT"
+                          ? "bg-primary text-on-primary shadow-sm"
+                          : "text-on-surface-variant hover:text-on-surface"
+                      }`}
+                    >
+                      <Icon name="zap" className="size-3" />
+                      <span>Gift Tokens</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTokenActionMode("DEDUCT");
+                        setConfirmDeductOpen(false);
+                        setConfirmResetOpen(false);
+                      }}
+                      data-agent-id="token-mode-deduct-btn"
+                      data-testid="token-mode-deduct-btn"
+                      className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                        tokenActionMode === "DEDUCT"
+                          ? "bg-warning text-black shadow-sm font-bold"
+                          : "text-on-surface-variant hover:text-on-surface"
+                      }`}
+                    >
+                      <Icon name="trash" className="size-3" />
+                      <span>Take Away</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTokenActionMode("RESET");
+                        setConfirmDeductOpen(false);
+                        setConfirmResetOpen(false);
+                      }}
+                      data-agent-id="token-mode-reset-btn"
+                      data-testid="token-mode-reset-btn"
+                      className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                        tokenActionMode === "RESET"
+                          ? "bg-error text-on-error shadow-sm font-bold"
+                          : "text-on-surface-variant hover:text-on-surface"
+                      }`}
+                    >
+                      <Icon name="refresh" className="size-3" />
+                      <span>Refresh to 0</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                {tokenActionMode === "GIFT" && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-mono text-outline">Quick Gift Presets:</span>
+                    {[10, 45, 100, 500, 1000].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setGiftTokensInput(String(preset))}
+                        className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                          Math.round(Number(giftTokensInput) || 0) === preset
+                            ? "border-primary bg-primary/20 text-primary"
+                            : "border-white/10 bg-surface-container-highest text-on-surface-variant hover:border-primary/40 hover:text-on-surface"
+                        }`}
+                        data-testid={`gift-preset-${preset}`}
+                      >
+                        +{preset} ⚡
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {tokenActionMode === "DEDUCT" && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-mono text-outline">Quick Deduct Presets:</span>
+                    {[5, 10, 25, 50, 100].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setGiftTokensInput(String(preset))}
+                        className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                          Math.round(Number(giftTokensInput) || 0) === preset
+                            ? "border-warning bg-warning/20 text-warning"
+                            : "border-white/10 bg-surface-container-highest text-on-surface-variant hover:border-warning/40 hover:text-on-surface"
+                        }`}
+                        data-testid={`deduct-preset-${preset}`}
+                      >
+                        -{preset} ⚡
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Target User Peek */}
+                {giftEmail && (
+                  <div className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-surface-container-high/50 px-3 py-1.5 font-mono text-xs">
+                    <span className="text-on-surface-variant">Target User:</span>
+                    <span className="font-semibold text-on-surface">{giftEmail}</span>
+                    <span className="text-white/20">•</span>
+                    <span className="text-on-surface-variant">Current Balance:</span>
+                    <span className="font-bold text-primary">
+                      ⚡ {(rbacUsers.find((u) => u.email.toLowerCase() === giftEmail.trim().toLowerCase())?.tokenBalance ?? 0).toLocaleString("en-AU")} tokens
+                    </span>
+                  </div>
+                )}
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (tokenActionMode === "GIFT") {
+                      handleGiftTokens(e);
+                    } else if (tokenActionMode === "DEDUCT") {
+                      setConfirmDeductOpen(true);
+                    } else if (tokenActionMode === "RESET") {
+                      setConfirmResetOpen(true);
+                    }
+                  }}
+                  className="space-y-3"
+                >
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12 items-end">
+                    <div className={tokenActionMode === "RESET" ? "sm:col-span-6" : "sm:col-span-4"}>
+                      <label className={label}>Recipient Customer Email *</label>
+                      <input
+                        type="email"
+                        required
+                        list="gift-registered-users-list"
+                        placeholder="customer@example.com"
+                        value={giftEmail}
+                        onChange={(e) => {
+                          setGiftEmail(e.target.value);
+                          setConfirmDeductOpen(false);
+                          setConfirmResetOpen(false);
+                        }}
+                        className={field}
+                        data-agent-id="gift-recipient-email-input"
+                        data-testid="gift-recipient-email-input"
+                      />
+                      <datalist id="gift-registered-users-list">
+                        {rbacUsers.map((u) => (
+                          <option key={u.uid} value={u.email}>
+                            {u.email} (Balance: {u.tokenBalance ?? 0} ⚡)
+                          </option>
                         ))}
-                      </div>
+                      </datalist>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12 items-end">
-                      <div className="sm:col-span-4">
-                        <label className={label}>Recipient Customer Email *</label>
-                        <input
-                          type="email"
-                          required
-                          list="gift-registered-users-list"
-                          placeholder="customer@example.com"
-                          value={giftEmail}
-                          onChange={(e) => setGiftEmail(e.target.value)}
-                          className={field}
-                          data-agent-id="gift-recipient-email-input"
-                          data-testid="gift-recipient-email-input"
-                        />
-                        <datalist id="gift-registered-users-list">
-                          {rbacUsers.map((u) => (
-                            <option key={u.uid} value={u.email} />
-                          ))}
-                        </datalist>
-                      </div>
+                    {tokenActionMode !== "RESET" && (
                       <div className="sm:col-span-2">
-                        <label className={label}>Tokens (Integer) *</label>
+                        <label className={label}>
+                          {tokenActionMode === "GIFT" ? "Tokens to Gift *" : "Tokens to Deduct *"}
+                        </label>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -2076,26 +2382,39 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           required
                           value={giftTokensInput}
                           onFocus={(e) => e.target.select()}
-                          onChange={(e) => setGiftTokensInput(e.target.value.replace(/[^0-9]/g, ""))}
+                          onChange={(e) => {
+                            setGiftTokensInput(e.target.value.replace(/[^0-9]/g, ""));
+                            setConfirmDeductOpen(false);
+                          }}
                           className={`${field} font-mono text-center`}
                           data-agent-id="gift-tokens-amount-input"
                           data-testid="gift-tokens-amount-input"
                         />
                       </div>
-                      <div className="sm:col-span-4">
-                        <label className={label}>Reason / Gift Note (Optional)</label>
-                        <input
-                          type="text"
-                          maxLength={200}
-                          placeholder="e.g. Complimentary onboarding credit / VIP bonus"
-                          value={giftNote}
-                          onChange={(e) => setGiftNote(e.target.value)}
-                          className={field}
-                          data-agent-id="gift-tokens-note-input"
-                          data-testid="gift-tokens-note-input"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
+                    )}
+
+                    <div className={tokenActionMode === "RESET" ? "sm:col-span-4" : "sm:col-span-4"}>
+                      <label className={label}>Reason / Audit Note (Optional)</label>
+                      <input
+                        type="text"
+                        maxLength={200}
+                        placeholder={
+                          tokenActionMode === "GIFT"
+                            ? "e.g. VIP onboarding credit / promo bonus"
+                            : tokenActionMode === "DEDUCT"
+                              ? "e.g. Manual correction / clawback"
+                              : "e.g. Fresh season account reset / trial purge"
+                        }
+                        value={giftNote}
+                        onChange={(e) => setGiftNote(e.target.value)}
+                        className={field}
+                        data-agent-id="gift-tokens-note-input"
+                        data-testid="gift-tokens-note-input"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      {tokenActionMode === "GIFT" && (
                         <button
                           type="submit"
                           disabled={gifting}
@@ -2106,9 +2425,133 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           <Icon name="zap" className="size-3.5" />
                           {gifting ? "Gifting..." : "Gift Tokens"}
                         </button>
+                      )}
+
+                      {tokenActionMode === "DEDUCT" && !confirmDeductOpen && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!giftEmail.trim()) {
+                              setErrorMsg("Enter a customer email to deduct tokens.");
+                              return;
+                            }
+                            const amt = Number(giftTokensInput);
+                            if (isNaN(amt) || amt <= 0) {
+                              setErrorMsg("Enter a valid number of tokens to deduct (1 or more).");
+                              return;
+                            }
+                            setConfirmDeductOpen(true);
+                          }}
+                          disabled={gifting}
+                          className={`${btnSecondary} w-full justify-center text-warning hover:border-warning/50`}
+                          data-agent-id="trigger-deduct-tokens-button"
+                          data-testid="trigger-deduct-tokens-button"
+                        >
+                          <Icon name="trash" className="size-3.5" />
+                          Take Away
+                        </button>
+                      )}
+
+                      {tokenActionMode === "RESET" && !confirmResetOpen && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!giftEmail.trim()) {
+                              setErrorMsg("Enter a customer email to reset tokens.");
+                              return;
+                            }
+                            setConfirmResetOpen(true);
+                          }}
+                          disabled={gifting}
+                          className={`${btnDanger} w-full justify-center`}
+                          data-agent-id="trigger-reset-tokens-button"
+                          data-testid="trigger-reset-tokens-button"
+                        >
+                          <Icon name="refresh" className="size-3.5" />
+                          Refresh to 0
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* CONFIRMATION BANNER FOR DEDUCT TOKENS */}
+                  {confirmDeductOpen && tokenActionMode === "DEDUCT" && (
+                    <div
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3"
+                      data-agent-id="confirm-deduct-dialog"
+                      data-testid="confirm-deduct-dialog"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Icon name="alert" className="size-4 text-warning shrink-0" />
+                        <p className="font-mono text-xs text-on-surface">
+                          Confirm taking away <strong className="text-warning font-bold">{Number(giftTokensInput).toLocaleString("en-AU")} tokens</strong> from <strong className="text-on-surface">{giftEmail}</strong>?
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeductOpen(false)}
+                          className={`${btnSecondary} text-xs py-1 px-2.5`}
+                          data-agent-id="cancel-deduct-button"
+                          data-testid="cancel-deduct-button"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDeductTokens}
+                          disabled={gifting}
+                          className={`${btnDanger} text-xs py-1 px-3 bg-warning hover:bg-warning/90 text-black font-bold`}
+                          data-agent-id="confirm-deduct-tokens-button"
+                          data-testid="confirm-deduct-tokens-button"
+                        >
+                          {gifting ? "Deducting..." : "Confirm Deduction"}
+                        </button>
                       </div>
                     </div>
-                  </form>
+                  )}
+
+                  {/* CONFIRMATION BANNER FOR REFRESH TO 0 */}
+                  {confirmResetOpen && tokenActionMode === "RESET" && (
+                    <div
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-error/50 bg-error/10 p-3"
+                      data-agent-id="confirm-reset-dialog"
+                      data-testid="confirm-reset-dialog"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Icon name="alert" className="size-4 text-error shrink-0" />
+                        <p className="font-mono text-xs text-on-surface">
+                          Are you sure you want to refresh token amount to <strong className="text-error font-bold">0 tokens</strong> for <strong className="text-on-surface">{giftEmail}</strong>?
+                          {(rbacUsers.find((u) => u.email.toLowerCase() === giftEmail.trim().toLowerCase())?.tokenBalance ?? 0) > 0 && (
+                            <span className="text-error"> (Will clear {(rbacUsers.find((u) => u.email.toLowerCase() === giftEmail.trim().toLowerCase())?.tokenBalance ?? 0).toLocaleString("en-AU")} tokens).</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setConfirmResetOpen(false)}
+                          className={`${btnSecondary} text-xs py-1 px-2.5`}
+                          data-agent-id="cancel-reset-button"
+                          data-testid="cancel-reset-button"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResetTokens}
+                          disabled={gifting}
+                          className={`${btnDanger} text-xs py-1 px-3`}
+                          data-agent-id="confirm-reset-tokens-button"
+                          data-testid="confirm-reset-tokens-button"
+                        >
+                          {gifting ? "Resetting..." : "Confirm Reset to 0"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </form>
+              </div>
 
                   {/* MASTER ORDER LEDGER: ALL TRANSACTIONS, STRIPE PURCHASES, SEARCH ORDERS & REFUNDS */}
                   <div

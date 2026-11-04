@@ -10,6 +10,7 @@ import {
   getSystemConfig,
   grantDevAdminRole,
   recordStripePurchase,
+  resetRedistributiveLedger,
   updateEquityPartner,
   updateSystemConfig,
 } from "@/lib/admin";
@@ -67,6 +68,16 @@ export async function PUT(req: Request) {
       const updated = await deleteEquityPartner(partnerId);
       const ledger = await getRedistributiveLedger();
       return NextResponse.json({ success: true, equityPartners: updated, ledger });
+    }
+
+    if (body.action === "RESET_REDISTRIBUTIVE_LEDGER") {
+      const result = await resetRedistributiveLedger(caller.uid);
+      return NextResponse.json({
+        success: true,
+        deletedCount: result.deletedCount,
+        ledger: result.ledger,
+        recentPurchases: result.recentPurchases,
+      });
     }
 
     if (body.action === "SIMULATE_PURCHASE") {

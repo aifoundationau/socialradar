@@ -70,12 +70,16 @@ export async function POST(req: Request) {
           : subDetails?.subscription?.id;
       const amountCents = invoice.amount_paid ?? 0;
       const audDollars = Math.round(amountCents / 100);
+      const buyerCountry = (meta.data.buyerCountry || "AU").toUpperCase();
+      const isAuNz = buyerCountry === "AU" || buyerCountry === "NZ";
+      const taxApplied = meta.data.taxApplied === "false" ? false : isAuNz;
+      const renewalTaxLabel = taxApplied ? "inc. GST" : `No Tax · ${buyerCountry}`;
 
       const result = await creditTokens({
         uid: meta.data.uid,
         email: invoice.customer_email ?? undefined,
         amount: meta.data.tokens,
-        referenceId: `Stripe Monthly Subscription Renewal (${meta.data.tokens.toLocaleString("en-AU")} searches · $${audDollars} AUD inc. GST) [${invoice.id}]`,
+        referenceId: `Stripe Monthly Subscription Renewal (${meta.data.tokens.toLocaleString("en-AU")} searches · $${audDollars} AUD ${renewalTaxLabel}) [${invoice.id}]`,
         txId: invoice.id,
         stripeCustomerId,
         subscription: {

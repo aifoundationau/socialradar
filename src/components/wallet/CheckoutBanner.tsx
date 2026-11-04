@@ -52,7 +52,11 @@ export function CheckoutBanner() {
       bannerText = `Payment received (${confirmError}). Your tokens will sync automatically.`;
     } else if (result?.fulfilled) {
       const taxStr =
-        typeof result.taxCents === "number" ? ` (includes $${(result.taxCents / 100).toFixed(2)} AUD GST)` : " (GST inclusive)";
+        result.taxApplied === false || result.taxCents === 0
+          ? ` (No Tax · ${result.buyerCountry || "International"})`
+          : typeof result.taxCents === "number"
+            ? ` (+ $${(result.taxCents / 100).toFixed(2)} AUD 10% GST)`
+            : " (+ 10% GST)";
       if (result.isSubscription) {
         bannerText = `Monthly Search Subscription active! Payment confirmed in AUD${taxStr} and +${(result.tokens ?? 1000).toLocaleString("en-AU")} monthly searches/tokens have been distributed to your account (Balance: ${(result.balanceAfter ?? 0).toLocaleString("en-AU")} tokens).`;
       } else {
@@ -60,7 +64,7 @@ export function CheckoutBanner() {
       }
     } else {
       bannerText =
-        "Payment received in AUD (GST inclusive). Your tokens are added as soon as Stripe confirms it, usually within a few seconds.";
+        "Payment received in AUD. Your tokens are added as soon as Stripe confirms it, usually within a few seconds.";
     }
   }
 

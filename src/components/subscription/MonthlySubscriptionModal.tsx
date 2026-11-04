@@ -7,6 +7,7 @@ import { useSession } from "@/components/auth/SessionProvider";
 import { Icon } from "@/components/ui/Icon";
 import { btnPrimary, btnSecondary, card } from "@/components/ui/styles";
 import { formatAud, formatUsd, audToUsdCents } from "@/lib/pricing";
+import { DEFAULT_AU_GEO, loadGeoConfig, type GeoConfig } from "@/lib/geo";
 import { apiFetch, errorMessage, newIdempotencyKey } from "@/lib/api-client";
 import type { MonthlySubscriptionConfig, ServiceCosts } from "@/lib/contracts";
 
@@ -53,6 +54,7 @@ export function MonthlySubscriptionModal({
   const [loading, setLoading] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
   const [granting, setGranting] = useState(false);
+  const [geo, setGeo] = useState<GeoConfig>(DEFAULT_AU_GEO);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
@@ -64,6 +66,7 @@ export function MonthlySubscriptionModal({
     if (isOpen) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
+      setGeo(loadGeoConfig());
       loadConfig();
     } else {
       document.body.style.overflow = "";
@@ -102,11 +105,14 @@ export function MonthlySubscriptionModal({
     setSubscribing(true);
     setMessage(null);
     try {
+      const currentGeo = loadGeoConfig();
+      setGeo(currentGeo);
       const res = await apiFetch<{ url: string }>("/api/wallet/checkout", {
         method: "POST",
         idempotencyKey: newIdempotencyKey(),
         body: {
           packId: "SUB_MONTHLY_1000",
+          buyerCountry: currentGeo.country,
         },
       });
       if (res?.url) {
@@ -222,20 +228,22 @@ export function MonthlySubscriptionModal({
                   {searchesCount.toLocaleString()} Monthly Searches
                 </h3>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">
-                  Billed monthly at {formatAud(audCents)} AUD (≈ {formatUsd(usdCents)} USD)
+                  {geo.isAuNz
+                    ? `Billed monthly at ${formatAud(audCents)} AUD + 10% GST (${formatAud(Math.round(audCents * 1.1))} AUD total)`
+                    : `Billed monthly at ${formatAud(audCents)} AUD (No Tax · ${geo.country})`}
                 </p>
               </div>
 
               <div className="flex flex-col items-end shrink-0 rounded-xl border border-white/10 bg-surface-container-lowest/80 px-3 py-1.5 sm:py-2 backdrop-blur-sm">
                 <span className="font-mono text-[9px] text-outline uppercase tracking-wider">
-                  Monthly Fee
+                  {geo.isAuNz ? "Monthly Fee (+ GST)" : `Monthly Fee (No Tax · ${geo.country})`}
                 </span>
                 <span className="font-mono text-title-md sm:text-title-lg font-bold text-primary">
                   {formatAud(audCents)}
                   <span className="text-[11px] font-normal text-on-surface-variant"> / mo</span>
                 </span>
                 <span className="font-mono text-[10px] text-on-surface-variant">
-                  ≈ {formatUsd(usdCents)} USD
+                  {geo.isAuNz ? `+10% GST · ≈ ${formatUsd(usdCents)} USD` : `No Tax · ≈ ${formatUsd(usdCents)} USD`}
                 </span>
               </div>
             </div>
