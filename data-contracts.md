@@ -436,16 +436,23 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 ## 10. Platform Governance, Footer & Geolocation
 
 ### Mandatory Footer Elements
-- **Copyright:** `Copyright © 2026 AI Foundation · All rights reserved.`
+- **Copyright Button:** Interactive link button `2026 AI Foundation` navigating to `https://aifoundation.net.au/` (new tab, `rel="noopener noreferrer"`) with `· All rights reserved.`
 - **Founder Welcome:** David Robertson welcome briefing detailing democratic access and redistributive token economics.
 - **Privacy Policy:** Australian Privacy Principles (APPs) and Privacy Act 1988 (Cth) compliance, 7-year statutory data retention on financial logs, zero selling of personal data.
 - **Terms of Service:** Commercial contract specifying that all invoices are in Australian Dollars (AUD), the default currency is AUD, the default token price is 1 Token = AUD $1 (with product & service token amounts customizable by SuperAdmin), that the business never uses decimals, operating strictly on whole numbers, and that currency conversion can show up to 2 decimal places. Explains what tokens are: *"You exchange money for a token, tokens mean more flexible payment options, as a payment may be distributed to multiple service providers."* Specifies refund rules: all formal refund requests must be made in writing by sending a message to the Superadmin. Nations outside Australia and New Zealand view an AUD to USD currency conversion.
 - **AI Policy (ISO/IEC 42001):** Artificial Intelligence Management System compliance, model ethics, bias mitigations, and human-in-the-loop oversight.
 - **Security Policy (ISO/IEC 27001):** Information Security Management System standards, defense-in-depth, RBAC matrix, and encrypted storage.
 
-### Geo & Time Widget Specifications
-- **Display:** Embedded thin bar displaying user suburb, state, weather temperature & condition, active currency indicator, and live real-time clock.
-- **Interactive Configuration:** Clicking the widget opens a centered popup dialog (with no scrollbar) enabling the user to configure suburb, state/region, country, date format, and clock mode (12h / 24h).
+### Geo, Time & Frankfurter Currency Widget Specifications
+- **Display:** Embedded thin bar displaying user suburb, state, weather temperature & condition, active currency indicator chip (`AUD $1.00 / Token (AU/NZ Local Currency)`), and live real-time clock.
+- **Position Preservation:** The currency indicator chip position remains strictly stationary in the footer layout.
+- **Interactive Frankfurter Currency Converter Modal (`GET /api/currency`):**
+  - Clicking the currency chip triggers a centered modal (`CurrencyConverterModal`) without scrollbars.
+  - Queries real-time European Central Bank (ECB) AUD → USD exchange rates via the open Frankfurter API (`https://api.frankfurter.dev/v1/latest?from=AUD&to=USD` and `https://api.frankfurter.app/latest?from=AUD&to=USD`, cached 1h with fallback to 0.65).
+  - Interactive conversion calculator converts user-entered Token amounts or AUD dollars into USD with 2 decimal places.
+  - Quick token preset buttons: `1`, `10`, `50`, `100`, `500` tokens.
+  - Invoicing & tax notice: clarifies that AI Foundation is an Australian registered business, all formal checkouts/invoices settle in AUD, Australia charges 10% GST, while New Zealand and international orders incur 0% GST.
+- **Interactive Geo/Time Configuration:** Clicking the clock/configure widget opens a centered popup dialog (with no scrollbar) enabling the user to configure suburb, state/region, country, date format, and clock mode (12h / 24h).
 - **Geolocation Currency Gate:** When country is Australia (`AU`) or New Zealand (`NZ`), visitors strictly view AUD prices. Visitors in all other nations view AUD prices alongside the AUD $1.00 converted to USD indicator.
 
 ## 11. Semantic Ad Search & Strict Real-Ads-Only Policy (`CACHE_VERSION = "8"`)

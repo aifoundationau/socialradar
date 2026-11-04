@@ -11,12 +11,14 @@ import {
 } from "@/lib/geo";
 import { PolicyModal } from "@/components/legal/PolicyModal";
 import { GeoTimeModal } from "@/components/geo/GeoTimeModal";
+import { CurrencyConverterModal } from "@/components/currency/CurrencyConverterModal";
 
 export function AppFooter() {
   // Use identical initial state on server and client to avoid hydration mismatch
   const [geoConfig, setGeoConfig] = useState<GeoConfig>(DEFAULT_AU_GEO);
   const [activePolicy, setActivePolicy] = useState<string | null>(null);
   const [isGeoModalOpen, setIsGeoModalOpen] = useState(false);
+  const [isCurrencyModalOpen, setIsCurrencyModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
 
   useEffect(() => {
@@ -115,18 +117,22 @@ export function AppFooter() {
 
             {/* Right chips: Currency Gate, Live Clock & Settings Button */}
             <div className="flex flex-wrap items-center gap-2">
-              <div
+              <button
+                type="button"
+                onClick={() => setIsCurrencyModalOpen(true)}
                 data-agent-id="geo-chip-currency"
                 data-testid="geo-chip-currency"
-                className="flex items-center gap-1.5 rounded-full border border-secondary/30 bg-secondary/10 px-3 py-1 text-[11px] font-medium text-secondary"
+                aria-label="Open AUD to USD Currency Converter (Frankfurter ECB Live Rate)"
+                title="Click to view live Frankfurter AUD to USD currency conversion"
+                className="flex items-center gap-1.5 rounded-full border border-secondary/30 bg-secondary/10 px-3 py-1 text-[11px] font-medium text-secondary transition-all hover:border-secondary hover:bg-secondary/20 hover:scale-[1.02] active:scale-95 cursor-pointer shadow-xs"
               >
-                <span className="size-1.5 rounded-full bg-secondary shrink-0 shadow-[0_0_6px_rgba(74,222,128,0.6)]" />
+                <span className="size-1.5 rounded-full bg-secondary shrink-0 shadow-[0_0_6px_rgba(74,222,128,0.6)] animate-pulse" />
                 <span suppressHydrationWarning>
                   {geoConfig.isAuNz
                     ? "AUD $1.00 / Token (AU/NZ Local Currency)"
                     : "AUD $1.00 ≈ USD $0.65 (All Invoices in AUD)"}
                 </span>
-              </div>
+              </button>
 
               <button
                 type="button"
@@ -252,6 +258,12 @@ export function AppFooter() {
         config={geoConfig}
         onClose={() => setIsGeoModalOpen(false)}
         onSave={(newCfg) => setGeoConfig(newCfg)}
+      />
+
+      {/* AUD to USD Currency Converter Modal (Frankfurter API) */}
+      <CurrencyConverterModal
+        isOpen={isCurrencyModalOpen}
+        onClose={() => setIsCurrencyModalOpen(false)}
       />
     </>
   );
