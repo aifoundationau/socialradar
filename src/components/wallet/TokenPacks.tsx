@@ -79,6 +79,7 @@ export function TokenPacks() {
   }
 
   const usdPerTokenCents = audToUsdCents(audCentsPerToken);
+  const isAu = geo.country === "AU";
   const baseRateText = geo.isAuNz
     ? `1 Token = ${formatAud(audCentsPerToken)} AUD`
     : `1 Token = ${formatAud(audCentsPerToken)} AUD (≈ ${formatUsd(usdPerTokenCents)} USD)`;
@@ -214,7 +215,7 @@ export function TokenPacks() {
               <p className="text-title-sm font-semibold text-on-surface">
                 {audPriceStr}{" "}
                 <span className="text-xs font-normal text-on-surface-variant">
-                  {geo.isAuNz ? "+ GST" : "(No Tax)"}
+                  {isAu ? "+ GST" : "(No Tax)"}
                 </span>
               </p>
               {!geo.isAuNz && (
@@ -226,7 +227,7 @@ export function TokenPacks() {
                 </p>
               )}
               <p className="font-mono text-[11px] text-outline">
-                {geo.isAuNz
+                {isAu
                   ? `${perTokenAud} AUD/tok · +10% GST (${formatAud(Math.round(pack.priceCents * 1.1))} AUD total)`
                   : `${perTokenAud} AUD/tok · No Tax (${geo.country})`}
               </p>
@@ -311,7 +312,7 @@ export function TokenPacks() {
           <p className="text-title-sm font-semibold mt-1 text-on-surface">
             {formatAud(customPack.priceCents)} AUD{" "}
             <span className="text-xs font-normal text-on-surface-variant">
-              {geo.isAuNz ? "+ GST" : "(No Tax)"}
+              {isAu ? "+ GST" : "(No Tax)"}
             </span>
           </p>
           {!geo.isAuNz && (
@@ -323,7 +324,7 @@ export function TokenPacks() {
             </p>
           )}
           <p className="font-mono text-[11px] text-outline">
-            {geo.isAuNz
+            {isAu
               ? `+10% GST added at checkout (${formatAud(Math.round(customPack.priceCents * 1.1))} AUD total)`
               : `No Tax (${geo.country}) · Price locked to Admin Panel`}
           </p>

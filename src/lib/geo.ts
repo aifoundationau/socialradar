@@ -2,6 +2,7 @@
 
 export interface GeoConfig {
   country: string;
+  isAu: boolean;
   isAuNz: boolean;
   suburb: string;
   state: string;
@@ -17,6 +18,7 @@ const STORAGE_KEY = "adradar_geo_config_v1";
 
 export const DEFAULT_AU_GEO: GeoConfig = {
   country: "AU",
+  isAu: true,
   isAuNz: true,
   suburb: "Sydney",
   state: "NSW",
@@ -74,10 +76,13 @@ export function loadGeoConfig(): GeoConfig {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
+      const country = (parsed.country || "AU").toUpperCase();
       return {
         ...DEFAULT_AU_GEO,
         ...parsed,
-        isAuNz: parsed.country === "AU" || parsed.country === "NZ",
+        country,
+        isAu: country === "AU",
+        isAuNz: country === "AU" || country === "NZ",
       };
     }
   } catch {
@@ -88,6 +93,7 @@ export function loadGeoConfig(): GeoConfig {
   return {
     ...DEFAULT_AU_GEO,
     country: isAuNz ? "AU" : "US",
+    isAu: isAuNz,
     isAuNz,
     suburb: isAuNz ? "Sydney" : "San Francisco",
     state: isAuNz ? "NSW" : "CA",
@@ -167,10 +173,12 @@ export async function autofindUserLocation(): Promise<GeoConfig> {
           // ignore weather failure
         }
 
+        const isAu = country === "AU";
         const isAuNz = country === "AU" || country === "NZ";
         const newCfg: GeoConfig = {
           ...current,
           country,
+          isAu,
           isAuNz,
           suburb,
           state,
@@ -192,10 +200,14 @@ export async function autofindUserLocation(): Promise<GeoConfig> {
     const res = await fetch("/api/geo", { signal: AbortSignal.timeout(4000) });
     if (res.ok) {
       const data = await res.json();
+      const country = (data.country || current.country).toUpperCase();
+      const isAu = country === "AU";
+      const isAuNz = country === "AU" || country === "NZ";
       const newCfg: GeoConfig = {
         ...current,
-        country: data.country || current.country,
-        isAuNz: Boolean(data.isAuNz),
+        country,
+        isAu,
+        isAuNz,
         suburb: data.suburb || current.suburb,
         state: data.state || current.state,
         latitude: data.latitude ?? current.latitude,

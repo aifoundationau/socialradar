@@ -14,7 +14,8 @@ AI agent on how to set up Stripe Sandbox & Live payments where:
    - Stripe Checkout automatically detects the buyer's country and billing address on the hosted payment page.
    - We do not need to know or pass the buyer's country in advance.
    - If the buyer is in Australia (`AU`), Stripe automatically calculates and adds 10% GST on top of the base AUD price.
-   - If the buyer is outside Australia, Stripe calculates $0 tax.
+   - If the buyer is outside Australia (including New Zealand and all international countries), Stripe calculates $0 tax.
+   - Any reference to "+ GST" or "+ 10% GST" is for Australia only. New Zealand is strictly no GST.
 4. Clean up: Zero manual `tax_rates` (`txr_...`) or `ensureAuGstTaxRateId` code — Stripe Tax handles everything natively.
 5. Official Tax Invoices:
    - One-time payments (`mode: "payment"`) enable `invoice_creation: { enabled: true }`.
@@ -40,8 +41,8 @@ We are setting up Stripe Payments (Sandbox / Live) for this web app. Follow thes
    - Stripe Checkout automatically detects the customer's country, state, and postal code directly on the hosted payment form.
    - You do NOT need to geolocate or pass the customer's country in advance.
    - Tax behavior is set to `tax_behavior: "exclusive"` on line item `price_data`.
-   - **Australian buyers:** Stripe adds 10% Australian GST on top of the base price (e.g., $50.00 AUD + $5.00 GST = $55.00 AUD total; $700.00 AUD/mo + $70.00 GST = $770.00 AUD/mo).
-   - **International buyers:** Stripe automatically charges $0 tax and collects the exact base AUD price.
+   - **Australian buyers (`country === "AU"`):** Stripe adds 10% Australian GST on top of the base price (e.g., $50.00 AUD + $5.00 GST = $55.00 AUD total; $700.00 AUD/mo + $70.00 GST = $770.00 AUD/mo).
+   - **New Zealand buyers (`country === "NZ"`) & International buyers:** Stripe automatically charges $0 tax and collects the exact base AUD price with no tax. New Zealand has NO GST, so any reference to "+ GST" or "+ 10% GST" is for Australia only.
 3. **Zero Manual Tax Rates (`txr_...`):**
    - NEVER create, fetch, cache, or pass manual `tax_rates` (`txr_...` / `ensureAuGstTaxRateId()`).
    - Stripe Tax computes all jurisdiction rules and calculations automatically.

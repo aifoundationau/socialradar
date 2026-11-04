@@ -157,7 +157,7 @@ export function MonthlySubscriptionModal({
           action: "GIFT_TOKENS",
           recipientEmail: user.email,
           tokens: subConfig.searchesPerMonth,
-          note: `Monthly Search Subscription allocation (${subConfig.searchesPerMonth} searches / $${subConfig.priceAud} AUD inc. GST)`,
+          note: `Monthly Search Subscription allocation (${subConfig.searchesPerMonth} searches / $${subConfig.priceAud} AUD${geo.country === "AU" ? " + GST" : ""})`,
         },
       });
       const credited = res.creditedTokens ?? res.giftResult?.tokens ?? subConfig.searchesPerMonth;
@@ -178,6 +178,7 @@ export function MonthlySubscriptionModal({
   const priceAud = subConfig.priceAud ?? 500;
   const searchesCount = subConfig.searchesPerMonth ?? 1000;
   const audCents = Math.round(priceAud * 100);
+  const isAu = geo.country === "AU";
   const totalAudCentsIncGst = Math.round(audCents * 1.1);
   const usdCents = Math.round(audCents * fxRate);
   const totalUsdCentsIncGst = Math.round(totalAudCentsIncGst * fxRate);
@@ -245,7 +246,7 @@ export function MonthlySubscriptionModal({
                   {searchesCount.toLocaleString()} Monthly Searches
                 </h3>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">
-                  {geo.isAuNz
+                  {isAu
                     ? `Billed monthly at ${formatAud(audCents)} AUD + 10% GST (${formatAud(totalAudCentsIncGst)} AUD total)`
                     : `Billed monthly at ${formatAud(audCents)} AUD (No Tax · ${geo.country})`}
                 </p>
@@ -259,14 +260,14 @@ export function MonthlySubscriptionModal({
                 className="group relative flex flex-col items-end shrink-0 cursor-help rounded-xl border border-white/10 bg-surface-container-lowest/80 px-3 py-1.5 sm:py-2 backdrop-blur-sm transition hover:border-primary/40"
               >
                 <span className="font-mono text-[9px] text-outline uppercase tracking-wider">
-                  {geo.isAuNz ? "Monthly Fee (+ GST)" : `Monthly Fee (No Tax · ${geo.country})`}
+                  {isAu ? "Monthly Fee (+ GST)" : `Monthly Fee (No Tax · ${geo.country})`}
                 </span>
                 <span className="font-mono text-title-md sm:text-title-lg font-bold text-primary">
                   {formatAud(audCents)} AUD
                   <span className="text-[11px] font-normal text-on-surface-variant"> / mo</span>
                 </span>
                 <span className="font-mono text-[10px] text-on-surface-variant">
-                  {geo.isAuNz ? `+10% GST (${formatAud(totalAudCentsIncGst)} AUD)` : "No Tax · AUD"}
+                  {isAu ? `+10% GST (${formatAud(totalAudCentsIncGst)} AUD)` : "No Tax · AUD"}
                 </span>
 
                 {/* Dark-theme Hover Popup: Live Currency Converter (AUD -> USD) */}
@@ -289,7 +290,7 @@ export function MonthlySubscriptionModal({
                       <span className="text-on-surface-variant">Monthly Fee:</span>
                       <span className="font-bold text-on-surface">≈ {formatUsd(usdCents)} USD / mo</span>
                     </div>
-                    {geo.isAuNz && (
+                    {isAu && (
                       <div className="flex items-center justify-between">
                         <span className="text-on-surface-variant">Inc. 10% GST:</span>
                         <span className="font-semibold text-primary">≈ {formatUsd(totalUsdCentsIncGst)} USD / mo</span>

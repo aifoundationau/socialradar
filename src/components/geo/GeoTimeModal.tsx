@@ -63,9 +63,11 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const isAu = formData.country === "AU";
     const isAuNz = formData.country === "AU" || formData.country === "NZ";
     const nextConfig: GeoConfig = {
       ...formData,
+      isAu,
       isAuNz,
     };
     saveGeoConfig(nextConfig);
@@ -161,7 +163,7 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
               <span>Geolocation & Currency Policy</span>
             </p>
             <p className="mt-1">
-              Default currency is <strong>AUD</strong> (1 Token = AUD $1.00) and all invoices are in Australian Dollars. For all nations except Australia and New Zealand, an <strong>AUD $1.00 to USD</strong> currency conversion is displayed.
+              Default currency is <strong>AUD</strong> (1 Token = AUD $1.00) and all invoices are in Australian Dollars. 10% GST applies strictly to Australia (New Zealand is no GST). For all nations except Australia and New Zealand, an <strong>AUD $1.00 to USD</strong> currency conversion is displayed.
             </p>
           </div>
 
@@ -209,13 +211,14 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
                 value={formData.country}
                 onChange={(e) => {
                   const country = e.target.value;
+                  const isAu = country === "AU";
                   const isAuNz = country === "AU" || country === "NZ";
-                  setFormData({ ...formData, country, isAuNz });
+                  setFormData({ ...formData, country, isAu, isAuNz });
                 }}
                 className={field}
               >
-                <option value="AU">Australia (AUD Only)</option>
-                <option value="NZ">New Zealand (AUD Only)</option>
+                <option value="AU">Australia (AUD + GST)</option>
+                <option value="NZ">New Zealand (AUD Only · No GST)</option>
                 <option value="US">United States (AUD → USD Conversion)</option>
                 <option value="GB">United Kingdom (AUD → USD Conversion)</option>
                 <option value="CA">Canada (AUD → USD Conversion)</option>

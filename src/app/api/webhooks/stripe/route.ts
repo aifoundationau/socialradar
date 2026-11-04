@@ -70,10 +70,15 @@ export async function POST(req: Request) {
           : subDetails?.subscription?.id;
       const amountCents = invoice.amount_paid ?? 0;
       const audDollars = Math.round(amountCents / 100);
-      const buyerCountry = (meta.data.buyerCountry || "AU").toUpperCase();
-      const isAuNz = buyerCountry === "AU" || buyerCountry === "NZ";
-      const taxApplied = meta.data.taxApplied === "false" ? false : isAuNz;
-      const renewalTaxLabel = taxApplied ? "inc. GST" : `No Tax · ${buyerCountry}`;
+      const buyerCountry = (
+        invoice.customer_address?.country ||
+        meta.data.buyerCountry ||
+        "AU"
+      ).toUpperCase();
+      const totalExcludingTax = invoice.total_excluding_tax ?? invoice.subtotal_excluding_tax ?? null;
+      const taxCents = totalExcludingTax !== null ? Math.max(0, invoice.total - totalExcludingTax) : 0;
+      const taxApplied = taxCents > 0;
+      const renewalTaxLabel = taxApplied ? "+ 10% GST" : `No Tax · ${buyerCountry}`;
 
       const result = await creditTokens({
         uid: meta.data.uid,

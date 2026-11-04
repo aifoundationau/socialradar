@@ -72,6 +72,7 @@ One-off Stripe Checkout purchases. Tokens never expire.
 - **Base Currency & Invoicing:** All platform token fees and Stripe invoices operate strictly in Australian Dollars (**AUD**) with whole numbers.
 - **Geolocation & International Currency Conversion:**
   - If geolocation is in Australia or New Zealand (`AU` or `NZ`), users strictly see **AUD** prices (`$1 AUD` per token) with no currency conversion display.
+  - **GST Invariant:** New Zealand (`NZ`) is strictly no GST. Any reference to "+ GST" or "+ 10% GST" is for **Australia (`AU`) only**.
   - For **all nations except Australia and New Zealand**, a currency converter displays the **AUD to USD conversion**, which can show up to 2 decimal places (e.g. `$1 AUD ≈ $0.65 USD`, `$10 AUD ≈ $6.50 USD`), while all formal invoices remain in Australian Dollars (AUD).
 - **Pack Sizes:** Packs are offered in 10, 50, 100, and Custom quantities.
 
@@ -264,8 +265,8 @@ No body. Creates `users/{uid}` on first sign-in (balance 0) and returns `{ user,
 { "packId": "PACK_10|PACK_50|PACK_100|PACK_CUSTOM|SUB_MONTHLY_1000", "customTokens": 25, "buyerCountry": "AU" }
 ```
 `customTokens` is required when `packId` is `"PACK_CUSTOM"` (integer $\ge 1$). `buyerCountry` (optional 2-letter ISO country code, fallback to IP geo headers) governs tax treatment:
-- **Australia (`AU`) & New Zealand (`NZ`):** 10% inclusive GST is recorded (`tax_behavior: "inclusive"`), keeping the token/subscription price strictly as set in the Admin Panel.
-- **All non-AU / non-NZ geolocated purchases:** No tax is recorded (`tax_rates` omitted) and no tax is deducted at all, keeping the token/subscription price strictly as set in the Admin Panel.
+- **Australia (`AU`):** 10% exclusive GST is added on top (`tax_behavior: "exclusive"` via native Stripe Tax `automatic_tax: { enabled: true }`).
+- **New Zealand (`NZ`) & International:** Strictly no GST / $0 tax added or deducted. All purchases outside Australia pay the exact base AUD price with no tax.
 Requires `x-idempotency-key` (reused as the Stripe idempotency key). Returns `{ "url": "https://checkout.stripe.com/..." }`.
 
 ### `POST /api/webhooks/stripe`
@@ -675,19 +676,23 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 - `data-agent-id="sub-option-regenerate-variations"`, `data-testid="sub-option-regenerate-variations"`, `data-agent-id="sub-tooltip-regenerate-variations"`
 - `data-agent-id="sub-option-customize-strategy"`, `data-testid="sub-option-customize-strategy"`, `data-agent-id="sub-tooltip-customize-strategy"`
 
-## 18. Stripe Sandbox AUD Payments (10% GST Added On Top / Exclusive) & Subscription Fulfillment Contract
+## 18. Stripe Sandbox AUD Payments (Native Automatic Tax & Exclusive GST) & Subscription Fulfillment Contract
 
-### 18.1 Zero Pre-Created Stripe Products (`price_data` + `product_data`)
+### 18.1 Zero Pre-Created Stripe Products & Native Automatic Stripe Tax
 - **No Static Stripe Products:** All Checkout Sessions use dynamic inline `price_data` and `product_data` so SuperAdmin and MainAdmin price/token modifications in `system_config/global` apply immediately without creating or editing products in the Stripe Dashboard.
-- **Currency & Tax Invariant:** Strictly settled in Australian Dollars (`currency: "aud"`) with 10% Australian GST added on top (`tax_behavior: "exclusive"`, `tax_rates: [gstTaxRateId]` using `txr_1UWRnsI8bClhBF4PWROuyTyt`).
+- **Currency & Tax Invariant:** Strictly settled in Australian Dollars (`currency: "aud"`).
+- **Native Automatic Stripe Tax (`automatic_tax: { enabled: true }`, `tax_behavior: "exclusive"`):**
+  - Stripe automatically calculates and adds 10% Australian GST for Australian buyers (`country === "AU"`).
+  - New Zealand (`NZ`) has no GST. All buyers outside Australia (including New Zealand and international) pay $0 tax.
+  - Zero manual `tax_rates` (`txr_...`) or `ensureAuGstTaxRateId` logic.
 - **Two Payment Modes:**
   1. **Buy Tokens (`PACK_10`, `PACK_50`, `PACK_100`, `PACK_CUSTOM`):**
-     - `mode: "payment"`, `invoice_creation: { enabled: true }`
-     - `price_data`: `{ currency: "aud", tax_behavior: "exclusive", unit_amount: pack.priceCents, product_data: { name, description } }` + `tax_rates: [gstTaxRateId]`
+     - `mode: "payment"`, `invoice_creation: { enabled: true }`, `automatic_tax: { enabled: true }`
+     - `price_data`: `{ currency: "aud", tax_behavior: "exclusive", unit_amount: pack.priceCents, product_data: { name, description } }`
      - Upon payment confirmation, the purchased integer tokens are atomically distributed to `users/{uid}.tokenBalance` and logged in `token_transactions/{sessionId}` and `stripe_purchases/{sessionId}`.
   2. **Buy Monthly Search Subscription (`SUB_MONTHLY_1000`):**
-     - `mode: "subscription"`
-     - `price_data`: `{ currency: "aud", tax_behavior: "exclusive", unit_amount: pack.priceCents, recurring: { interval: "month" }, product_data: { name: "Monthly Search Subscription", description } }` + `tax_rates: [gstTaxRateId]`
+     - `mode: "subscription"`, `automatic_tax: { enabled: true }`
+     - `price_data`: `{ currency: "aud", tax_behavior: "exclusive", unit_amount: pack.priceCents, recurring: { interval: "month" }, product_data: { name: "Monthly Search Subscription", description } }`
      - Upon payment confirmation, the subscription starts (`subscriptionStatus: "active"`, `stripeSubscriptionId`, `subscriptionTokensPerMonth: 1000`) and 1,000 tokens are atomically distributed to `users/{uid}.tokenBalance`.
 
 ### 18.2 Direct Session Confirmation Endpoint (`POST /api/wallet/confirm`)

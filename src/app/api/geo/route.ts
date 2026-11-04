@@ -74,6 +74,7 @@ export async function GET(req: Request) {
   country = country || "AU";
   city = city || "Sydney";
   region = region ? cleanState(region) : "NSW";
+  const isAu = country === "AU";
   const isAuNz = country === "AU" || country === "NZ";
 
   // 3. Auto-fetch live weather for detected coordinates via Open-Meteo
@@ -101,6 +102,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     country,
+    isAu,
     isAuNz,
     suburb: city,
     state: region,
