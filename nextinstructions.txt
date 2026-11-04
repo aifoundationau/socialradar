@@ -108,13 +108,13 @@
     - Advertised strictly for `superadmin` and `admin` right next to `FAQs` in `TopNavWallet.tsx` (`Subscription (1K)` / `Sub 1K`) and inside `FaqModal.tsx`.
     - Configured 7 interactive buttons under Search Options & Feature Breakdown (`Base Radar Search`, `Proven Winners (28+d)`, `Extended (60+d)`, `Top Winners (90%+ Score)`, `AI Creative Remixes`, `Variation Regenerations`, and full-width `Customize your Brand Strategy with Professional Experts`) with clean labels (no `(+1 Token)`) and dark-theme hover explanation popups on all 7 buttons.
     - Synced `customizeService` default fallback to `55` tokens across `pricing.ts`, `contracts.ts`, `admin.ts`, `CustomizeView.tsx`, `TokenPacks.tsx`, and `SuperAdminModal.tsx`, and documented Section 17 in `data-contracts.md`.
-23. **Stripe AUD GST-Inclusive Payments & Subscription Fulfillment:**
-    - Configured Stripe Sandbox (`AI Foundation sandbox` / `acct_1UKnKUI8bClhBF4P`) with 10% Australian GST inclusive pricing (`tax_behavior: "inclusive"`, `tax_rates: [gstTaxRateId]`) using dynamic inline `price_data` + `product_data` (zero pre-created Stripe products required).
-    - Enabled `invoice_creation: { enabled: true }` for one-time Token Pack purchases so every purchase generates a formal Stripe Tax Invoice with the 10% GST breakdown, matching `mode: "subscription"`.
+23. **Stripe AUD Native Automatic Tax (Exclusive 10% GST for Australia Only) & Subscription Fulfillment (`65e8abe`..`eca566a`):**
+    - Configured native Stripe Tax (`automatic_tax: { enabled: true }`, `tax_behavior: "exclusive"`, `currency: "aud"`) across both one-time Token Pack payments (`mode: "payment"`) and Monthly Search Subscriptions (`mode: "subscription"`), using dynamic inline `price_data` + `product_data` (zero pre-created Stripe products and zero manual `tax_rates`).
+    - Stripe Checkout automatically detects the buyer's country on the payment page, adding 10% GST on top for Australia (`AU`) only and $0 tax for New Zealand (`NZ`) and all international buyers.
+    - Enabled `invoice_creation: { enabled: true }` for one-time Token Pack purchases so every purchase generates an official Stripe Tax Invoice (`in_...`), matching `mode: "subscription"`.
+    - Restricted all `+ GST` UI labels strictly to Australia (`isAu: country === "AU"`), while New Zealand displays AUD with `(No Tax)` and international countries display the AUD → USD conversion.
     - Added `POST /api/wallet/confirm` for immediate return verification and token distribution alongside idempotent webhook handling (`POST /api/webhooks/stripe`).
-    - Added ultra-reliable Google public x509 cert fallback for session token verification in `src/lib/firebase-admin.ts`.
-    - Created `settingupstripepaymentprompt.txt` as a portable master blueprint for configuring Australian GST-inclusive payments across other web apps.
-    - Updated `data-contracts.md` Section 18.
+    - Updated `settingupstripepaymentprompt.txt` and `data-contracts.md` Section 18.
 
 
 
