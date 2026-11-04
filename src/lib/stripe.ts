@@ -60,8 +60,8 @@ export async function ensureAuGstTaxRateId(): Promise<string> {
 
 /**
  * Hosted Checkout for either:
- * 1. One-off Token Packs (`mode: "payment"`, NO `invoice_creation` so Stripe displays the inline Checkout summary directly on the `pi_...` Payment page) — Price + 10% GST for AU/NZ (e.g. $50 + $5 GST = $55 AUD), or Price with No Tax for non-AU/NZ.
- * 2. Monthly Search Subscription (`mode: "subscription"`, `pack.id === "SUB_MONTHLY_1000"`) — $500 AUD/mo + $50 GST = $550 AUD/mo for AU/NZ, or $500 AUD/mo with No Tax for non-AU/NZ.
+ * 1. One-off Token Packs (`mode: "payment"`, `invoice_creation: { enabled: true }`) — Price + 10% GST for AU/NZ (e.g. $50 + $5 GST = $55 AUD), or Price with No Tax for non-AU/NZ.
+ * 2. Monthly Search Subscription (`mode: "subscription"`, `pack.id === "SUB_MONTHLY_1000"`) — Price + 10% GST for AU/NZ (e.g. $700/mo + $70 GST = $770 AUD/mo), or Price with No Tax for non-AU/NZ.
  */
 export function buildCheckoutParams(opts: {
   uid: string;

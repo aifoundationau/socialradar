@@ -6,10 +6,12 @@ STRIPE AUD PAYMENTS — PRICE + 10% GST FOR AU/NZ (EXCLUSIVE) & NO TAX FOR NON-A
 
 Copy and paste everything below into any other web app project to instruct the
 AI agent on how to set up Stripe Sandbox & Live payments where:
-1. In Stripe Dashboard → Settings → Tax, "Include tax in prices" is set to "No" (`tax_behavior: "exclusive"`).
-2. Purchases geolocated in Australia (`AU`) or New Zealand (`NZ`) charge the Admin Panel Price PLUS 10% GST added on top (e.g. $50.00 AUD + $5.00 AUD GST = $55.00 AUD).
-3. All purchases geolocated outside Australia and New Zealand (`country !== "AU"` and `country !== "NZ"`) record NO tax at all and add/deduct NO tax at all, keeping the exact token price set in the Admin Panel (e.g. $50.00 AUD total).
-4. `invoice_creation` is omitted on `mode: "payment"` so Stripe renders the inline Checkout summary (`Subtotal / GST – AU (10%) / Total`) directly on the `pi_...` Payment page.
+1. In Stripe Dashboard → Settings → Tax:
+   - "Use automatic tax calculation" is set to "Yes"
+   - "Include tax in prices" is set to "No" (`tax_behavior: "exclusive"`)
+2. Purchases geolocated in Australia (`AU`) or New Zealand (`NZ`) charge the Admin Panel Price PLUS 10% GST added on top (e.g. $10.00 AUD + $1.00 AUD GST = $11.00 AUD; $50.00 AUD + $5.00 AUD GST = $55.00 AUD; $700.00 AUD/mo + $70.00 AUD GST = $770.00 AUD/mo).
+3. All purchases geolocated outside Australia and New Zealand (`country !== "AU"` and `country !== "NZ"`) record NO tax at all and add/deduct NO tax at all, keeping the exact token/subscription price set in the Admin Panel (e.g. $10.00 AUD, $50.00 AUD, $700.00 AUD/mo).
+4. Every one-time purchase (`mode: "payment"`) enables `invoice_creation: { enabled: true }` and every subscription (`mode: "subscription"`) automatically generates a formal Stripe Tax Invoice (`in_...`) separating Price (Ex-GST), 10% GST, and Total Payable.
 
 --------------------------------------------------------------------------------
 PROMPT TO PASTE INTO YOUR OTHER WEB APPS:
@@ -18,11 +20,13 @@ PROMPT TO PASTE INTO YOUR OTHER WEB APPS:
 We are setting up Stripe Payments (Sandbox / Live) for this web app. Follow these exact architectural rules without exception:
 
 ### 1. CORE BUSINESS, GEOLOCATION & TAX INVARIANTS
-0. **Stripe Dashboard Tax Setting:**
-   - In **Stripe Dashboard → Settings → Tax**, set **Include tax in prices** to **"No"** (`tax_behavior: "exclusive"`).
+0. **Stripe Dashboard Tax Settings:**
+   - In **Stripe Dashboard → Settings → Tax**:
+     - **Use automatic tax calculation:** **Yes**
+     - **Include tax in prices:** **No** (`tax_behavior: "exclusive"`)
 1. **Currency & Admin-Locked Base Pricing:**
    - All payments, checkouts, and subscriptions MUST be strictly in Australian Dollars (`currency: "aud"`).
-   - The base price is ALWAYS the exact price configured in the SuperAdmin Control Panel (e.g., 10 Tokens = `$10.00 AUD`, 50 Tokens = `$50.00 AUD`, 100 Tokens = `$100.00 AUD`, Monthly Search Subscription = `$500.00 AUD/mo`).
+   - The base price is ALWAYS the exact price configured in the SuperAdmin Control Panel (e.g., 10 Tokens = `$10.00 AUD`, 50 Tokens = `$50.00 AUD`, 100 Tokens = `$100.00 AUD`, Monthly Search Subscription = `$500.00 AUD/mo` or `$700.00 AUD/mo`).
 2. **Geolocated Tax Rule (AU/NZ vs. Rest of World):**
    - **Australia (`AU`) or New Zealand (`NZ`) Geolocated Purchases (`isAuNz === true`):**
      - Attach the active 10% Exclusive GST `TaxRate` (`tax_rates: [gstTaxRateId]`, `inclusive: false`, `percentage: 10`, `jurisdiction: "AU"`, `display_name: "GST"`, e.g. `txr_1UWRnsI8bClhBF4PWROuyTyt`) and set `tax_behavior: "exclusive"`.
@@ -30,6 +34,10 @@ We are setting up Stripe Payments (Sandbox / Live) for this web app. Follow thes
        - `Subtotal $50.00 AUD`
        - `GST – AU (10%) $5.00 AUD`
        - `Total $55.00 AUD`
+     - Formula in integer cents:
+       - `exGstCents = pack.priceCents`
+       - `gstCents = Math.round(exGstCents * 0.1)`
+       - `totalCents = exGstCents + gstCents`
    - **All Non-Australia & Non-New Zealand Geolocated Purchases (`isAuNz === false`):**
      - **NO tax is recorded at all** (`tax_rates` is omitted) and **NO tax is added or deducted at all** (`gstCents = 0`).
      - Keep the token/subscription price strictly as set in the Admin Panel (`unit_amount: pack.priceCents`, e.g. `$50.00 AUD` total).
@@ -228,4 +236,31 @@ export function buildCheckoutParams(opts: {
   };
 }
 ```
+
+---
+
+### 3. CHECKOUT ROUTE, STALE CUSTOMER AUTO-RETRY & ORIGIN PRESERVATION (`POST /api/wallet/checkout`)
+1. Resolve `buyerCountry` from request body (`body.buyerCountry`) or geolocation headers (`x-vercel-ip-country` / `cf-ipcountry`), defaulting to `"AU"`.
+2. Only call `await ensureAuGstTaxRateId()` when `buyerCountry === "AU" || buyerCountry === "NZ"`.
+3. Derive `appUrl` from `new URL(req.url).origin || process.env.APP_URL` so Stripe redirects back to the exact local port or production domain the user initiated checkout from.
+4. If `user.stripeCustomerId` is stored in Firestore from an older Stripe account and `stripe.checkout.sessions.create` throws `No such customer`, catch the error and immediately retry with `stripeCustomerId: ""` so a fresh Stripe Customer is created automatically without failing checkout.
+
+---
+
+### 4. DUAL PAYMENT CONFIRMATION & IDEMPOTENT TOKEN DISTRIBUTION
+Never rely solely on webhooks during local development or if a webhook is delayed:
+1. **Shared Idempotent Fulfillment (`fulfillCheckoutSession(session)`):**
+   - Verifies `(session.mode === "payment" || session.mode === "subscription") && session.payment_status === "paid"`.
+   - Verifies `session.metadata.uid === session.client_reference_id`.
+   - Credits `Number(session.metadata.tokens)` to `users/{uid}.tokenBalance` inside an atomic Firestore transaction (`db.runTransaction`) using `txId = session.id` (`token_transactions/{session.id}`).
+   - If `token_transactions/{session.id}` already exists, returns `{ replayed: true }` without crediting twice.
+   - If `session.mode === "subscription"`, also updates `users/{uid}` with `subscriptionStatus: "active"`, `stripeSubscriptionId`, `subscriptionTokensPerMonth`, and `subscriptionPriceAudCents`.
+2. **Direct Return Confirmation Endpoint (`POST /api/wallet/confirm`):**
+   - When the browser lands on `/wallet?checkout=success&session_id=cs_test_...`, the frontend banner immediately calls `POST /api/wallet/confirm` with `{ sessionId }`.
+   - The server calls `await getStripe().checkout.sessions.retrieve(sessionId)`, verifies `session.client_reference_id === caller.uid`, and runs `fulfillCheckoutSession(session)`.
+   - Tokens and subscription status are distributed immediately within 1 second of returning from Stripe Checkout.
+3. **Stripe Webhook Endpoint (`POST /api/webhooks/stripe`):**
+   - Handles `checkout.session.completed` and `checkout.session.async_payment_succeeded` by calling the exact same `fulfillCheckoutSession(session)` (idempotent on `session.id`).
+   - Handles `invoice.paid` where `invoice.billing_reason === "subscription_cycle"` (for Month 2+ recurring monthly renewals), crediting the monthly token allowance using `txId = invoice.id`.
+   - Handles `customer.subscription.deleted` to set `subscriptionStatus: "canceled"` on `users/{uid}`.
 ================================================================================

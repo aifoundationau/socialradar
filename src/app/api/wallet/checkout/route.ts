@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   }
 }
 
-/** Starts a Stripe Checkout Session for a token pack or monthly subscription (settled in AUD; 10% inclusive GST for AU/NZ, no tax for non-AU/NZ). Body: `{ packId, customTokens?, buyerCountry? }`. Returns `{ url }`. */
+/** Starts a Stripe Checkout Session for a token pack or monthly subscription (settled in AUD; Price + 10% exclusive GST for AU/NZ, no tax for non-AU/NZ). Body: `{ packId, customTokens?, buyerCountry? }`. Returns `{ url }`. */
 export async function POST(req: Request) {
   try {
     const body = CheckoutRequestSchema.parse(await readJson(req));
