@@ -11,7 +11,7 @@ import {
   type TokenPack,
 } from "@/lib/pricing";
 import { getSystemConfig } from "@/lib/admin";
-import { buildCheckoutParams, ensureAuGstTaxRateId, getStripe } from "@/lib/stripe";
+import { buildCheckoutParams, getStripe } from "@/lib/stripe";
 
 /** Returns the active public pricing configuration (AUD base rate, service token amounts, and packs). */
 export async function GET(req: Request) {
@@ -47,7 +47,6 @@ export async function POST(req: Request) {
       .toUpperCase()
       .trim();
     const buyerCountry = (body.buyerCountry || headerCountry || "AU").toUpperCase().trim();
-    const isAuNz = buyerCountry === "AU" || buyerCountry === "NZ";
 
     // Monthly Search Subscription is a SuperAdmin and MainAdmin function only
     const caller = await verifyRequest(req, packId === "SUB_MONTHLY_1000" ? { requireRole: "admin" } : undefined);
@@ -97,7 +96,6 @@ export async function POST(req: Request) {
 
     const appUrl = new URL(req.url).origin || process.env.APP_URL || "http://localhost:3000";
     const stripe = getStripe();
-    const gstTaxRateId = isAuNz ? await ensureAuGstTaxRateId() : undefined;
     const baseIdempotencyKey = buildTxId(caller.uid, `${key}_${buyerCountry}_ex`);
 
     let session;
@@ -111,7 +109,6 @@ export async function POST(req: Request) {
           appUrl,
           subscriptionName: config.monthlySubscription?.name,
           buyerCountry,
-          gstTaxRateId,
         }),
         { idempotencyKey: baseIdempotencyKey },
       );
@@ -127,7 +124,6 @@ export async function POST(req: Request) {
             appUrl,
             subscriptionName: config.monthlySubscription?.name,
             buyerCountry,
-            gstTaxRateId,
           }),
           { idempotencyKey: `${baseIdempotencyKey}_freshcus` },
         );

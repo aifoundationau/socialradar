@@ -1,7 +1,7 @@
 ================================================================================
 MASTER PROMPT FOR ANTIGRAVITY:
-STRIPE AUD PAYMENTS — PRICE + 10% GST FOR AU/NZ (EXCLUSIVE) & NO TAX FOR NON-AU/NZ
-(ONE-TIME & MONTHLY SUBSCRIPTIONS) + ZERO PRE-CREATED STRIPE PRODUCTS
+STRIPE AUD PAYMENTS — NATIVE AUTOMATIC STRIPE TAX + EXCLUSIVE TAX BEHAVIOR
+(ONE-TIME & MONTHLY SUBSCRIPTIONS) + ZERO PRE-CREATED STRIPE PRODUCTS + ZERO MANUAL TAX RATES
 ================================================================================
 
 Copy and paste everything below into any other web app project to instruct the
@@ -9,9 +9,17 @@ AI agent on how to set up Stripe Sandbox & Live payments where:
 1. In Stripe Dashboard → Settings → Tax:
    - "Use automatic tax calculation" is set to "Yes"
    - "Include tax in prices" is set to "No" (`tax_behavior: "exclusive"`)
-2. Purchases geolocated in Australia (`AU`) or New Zealand (`NZ`) charge the Admin Panel Price PLUS 10% GST added on top (e.g. $10.00 AUD + $1.00 AUD GST = $11.00 AUD; $50.00 AUD + $5.00 AUD GST = $55.00 AUD; $700.00 AUD/mo + $70.00 AUD GST = $770.00 AUD/mo).
-3. All purchases geolocated outside Australia and New Zealand (`country !== "AU"` and `country !== "NZ"`) record NO tax at all and add/deduct NO tax at all, keeping the exact token/subscription price set in the Admin Panel (e.g. $10.00 AUD, $50.00 AUD, $700.00 AUD/mo).
-4. Every one-time purchase (`mode: "payment"`) enables `invoice_creation: { enabled: true }` and every subscription (`mode: "subscription"`) automatically generates a formal Stripe Tax Invoice (`in_...`) separating Price (Ex-GST), 10% GST, and Total Payable.
+2. Default currency is strictly Australian Dollars (`currency: "aud"`).
+3. Automatic Stripe Tax is enabled natively (`automatic_tax: { enabled: true }`):
+   - Stripe Checkout automatically detects the buyer's country and billing address on the hosted payment page.
+   - We do not need to know or pass the buyer's country in advance.
+   - If the buyer is in Australia (`AU`), Stripe automatically calculates and adds 10% GST on top of the base AUD price.
+   - If the buyer is outside Australia, Stripe calculates $0 tax.
+4. Clean up: Zero manual `tax_rates` (`txr_...`) or `ensureAuGstTaxRateId` code — Stripe Tax handles everything natively.
+5. Official Tax Invoices:
+   - One-time payments (`mode: "payment"`) enable `invoice_creation: { enabled: true }`.
+   - Subscriptions (`mode: "subscription"`) automatically generate a recurring tax invoice (`in_...`).
+   - Every invoice itemizes Base Price (Ex-GST), GST (if applicable), and Total Payable.
 
 --------------------------------------------------------------------------------
 PROMPT TO PASTE INTO YOUR OTHER WEB APPS:
@@ -19,47 +27,49 @@ PROMPT TO PASTE INTO YOUR OTHER WEB APPS:
 
 We are setting up Stripe Payments (Sandbox / Live) for this web app. Follow these exact architectural rules without exception:
 
-### 1. CORE BUSINESS, GEOLOCATION & TAX INVARIANTS
+### 1. CORE BUSINESS & NATIVE STRIPE TAX INVARIANTS
 0. **Stripe Dashboard Tax Settings:**
    - In **Stripe Dashboard → Settings → Tax**:
      - **Use automatic tax calculation:** **Yes**
      - **Include tax in prices:** **No** (`tax_behavior: "exclusive"`)
-1. **Currency & Admin-Locked Base Pricing:**
-   - All payments, checkouts, and subscriptions MUST be strictly in Australian Dollars (`currency: "aud"`).
-   - The base price is ALWAYS the exact price configured in the SuperAdmin Control Panel (e.g., 10 Tokens = `$10.00 AUD`, 50 Tokens = `$50.00 AUD`, 100 Tokens = `$100.00 AUD`, Monthly Search Subscription = `$500.00 AUD/mo` or `$700.00 AUD/mo`).
-2. **Geolocated Tax Rule (AU/NZ vs. Rest of World):**
-   - **Australia (`AU`) or New Zealand (`NZ`) Geolocated Purchases (`isAuNz === true`):**
-     - Attach the active 10% Exclusive GST `TaxRate` (`tax_rates: [gstTaxRateId]`, `inclusive: false`, `percentage: 10`, `jurisdiction: "AU"`, `display_name: "GST"`, e.g. `txr_1UWRnsI8bClhBF4PWROuyTyt`) and set `tax_behavior: "exclusive"`.
-     - Stripe charges the Admin Panel Price **PLUS 10% GST**:
-       - `Subtotal $50.00 AUD`
-       - `GST – AU (10%) $5.00 AUD`
-       - `Total $55.00 AUD`
-     - Formula in integer cents:
-       - `exGstCents = pack.priceCents`
-       - `gstCents = Math.round(exGstCents * 0.1)`
-       - `totalCents = exGstCents + gstCents`
-   - **All Non-Australia & Non-New Zealand Geolocated Purchases (`isAuNz === false`):**
-     - **NO tax is recorded at all** (`tax_rates` is omitted) and **NO tax is added or deducted at all** (`gstCents = 0`).
-     - Keep the token/subscription price strictly as set in the Admin Panel (`unit_amount: pack.priceCents`, e.g. `$50.00 AUD` total).
-3. **Do NOT Create Static Products or Prices in Stripe:**
-   - Because product prices, token packs, and subscription tiers are modified dynamically via the SuperAdmin Control Panel at any time, NEVER hardcode or pre-create `prod_...` or `price_...` IDs in Stripe.
-   - Always use inline `price_data` + `product_data` inside `stripe.checkout.sessions.create(...)`.
-4. **Always Enable `invoice_creation: { enabled: true }` on One-Time Payments:**
-   - Subscriptions (`mode: "subscription"`) automatically create an Invoice (`in_...`).
-   - One-time payments (`mode: "payment"`) must pass `invoice_creation: { enabled: true, invoice_data: { ... } }` so every purchase generates an official Stripe Tax Invoice (`in_...`) with itemized subtotal and 10% Australian GST lines.
+1. **Default Currency:**
+   - All checkouts, subscriptions, and line items MUST strictly use Australian Dollars (`currency: "aud"`).
+   - The base price is always the exact price configured in the Admin Panel / database (e.g. 10 Tokens = `$10.00 AUD`, Monthly Search Subscription = `$700.00 AUD/mo`).
+2. **Automatic Stripe Tax (`automatic_tax: { enabled: true }`):**
+   - Enable `automatic_tax: { enabled: true }` on both `mode: "payment"` and `mode: "subscription"`.
+   - Stripe Checkout automatically detects the customer's country, state, and postal code directly on the hosted payment form.
+   - You do NOT need to geolocate or pass the customer's country in advance.
+   - Tax behavior is set to `tax_behavior: "exclusive"` on line item `price_data`.
+   - **Australian buyers:** Stripe adds 10% Australian GST on top of the base price (e.g., $50.00 AUD + $5.00 GST = $55.00 AUD total; $700.00 AUD/mo + $70.00 GST = $770.00 AUD/mo).
+   - **International buyers:** Stripe automatically charges $0 tax and collects the exact base AUD price.
+3. **Zero Manual Tax Rates (`txr_...`):**
+   - NEVER create, fetch, cache, or pass manual `tax_rates` (`txr_...` / `ensureAuGstTaxRateId()`).
+   - Stripe Tax computes all jurisdiction rules and calculations automatically.
+4. **Dynamic Products & Zero Pre-created Products:**
+   - Because prices and tiers can change in the Admin Panel at any time, NEVER hardcode or pre-create `prod_...` or `price_...` objects in Stripe.
+   - Always pass inline `price_data` + `product_data` in `stripe.checkout.sessions.create(...)`.
+5. **Official Tax Invoices:**
+   - One-time purchases (`mode: "payment"`) must include:
+     ```ts
+     invoice_creation: {
+       enabled: true,
+       invoice_data: { metadata },
+     }
+     ```
+   - Monthly subscriptions (`mode: "subscription"`) automatically create an invoice (`in_...`).
+   - Both produce downloadable PDF tax invoices separating Ex-GST Subtotal, Tax/GST, and Total.
 
 ---
 
 ### 2. SERVER-SIDE STRIPE HELPER (`src/lib/stripe.ts`)
 
-Implement `ensureAuGstTaxRateId()`, `buildCheckoutParams()`, and `fulfillCheckoutSession()` using this pattern:
+Implement `buildCheckoutParams()` and `fulfillCheckoutSession()` using this clean pattern:
 
 ```ts
 import "server-only";
 import Stripe from "stripe";
 
 let client: Stripe | null = null;
-let cachedAuGstTaxRateId: string | null = null;
 
 export function getStripe(): Stripe {
   if (!client) {
@@ -70,42 +80,6 @@ export function getStripe(): Stripe {
   return client;
 }
 
-/**
- * Finds, reactivates, or creates the active 10% EXCLUSIVE Australian GST TaxRate in Stripe (`txr_...`, `inclusive: false`).
- * Used ONLY when `buyerCountry` is `"AU"` or `"NZ"`.
- */
-export async function ensureAuGstTaxRateId(): Promise<string> {
-  if (cachedAuGstTaxRateId) return cachedAuGstTaxRateId;
-  const stripe = getStripe();
-  const existing = await stripe.taxRates.list({ limit: 50 });
-  const found = existing.data.find(
-    (tr) =>
-      tr.inclusive === false &&
-      tr.percentage === 10 &&
-      (tr.jurisdiction === "AU" || tr.country === "AU") &&
-      tr.display_name === "GST"
-  );
-  if (found) {
-    if (!found.active) {
-      await stripe.taxRates.update(found.id, { active: true });
-    }
-    cachedAuGstTaxRateId = found.id;
-    return found.id;
-  }
-
-  const created = await stripe.taxRates.create({
-    display_name: "GST",
-    description: "Australian Goods and Services Tax",
-    jurisdiction: "AU",
-    country: "AU",
-    percentage: 10,
-    inclusive: false,
-    active: true,
-  });
-  cachedAuGstTaxRateId = created.id;
-  return created.id;
-}
-
 export function buildCheckoutParams(opts: {
   uid: string;
   email: string;
@@ -114,42 +88,15 @@ export function buildCheckoutParams(opts: {
   isSubscription: boolean;
   productName: string;
   appUrl: string;
-  buyerCountry?: string;
-  gstTaxRateId?: string;
 }): Stripe.Checkout.SessionCreateParams {
-  const {
-    uid,
-    email,
-    stripeCustomerId,
-    pack,
-    isSubscription,
-    productName,
-    appUrl,
-    buyerCountry = "AU",
-    gstTaxRateId,
-  } = opts;
-  const normalizedCountry = buyerCountry.toUpperCase().trim() || "AU";
-  const isAuNz = normalizedCountry === "AU" || normalizedCountry === "NZ";
-  const applyGst = isAuNz && Boolean(gstTaxRateId);
-
-  const exGstCents = pack.priceCents;
-  const gstCents = applyGst ? Math.round(exGstCents * 0.1) : 0;
-  const totalCents = exGstCents + gstCents;
-  const exGstFormatted = (exGstCents / 100).toFixed(2);
-  const gstFormatted = (gstCents / 100).toFixed(2);
-  const totalFormatted = (totalCents / 100).toFixed(2);
+  const { uid, email, stripeCustomerId, pack, isSubscription, productName, appUrl } = opts;
   const tokensFormatted = pack.tokens.toLocaleString("en-AU");
+  const priceFormatted = (pack.priceCents / 100).toFixed(2);
 
   const metadata: Record<string, string> = {
     uid,
     packId: pack.id,
     tokens: String(pack.tokens),
-    buyerCountry: normalizedCountry,
-    taxApplied: applyGst ? "true" : "false",
-    priceExGstAud: `$${exGstFormatted} AUD`,
-    gstTaxAud: `$${gstFormatted} AUD`,
-    totalIncGstAud: `$${totalFormatted} AUD`,
-    taxType: applyGst ? "Australian GST 10% (Exclusive)" : `No Tax (${normalizedCountry} — Non-AU/NZ)`,
   };
 
   if (isSubscription) {
@@ -158,6 +105,7 @@ export function buildCheckoutParams(opts: {
       client_reference_id: uid,
       metadata,
       subscription_data: { metadata },
+      automatic_tax: { enabled: true },
       ...(stripeCustomerId
         ? { customer: stripeCustomerId }
         : email
@@ -166,7 +114,6 @@ export function buildCheckoutParams(opts: {
       line_items: [
         {
           quantity: 1,
-          ...(applyGst && gstTaxRateId ? { tax_rates: [gstTaxRateId] } : {}),
           price_data: {
             currency: "aud",
             tax_behavior: "exclusive",
@@ -174,9 +121,7 @@ export function buildCheckoutParams(opts: {
             recurring: { interval: "month" },
             product_data: {
               name: productName,
-              description: applyGst
-                ? `Allocate ${tokensFormatted} Searches / Month — $${exGstFormatted} AUD + $${gstFormatted} AUD (10% GST) = $${totalFormatted} AUD / mo`
-                : `Allocate ${tokensFormatted} Searches / Month — $${exGstFormatted} AUD / mo (No Tax · ${normalizedCountry})`,
+              description: `Allocate ${tokensFormatted} Searches / Month ($${priceFormatted} AUD / mo)`,
             },
           },
         },
@@ -190,25 +135,13 @@ export function buildCheckoutParams(opts: {
     mode: "payment",
     invoice_creation: {
       enabled: true,
-      invoice_data: {
-        description: applyGst
-          ? `Tax Invoice — ${tokensFormatted} Tokens ($${exGstFormatted} AUD + $${gstFormatted} AUD 10% GST = $${totalFormatted} AUD)`
-          : `Invoice — ${tokensFormatted} Tokens ($${exGstFormatted} AUD · No Tax · ${normalizedCountry})`,
-        custom_fields: applyGst
-          ? [
-              { name: "Price (Ex-GST)", value: `$${exGstFormatted} AUD` },
-              { name: "GST (10%)", value: `$${gstFormatted} AUD` },
-            ]
-          : [{ name: "Tax", value: `No Tax (${normalizedCountry})` }],
-        metadata,
-      },
+      invoice_data: { metadata },
     },
+    automatic_tax: { enabled: true },
     client_reference_id: uid,
     metadata,
     payment_intent_data: {
-      description: applyGst
-        ? `${tokensFormatted} Tokens — $${exGstFormatted} AUD + $${gstFormatted} AUD 10% GST = $${totalFormatted} AUD`
-        : `${tokensFormatted} Tokens — $${exGstFormatted} AUD (No Tax · ${normalizedCountry})`,
+      description: `${tokensFormatted} Tokens ($${priceFormatted} AUD)`,
       metadata,
     },
     ...(stripeCustomerId
@@ -217,16 +150,13 @@ export function buildCheckoutParams(opts: {
     line_items: [
       {
         quantity: 1,
-        ...(applyGst && gstTaxRateId ? { tax_rates: [gstTaxRateId] } : {}),
         price_data: {
           currency: "aud",
           tax_behavior: "exclusive",
           unit_amount: pack.priceCents,
           product_data: {
             name: productName,
-            description: applyGst
-              ? `${tokensFormatted} tokens ($${exGstFormatted} AUD + $${gstFormatted} AUD 10% GST = $${totalFormatted} AUD)`
-              : `${tokensFormatted} tokens ($${exGstFormatted} AUD · No Tax · ${normalizedCountry})`,
+            description: `${tokensFormatted} tokens ($${priceFormatted} AUD)`,
           },
         },
       },
@@ -239,11 +169,9 @@ export function buildCheckoutParams(opts: {
 
 ---
 
-### 3. CHECKOUT ROUTE, STALE CUSTOMER AUTO-RETRY & ORIGIN PRESERVATION (`POST /api/wallet/checkout`)
-1. Resolve `buyerCountry` from request body (`body.buyerCountry`) or geolocation headers (`x-vercel-ip-country` / `cf-ipcountry`), defaulting to `"AU"`.
-2. Only call `await ensureAuGstTaxRateId()` when `buyerCountry === "AU" || buyerCountry === "NZ"`.
-3. Derive `appUrl` from `new URL(req.url).origin || process.env.APP_URL` so Stripe redirects back to the exact local port or production domain the user initiated checkout from.
-4. If `user.stripeCustomerId` is stored in Firestore from an older Stripe account and `stripe.checkout.sessions.create` throws `No such customer`, catch the error and immediately retry with `stripeCustomerId: ""` so a fresh Stripe Customer is created automatically without failing checkout.
+### 3. CHECKOUT ROUTE & STALE CUSTOMER AUTO-RETRY (`POST /api/wallet/checkout`)
+1. Derive `appUrl` dynamically from `new URL(req.url).origin || process.env.APP_URL` so Stripe redirects back to the exact local port or production domain the user started from.
+2. If `user.stripeCustomerId` is stored in Firestore from an older Stripe account or test environment and `stripe.checkout.sessions.create` throws `No such customer`, catch the error and immediately retry with `stripeCustomerId: ""` so a fresh Stripe Customer is created automatically without failing checkout.
 
 ---
 
@@ -252,15 +180,16 @@ Never rely solely on webhooks during local development or if a webhook is delaye
 1. **Shared Idempotent Fulfillment (`fulfillCheckoutSession(session)`):**
    - Verifies `(session.mode === "payment" || session.mode === "subscription") && session.payment_status === "paid"`.
    - Verifies `session.metadata.uid === session.client_reference_id`.
-   - Credits `Number(session.metadata.tokens)` to `users/{uid}.tokenBalance` inside an atomic Firestore transaction (`db.runTransaction`) using `txId = session.id` (`token_transactions/{session.id}`).
-   - If `token_transactions/{session.id}` already exists, returns `{ replayed: true }` without crediting twice.
-   - If `session.mode === "subscription"`, also updates `users/{uid}` with `subscriptionStatus: "active"`, `stripeSubscriptionId`, `subscriptionTokensPerMonth`, and `subscriptionPriceAudCents`.
+   - Reads `session.amount_total`, `session.total_details?.amount_tax ?? 0`, and `session.amount_subtotal`.
+   - Credits `Number(session.metadata.tokens)` to `users/{uid}.tokenBalance` inside an atomic database transaction using `txId = session.id`.
+   - If transaction already exists, returns `{ replayed: true }` without crediting twice.
+   - If `session.mode === "subscription"`, also records active subscription details.
 2. **Direct Return Confirmation Endpoint (`POST /api/wallet/confirm`):**
-   - When the browser lands on `/wallet?checkout=success&session_id=cs_test_...`, the frontend banner immediately calls `POST /api/wallet/confirm` with `{ sessionId }`.
-   - The server calls `await getStripe().checkout.sessions.retrieve(sessionId)`, verifies `session.client_reference_id === caller.uid`, and runs `fulfillCheckoutSession(session)`.
-   - Tokens and subscription status are distributed immediately within 1 second of returning from Stripe Checkout.
+   - When the browser returns to `/wallet?checkout=success&session_id=cs_test_...`, the frontend immediately calls `POST /api/wallet/confirm` with `{ sessionId }`.
+   - The server calls `await getStripe().checkout.sessions.retrieve(sessionId)`, verifies ownership, and runs `fulfillCheckoutSession(session)`.
+   - Tokens and subscriptions are distributed immediately within 1 second.
 3. **Stripe Webhook Endpoint (`POST /api/webhooks/stripe`):**
    - Handles `checkout.session.completed` and `checkout.session.async_payment_succeeded` by calling the exact same `fulfillCheckoutSession(session)` (idempotent on `session.id`).
    - Handles `invoice.paid` where `invoice.billing_reason === "subscription_cycle"` (for Month 2+ recurring monthly renewals), crediting the monthly token allowance using `txId = invoice.id`.
-   - Handles `customer.subscription.deleted` to set `subscriptionStatus: "canceled"` on `users/{uid}`.
+   - Handles `customer.subscription.deleted` to set `subscriptionStatus: "canceled"`.
 ================================================================================
