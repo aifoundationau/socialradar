@@ -1,0 +1,99 @@
+================================================================================
+REDISTRIBUTIVE EQUITY LEDGER — EXPLAINED IN SIMPLE LANGUAGE
+================================================================================
+
+WHAT IS THE REDISTRIBUTIVE EQUITY LEDGER?
+--------------------------------------------------------------------------------
+Think of the Redistributive Equity Ledger as an automatic, transparent "profit 
+and token-sharing system" built right into the platform.
+
+Whenever a customer buys tokens or a subscription through Stripe, money comes 
+into the platform and tokens are minted. 
+
+Instead of hiding this revenue or calculating profit splits manually on a 
+spreadsheet at the end of the month, the Redistributive Equity Ledger tracks 
+every single dollar and token in real-time and automatically calculates who owns 
+what share of the business pie.
+
+
+HOW DOES IT WORK? (STEP-BY-STEP)
+--------------------------------------------------------------------------------
+
+1. THE MONEY POOL
+   Every time someone completes a purchase through Stripe:
+   - The platform records the purchase.
+   - It adds the tokens sold to the "Total Tokens Pool".
+   - It adds the money collected to the "Total Revenue Pool" (calculated in both 
+     Australian Dollars and US Dollars).
+
+2. EQUITY PARTNERS
+   The SuperAdmin can list partners (co-founders, investors, or team members) in 
+   the SuperAdmin Panel and assign each partner a percentage.
+   
+   For example:
+   - Founder / Partner A: 20%
+   - Partner B: 10%
+   - Combined Partners Total: 30%
+
+3. AUTOMATIC DISTRIBUTION
+   The system instantly and automatically calculates what each partner has 
+   earned:
+   - Partner A gets 20% of all tokens and 20% of all revenue.
+   - Partner B gets 10% of all tokens and 10% of all revenue.
+   All token numbers are strictly rounded to whole numbers (no fractions).
+
+4. THE TREASURY (WHAT REMAINS IN THE BUSINESS)
+   Whatever percentage is not assigned to partners automatically stays in the 
+   business. This is called the "Treasury" (or Platform Reserve).
+   
+   If partners have 30% total, the Treasury automatically holds the remaining 
+   70% of all tokens and revenue to pay for server costs, API usage, marketing, 
+   and business savings.
+
+
+AN EASY EXAMPLE:
+--------------------------------------------------------------------------------
+Imagine the platform has made 10 sales totaling:
+- Total Revenue: $1,000 AUD
+- Total Tokens Sold: 1,000 Tokens
+
+If you set up:
+- Sarah: 15%
+- Mark: 10%
+
+The ledger instantly shows:
+- Sarah's Share:    150 Tokens  |  $150.00 AUD
+- Mark's Share:     100 Tokens  |  $100.00 AUD
+- Platform Treasury: 750 Tokens |  $750.00 AUD (the remaining 75%)
+
+
+KEY FEATURES OF THIS SYSTEM
+--------------------------------------------------------------------------------
+1. 100% Real-Time & Live:
+   No waiting for end-of-month reconciliations. Every time a Stripe payment lands, 
+   all numbers update in seconds.
+
+2. Dual Currency Transparency:
+   It tracks everything in Australian Dollars (AUD) and automatically displays 
+   the equivalent in US Dollars (USD) so international partners always know 
+   their balance.
+
+3. SuperAdmin Control:
+   Only the SuperAdmin has permission to view, add, edit, or adjust equity 
+   partners. Regular users and operational admins cannot see or change this.
+
+4. Safe "Refresh to Zero" (New Payout Period):
+   When it's time to pay out partners or close an accounting cycle, the SuperAdmin 
+   can click "Refresh Ledger to 0". 
+   This does NOT delete financial history. It safely packages up all past 
+   transactions into an immutable 7-year audit archive, and resets the live 
+   dashboard to zero so you can start the next period clean.
+
+
+IN SHORT:
+--------------------------------------------------------------------------------
+The Redistributive Equity Ledger is your automated bookkeeper that fairly, 
+openly, and instantly divides company revenue and tokens between business 
+partners and the company treasury.
+================================================================================
+

@@ -417,57 +417,117 @@ export function TopNavWallet() {
           <Suspense fallback={<NavItems pathname={null} />}>
             <NavLinks />
           </Suspense>
-          <button
-            type="button"
-            onClick={() => setIsFaqOpen(true)}
-            data-agent-id="nav-link-faqs"
-            data-testid="nav-link-faqs"
-            aria-label="Frequently Asked Questions"
-            className="rounded px-3 py-1.5 text-body text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
-          >
-            FAQs
-          </button>
-          {isAdmin && (
+          <div className="group relative flex items-center">
             <button
               type="button"
-              onClick={() => setIsSubscriptionOpen(true)}
-              data-agent-id="nav-link-subscription"
-              data-testid="nav-link-subscription"
-              aria-label="Monthly Search Subscription (1,000 searches)"
-              className="flex items-center gap-1.5 rounded border border-primary/30 bg-primary/10 px-2.5 py-1 font-mono text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+              onClick={() => setIsFaqOpen(true)}
+              data-agent-id="nav-link-faqs"
+              data-testid="nav-link-faqs"
+              aria-label="Frequently Asked Questions"
+              className="rounded px-3 py-1.5 text-body text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
             >
-              <Icon name="sparkles" className="size-3.5" />
-              <span>Subscription (1K)</span>
+              FAQs
             </button>
+            <div
+              role="tooltip"
+              data-agent-id="nav-tooltip-faqs"
+              data-testid="nav-tooltip-faqs"
+              className="pointer-events-none absolute top-full left-1/2 z-50 mt-2.5 w-64 -translate-x-1/2 rounded-xl border border-white/[0.14] bg-surface-container-highest p-3 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 group-focus-within:scale-100"
+            >
+              <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-primary">
+                <Icon name="helpCircle" className="size-3.5 shrink-0" />
+                <span>Frequently Asked Questions</span>
+              </div>
+              <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant font-normal">
+                Everything you need to know about Radar search filters, token mechanics, AI creative remixes, and platform billing.
+              </p>
+              <div className="absolute -top-1 left-1/2 -translate-x-1/2 size-2 rotate-45 border-t border-l border-white/[0.14] bg-surface-container-highest" />
+            </div>
+          </div>
+          {isAdmin && (
+            <div className="group relative flex items-center">
+              <button
+                type="button"
+                onClick={() => setIsSubscriptionOpen(true)}
+                data-agent-id="nav-link-subscription"
+                data-testid="nav-link-subscription"
+                aria-label="Monthly Search Subscription (1,000 searches)"
+                className="flex items-center gap-1.5 rounded border border-primary/30 bg-primary/10 px-2.5 py-1 font-mono text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+              >
+                <Icon name="sparkles" className="size-3.5" />
+                <span>Subscription (1K)</span>
+              </button>
+              <div
+                role="tooltip"
+                data-agent-id="nav-tooltip-subscription"
+                data-testid="nav-tooltip-subscription"
+                className="pointer-events-none absolute top-full left-1/2 z-50 mt-2.5 w-64 -translate-x-1/2 rounded-xl border border-primary/30 bg-surface-container-highest p-3 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 group-focus-within:scale-100"
+              >
+                <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-primary">
+                  <Icon name="sparkles" className="size-3.5 shrink-0" />
+                  <span>Monthly Search Subscription</span>
+                </div>
+                <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant font-normal">
+                  SuperAdmin &amp; MainAdmin search tier: 1,000 monthly search allowance with custom billing.
+                </p>
+                <div className="absolute -top-1 left-1/2 -translate-x-1/2 size-2 rotate-45 border-t border-l border-primary/30 bg-surface-container-highest" />
+              </div>
+            </div>
           )}
         </nav>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={() => setIsFaqOpen(true)}
-            aria-label="Frequently Asked Questions"
-            data-agent-id="mobile-header-faqs"
-            data-testid="mobile-header-faqs"
-            className="flex h-10 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-surface-container-low px-2.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors md:hidden text-compact font-medium"
-            title="Frequently Asked Questions"
-          >
-            <Icon name="helpCircle" className="size-4 text-primary" />
-            <span className="text-[12px] font-medium">FAQs</span>
-          </button>
-          {isAdmin && (
+          <div className="group relative flex items-center md:hidden">
             <button
               type="button"
-              onClick={() => setIsSubscriptionOpen(true)}
-              aria-label="Monthly Search Subscription"
-              data-agent-id="mobile-header-subscription"
-              data-testid="mobile-header-subscription"
-              className="flex h-10 items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 text-primary hover:bg-primary/20 transition-colors md:hidden text-[11px] font-mono font-bold"
-              title="Monthly Search Subscription (SuperAdmin & MainAdmin)"
+              onClick={() => setIsFaqOpen(true)}
+              aria-label="Frequently Asked Questions"
+              data-agent-id="mobile-header-faqs"
+              data-testid="mobile-header-faqs"
+              className="flex h-10 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-surface-container-low px-2.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors text-compact font-medium"
             >
-              <Icon name="sparkles" className="size-3.5" />
-              <span>Sub 1K</span>
+              <Icon name="helpCircle" className="size-4 text-primary" />
+              <span className="text-[12px] font-medium">FAQs</span>
             </button>
+            <div
+              role="tooltip"
+              className="pointer-events-none absolute top-full right-0 z-50 mt-2 w-64 rounded-xl border border-white/[0.14] bg-surface-container-highest p-2.5 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100"
+            >
+              <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-primary">
+                <Icon name="helpCircle" className="size-3.5 shrink-0" />
+                <span>Frequently Asked Questions</span>
+              </div>
+              <p className="mt-1 text-[11px] leading-snug text-on-surface-variant font-normal">
+                Everything you need to know about search filters, token mechanics, AI remixes, and billing.
+              </p>
+            </div>
+          </div>
+          {isAdmin && (
+            <div className="group relative flex items-center md:hidden">
+              <button
+                type="button"
+                onClick={() => setIsSubscriptionOpen(true)}
+                aria-label="Monthly Search Subscription"
+                data-agent-id="mobile-header-subscription"
+                data-testid="mobile-header-subscription"
+                className="flex h-10 items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 text-primary hover:bg-primary/20 transition-colors text-[11px] font-mono font-bold"
+              >
+                <Icon name="sparkles" className="size-3.5" />
+                <span>Sub 1K</span>
+              </button>
+              <div
+                role="tooltip"
+                className="pointer-events-none absolute top-full right-0 z-50 mt-2 w-64 rounded-xl border border-primary/30 bg-surface-container-highest p-2.5 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100"
+              >
+                <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-primary">
+                  <Icon name="sparkles" className="size-3.5 shrink-0" />
+                  <span>Monthly Search Subscription</span>
+                </div>
+                <p className="mt-1 text-[11px] leading-snug text-on-surface-variant font-normal">
+                  Privileged search tier: 1,000 monthly search allowance.
+                </p>
+              </div>
+            </div>
           )}
           <BrandSwitcher className="hidden lg:flex" />
           <TokenPill />
