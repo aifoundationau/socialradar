@@ -1,0 +1,228 @@
+================================================================================
+                         MEMORANDUM OF AGREEMENT (MOA)
+   OPERATIONAL GOVERNANCE, CLIENT MANAGEMENT, AND REVENUE REDISTRIBUTION
+================================================================================
+
+DATED: November 2026
+JURISDICTION: Commonwealth of Australia (Queensland / New South Wales)
+PLATFORM: AdRadarHQ (https://adradarhq.com / Local Host: Port 3005)
+ENTITY: AI Foundation (Australian Registered Business)
+
+--------------------------------------------------------------------------------
+1. PARTIES & RECITALS
+--------------------------------------------------------------------------------
+
+This Memorandum of Agreement ("Agreement", "MOA") is entered into by and between:
+
+1. THE CREATIVE OWNER & FOUNDER:
+   David Robertson ("Creative Owner", "Founder", "SuperAdmin"),
+   Founder of AI Foundation and Architect of AdRadarHQ.
+   Primary Authority: Intellectual Property, Core Codebase Architecture, 
+   SuperAdmin Governance, Infrastructure Security, and Master Treasury.
+
+   AND
+
+2. THE MAIN ADMIN:
+   The Designated Operations Director / Main Administrator ("Main Admin"),
+   Holding cryptographically verified Main Admin Authority ("role: admin") 
+   within the AdRadarHQ platform.
+   Primary Authority: Daily Business Operations, Client Feedback & In-App 
+   Messaging, Bespoke Brand Customizations, and FAQ Development.
+
+Collectively referred to as the "Parties", and individually as a "Party".
+
+WHEREAS:
+A. The Creative Owner has conceived, designed, engineered, and deployed AdRadarHQ,
+   an advanced digital intelligence platform tracking high-converting marketing 
+   frameworks across Meta, TikTok, and Google transparency repositories.
+B. The Creative Owner has established a democratic, redistributive token economy 
+   operating under strict Australian statutory standards and European Central 
+   Bank (ECB) currency parity via the Frankfurter API.
+C. The Main Admin is engaged to spearhead daily operational execution, client 
+   relations, inbound support, customization fulfillment, and feedback loops.
+D. The Parties desire to formalize their mutual operational responsibilities and 
+   the exact mathematical mechanics of revenue distribution via the 
+   AdRadarHQ Redistributive Equity Ledger.
+
+
+--------------------------------------------------------------------------------
+2. ALLOCATION OF OPERATIONAL RESPONSIBILITIES
+--------------------------------------------------------------------------------
+
+2.1 RESPONSIBILITIES OF THE CREATIVE OWNER (DAVID ROBERTSON):
+   a. Sole Ownership & Intellectual Property:
+      The Creative Owner retains 100% exclusive, unencumbered ownership of all 
+      source code, user interface designs, database schemas, cryptographic 
+      claim models, algorithms, branding, trademarks, domain names, and 
+      proprietary AI prompt architectures.
+   b. SuperAdmin Governance & Cryptographic Security:
+      Exclusive authority over the Role-Based Access Control (RBAC) matrix, 
+      issuance/revocation of Firebase Admin Custom Claims, Developer Diagnostics, 
+      and system-level telemetry.
+   c. Upstream Platform & API Integrity:
+      Management of foundational third-party contracts and developer credentials, 
+      including Stripe Billing/Tax, Google Cloud Platform (nam5 Firestore), 
+      Gemini AI engines, SearchAPI gateways, and Frankfurter currency endpoints.
+   d. Master Treasury & Equity Ledger Governance:
+      Sole prerogative to configure, add, update, or rebalance equity partners, 
+      manage profit distribution pools, simulate transactions, and authorize 
+      statutory token refunds.
+
+2.2 RESPONSIBILITIES OF THE MAIN ADMIN:
+   a. Daily Operations & System Monitoring:
+      Conducting continuous operational supervision of the AdRadarHQ web app, 
+      monitoring active user journeys, search velocity, and platform availability.
+   b. Client Feedback & In-App Plain-Text Communications:
+      Managing all inbound client feedback, customer inquiries, and support 
+      discussions via the platform's secure, plain-text messaging system 
+      (governed under the mandatory 7-Year Statutory Audit Retention protocol).
+   c. Creative Customizations & Strategy Briefs:
+      Directly reviewing, designing, and fulfilling bespoke user customization 
+      requests ("Customize" service briefs, e.g., 45-Token Deep-Dive Brand 
+      Deconstructions). Utilizing the Staff AI Strategy Reply Designer to provide 
+      high-impact, actionable creative guidance to business and agency clients.
+   d. Knowledge Base & FAQ Development:
+      Authoring, refining, sorting, and maintaining customer-facing Frequently 
+      Asked Questions (FAQs) in the Main Admin Control Suite to ensure maximum 
+      user autonomy and product clarity.
+   e. Operational Pricing & Currency Monitoring:
+      Reviewing currency toggles (Token Economy, AUD, USD), monitoring the Base 
+      Token Price (AUD $1.00), and assessing token pack velocity to recommend 
+      promotional adjustments to the Creative Owner.
+
+
+--------------------------------------------------------------------------------
+3. THE REDISTRIBUTIVE EQUITY LEDGER & REVENUE BREAKDOWN
+--------------------------------------------------------------------------------
+
+3.1 AUSTRALIAN DOLLAR (AUD) BASE CURRENCY STANDARD:
+   All financial transactions, Stripe Checkout charges, and official tax invoices 
+   are settled exclusively in Australian Dollars (AUD). International prices in 
+   US Dollars (USD) are displayed for transparency using the live Frankfurter 
+   European Central Bank (ECB) reference rate, but the accounting ledger 
+   operates strictly in AUD whole cents and whole tokens.
+
+3.2 REVENUE POOL INGESTION:
+   Whenever a customer completes a token pack purchase or service order on Stripe:
+   a. The gross receipt in AUD cents is captured in `stripe_purchases`.
+   b. Corresponding integer tokens are minted to the customer's wallet.
+   c. The transaction is instantly indexed into the Master Order Ledger.
+
+3.3 MATHEMATICAL BREAKDOWN OF REVENUE DISTRIBUTION:
+   The AdRadarHQ platform engine executes deterministic, zero-decimal arithmetic 
+   (`Math.round`, no floating-point fractions) across the active ledger:
+
+   1. TOTAL POOL ACCUMULATION:
+      - Total Gross AUD Revenue = Sum of all AUD cents from Stripe purchases.
+      - Total Tokens Pool = Sum of all tokens issued across purchases.
+
+   2. MAIN ADMIN & EQUITY PARTNER ALLOCATION:
+      - Each active partner (including the Main Admin's designated partner ID) 
+        holds an assigned contractual percentage (P%).
+      - Partner AUD Entitlement = Math.round(Total Gross AUD Revenue * (P / 100))
+      - Partner Token Entitlement = Math.round(Total Tokens Pool * (P / 100))
+      - Partner USD Indicative Value = Math.round(Total Gross USD Revenue * (P / 100))
+
+   3. PLATFORM TREASURY RETAINED SHARE:
+      - Treasury Retained Percentage = 100% - Sum of all Active Partner Percentages.
+      - Treasury AUD Reserve = Math.round(Total Gross AUD Revenue * (Treasury % / 100))
+      - Treasury Token Reserve = Math.round(Total Tokens Pool * (Treasury % / 100))
+      - The Treasury Reserve covers server infrastructure, API costs, Gemini LLM 
+        inference, Stripe processing overheads, and corporate reserves.
+
+3.4 AUDITABILITY & TRANSPARENCY:
+   The Main Admin has complete visibility over order history, token consumption, 
+   and client purchase volume. Real-time partner earnings and pool distributions 
+   are reflected in the Redistributive Ledger view under strict cryptographic 
+   audit trails.
+
+
+--------------------------------------------------------------------------------
+4. TAXATION, COMPLIANCE, AND AUSTRALIAN CONSUMER LAW
+--------------------------------------------------------------------------------
+
+4.1 GOODS & SERVICES TAX (GST):
+   a. Australian Orders: Subject to 10% Australian GST, calculated exclusively 
+      and added on top via Stripe Automatic Tax.
+   b. New Zealand & International Orders: 0% GST (Zero Tax). New Zealand orders 
+      do not attract Australian GST.
+
+4.2 STATUTORY 7-YEAR AUDIT RETENTION:
+   In strict compliance with the Australian Privacy Act 1988 (APPs) and the 
+   Corporations Act 2001 (Cth), all customer transactions, token debits, 
+   admin replies, and customer refund records are preserved in immutable 
+   7-year archival storage. Neither Party may purge or delete statutory logs.
+
+4.3 REFUND PROTOCOL:
+   Customer refund requests must be submitted in writing via the in-app plain-text 
+   messaging system and evaluated under the Australian Consumer Law (ACL). 
+   Approved refunds restore tokens to the client wallet and adjust the 
+   Redistributive Ledger proportionally.
+
+
+--------------------------------------------------------------------------------
+5. CONFIDENTIALITY, CODE OF CONDUCT & NON-DISCLOSURE
+--------------------------------------------------------------------------------
+
+5.1 CONFIDENTIALITY:
+   The Main Admin agrees to hold in strict confidence all proprietary platform 
+   mechanics, database configurations, client data, and revenue metrics. 
+   Client emails and proprietary brand briefs must never be exported or shared 
+   outside AdRadarHQ.
+
+5.2 ZERO CLIENT SCRAPING:
+   AdRadarHQ respects public ad transparency policies. Neither Party shall deploy 
+   unauthorized scraping or circumvent cryptographic rate-limiting gates.
+
+
+--------------------------------------------------------------------------------
+6. DURATION, TERMINATION, AND DISPUTE RESOLUTION
+--------------------------------------------------------------------------------
+
+6.1 TERM:
+   This Agreement commences upon mutual execution and continues indefinitely on a 
+   month-to-month operational basis until modified or terminated by either Party.
+
+6.2 TERMINATION:
+   Either Party may terminate this operational arrangement upon thirty (30) days' 
+   written notice delivered through the verified administrative messaging channel. 
+   Upon termination:
+   a. The Main Admin's role claims will transition to standard Supporter status.
+   b. Accrued, unremitted earnings under the Redistributive Ledger through the 
+      effective date of termination shall be settled in AUD within 14 business days.
+   c. Intellectual property and platform governance remain 100% with David Robertson.
+
+6.3 GOVERNING LAW:
+   This Agreement is governed by the laws of Queensland and the Commonwealth of 
+   Australia. Any disputes shall be subject to the exclusive jurisdiction of the 
+   courts of Queensland, Australia.
+
+
+--------------------------------------------------------------------------------
+7. SIGNATURES & EXECUTION
+--------------------------------------------------------------------------------
+
+IN WITNESS WHEREOF, the Parties have agreed to the terms of this Memorandum 
+of Agreement as of the date first written above.
+
+
+FOR THE CREATIVE OWNER & FOUNDER:
+
+Signature: _________________________________________
+Name:      David Robertson
+Title:     Founder, AI Foundation & Architect of AdRadarHQ
+Email:     davidrobertson.info@gmail.com / support@aifoundation.net.au
+Date:      _________________________________________
+
+
+FOR THE MAIN ADMIN:
+
+Signature: _________________________________________
+Name:      _________________________________________
+Title:     Main Administrator & Operations Lead, AdRadarHQ
+Email:     _________________________________________
+Date:      _________________________________________
+
+================================================================================
+                    END OF MEMORANDUM OF AGREEMENT
+================================================================================
