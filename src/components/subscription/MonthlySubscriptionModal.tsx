@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/components/auth/SessionProvider";
 import { Icon } from "@/components/ui/Icon";
 import { btnPrimary, btnSecondary, card } from "@/components/ui/styles";
-import { formatAud, formatUsd, audToUsdCents } from "@/lib/pricing";
+import { formatAud, formatUsd, FX_AUD_TO_USD } from "@/lib/pricing";
 import { DEFAULT_AU_GEO, loadGeoConfig, type GeoConfig } from "@/lib/geo";
 import { apiFetch, errorMessage, newIdempotencyKey } from "@/lib/api-client";
 import type { MonthlySubscriptionConfig, ServiceCosts } from "@/lib/contracts";
@@ -55,6 +55,8 @@ export function MonthlySubscriptionModal({
   const [subscribing, setSubscribing] = useState(false);
   const [granting, setGranting] = useState(false);
   const [geo, setGeo] = useState<GeoConfig>(DEFAULT_AU_GEO);
+  const [fxRate, setFxRate] = useState<number>(FX_AUD_TO_USD);
+  const [fxIsLive, setFxIsLive] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
@@ -81,9 +83,13 @@ export function MonthlySubscriptionModal({
   async function loadConfig() {
     setLoading(true);
     try {
-      const res = await fetch("/api/wallet/checkout", { method: "GET", cache: "no-store" });
-      if (res.ok) {
-        const data = (await res.json()) as {
+      const [checkoutRes, fxRes] = await Promise.allSettled([
+        fetch("/api/wallet/checkout", { method: "GET", cache: "no-store" }),
+        fetch("https://open.er-api.com/v6/latest/AUD", { cache: "no-store" }),
+      ]);
+
+      if (checkoutRes.status === "fulfilled" && checkoutRes.value.ok) {
+        const data = (await checkoutRes.value.json()) as {
           monthlySubscription?: MonthlySubscriptionConfig;
           serviceCosts?: ServiceCosts;
         };
@@ -92,6 +98,15 @@ export function MonthlySubscriptionModal({
         }
         if (data?.serviceCosts) {
           setServiceCosts((prev) => ({ ...prev, ...data.serviceCosts }));
+        }
+      }
+
+      if (fxRes.status === "fulfilled" && fxRes.value.ok) {
+        const fxData = (await fxRes.value.json()) as { rates?: { USD?: number } };
+        const liveUsd = fxData?.rates?.USD;
+        if (typeof liveUsd === "number" && liveUsd > 0) {
+          setFxRate(liveUsd);
+          setFxIsLive(true);
         }
       }
     } catch {
@@ -163,7 +178,9 @@ export function MonthlySubscriptionModal({
   const priceAud = subConfig.priceAud ?? 500;
   const searchesCount = subConfig.searchesPerMonth ?? 1000;
   const audCents = Math.round(priceAud * 100);
-  const usdCents = audToUsdCents(audCents);
+  const totalAudCentsIncGst = Math.round(audCents * 1.1);
+  const usdCents = Math.round(audCents * fxRate);
+  const totalUsdCentsIncGst = Math.round(totalAudCentsIncGst * fxRate);
 
   return createPortal(
     <div
@@ -218,7 +235,7 @@ export function MonthlySubscriptionModal({
         {/* Content Body - Perfectly centered with zero scrollbars */}
         <div className="p-4 sm:p-5 space-y-3">
           {/* Main Price & Search Allowance Banner */}
-          <div className="relative overflow-hidden rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-surface-container-high to-surface-container p-3.5 sm:p-4 text-on-surface">
+          <div className="relative rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-surface-container-high to-surface-container p-3.5 sm:p-4 text-on-surface">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-primary">
@@ -229,22 +246,61 @@ export function MonthlySubscriptionModal({
                 </h3>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">
                   {geo.isAuNz
-                    ? `Billed monthly at ${formatAud(audCents)} AUD + 10% GST (${formatAud(Math.round(audCents * 1.1))} AUD total)`
+                    ? `Billed monthly at ${formatAud(audCents)} AUD + 10% GST (${formatAud(totalAudCentsIncGst)} AUD total)`
                     : `Billed monthly at ${formatAud(audCents)} AUD (No Tax · ${geo.country})`}
                 </p>
               </div>
 
-              <div className="flex flex-col items-end shrink-0 rounded-xl border border-white/10 bg-surface-container-lowest/80 px-3 py-1.5 sm:py-2 backdrop-blur-sm">
+              <div
+                tabIndex={0}
+                data-agent-id="monthly-fee-price-badge"
+                data-testid="monthly-fee-price-badge"
+                aria-label="Monthly fee in AUD — hover to view USD currency conversion"
+                className="group relative flex flex-col items-end shrink-0 cursor-help rounded-xl border border-white/10 bg-surface-container-lowest/80 px-3 py-1.5 sm:py-2 backdrop-blur-sm transition hover:border-primary/40"
+              >
                 <span className="font-mono text-[9px] text-outline uppercase tracking-wider">
                   {geo.isAuNz ? "Monthly Fee (+ GST)" : `Monthly Fee (No Tax · ${geo.country})`}
                 </span>
                 <span className="font-mono text-title-md sm:text-title-lg font-bold text-primary">
-                  {formatAud(audCents)}
+                  {formatAud(audCents)} AUD
                   <span className="text-[11px] font-normal text-on-surface-variant"> / mo</span>
                 </span>
                 <span className="font-mono text-[10px] text-on-surface-variant">
-                  {geo.isAuNz ? `+10% GST · ≈ ${formatUsd(usdCents)} USD` : `No Tax · ≈ ${formatUsd(usdCents)} USD`}
+                  {geo.isAuNz ? `+10% GST (${formatAud(totalAudCentsIncGst)} AUD)` : "No Tax · AUD"}
                 </span>
+
+                {/* Dark-theme Hover Popup: Live Currency Converter (AUD -> USD) */}
+                <div
+                  role="tooltip"
+                  data-agent-id="sub-tooltip-usd-converter"
+                  data-testid="sub-tooltip-usd-converter"
+                  className="pointer-events-none invisible absolute top-full right-0 z-30 mt-2 w-64 max-w-[calc(100vw-3rem)] rounded-xl border border-primary/30 bg-surface-container-highest/98 p-3 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100 group-focus-visible:visible group-focus-visible:opacity-100"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-mono text-[10px] font-bold text-primary uppercase">
+                      USD Currency Converter
+                    </p>
+                    <span className="rounded bg-primary/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-primary">
+                      {fxIsLive ? "Live FX" : "Std FX"}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 space-y-1 font-mono text-[11px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-on-surface-variant">Monthly Fee:</span>
+                      <span className="font-bold text-on-surface">≈ {formatUsd(usdCents)} USD / mo</span>
+                    </div>
+                    {geo.isAuNz && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-on-surface-variant">Inc. 10% GST:</span>
+                        <span className="font-semibold text-primary">≈ {formatUsd(totalUsdCentsIncGst)} USD / mo</span>
+                      </div>
+                    )}
+                    <div className="pt-1 border-t border-white/[0.08] text-[10px] text-outline flex items-center justify-between">
+                      <span>Exchange Rate:</span>
+                      <span>1 AUD ≈ ${fxRate.toFixed(2)} USD</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
