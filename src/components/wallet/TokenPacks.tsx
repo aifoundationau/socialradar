@@ -126,54 +126,53 @@ export function TokenPacks() {
           <Icon name="sliders" className="size-3.5 text-primary" />
           <span>Active Product & Service Token Rates:</span>
         </span>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <span>
             Base Search:{" "}
             <strong className="text-primary">
-              {serviceCosts.searchStandard === 0 ? "Free (0)" : `${serviceCosts.searchStandard} tok`}
+              {serviceCosts.searchStandard === 0 ? "Free (0)" : `+${serviceCosts.searchStandard} tok`}
             </strong>
           </span>
-          <span className="text-white/20">•</span>
           <span>
             Proven 28+d:{" "}
-            <strong className="text-primary">+{(serviceCosts.searchProvenWinners ?? 1)} tok</strong>
+            <strong className="text-primary">
+              {(serviceCosts.searchProvenWinners ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.searchProvenWinners ?? 1} tok`}
+            </strong>
           </span>
-          <span className="text-white/20">•</span>
           <span>
             Extended 60+d:{" "}
-            <strong className="text-primary">+{serviceCosts.searchExtendedDays} tok</strong>
+            <strong className="text-primary">
+              {serviceCosts.searchExtendedDays === 0 ? "Free (0)" : `+${serviceCosts.searchExtendedDays} tok`}
+            </strong>
           </span>
-          <span className="text-white/20">•</span>
           <span>
             Top 90%+ Winners:{" "}
-            <strong className="text-primary">+{serviceCosts.searchEliteScore} tok</strong>
+            <strong className="text-primary">
+              {serviceCosts.searchEliteScore === 0 ? "Free (0)" : `+${serviceCosts.searchEliteScore} tok`}
+            </strong>
           </span>
-          <span className="text-white/20">•</span>
           <span>
             AI Creative Remix:{" "}
             <strong className="text-primary">
-              {serviceCosts.aiRemix === 0 ? "Free (0)" : `${serviceCosts.aiRemix} tok`}
+              {serviceCosts.aiRemix === 0 ? "Free (0)" : `+${serviceCosts.aiRemix} tok`}
             </strong>
           </span>
-          <span className="text-white/20">•</span>
           <span>
             Regenerate Variations:{" "}
             <strong className="text-primary">
-              {(serviceCosts.regenerateVariations ?? 1) === 0 ? "Free (0)" : `${serviceCosts.regenerateVariations ?? 1} tok`}
+              {(serviceCosts.regenerateVariations ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.regenerateVariations ?? 1} tok`}
             </strong>
           </span>
-          <span className="text-white/20">•</span>
           <span>
             Global Brand Copy:{" "}
             <strong className="text-primary">
-              {(serviceCosts.brandClone ?? 1) === 0 ? "Free (0)" : `${serviceCosts.brandClone ?? 1} tok`}
+              {(serviceCosts.brandClone ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.brandClone ?? 1} tok`}
             </strong>
           </span>
-          <span className="text-white/20">•</span>
           <span>
             Customize Service:{" "}
             <strong className="text-primary">
-              {(serviceCosts.customizeService ?? 55) === 0 ? "Free (0)" : `${serviceCosts.customizeService ?? 55} tok`}
+              {(serviceCosts.customizeService ?? 55) === 0 ? "Free (0)" : `+${serviceCosts.customizeService ?? 55} tok`}
             </strong>
           </span>
         </div>
