@@ -166,7 +166,7 @@ export function AppFooter() {
                 className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1 text-xs text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
               >
                 <Icon name="globe" className="size-3 text-primary" />
-                <span>© 2026 AI Foundation</span>
+                <span>2026 AI Foundation</span>
                 <Icon name="externalLink" className="size-2.5 text-primary/70" />
               </a>
               <span className="text-outline">· All rights reserved.</span>
