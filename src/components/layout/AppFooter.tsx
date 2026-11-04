@@ -5,6 +5,7 @@ import { Icon } from "@/components/ui/Icon";
 import {
   type GeoConfig,
   DEFAULT_AU_GEO,
+  hasSavedGeoConfig,
   loadGeoConfig,
   autofindUserLocation,
 } from "@/lib/geo";
@@ -23,14 +24,21 @@ export function AppFooter() {
     const saved = loadGeoConfig();
     setGeoConfig(saved);
 
-    // 2. Automatic background autofind for real user location and weather
-    autofindUserLocation()
-      .then((detected) => {
-        setGeoConfig(detected);
-      })
-      .catch(() => {
-        // preserve current config if offline
-      });
+    // 2. Only auto-detect on first visit if user has not saved a location preference
+    if (!hasSavedGeoConfig()) {
+      autofindUserLocation()
+        .then((detected) => {
+          setGeoConfig(detected);
+        })
+        .catch(() => {
+          // preserve current config if offline
+        });
+    }
+
+    function handleGeoUpdated() {
+      setGeoConfig(loadGeoConfig());
+    }
+    window.addEventListener("adradar:geo-updated", handleGeoUpdated);
 
     // 3. Live clock
     function updateClock() {
@@ -46,7 +54,10 @@ export function AppFooter() {
 
     updateClock();
     const interval = setInterval(updateClock, 1000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("adradar:geo-updated", handleGeoUpdated);
+    };
   }, [geoConfig.timeFormat]);
 
   return (

@@ -1666,13 +1666,19 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         <span className="font-mono text-xs font-semibold text-on-surface">Dual-Currency Rate Breakdown</span>
                         <div className="space-y-1.5 pt-1 text-xs font-mono">
                           <div className="flex items-center justify-between text-on-surface">
-                            <span>Australia &amp; NZ (AUD):</span>
+                            <span>Australia (AUD + GST):</span>
+                            <span className="font-bold text-primary">
+                              {formatAud(Math.round((config.monthlySubscription?.priceAud ?? 500) * 100))} + 10% GST / mo
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-on-surface">
+                            <span>New Zealand (AUD · No GST):</span>
                             <span className="font-bold text-primary">
                               {formatAud(Math.round((config.monthlySubscription?.priceAud ?? 500) * 100))} / mo
                             </span>
                           </div>
                           <div className="flex items-center justify-between text-on-surface-variant">
-                            <span>International (USD):</span>
+                            <span>International (USD · No Tax):</span>
                             <span>
                               ≈ {formatUsd(audToUsdCents(Math.round((config.monthlySubscription?.priceAud ?? 500) * 100)))} / mo
                             </span>

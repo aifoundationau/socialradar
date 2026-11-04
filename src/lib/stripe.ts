@@ -67,11 +67,7 @@ export function buildCheckoutParams(opts: {
         metadata,
       },
       automatic_tax: { enabled: true },
-      ...(stripeCustomerId
-        ? { customer: stripeCustomerId }
-        : email
-          ? { customer_email: email }
-          : {}),
+      ...(email ? { customer_email: email } : {}),
       line_items: [
         {
           quantity: 1,
@@ -109,9 +105,8 @@ export function buildCheckoutParams(opts: {
       description: `${tokensFormatted} Ad Radar Tokens ($${priceFormatted} AUD)`,
       metadata,
     },
-    ...(stripeCustomerId
-      ? { customer: stripeCustomerId }
-      : { customer_creation: "always", ...(email ? { customer_email: email } : {}) }),
+    customer_creation: "always",
+    ...(email ? { customer_email: email } : {}),
     line_items: [
       {
         quantity: 1,

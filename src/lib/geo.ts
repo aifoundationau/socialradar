@@ -102,10 +102,20 @@ export function loadGeoConfig(): GeoConfig {
   };
 }
 
+export function hasSavedGeoConfig(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return Boolean(localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return false;
+  }
+}
+
 export function saveGeoConfig(config: GeoConfig): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    window.dispatchEvent(new CustomEvent("adradar:geo-updated", { detail: config }));
   } catch {
     // localstorage unavailable
   }

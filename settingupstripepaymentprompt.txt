@@ -36,11 +36,11 @@ We are setting up Stripe Payments (Sandbox / Live) for this web app. Follow thes
 1. **Default Currency:**
    - All checkouts, subscriptions, and line items MUST strictly use Australian Dollars (`currency: "aud"`).
    - The base price is always the exact price configured in the Admin Panel / database (e.g. 10 Tokens = `$10.00 AUD`, Monthly Search Subscription = `$700.00 AUD/mo`).
-2. **Automatic Stripe Tax (`automatic_tax: { enabled: true }`):**
-   - Enable `automatic_tax: { enabled: true }` on both `mode: "payment"` and `mode: "subscription"`.
-   - Stripe Checkout automatically detects the customer's country, state, and postal code directly on the hosted payment form.
+2. **Automatic Stripe Tax (`automatic_tax: { enabled: true }` — Identical for One-Time & Subscriptions):**
+   - Enable `automatic_tax: { enabled: true }` and `tax_behavior: "exclusive"` on BOTH one-time payments (`mode: "payment"`) AND monthly subscriptions (`mode: "subscription"`).
+   - Stripe Checkout automatically detects the customer's country, state, and postal code directly on the hosted payment form for both one-time purchases and subscriptions.
    - You do NOT need to geolocate or pass the customer's country in advance.
-   - Tax behavior is set to `tax_behavior: "exclusive"` on line item `price_data`.
+   - Pass `customer_email: email` (do NOT lock the session to a previous `customer: stripeCustomerId` that has a cached country/address on file), so Stripe Checkout always prompts for / auto-detects the buyer's live country on the checkout page.
    - **Australian buyers (`country === "AU"`):** Stripe adds 10% Australian GST on top of the base price (e.g., $50.00 AUD + $5.00 GST = $55.00 AUD total; $700.00 AUD/mo + $70.00 GST = $770.00 AUD/mo).
    - **New Zealand buyers (`country === "NZ"`) & International buyers:** Stripe automatically charges $0 tax and collects the exact base AUD price with no tax. New Zealand has NO GST, so any reference to "+ GST" or "+ 10% GST" is for Australia only.
 3. **Zero Manual Tax Rates (`txr_...`):**
@@ -107,11 +107,7 @@ export function buildCheckoutParams(opts: {
       metadata,
       subscription_data: { metadata },
       automatic_tax: { enabled: true },
-      ...(stripeCustomerId
-        ? { customer: stripeCustomerId }
-        : email
-          ? { customer_email: email }
-          : {}),
+      ...(email ? { customer_email: email } : {}),
       line_items: [
         {
           quantity: 1,
@@ -145,9 +141,8 @@ export function buildCheckoutParams(opts: {
       description: `${tokensFormatted} Tokens ($${priceFormatted} AUD)`,
       metadata,
     },
-    ...(stripeCustomerId
-      ? { customer: stripeCustomerId }
-      : { customer_creation: "always", ...(email ? { customer_email: email } : {}) }),
+    customer_creation: "always",
+    ...(email ? { customer_email: email } : {}),
     line_items: [
       {
         quantity: 1,

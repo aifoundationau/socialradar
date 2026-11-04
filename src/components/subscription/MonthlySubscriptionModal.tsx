@@ -65,9 +65,14 @@ export function MonthlySubscriptionModal({
         onClose();
       }
     }
+    function handleGeoUpdated() {
+      setGeo(loadGeoConfig());
+    }
     if (isOpen) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
+      window.addEventListener("adradar:geo-updated", handleGeoUpdated);
+      window.addEventListener("storage", handleGeoUpdated);
       setGeo(loadGeoConfig());
       loadConfig();
     } else {
@@ -77,6 +82,8 @@ export function MonthlySubscriptionModal({
     return () => {
       document.body.style.overflow = "";
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("adradar:geo-updated", handleGeoUpdated);
+      window.removeEventListener("storage", handleGeoUpdated);
     };
   }, [isOpen]);
 
@@ -604,7 +611,7 @@ export function MonthlySubscriptionModal({
               ) : (
                 <Icon name="sparkles" className="size-3.5" />
               )}
-              <span>Subscribe ({formatAud(audCents)} AUD / mo)</span>
+              <span>Subscribe ({formatAud(audCents)} AUD{isAu ? " + GST" : ""} / mo)</span>
             </button>
           </div>
         </div>

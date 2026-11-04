@@ -39,6 +39,12 @@ export function TokenPacks() {
   useEffect(() => {
     setGeo(loadGeoConfig());
 
+    function handleGeoUpdated() {
+      setGeo(loadGeoConfig());
+    }
+    window.addEventListener("adradar:geo-updated", handleGeoUpdated);
+    window.addEventListener("storage", handleGeoUpdated);
+
     // Fetch live SuperAdmin-configured AUD base rate and service token amounts
     fetch("/api/wallet/checkout", { headers: { accept: "application/json" } })
       .then((res) => (res.ok ? res.json() : null))
@@ -54,6 +60,11 @@ export function TokenPacks() {
       .catch(() => {
         // retain defaults
       });
+
+    return () => {
+      window.removeEventListener("adradar:geo-updated", handleGeoUpdated);
+      window.removeEventListener("storage", handleGeoUpdated);
+    };
   }, []);
 
   async function buy(packId: TokenPackId, amount?: number) {
