@@ -720,6 +720,23 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
 ```
 - **Idempotency Guarantee:** Both `POST /api/wallet/confirm` (triggered on return to `/wallet?checkout=success&session_id={CHECKOUT_SESSION_ID}`) and `POST /api/webhooks/stripe` (`checkout.session.completed`, `checkout.session.async_payment_succeeded`, `invoice.paid`) share `fulfillCheckoutSession(session)` with deterministic `txId = session.id`, preventing any possibility of double-crediting.
 
+## 19. Dual-Engine TikTok Top-Performing Ads & `tiktok-viral-ad-intelligence` Skill Contract (`CACHE_VERSION = "9"`)
+
+### 19.1 Dual-Engine Ingestion (`src/lib/tiktok-topads.ts` & `src/lib/radar.ts`)
+- **Engine 1 — TikTok Creative Center Top Ads (`fetchTikTokCreativeCenterTopAds`):**
+  - Connects to `https://ads.tiktok.com/business/creativecenter/inspiration/topads/` via Apify REST API (`APIFY_API_TOKEN` + `APIFY_TIKTOK_TOPADS_ACTOR_ID`) or custom endpoint (`TIKTOK_CREATIVE_CENTER_API_URL`).
+  - Supports native global countries (`AU`, `NZ`, `US`, `CA`, `GB`), CTR percentile badges (`Top 1% CTR`, `Top 5% CTR`), campaign objectives (`Conversions`, `Product Sales`), and verified engagement (`totalLikes`, `totalViews`).
+  - Gracefully returns `[]` when no optional token is configured, ensuring zero-config reliability.
+- **Engine 2 — TikTok Commercial Content Library (`searchApi("tiktok_ads_library")`):**
+  - Multi-pass query strategy: Pass 1 queries exact quoted phrase `"${cleanQuery}"` sorted by `unique_users_seen_high_to_low` (up to 4 pages); Pass 2 supplements with unquoted keywords when Pass 1 yields fewer than 30 raw ads.
+  - Enriches every TikTok ad with extracted/inferred `headline` (`buildTikTokHeadline`), `ctaText` (`inferTikTokCta`), UGC format classification (`detectTikTokUgcFormat`), `landingPageUrl`, and calibrated `totalLikes`.
+
+### 19.2 4-Pillar TikTok Viral Winner Matrix (`src/lib/radar-matrix.ts`)
+- **View Velocity (`viewsPerDay`):** `Math.round(totalViews / Math.max(1, activeDaysCount))` awards up to `+15` scale points to high-velocity breakout ads alongside evergreen longevity (`28+d`, `60+d`, `90+d`).
+- **Universal Hook & UGC Evaluation:** Evaluates 9 direct-response and TikTok UGC pattern groups across both brand-scoped and unbranded searches.
+- **Skill Specification:** Documented in [`skills/tiktok-viral-ad-intelligence/SKILL.md`](skills/tiktok-viral-ad-intelligence/SKILL.md) with strict `additionalProperties: false` schemas compatible with Gemini 2.5 Flash-Lite, Claude Haiku 4.5, and gpt-6-luna.
+
+
 
 
 

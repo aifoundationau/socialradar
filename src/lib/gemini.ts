@@ -187,14 +187,22 @@ export async function generateRemix(ad: NormalizedAd, brand: BrandProfile): Prom
     advertiser: ad.advertiserName,
     format: ad.mediaType,
     daysActive: ad.activeDaysCount,
+    winningScore: ad.winningScore,
+    totalViews: ad.totalViews,
+    totalLikes: ad.totalLikes,
+    performanceSummary: ad.matrixScore?.resonanceReason,
     headline: ad.headline,
     primaryCopy: ad.primaryCopy,
     callToAction: ad.ctaText,
     landingPage: ad.landingPageUrl,
   };
+  const tiktokDirective =
+    ad.platform === "TIKTOK"
+      ? "\n\nTIKTOK VIRAL INTELLIGENCE DIRECTIVE: Deconstruct the 0-2s visual thumbstop and 2-6s retention bridge. Design all 3 variations with TikTok-native UGC delivery (e.g., Green Screen, POV, Creator Review/Unboxing, or Problem-Agitate-Solve), punchy on-screen native text overlays, and high-converting verbal hooks."
+      : "";
   const media = await mediaPart(ad);
   const parts: Part[] = [
-    { text: `SOURCE AD${media ? " (its creative is attached)" : " (creative unavailable; work from the copy)"}:\n${JSON.stringify(source, null, 2)}` },
+    { text: `SOURCE AD${media ? " (its creative is attached)" : " (creative unavailable; work from the copy)"}:\n${JSON.stringify(source, null, 2)}${tiktokDirective}` },
     ...(media ? [media] : []),
     { text: `BRAND:\n${JSON.stringify(brand, null, 2)}` },
   ];

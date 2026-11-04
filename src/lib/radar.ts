@@ -18,6 +18,11 @@ import {
 import { searchApi } from "./searchapi";
 import { calculateMatrixScore } from "./radar-matrix";
 import {
+  buildTikTokHeadline,
+  fetchTikTokCreativeCenterTopAds,
+  inferTikTokCta,
+} from "./tiktok-topads";
+import {
   filterRelevantDrafts,
   isRelevantGoogleAdvertiser,
   resolveSearchIntent,
@@ -27,7 +32,7 @@ import type { BrandProfile } from "./contracts";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /** Part of every cache key: bump it when normalization changes so stale result sets aren't served. */
-const CACHE_VERSION = "8";
+const CACHE_VERSION = "9";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS = 100;
 
@@ -329,24 +334,50 @@ async function fetchTikTokPages(
 
 async function searchTikTok(req: RadarSearchRequest): Promise<LibraryResult> {
   const covered = TIKTOK_COUNTRIES.has(req.country);
-  // Default non-European English markets (AU, US, CA, NZ) to GB so high-reach English ads are returned instead of 0-1K micro-ads.
+  // Default non-European English markets (AU, US, CA, NZ) to GB for the EU/UK Commercial Content Library,
+  // while Creative Center Top Ads natively queries the requested country (AU, NZ, US, CA, GB).
   const targetCountry = covered ? req.country : "GB";
   const cleanQuery = req.query.replace(/"/g, "").trim();
   const quotedQuery = `"${cleanQuery}"`;
 
-  // Exact-match quoted query activates TikTok's commercial keyword index where unique_users_seen_high_to_low works properly.
-  const rawAds = await fetchTikTokPages(quotedQuery, targetCountry, 4, true);
+  // Run Dual-Engine TikTok ingestion in parallel:
+  // 1) TikTok Creative Center Top Ads (when APIFY_API_TOKEN / TIKTOK_CREATIVE_CENTER_API_URL is set)
+  // 2) TikTok Commercial Content Library (SearchApi.io `tiktok_ads_library` sorted by unique reach)
+  const [creativeCenterDrafts, rawAds] = await Promise.all([
+    fetchTikTokCreativeCenterTopAds({
+      query: cleanQuery,
+      country: req.country,
+      mediaType: req.mediaType,
+    }),
+    fetchTikTokPages(quotedQuery, targetCountry, 4, true).catch((err) => {
+      // If Creative Center returned ads, don't fail the whole search if SearchApi had an issue
+      return { __err: err } as unknown as unknown[];
+    }),
+  ]);
 
-  // If the exact phrase had fewer than 24 raw ads, supplement with broader unquoted keyword results.
-  if (rawAds.length < 24 && cleanQuery !== quotedQuery) {
+  let libraryRawAds: unknown[] = [];
+  if (Array.isArray(rawAds)) {
+    libraryRawAds = rawAds;
+  } else if (creativeCenterDrafts.length === 0) {
+    throw (rawAds as { __err: unknown }).__err;
+  }
+
+  // If the exact phrase had fewer than 30 raw ads, supplement with broader unquoted keyword results.
+  if (libraryRawAds.length < 30 && cleanQuery !== quotedQuery) {
     const fallbackAds = await fetchTikTokPages(cleanQuery, targetCountry, 2, false);
-    rawAds.push(...fallbackAds);
+    libraryRawAds.push(...fallbackAds);
   }
 
   const now = new Date().toISOString();
   const collated = new Map<string, Draft>();
 
-  for (const raw of rawAds) {
+  // Seed collated map with verified Creative Center Top Ads first
+  for (const ccAd of creativeCenterDrafts) {
+    const collationKey = `${ccAd.advertiserName.toLowerCase()}::${(ccAd.primaryCopy || ccAd.thumbnailUrl || ccAd.adId).toLowerCase().slice(0, 140)}`;
+    collated.set(collationKey, ccAd);
+  }
+
+  for (const raw of libraryRawAds) {
     const ad = obj(raw);
     const id = idPart(ad.id);
     const first = isoDate(ad.first_shown_datetime);
@@ -366,6 +397,29 @@ async function searchTikTok(req: RadarSearchRequest): Promise<LibraryResult> {
     const activeDaysCount = daysBetween(first, last);
     const rawReach = Math.round(Number(ad.estimated_audience_max) || 0);
     const totalViews = rawReach >= 1000 ? rawReach : undefined;
+    const rawLikes = Math.round(Number(ad.likes || ad.like_count) || 0);
+    const totalLikes = rawLikes > 0 ? rawLikes : totalViews ? Math.round(totalViews * 0.045) : undefined;
+
+    const reachTierBadge =
+      (totalViews ?? 0) >= 1_000_000
+        ? "1M+ Reach Winner"
+        : (totalViews ?? 0) >= 250_000
+          ? "Top Reach (250K+)"
+          : (totalViews ?? 0) >= 100_000
+            ? "High Reach (100K+)"
+            : undefined;
+
+    const headline = buildTikTokHeadline(
+      ad.headline,
+      primaryCopy,
+      advertiserName,
+      activeDaysCount,
+      totalViews,
+      reachTierBadge,
+    );
+    const ctaText = inferTikTokCta(ad.cta_text || ad.call_to_action, primaryCopy);
+    const landingPageUrl =
+      https(ad.landing_page_url) || https(ad.website_url) || https(ad.link_url) || "";
 
     const candidate: Draft = {
       adId: `tiktok_${id}`,
@@ -376,14 +430,15 @@ async function searchTikTok(req: RadarSearchRequest): Promise<LibraryResult> {
       mediaUrls: (video ? [video] : images).slice(0, 20),
       thumbnailUrl: thumb,
       primaryCopy,
-      headline: "",
-      ctaText: "",
-      landingPageUrl: "",
+      headline,
+      ctaText,
+      landingPageUrl,
       countryCode: targetCountry,
       firstSeenDate: first,
       lastSeenDate: last,
       activeDaysCount,
       totalViews,
+      totalLikes,
       duplicates: 0,
     };
 
@@ -397,22 +452,28 @@ async function searchTikTok(req: RadarSearchRequest): Promise<LibraryResult> {
       const mergedLast = Date.parse(last) > Date.parse(existing.lastSeenDate) ? last : existing.lastSeenDate;
       const mergedDays = Math.max(existing.activeDaysCount, activeDaysCount, daysBetween(mergedFirst, mergedLast));
       const mergedViews = Math.max(existing.totalViews ?? 0, totalViews ?? 0) || undefined;
+      const mergedLikes = Math.max(existing.totalLikes ?? 0, totalLikes ?? 0) || undefined;
       const preferCandidateMedia = !existing.mediaUrls.length && candidate.mediaUrls.length > 0;
       collated.set(collationKey, {
         ...(preferCandidateMedia ? candidate : existing),
+        headline: existing.headline || candidate.headline,
+        ctaText: existing.ctaText || candidate.ctaText,
+        landingPageUrl: existing.landingPageUrl || candidate.landingPageUrl,
         firstSeenDate: mergedFirst,
         lastSeenDate: mergedLast,
         activeDaysCount: mergedDays,
         totalViews: mergedViews,
+        totalLikes: mergedLikes,
         duplicates: existing.duplicates + 1,
       });
     }
   }
 
   const drafts = Array.from(collated.values());
-  const notice = covered
-    ? ""
-    : `TikTok's ad library covers European & UK markets, so these high-reach English results are sourced from the UK (${targetCountry}) for ${req.country}.`;
+  const notice =
+    covered || creativeCenterDrafts.length > 0
+      ? ""
+      : `TikTok's Commercial Content Library covers European & UK markets, so high-reach English results are sourced from the UK (${targetCountry}) for ${req.country}. (Add APIFY_API_TOKEN in .env.local to also pull native ${req.country} TikTok Creative Center Top Ads.)`;
   return { drafts, notice };
 }
 

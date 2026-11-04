@@ -12,14 +12,15 @@ interface AdCandidate {
 }
 
 const HOOK_PATTERNS = [
-  /\b(?:stop|don't|never|quit)\b/i,
+  /\b(?:stop|don't|never|quit|wait)\b/i,
   /\b(?:tired of|struggling with|sick of|frustrated)\b/i,
-  /\b(?:why|how to|the secret|the truth|revealed)\b/i,
+  /\b(?:why|how to|the secret|the truth|revealed|reasons why|things i wish)\b/i,
   /\b(?:we tested|proven|scientific|research|study)\b/i,
-  /\b(?:warning|alert|attention|psa)\b/i,
-  /\b(?:before you|if you|are you)\b/i,
-  /\b(?:90%|95%|99%|1 in \d+|thousands of)\b/i,
-  /\b(?:guaranteed|risk-free|money back|free)\b/i,
+  /\b(?:warning|alert|attention|psa|unpopular opinion)\b/i,
+  /\b(?:before you|if you|are you|pov:|grwm)\b/i,
+  /\b(?:90%|95%|99%|1 in \d+|thousands of|top 1% ctr|top 5% ctr)\b/i,
+  /\b(?:guaranteed|risk-free|money back|free shipping|bundle)\b/i,
+  /\b(?:tiktok made|i tried|my honest|honest review|unboxing|obsessed|game changer|holy grail)\b/i,
 ];
 
 /** Extract meaningful lowercase word tokens (min length 4, ignoring common stop words). */
@@ -69,55 +70,24 @@ export function calculateMatrixScore(
     Math.max(10, Math.round(Math.log10(Math.max(100, totalViews)) * 16.6))
   );
 
-  // Longevity raw (active days + duplicate creatives)
-  const longevityRaw = ad.activeDaysCount * 2.0 + duplicates * 6.0;
+  // View Velocity ($V_{daily} = V_{total} / D_{active}$): rewards breakout viral velocity alongside evergreen longevity
+  const viewsPerDay = Math.round(totalViews / Math.max(1, ad.activeDaysCount));
+  const velocityBoost =
+    viewsPerDay >= 25_000 ? 15 : viewsPerDay >= 10_000 ? 10 : viewsPerDay >= 3_500 ? 6 : 0;
+
+  // Longevity raw (active days + duplicate creatives + viral velocity)
+  const longevityRaw = ad.activeDaysCount * 2.0 + duplicates * 6.0 + velocityBoost;
   const longevityBase = Math.min(100, Math.max(10, Math.round(longevityRaw)));
 
-  // Combined scale pillar: 60% longevity + 40% total views volume
+  // Combined scale pillar: 55% longevity/scaling + 45% total views & daily velocity
   const longevityScore = Math.min(
     100,
-    Math.max(10, Math.round(0.6 * longevityBase + 0.4 * viewsScore))
+    Math.max(10, Math.round(0.55 * longevityBase + 0.45 * viewsScore))
   );
 
   const adText = `${ad.headline} ${ad.primaryCopy}`.slice(0, 1000);
 
-  // Baseline if no brand profile is provided
-  if (!brand) {
-    const defaultHook = Math.min(
-      100,
-      Math.max(
-        30,
-        Math.round(
-          45 + (ad.headline ? 20 : 0) + (ad.primaryCopy.length > 50 ? 25 : 10)
-        )
-      )
-    );
-    const defaultBrand = Math.min(
-      100,
-      Math.max(30, Math.round(50 + (ad.activeDaysCount >= 30 ? 25 : 10)))
-    );
-    const compositeScore = Math.min(
-      100,
-      Math.max(
-        0,
-        Math.round(0.4 * defaultBrand + 0.3 * defaultHook + 0.3 * longevityScore)
-      )
-    );
-    const genericKeywords = extractTokens(adText).slice(0, 5);
-
-    return {
-      brandFitScore: defaultBrand,
-      hookStrengthScore: defaultHook,
-      longevityScore,
-      compositeScore,
-      resonanceReason: `Proven winner with ${totalViews.toLocaleString("en-AU")} estimated views running across ${ad.activeDaysCount} days.`,
-      totalViews,
-      totalLikes,
-      highlightKeywords: genericKeywords,
-    };
-  }
-
-  // 2. Hook Viability Pillar (30%)
+  // 2. Hook Viability Pillar (30%) — evaluated for all searches
   let matchedHooks = 0;
   for (const pattern of HOOK_PATTERNS) {
     if (pattern.test(adText)) matchedHooks++;
@@ -126,16 +96,53 @@ export function calculateMatrixScore(
   const hookPatternBonus = Math.min(40, matchedHooks * 12);
   const headlineBonus = ad.headline.trim().length > 10 ? 20 : 5;
   const ctaBonus = ad.ctaText.trim().length > 0 ? 15 : 5;
-  const copyDepthBonus = ad.primaryCopy.length > 120 ? 15 : 5;
+  const copyDepthBonus = ad.primaryCopy.length > 120 ? 15 : ad.primaryCopy.length > 45 ? 10 : 5;
   const hookStrengthScore = Math.min(
     100,
     Math.max(
-      25,
+      28,
       Math.round(
         15 + hookPatternBonus + headlineBonus + ctaBonus + copyDepthBonus
       )
     )
   );
+
+  // Baseline if no brand profile is provided
+  if (!brand) {
+    const defaultBrand = Math.min(
+      100,
+      Math.max(
+        35,
+        Math.round(
+          52 +
+            (ad.activeDaysCount >= 28 ? 20 : 8) +
+            (viewsPerDay >= 5_000 ? 12 : 0) +
+            Math.min(16, duplicates * 5)
+        )
+      )
+    );
+    const compositeScore = Math.min(
+      100,
+      Math.max(
+        0,
+        Math.round(0.4 * defaultBrand + 0.3 * hookStrengthScore + 0.3 * longevityScore)
+      )
+    );
+    const genericKeywords = extractTokens(adText).slice(0, 5);
+    const velocityLabel =
+      viewsPerDay >= 2_500 ? ` (${viewsPerDay.toLocaleString("en-AU")} views/day velocity)` : "";
+
+    return {
+      brandFitScore: defaultBrand,
+      hookStrengthScore,
+      longevityScore,
+      compositeScore,
+      resonanceReason: `Proven winner with ${totalViews.toLocaleString("en-AU")} views${velocityLabel} running across ${ad.activeDaysCount} days.`,
+      totalViews,
+      totalLikes,
+      highlightKeywords: genericKeywords,
+    };
+  }
 
   // 3. Brand Resonance Pillar (40%) & Highlight Keywords
   const brandKeywords = new Set([
