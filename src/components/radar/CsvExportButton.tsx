@@ -54,7 +54,7 @@ const EXPORTS: { id: string; label: string; hint: string; build: (input: ExportI
     label: "Meta Ads Manager",
     hint: "One ad per variation (bulk import)",
     build: ({ remix, ad, brand }) => {
-      const campaign = `AdRadar · ${brand?.brandName ?? "Remix"}`;
+      const campaign = `AdRadarHQ · ${brand?.brandName ?? "Remix"}`;
       return {
         name: "meta-ads",
         rows: [
@@ -90,7 +90,7 @@ const EXPORTS: { id: string; label: string; hint: string; build: (input: ExportI
             ...descriptions.map((_, i) => `Description ${i + 1}`),
             "Final URL",
           ],
-          [`AdRadar · ${brand?.brandName ?? "Remix"}`, "Remix", "Responsive search ad", ...headlines, ...descriptions, brand?.destinationUrl ?? ""],
+          [`AdRadarHQ · ${brand?.brandName ?? "Remix"}`, "Remix", "Responsive search ad", ...headlines, ...descriptions, brand?.destinationUrl ?? ""],
         ],
       };
     },

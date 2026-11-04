@@ -159,7 +159,7 @@ export function AppFooter() {
               Copyright © 2026 AI Foundation · All rights reserved.
             </p>
             <p className="font-mono text-[11px] text-outline">
-              AdRadar Intelligence · Australian Registered Business · Strict 7-Year Statutory Compliance Archive
+              AdRadarHQ Intelligence · Australian Registered Business · Strict 7-Year Statutory Compliance Archive
             </p>
           </div>
 

@@ -1,4 +1,4 @@
-# Ad Radar Data Contracts
+# AdRadarHQ Data Contracts
 
 > Single source of truth for every schema and payload. The runtime enforcement lives in
 > [`src/lib/contracts.ts`](src/lib/contracts.ts) (Zod, `.strict()` ≡ `additionalProperties: false`).
@@ -489,7 +489,7 @@ Requires Superadmin. Allows Superadmin to message anyone. Validates plain text o
   - `"GIFT"` (SuperAdmin / Main Admin no-charge complimentary token gift)
   - `"ADMIN_DEDUCT"` (SuperAdmin / Main Admin token deduction with explicit confirmation)
   - `"ADMIN_RESET"` (SuperAdmin / Main Admin token balance reset to 0 with explicit confirmation)
-  - `"RADAR_SEARCH"` (Every Ad Radar search order, including 0-token superadmin searches)
+  - `"RADAR_SEARCH"` (Every AdRadarHQ search order, including 0-token superadmin searches)
   - `"AI_REMIX"`
   - `"REGENERATE_VARIATIONS"`
   - `"BRAND_CLONE"`

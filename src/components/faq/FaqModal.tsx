@@ -132,7 +132,7 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev, onOpenSubscription }: 
                 Frequently Asked Questions
               </h2>
               <p className="text-compact text-on-surface-variant">
-                Ad Radar intelligence, ad libraries, brands, and token economy guide
+                AdRadarHQ intelligence, ad libraries, brands, and token economy guide
               </p>
             </div>
           </div>

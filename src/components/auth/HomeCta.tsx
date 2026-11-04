@@ -20,7 +20,7 @@ export function HomeCta() {
           className={btnPrimary}
           data-agent-id="home-cta-open-radar"
           data-testid="home-cta-open-radar"
-          aria-label="Open Ad Radar dashboard"
+          aria-label="Open AdRadarHQ dashboard"
         >
           <Icon name="radar" />
           Open Radar

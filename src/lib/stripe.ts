@@ -102,7 +102,7 @@ export function buildCheckoutParams(opts: {
     client_reference_id: uid,
     metadata,
     payment_intent_data: {
-      description: `${tokensFormatted} Ad Radar Tokens ($${priceFormatted} AUD)`,
+      description: `${tokensFormatted} AdRadarHQ Tokens ($${priceFormatted} AUD)`,
       metadata,
     },
     customer_creation: "always",
@@ -115,8 +115,8 @@ export function buildCheckoutParams(opts: {
           tax_behavior: "exclusive",
           unit_amount: pack.priceCents,
           product_data: {
-            name: `${tokensFormatted} Ad Radar Tokens`,
-            description: `${tokensFormatted} Ad Radar tokens ($${priceFormatted} AUD)`,
+            name: `${tokensFormatted} AdRadarHQ Tokens`,
+            description: `${tokensFormatted} AdRadarHQ tokens ($${priceFormatted} AUD)`,
           },
         },
       },

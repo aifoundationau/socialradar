@@ -17,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Ad Radar", template: "%s · Ad Radar" },
+  title: { default: "AdRadarHQ", template: "%s · AdRadarHQ" },
   description: "Find long-running winning ads on Meta, TikTok and Google, then remix them for your brand.",
 };
 

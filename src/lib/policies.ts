@@ -15,15 +15,15 @@ export const POLICIES: Record<string, PolicyDoc> = {
   founder: {
     id: "founder",
     title: "Founder Welcome",
-    subtitle: "From Founder David Robertson — The Story Behind AdRadar",
+    subtitle: "From Founder David Robertson — The Story Behind AdRadarHQ",
     badge: "Leadership & Vision",
     lastUpdated: "November 2026",
     sections: [
       {
-        heading: "Welcome to AdRadar & AI Foundation",
+        heading: "Welcome to AdRadarHQ & AI Foundation",
         paragraphs: [
-          "G'day and welcome! I am David Robertson, founder of AI Foundation and AdRadar. When we set out to build this platform, our primary motivation was to level the playing field for ambitious entrepreneurs, agency operators, and businesses across Australia, New Zealand, and globally.",
-          "For too long, deep ad library intelligence and high-converting marketing frameworks were walled off inside ultra-expensive enterprise tooling or guarded by elite media-buying agencies. AdRadar changes that equation entirely.",
+          "G'day and welcome! I am David Robertson, founder of AI Foundation and AdRadarHQ. When we set out to build this platform, our primary motivation was to level the playing field for ambitious entrepreneurs, agency operators, and businesses across Australia, New Zealand, and globally.",
+          "For too long, deep ad library intelligence and high-converting marketing frameworks were walled off inside ultra-expensive enterprise tooling or guarded by elite media-buying agencies. AdRadarHQ changes that equation entirely.",
         ],
       },
       {
@@ -59,14 +59,14 @@ export const POLICIES: Record<string, PolicyDoc> = {
       {
         heading: "1. Acceptance of Terms & Australian Operations",
         paragraphs: [
-          "These Terms of Service constitute a legally binding agreement between you (whether personally or on behalf of an entity) and AI Foundation ('Company', 'we', 'us', or 'our'), an Australian entity, concerning your access to and use of AdRadar.",
-          "By accessing or using AdRadar, you agree that you have read, understood, and agreed to be bound by all of these Terms. If you do not agree, you are expressly prohibited from using the platform.",
+          "These Terms of Service constitute a legally binding agreement between you (whether personally or on behalf of an entity) and AI Foundation ('Company', 'we', 'us', or 'our'), an Australian entity, concerning your access to and use of AdRadarHQ.",
+          "By accessing or using AdRadarHQ, you agree that you have read, understood, and agreed to be bound by all of these Terms. If you do not agree, you are expressly prohibited from using the platform.",
         ],
       },
       {
         heading: "2. Token Economy, Australian Dollar Invoicing & Currency Conversion",
         paragraphs: [
-          "AdRadar operates on a strictly defined digital token ledger. You exchange money for a token, tokens mean more flexible payment options, as a payment may be distributed to multiple service providers across our infrastructure.",
+          "AdRadarHQ operates on a strictly defined digital token ledger. You exchange money for a token, tokens mean more flexible payment options, as a payment may be distributed to multiple service providers across our infrastructure.",
           "Because AI Foundation is an Australian registered business headquartered in Australia, the default currency of the platform is Australian Dollars (AUD), and all invoices and checkout transactions are issued and settled in Australian Dollars (AUD).",
           "The default price for one token is AUD $1. From the SuperAdmin Control Panel, both the base token price and the token amount for all services and products that are sold (including Base Search, Proven Winners (28+d) filters, Extended Longevity filters, Elite Winner filters, AI Creative Remixes, and Global Brand Copies) are fully customizable.",
           "We never ever use decimals for token balances and AUD invoices; all platform token fees and invoices strictly use whole numbers. For international visitors viewing foreign exchange estimates, the currency conversion can show up to 2 decimal places.",
@@ -85,7 +85,7 @@ export const POLICIES: Record<string, PolicyDoc> = {
       {
         heading: "3. Permitted Use & Ad Intelligence Data",
         paragraphs: [
-          "AdRadar indexes public transparency repositories provided by Meta, TikTok, and Google. Users agree not to scrape, reverse-engineer, or attempt to bypass cryptographic token authentication gates.",
+          "AdRadarHQ indexes public transparency repositories provided by Meta, TikTok, and Google. Users agree not to scrape, reverse-engineer, or attempt to bypass cryptographic token authentication gates.",
           "You retain full ownership of all customized Brand Profiles and AI-remixed creative assets generated for your brand.",
         ],
       },
@@ -140,7 +140,7 @@ export const POLICIES: Record<string, PolicyDoc> = {
       {
         heading: "1. ISO/IEC 42001 Alignment & Ethical AI",
         paragraphs: [
-          "AdRadar's AI Remix Studio operates in alignment with ISO/IEC 42001:2023, the global standard for Artificial Intelligence Management Systems (AIMS).",
+          "AdRadarHQ's AI Remix Studio operates in alignment with ISO/IEC 42001:2023, the global standard for Artificial Intelligence Management Systems (AIMS).",
           "We ensure transparency, traceability, and ethical safety across all AI generation pipelines, ensuring generated advertising hooks and scripts are original, brand-compliant, and free from deceptive persuasion tactics.",
         ],
       },
@@ -175,7 +175,7 @@ export const POLICIES: Record<string, PolicyDoc> = {
       {
         heading: "2. Cryptographic Role-Based Access Control (RBAC)",
         paragraphs: [
-          "Authority within AdRadar is governed by strict, cryptographically signed Firebase Custom Claims. The Superadmin role is strictly reserved for the verified database administrator email.",
+          "Authority within AdRadarHQ is governed by strict, cryptographically signed Firebase Custom Claims. The Superadmin role is strictly reserved for the verified database administrator email.",
           "All API mutations are enforced with idempotency keys (`x-idempotency-key`) preventing race conditions, balance tampering, and replay vulnerabilities.",
         ],
         bullets: [

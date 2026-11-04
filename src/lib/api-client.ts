@@ -15,7 +15,7 @@ export class ApiClientError extends Error {
 export const newIdempotencyKey = () => crypto.randomUUID();
 
 /**
- * Calls an Ad Radar API route as the signed-in user. Mutations always carry an
+ * Calls an AdRadarHQ API route as the signed-in user. Mutations always carry an
  * `x-idempotency-key`; pass the same key when retrying the same user action.
  * Throws ApiClientError carrying the server's error envelope.
  */

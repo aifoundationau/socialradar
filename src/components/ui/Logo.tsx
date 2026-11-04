@@ -1,4 +1,4 @@
-/** Radar mark plus the "AdRadar" wordmark. */
+/** Radar mark plus the "AdRadarHQ" wordmark. */
 export function Logo({ wordmark = true }: { wordmark?: boolean }) {
   return (
     <span className="flex items-center gap-2">
@@ -16,7 +16,7 @@ export function Logo({ wordmark = true }: { wordmark?: boolean }) {
         <circle cx="16" cy="16" r="1.9" fill="#c0c1ff" />
         <circle cx="21.2" cy="19.6" r="1.5" fill="#34d399" />
       </svg>
-      {wordmark && <span className="text-title-sm font-semibold tracking-tight text-on-surface">AdRadar</span>}
+      {wordmark && <span className="text-title-sm font-semibold tracking-tight text-on-surface">AdRadarHQ</span>}
     </span>
   );
 }

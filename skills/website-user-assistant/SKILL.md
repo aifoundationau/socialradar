@@ -1,12 +1,12 @@
 ---
 name: website-user-assistant
-description: Model-agnostic Website User Assistant & DOM Automation Skill for Ad Radar. Listens to user requests, identifies the target workflow, asks one clarifying question at a time for any missing required parameters, pre-checks DOM visibility and layout stability, executes actions via deterministic data-agent-id bindings or window.__AD_RADAR_AGENT__, and verifies DOM mutations post-action across all AI models (including Gemini 2.5 Flash-Lite, Claude Haiku 4.5, and gpt-6-luna).
+description: Model-agnostic Website User Assistant & DOM Automation Skill for AdRadarHQ. Listens to user requests, identifies the target workflow, asks one clarifying question at a time for any missing required parameters, pre-checks DOM visibility and layout stability, executes actions via deterministic data-agent-id bindings or window.__AD_RADAR_AGENT__, and verifies DOM mutations post-action across all AI models (including Gemini 2.5 Flash-Lite, Claude Haiku 4.5, and gpt-6-luna).
 ---
 
 # Website User Assistant & DOM Automation Skill (`website-user-assistant`)
 
 ## 1. Purpose & Universal Model Compatibility
-This skill enables any AI assistant embedded on or connected to **Ad Radar** — including compact, low-cost, high-speed models such as **Gemini 2.5 Flash-Lite**, **Claude Haiku 4.5**, and **gpt-6-luna** — to act as a reliable, conversational co-pilot for website users without altering any visual design.
+This skill enables any AI assistant embedded on or connected to **AdRadarHQ** — including compact, low-cost, high-speed models such as **Gemini 2.5 Flash-Lite**, **Claude Haiku 4.5**, and **gpt-6-luna** — to act as a reliable, conversational co-pilot for website users without altering any visual design.
 
 The assistant follows a strict **4-Stage Deterministic Loop**:
 1. **LISTEN & CLASSIFY (`detectUserIntent`)**: Map the user's natural language request to one of the 12 canonical `AgentTaskId` workflows exposed in `#ad-radar-agent-manifest` and `window.__AD_RADAR_AGENT__.tasks`.
@@ -17,7 +17,7 @@ The assistant follows a strict **4-Stage Deterministic Loop**:
 ---
 
 ## 2. Headless DOM Bridge (`window.__AD_RADAR_AGENT__`)
-Every page in Ad Radar mounts `<AgentDomBridge />` ([`src/components/agent/AgentDomBridge.tsx`](../../src/components/agent/AgentDomBridge.tsx)), which injects:
+Every page in AdRadarHQ mounts `<AgentDomBridge />` ([`src/components/agent/AgentDomBridge.tsx`](../../src/components/agent/AgentDomBridge.tsx)), which injects:
 - `<script id="ad-radar-agent-manifest" type="application/json">`: Machine-readable JSON catalog of all tasks, slots, questions, and `data-agent-id` step sequences.
 - `window.__AD_RADAR_AGENT__`: Live runtime helper with:
   - `detectUserIntent(utterance: string): AgentTaskId | null`
@@ -34,7 +34,7 @@ Every page in Ad Radar mounts `<AgentDomBridge />` ([`src/components/agent/Agent
 
 ### 3.1 `SEARCH_ADS` — Search Winning Ads on Radar (`/radar`)
 - **Required Slot:**
-  - `query`: *"What keyword, product niche, or competitor brand would you like me to search for on Ad Radar?"*
+  - `query`: *"What keyword, product niche, or competitor brand would you like me to search for on AdRadarHQ?"*
 - **Optional Slots (with defaults):**
   - `platform` (`META` | `TIKTOK` | `GOOGLE`, default `META`)
   - `country` (`AU` | `US` | `GB` | `CA` | `NZ` | `ALL`, default `AU`)
@@ -114,7 +114,7 @@ When running on compact models, return a deterministic JSON decision block at ea
   "detectedTaskId": "SEARCH_ADS",
   "status": "NEED_CLARIFICATION",
   "missingSlots": ["query"],
-  "questionToUser": "What keyword, product niche, or competitor brand would you like me to search for on Ad Radar?",
+  "questionToUser": "What keyword, product niche, or competitor brand would you like me to search for on AdRadarHQ?",
   "domActions": []
 }
 ```

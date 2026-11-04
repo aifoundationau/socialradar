@@ -103,7 +103,7 @@ export const AGENT_TASK_DEFINITIONS: Record<AgentTaskId, AgentTaskDefinition> = 
         type: "string",
         description: "Keywords, hooks, or competitor brand name (2–100 chars).",
         questionToAsk:
-          "What keyword, product niche, or competitor brand would you like me to search for on Ad Radar?",
+          "What keyword, product niche, or competitor brand would you like me to search for on AdRadarHQ?",
       },
       {
         name: "platform",

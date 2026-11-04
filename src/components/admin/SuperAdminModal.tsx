@@ -50,7 +50,7 @@ const PERMISSION_METADATA: Record<RbacPermission, { label: string; desc: string 
   manage_messages: { label: "Manage Messages", desc: "Read and manage 7-year user compliance messages" },
   manage_rbac: { label: "Manage RBAC", desc: "Configure role permissions matrix and assign roles" },
   manage_users: { label: "Manage Users", desc: "Inspect registered accounts and adjust token balances" },
-  search_radar: { label: "Search Ad Radar", desc: "Perform Meta ad library intelligence searches" },
+  search_radar: { label: "Search AdRadarHQ", desc: "Perform Meta ad library intelligence searches" },
   ai_remix: { label: "AI Remix Studio", desc: "Generate generative ad variations using Gemini" },
   manage_brands: { label: "Manage Brands", desc: "Create, edit, and select brand profiles" },
 };
@@ -1048,8 +1048,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
               </h2>
               <p className="text-[11px] text-on-surface-variant font-mono">
                 {isSuper
-                  ? "AdRadar System Configuration, Redistributive Ledger & 7-Year Archive"
-                  : "AdRadar System Configuration, User Messages & FAQ Development"}
+                  ? "AdRadarHQ System Configuration, Redistributive Ledger & 7-Year Archive"
+                  : "AdRadarHQ System Configuration, User Messages & FAQ Development"}
               </p>
             </div>
           </div>
@@ -2576,7 +2576,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           </span>
                         </div>
                         <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                          Complete chronological audit of every Stripe purchase, Ad Radar search order, AI Remix, Customize brief, Gift credit, and Token Refund. Click &ldquo;Refund Tokens&rdquo; on any deduction order to restore tokens to the customer wallet.
+                          Complete chronological audit of every Stripe purchase, AdRadarHQ search order, AI Remix, Customize brief, Gift credit, and Token Refund. Click &ldquo;Refund Tokens&rdquo; on any deduction order to restore tokens to the customer wallet.
                         </p>
                       </div>
 

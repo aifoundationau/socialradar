@@ -6,7 +6,7 @@ import { errorMessage } from "@/lib/api-client";
 import { Logo } from "@/components/ui/Logo";
 import { alertError, btnPrimary, card } from "@/components/ui/styles";
 
-export function SignInCard({ title = "Sign in to AdRadar" }: { title?: string }) {
+export function SignInCard({ title = "Sign in to AdRadarHQ" }: { title?: string }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

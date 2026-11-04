@@ -405,7 +405,7 @@ export function TopNavWallet() {
           href="/"
           data-agent-id="header-home-logo-link"
           data-testid="header-home-logo-link"
-          aria-label="AdRadar home page"
+          aria-label="AdRadarHQ home page"
           className="shrink-0"
         >
           <Logo />
