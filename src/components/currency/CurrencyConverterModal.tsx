@@ -3,7 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/Icon";
-import { btnPrimary, btnSecondary, field, label } from "@/components/ui/styles";
+import { btnPrimary, field } from "@/components/ui/styles";
 import type { CurrencyRateResponse } from "@/app/api/currency/route";
 
 const emptySubscribe = () => () => {};
@@ -44,7 +44,6 @@ export function CurrencyConverterModal({
         setData(json);
       }
     } catch {
-      // fallback rate
       setData({
         rate: 0.7015,
         base: "AUD",
@@ -126,7 +125,7 @@ export function CurrencyConverterModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="currency-modal-title"
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 overflow-hidden"
     >
       {/* Backdrop */}
       <div
@@ -135,27 +134,27 @@ export function CurrencyConverterModal({
         className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity animate-in fade-in"
       />
 
-      {/* Modal Surface */}
+      {/* Modal Surface - Compact, Zero Scrollbars */}
       <div
         data-testid="currency-converter-dialog"
         data-agent-id="currency-converter-dialog"
-        className="relative z-10 flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface-container-high shadow-2xl animate-in zoom-in-95 duration-150"
+        className="relative z-10 flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface-container-high shadow-2xl animate-in zoom-in-95 duration-150"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 bg-surface-container-highest/40">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-secondary/15 text-secondary border border-secondary/30">
-              <Icon name="tag" className="size-4.5" />
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-5 bg-surface-container-highest/50">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-7.5 items-center justify-center rounded-lg bg-secondary/15 text-secondary border border-secondary/30 shrink-0">
+              <Icon name="tag" className="size-3.5" />
             </div>
             <div>
               <h2
                 id="currency-modal-title"
-                className="text-title-sm font-semibold tracking-tight text-on-surface"
+                className="text-sm font-semibold tracking-tight text-on-surface sm:text-base leading-tight"
               >
                 AUD to USD Currency Converter
               </h2>
-              <p className="text-xs text-on-surface-variant">
-                Live ECB exchange rates powered by Frankfurter API
+              <p className="text-[11px] text-on-surface-variant leading-tight">
+                Live ECB exchange rate via Frankfurter API
               </p>
             </div>
           </div>
@@ -165,36 +164,27 @@ export function CurrencyConverterModal({
             aria-label="Close currency converter"
             data-testid="close-currency-modal"
             data-agent-id="close-currency-modal"
-            className="rounded-lg p-1.5 text-outline transition-colors hover:bg-white/10 hover:text-on-surface active:scale-95"
+            className="rounded-lg p-1 text-outline transition-colors hover:bg-white/10 hover:text-on-surface active:scale-95"
           >
-            <Icon name="x" className="size-5" />
+            <Icon name="x" className="size-4.5" />
           </button>
         </div>
 
-        {/* Content Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
-          {/* Live Rate Chip */}
-          <div className="rounded-xl border border-secondary/30 bg-secondary/10 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <span className="relative flex size-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-secondary opacity-75" />
-                  <span className="relative inline-flex size-2 rounded-full bg-secondary" />
-                </span>
-                <span className="text-xs font-mono font-semibold uppercase tracking-wider text-secondary">
-                  Live Frankfurter Rate
-                </span>
-              </div>
-              <div className="text-lg font-bold font-mono tracking-tight text-on-surface">
-                1.00 AUD ={" "}
-                <span className="text-secondary">
-                  ${currentRate.toFixed(4)} USD
-                </span>
-              </div>
-              <div className="text-[11px] font-mono text-outline">
-                1.00 USD = ${(1 / currentRate).toFixed(4)} AUD · Date:{" "}
-                {data?.date || "Today"}
-              </div>
+        {/* Content Body - Compact Vertical Rhythm */}
+        <div className="p-4 sm:p-5 space-y-3">
+          {/* Live Rate Banner */}
+          <div className="flex items-center justify-between rounded-xl border border-secondary/30 bg-secondary/10 px-3 py-2 text-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="relative flex size-2 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-secondary opacity-75" />
+                <span className="relative inline-flex size-2 rounded-full bg-secondary" />
+              </span>
+              <span className="font-mono font-bold text-on-surface truncate">
+                1 AUD = <span className="text-secondary">${currentRate.toFixed(4)} USD</span>
+              </span>
+              <span className="hidden sm:inline font-mono text-[10px] text-outline">
+                ({data?.date || "Live"})
+              </span>
             </div>
 
             <button
@@ -204,161 +194,134 @@ export function CurrencyConverterModal({
               data-testid="refresh-currency-rate-btn"
               data-agent-id="refresh-currency-rate-btn"
               aria-label="Refresh Frankfurter live rate"
-              className="inline-flex items-center gap-1.5 self-start sm:self-center rounded-lg border border-white/10 bg-surface-container px-2.5 py-1.5 text-xs text-on-surface hover:border-secondary/40 hover:text-secondary active:scale-95 disabled:opacity-50 transition-all shrink-0"
+              title="Refresh live exchange rate from Frankfurter API"
+              className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-surface-container px-2 py-1 text-[11px] text-on-surface hover:border-secondary/40 hover:text-secondary active:scale-95 disabled:opacity-50 transition-all shrink-0"
             >
               <Icon
                 name="sliders"
-                className={`size-3 ${isLoading ? "animate-spin text-secondary" : ""}`}
+                className={`size-2.5 ${isLoading ? "animate-spin text-secondary" : ""}`}
               />
-              <span>{isLoading ? "Refreshing..." : "Refresh"}</span>
+              <span>{isLoading ? "Syncing..." : "Sync"}</span>
             </button>
           </div>
 
-          {/* Converter Tool */}
-          <div className="rounded-xl border border-white/10 bg-surface-container-low p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <label htmlFor="modal-token-input" className={label}>
-                Tokens to Convert
-              </label>
-              <span className="text-[11px] font-mono text-outline">
-                Rate: AUD $1.00 / Token
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] text-outline mb-1 block">
-                  AdRadarHQ Tokens
-                </label>
-                <div className="relative">
-                  <input
-                    id="modal-token-input"
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={tokensAmount}
-                    onChange={(e) => handleTokensChange(e.target.value)}
-                    data-testid="converter-token-input"
-                    data-agent-id="converter-token-input"
-                    className={`${field} font-mono`}
-                    placeholder="1"
-                  />
-                  <span className="absolute right-3 top-2.5 text-xs text-outline font-mono">
-                    Tokens
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-outline mb-1 block">
-                  Australian Dollars (AUD)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={audAmount}
-                    onChange={(e) => handleAudChange(e.target.value)}
-                    data-testid="converter-aud-input"
-                    data-agent-id="converter-aud-input"
-                    className={`${field} font-mono`}
-                    placeholder="1.00"
-                  />
-                  <span className="absolute right-3 top-2.5 text-xs text-outline font-mono">
-                    AUD $
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Presets */}
+          {/* Dual Inputs */}
+          <div className="grid grid-cols-2 gap-2.5">
             <div>
-              <span className="text-[11px] text-outline mb-1.5 block">
-                Quick Token Presets:
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {PRESETS.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => handlePreset(preset)}
-                    data-testid={`preset-tokens-${preset}`}
-                    data-agent-id={`preset-tokens-${preset}`}
-                    className={`rounded-lg border px-2.5 py-1 text-xs font-mono transition-all active:scale-95 ${
-                      tokensAmount === preset.toString()
-                        ? "border-secondary bg-secondary/20 text-secondary font-semibold"
-                        : "border-white/10 bg-surface-container text-on-surface-variant hover:border-white/20 hover:text-on-surface"
-                    }`}
-                  >
-                    {preset} {preset === 1 ? "Token" : "Tokens"}
-                  </button>
-                ))}
+              <label htmlFor="modal-token-input" className="text-[11px] font-medium text-outline mb-1 block">
+                Tokens (AUD $1/ea)
+              </label>
+              <div className="relative">
+                <input
+                  id="modal-token-input"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={tokensAmount}
+                  onChange={(e) => handleTokensChange(e.target.value)}
+                  data-testid="converter-token-input"
+                  data-agent-id="converter-token-input"
+                  className={`${field} font-mono text-sm py-1.5 px-2.5 pr-14`}
+                  placeholder="1"
+                />
+                <span className="pointer-events-none absolute right-2.5 top-2 text-[11px] text-outline font-mono">
+                  Tokens
+                </span>
               </div>
             </div>
 
-            {/* Conversion Result Display */}
-            <div className="rounded-lg border border-primary/20 bg-primary/10 p-3.5 flex items-center justify-between">
-              <div>
-                <div className="text-[11px] font-mono uppercase tracking-wider text-primary">
-                  US Dollar Equivalent
-                </div>
-                <div className="text-xl font-bold font-mono tracking-tight text-on-surface mt-0.5">
-                  ≈ ${computedUsd.toFixed(2)} USD
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-[11px] font-mono text-outline">
-                  Strict Whole Invoices
-                </div>
-                <div className="text-xs font-mono text-on-surface font-semibold">
-                  AUD ${Math.round(numAud || 0)}
-                </div>
+            <div>
+              <label htmlFor="modal-aud-input" className="text-[11px] font-medium text-outline mb-1 block">
+                Australian Dollars
+              </label>
+              <div className="relative">
+                <input
+                  id="modal-aud-input"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={audAmount}
+                  onChange={(e) => handleAudChange(e.target.value)}
+                  data-testid="converter-aud-input"
+                  data-agent-id="converter-aud-input"
+                  className={`${field} font-mono text-sm py-1.5 px-2.5 pr-12`}
+                  placeholder="1.00"
+                />
+                <span className="pointer-events-none absolute right-2.5 top-2 text-[11px] text-outline font-mono">
+                  AUD $
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Statutory Policy & GST Notice */}
-          <div className="rounded-xl border border-white/5 bg-surface-container-lowest p-3.5 space-y-2 text-xs text-on-surface-variant">
-            <div className="flex items-center gap-1.5 font-semibold text-on-surface">
-              <Icon name="shield" className="size-3.5 text-primary" />
-              <span>Australian Business & Invoicing Standard</span>
+          {/* Quick Preset Pills */}
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] uppercase font-mono tracking-wider text-outline shrink-0">
+              Presets:
+            </span>
+            <div className="flex flex-wrap items-center justify-end gap-1">
+              {PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => handlePreset(preset)}
+                  data-testid={`preset-tokens-${preset}`}
+                  data-agent-id={`preset-tokens-${preset}`}
+                  className={`rounded-md border px-2 py-0.5 text-[11px] font-mono transition-all active:scale-95 ${
+                    tokensAmount === preset.toString()
+                      ? "border-secondary bg-secondary/20 text-secondary font-semibold"
+                      : "border-white/10 bg-surface-container text-on-surface-variant hover:border-white/20 hover:text-on-surface"
+                  }`}
+                >
+                  {preset}T
+                </button>
+              ))}
             </div>
-            <p className="leading-relaxed">
-              Because AI Foundation is an Australian registered business, all
-              Stripe checkout transactions and official tax invoices are issued
-              and settled in <strong>Australian Dollars (AUD)</strong> using
-              strict whole numbers.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-              <div className="rounded-lg bg-surface-container p-2 border border-white/5">
-                <span className="font-semibold text-on-surface block mb-0.5">
-                  🇦🇺 Australia
-                </span>
-                <span className="text-[11px] text-outline">
-                  10% GST added on top at checkout via automatic Stripe Tax.
-                </span>
+          </div>
+
+          {/* Conversion Output Banner */}
+          <div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2.5">
+            <div>
+              <div className="text-[10px] font-mono uppercase tracking-wider text-primary">
+                USD Estimate
               </div>
-              <div className="rounded-lg bg-surface-container p-2 border border-white/5">
-                <span className="font-semibold text-on-surface block mb-0.5">
-                  🇳🇿 New Zealand & Global
-                </span>
-                <span className="text-[11px] text-outline">
-                  0% GST ($0.00 tax). International orders incur zero GST.
-                </span>
+              <div className="text-xl font-bold font-mono tracking-tight text-on-surface">
+                ≈ ${computedUsd.toFixed(2)} <span className="text-xs font-normal text-on-surface-variant">USD</span>
               </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] font-mono text-outline uppercase tracking-wider">
+                Formal Billing
+              </div>
+              <div className="text-sm font-bold font-mono text-secondary">
+                AUD ${Math.round(numAud || 0)}
+              </div>
+            </div>
+          </div>
+
+          {/* Compact Tax & Jurisdiction Footer Note */}
+          <div className="flex items-center justify-between rounded-lg border border-white/5 bg-surface-container-lowest px-3 py-2 text-[11px] text-on-surface-variant">
+            <div className="flex items-center gap-1.5">
+              <span>🇦🇺 AU: <strong>+10% GST</strong></span>
+            </div>
+            <div className="h-3 w-px bg-white/10" />
+            <div className="flex items-center gap-1.5">
+              <span>🇳🇿 NZ & Global: <strong>0% GST</strong> (Tax Free)</span>
             </div>
           </div>
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end border-t border-white/10 bg-surface-container-highest/30 px-5 py-3.5">
+        <div className="flex items-center justify-between border-t border-white/10 bg-surface-container-highest/30 px-4 py-2.5 sm:px-5">
+          <span className="text-[10px] font-mono text-outline">
+            All invoices issued in AUD (Whole Numbers)
+          </span>
           <button
             type="button"
             onClick={onClose}
             data-testid="close-currency-modal-btn"
             data-agent-id="close-currency-modal-btn"
-            className={btnPrimary}
+            className={`${btnPrimary} !py-1 !px-4 !text-xs`}
           >
             Close
           </button>
