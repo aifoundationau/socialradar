@@ -2903,13 +2903,13 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         <div className="flex items-center justify-between">
                           <label className={label}>Message Body (Plain Text Only)</label>
                           <span className="font-mono text-[11px] text-on-surface-variant">
-                            {composeBody.length} / 2000
+                            {composeBody.length} / 10000
                           </span>
                         </div>
                         <textarea
                           required
                           rows={4}
-                          maxLength={2000}
+                          maxLength={10000}
                           placeholder="Type your plain-text message here..."
                           value={composeBody}
                           onChange={(e) => setComposeBody(e.target.value)}

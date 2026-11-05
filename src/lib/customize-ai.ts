@@ -93,7 +93,7 @@ function buildDeterministicStaffReply(params: {
 
   return {
     subject: sanitizeForPlainTextArchive(rawSubject).slice(0, 145),
-    body: sanitizeForPlainTextArchive(rawBody).slice(0, 1920),
+    body: sanitizeForPlainTextArchive(rawBody).slice(0, 9500),
   };
 }
 
@@ -152,7 +152,7 @@ export async function generateCustomizeStaffReply(params: {
 
     const parsedJson = JSON.parse(res.text ?? "{}");
     const cleanSubject = sanitizeForPlainTextArchive(String(parsedJson.subject || "")).slice(0, 145);
-    const cleanBody = sanitizeForPlainTextArchive(String(parsedJson.body || "")).slice(0, 1920);
+    const cleanBody = sanitizeForPlainTextArchive(String(parsedJson.body || "")).slice(0, 9500);
 
     const validated = AiCustomizeReplyDraftResponseSchema.safeParse({
       subject: cleanSubject,

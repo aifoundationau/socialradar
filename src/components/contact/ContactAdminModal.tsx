@@ -284,14 +284,14 @@ export function ContactAdminModal({ isOpen, onClose }: ContactAdminModalProps) {
                   Message (Plain Text Only)
                 </label>
                 <span className="font-mono text-[11px] text-on-surface-variant">
-                  {body.length} / 2000
+                  {body.length} / 10000
                 </span>
               </div>
               <textarea
                 id="contact-body"
                 required
                 rows={5}
-                maxLength={2000}
+                maxLength={10000}
                 placeholder="Type your message to the Super Admin here..."
                 value={body}
                 onChange={(e) => setBody(e.target.value)}

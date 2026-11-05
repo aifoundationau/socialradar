@@ -474,7 +474,7 @@ export const AdminMessageSchema = z
     recipientUid: z.string().max(128).optional(),
     direction: z.enum(["user_to_admin", "admin_to_user"]).default("user_to_admin"),
     subject: z.string().trim().min(1).max(150),
-    body: z.string().trim().min(1).max(2000), // strictly plain text only, no attachments, no upload links
+    body: z.string().trim().min(1).max(10000), // strictly plain text only, no attachments, no upload links
     status: z.enum(["unread", "read", "archived"]).default("unread"),
     requestType: z.enum(["general", "customize_request", "customize_reply"]).optional(),
     customizeRequestId: z.string().max(128).optional(),
@@ -498,7 +498,7 @@ export const CreateAdminMessageRequestSchema = z
       .string()
       .trim()
       .min(1, "Message text is required")
-      .max(2000)
+      .max(10000)
       .refine((b) => !LINK_URL_PATTERN.test(b), {
         message: "Plain text only. Links, URLs, and file uploads are strictly prohibited.",
       }),
@@ -523,7 +523,7 @@ export const SendAdminMessageRequestSchema = z
       .string()
       .trim()
       .min(1, "Message text is required")
-      .max(2000)
+      .max(10000)
       .refine((b) => !LINK_URL_PATTERN.test(b), {
         message: "Plain text only. Links, URLs, and file uploads are strictly prohibited.",
       }),
@@ -681,8 +681,8 @@ export const AiCustomizeReplyDraftRequestSchema = z
     customizeRequestId: z.string().max(128).optional(),
     customerEmail: z.string().trim().toLowerCase().email().max(254),
     subject: z.string().trim().max(150).optional(),
-    customerBriefText: z.string().trim().min(1).max(4000),
-    staffNotes: z.string().trim().max(1000).optional(),
+    customerBriefText: z.string().trim().min(1).max(10000),
+    staffNotes: z.string().trim().max(2000).optional(),
   })
   .strict();
 export type AiCustomizeReplyDraftRequest = z.infer<typeof AiCustomizeReplyDraftRequestSchema>;
@@ -690,7 +690,7 @@ export type AiCustomizeReplyDraftRequest = z.infer<typeof AiCustomizeReplyDraftR
 export const AiCustomizeReplyDraftResponseSchema = z
   .object({
     subject: z.string().trim().min(1).max(150),
-    body: z.string().trim().min(1).max(2000),
+    body: z.string().trim().min(1).max(10000),
   })
   .strict();
 export type AiCustomizeReplyDraftResponse = z.infer<typeof AiCustomizeReplyDraftResponseSchema>;

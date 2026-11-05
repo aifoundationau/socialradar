@@ -707,13 +707,13 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                         Message (Plain text only)
                       </label>
                       <span className="font-mono text-[11px] text-outline">
-                        {composeBody.length}/2000
+                        {composeBody.length}/10000
                       </span>
                     </div>
                     <textarea
                       id="supporter-compose-body"
                       rows={5}
-                      maxLength={2000}
+                      maxLength={10000}
                       value={composeBody}
                       onChange={(e) => setComposeBody(e.target.value)}
                       placeholder="Type your message clearly here. Links and external URLs are prohibited for safety."

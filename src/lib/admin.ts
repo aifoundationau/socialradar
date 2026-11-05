@@ -363,7 +363,7 @@ export async function createAdminMessage(params: {
   customizeRequestId?: string;
 }): Promise<AdminMessage> {
   const cleanSubject = params.subject.trim().slice(0, 150);
-  const cleanBody = params.body.trim().slice(0, 2000);
+  const cleanBody = params.body.trim().slice(0, 10000);
   if (!cleanSubject) throw new Error("Subject is required");
   if (!cleanBody) throw new Error("Message body is required");
 
@@ -420,7 +420,7 @@ export async function sendSuperadminMessage(params: {
 }): Promise<AdminMessage> {
   const cleanEmail = params.recipientEmail.toLowerCase().trim();
   const cleanSubject = params.subject.trim().slice(0, 150);
-  const cleanBody = params.body.trim().slice(0, 2000);
+  const cleanBody = params.body.trim().slice(0, 10000);
 
   if (!cleanEmail) throw new Error("Recipient email is required.");
   if (!cleanSubject) throw new Error("Subject is required.");
@@ -600,7 +600,7 @@ export async function submitCustomizeRequest(params: {
     `[CUSTOMIZE REQUEST] ${params.input.brandName} (${params.tokensCharged} Tokens)`
   ).slice(0, 150);
 
-  const staffBody = staffBriefRaw.slice(0, 1980);
+  const staffBody = staffBriefRaw.slice(0, 9800);
 
   const adminMessage = await createAdminMessage({
     uid: params.uid,
@@ -635,7 +635,7 @@ export async function submitCustomizeRequest(params: {
     superadminEmail: "support@aifoundation.net.au",
     recipientEmail: cleanEmail,
     subject: customerSubject,
-    body: customerReplyRaw.slice(0, 1980),
+    body: customerReplyRaw.slice(0, 9800),
     requestType: "customize_reply",
   });
 
