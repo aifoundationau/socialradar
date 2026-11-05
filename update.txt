@@ -1,0 +1,84 @@
+================================================================================
+ADRADARHQ — SEARCH UPGRADE SUMMARY (PLAIN-ENGLISH OVERVIEW)
+Date: 5 November 2026
+================================================================================
+
+WHAT WE JUST UPGRADED ACROSS ALL AD SEARCHES (META, TIKTOK, GOOGLE & YOUTUBE)
+--------------------------------------------------------------------------------
+Previously, searching for ads on Meta, TikTok, or Google only did a basic lookup
+that often returned brand-new test ads, incomplete cards (missing headlines or
+descriptions), or loose keyword matches.
+
+We upgraded all three platforms into smart, multi-engine "Winner Intelligence"
+systems so AdRadarHQ automatically finds the highest-performing, longest-running,
+and most profitable ads on each platform.
+
+
+1. STRICT PLATFORM SEPARATION (NO MIXING OF PLATFORMS)
+--------------------------------------------------------------------------------
+- Select META: You ONLY get Facebook, Instagram, Reels, Stories, and Messenger ads.
+- Select TIKTOK: You ONLY get TikTok ads.
+- Select GOOGLE: You ONLY get Google Search, Google Shopping, Google Display,
+  and YouTube ads.
+- Clicking a different platform tab now immediately clears the old platform's
+  results and runs the search for the platform you selected.
+
+
+2. HOW TIKTOK SEARCH WAS IMPROVED (DUAL-ENGINE SYSTEM)
+--------------------------------------------------------------------------------
+- Engine 1 (TikTok Commercial Ad Library): Searches exact commercial phrases
+  sorted by highest audience reach (most views) across up to 4 pages, instead
+  of stopping after 1 page.
+- Engine 2 (TikTok Creative Center Top Ads): Connects to TikTok Creative Center
+  Top Ads (when APIFY_API_TOKEN is added) to pull ads ranked in the Top 1%–10%
+  for Click-Through Rate (CTR) in Australia, New Zealand, the US, UK, and Canada.
+- Viral Velocity Scoring: Ads that rack up thousands of views per day quickly
+  are now scored alongside long-running 28+ and 60+ day ads.
+- Automatic Format Labels: Every TikTok ad is automatically labeled by its
+  winning style (e.g., "Creator Review & Unboxing", "Problem-Agitate-Solve",
+  "TikTok Made Me Buy It") and given a clear headline and button.
+
+
+3. HOW GOOGLE & YOUTUBE SEARCH WAS IMPROVED (3-ENGINE SYSTEM)
+--------------------------------------------------------------------------------
+- Engine 1 (Live Google Search & Shopping Ads): Checks live Google Search results
+  in your selected country to capture the actual Sponsored Text Ads and Google
+  Shopping product ads paying to sit at the very top of Google right now.
+- Engine 2 (Multi-Brand Google Transparency Center): Instead of checking only 1
+  website when you search a category (like "running shoes" or "car"), it now
+  checks up to 3 top competing brands at the same time to pull their longest-
+  running YouTube Video Ads, Display Banners, and Search Ads.
+- Engine 3 (Full Ad Details & YouTube Previews): Automatically fills in the
+  missing headlines, descriptions, Call-To-Action buttons, and YouTube video
+  links for the top winners so Google Ad cards never show up blank.
+
+
+4. HOW META (FACEBOOK & INSTAGRAM) SEARCH WAS IMPROVED (DUAL-ENGINE SYSTEM)
+--------------------------------------------------------------------------------
+- Exact-Phrase + Broad Search: Multi-word searches (like "protein powder" or
+  "teeth whitening") now search for the exact phrase first so you get real
+  product ads instead of unrelated posts that happen to share one word.
+- Ad-Set Scaling Detection: Tracks how many copies of the same ad a brand is
+  running at once ("5 Ad Sets Scaling") and how many total ads that Facebook
+  Page is running—showing you which brands are spending serious money.
+- Full Carousel & Reels Details: Pulls text from all Carousel cards (not just
+  the first card), captures discount/shipping notes, and uses Facebook Page
+  likes and placement data (Facebook + Instagram + Reels) to rank the best
+  performing ads at the top.
+
+
+5. SMARTER AI REMIX STUDIO FOR EACH PLATFORM
+--------------------------------------------------------------------------------
+- When you click "Remix" on an ad, the AI now adapts its strategy to the exact
+  platform:
+  * Meta Ads: Focuses on the 3-second Reels/Feed visual hook, "above-the-fold"
+    caption, and Carousel offer stack.
+  * TikTok Ads: Focuses on the 2-second thumbstop, native UGC creator style,
+    and on-screen text captions.
+  * Google & YouTube Ads: Focuses on high-intent Google Search headlines,
+    sitelinks, and the first 5 seconds of a YouTube video (before the "Skip Ad"
+    button appears).
+- Designed to run smoothly and reliably on all AI models, including fast,
+  low-cost models (Gemini Flash-Lite, Gemini 3.8 Flash Low, Claude Haiku, and
+  gpt-6-luna).
+================================================================================
