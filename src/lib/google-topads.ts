@@ -188,6 +188,7 @@ export async function fetchGoogleSerpPaidAds(params: {
     const nowIso = new Date().toISOString();
     const drafts: GoogleDraft[] = [];
     const domainSet = new Set<string>();
+    const nonGoogleSocialDomain = /\b(?:facebook\.com|instagram\.com|fb\.com|meta\.com|tiktok\.com|bytedance\.com)\b/i;
 
     // 1. Parse Sponsored Search Text Ads (`ads` / `paid_results`)
     const paidAds = [...list(json.ads), ...list(json.paid_results)];
@@ -200,6 +201,8 @@ export async function fetchGoogleSerpPaidAds(params: {
         extractCleanDomain(ad.domain) ||
         extractCleanDomain(ad.displayed_link) ||
         extractCleanDomain(link);
+
+      if (nonGoogleSocialDomain.test(domain) || nonGoogleSocialDomain.test(link)) continue;
 
       if (domain && isRelevantGoogleAdvertiser(domain, params.intent)) {
         domainSet.add(domain);
@@ -281,6 +284,8 @@ export async function fetchGoogleSerpPaidAds(params: {
       const thumb = https(shop.thumbnail || shop.image);
       const link = https(shop.link || shop.product_link);
       const domain = extractCleanDomain(link) || extractCleanDomain(seller);
+
+      if (nonGoogleSocialDomain.test(domain) || nonGoogleSocialDomain.test(link)) continue;
 
       if (domain && isRelevantGoogleAdvertiser(domain, params.intent)) {
         domainSet.add(domain);

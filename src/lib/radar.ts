@@ -36,6 +36,7 @@ import {
   inferMetaCta,
 } from "./meta-topads";
 import {
+  enforcePlatformIsolation,
   filterRelevantDrafts,
   isRelevantGoogleAdvertiser,
   resolveSearchIntent,
@@ -45,7 +46,7 @@ import type { BrandProfile } from "./contracts";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /** Part of every cache key: bump it when normalization changes so stale result sets aren't served. */
-const CACHE_VERSION = "11";
+const CACHE_VERSION = "12";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS = 100;
 
@@ -137,7 +138,8 @@ async function readCache(ref: DocumentReference): Promise<RadarCacheDoc | null> 
 }
 
 function serve(doc: RadarCacheDoc, req: RadarSearchRequest, cached: boolean): SearchResult {
-  let ads = doc.ads;
+  const isolated = enforcePlatformIsolation(doc.ads, req.platform);
+  let ads = isolated;
   if (req.extendedLongevity) {
     ads = ads.filter((ad) => ad.activeDaysCount >= EXTENDED_WINNER_DAYS);
   } else if (req.provenWinnersOnly) {
@@ -146,7 +148,7 @@ function serve(doc: RadarCacheDoc, req: RadarSearchRequest, cached: boolean): Se
   if (req.eliteWinnersOnly) {
     ads = ads.filter((ad) => (ad.matrixScore?.compositeScore ?? ad.winningScore) >= ELITE_SCORE_THRESHOLD);
   }
-  return { ads, unfilteredCount: doc.ads.length, cached, queryHash: doc.queryHash, fetchedAt: doc.createdAt, notice: doc.notice };
+  return { ads, unfilteredCount: isolated.length, cached, queryHash: doc.queryHash, fetchedAt: doc.createdAt, notice: doc.notice };
 }
 
 /**
@@ -201,12 +203,12 @@ async function recoverRealCachedDrafts(req: RadarSearchRequest, intent: Resolved
         const matchesPositive = intent.isCategoryQuery
           ? intent.positiveTerms.some((pos) => pos.test(corpus))
           : matchesQuery;
-        if (matchesPositive) {
+        if (matchesPositive && ad.platform === req.platform) {
           candidates.push({ ...ad, duplicates: 1 });
         }
       }
     }
-    return filterRelevantDrafts(candidates, intent);
+    return enforcePlatformIsolation(filterRelevantDrafts(candidates, intent), req.platform);
   } catch {
     return [];
   }
@@ -228,7 +230,10 @@ async function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
         break;
     }
 
-    const filtered = filterRelevantDrafts(rawResult.drafts, intent);
+    const filtered = enforcePlatformIsolation(
+      filterRelevantDrafts(rawResult.drafts, intent),
+      req.platform,
+    );
     return { drafts: filtered, notice: rawResult.notice };
   } catch (err) {
     // Only serve previously cached REAL ads if available; otherwise rethrow so token is refunded and quota message shown

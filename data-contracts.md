@@ -148,7 +148,12 @@ From the SuperAdmin Control Panel, all rates can be dynamically set to free (`0 
   - `LIKES`: Most likes (`totalLikes ?? compositeLikes`) descending.
   - `VIEWS`: Most views (`totalViews ?? compositeViews`) descending.
   - `LONGEST`: Longest ad online (`activeDaysCount`) descending.
-- **Platform Search Volume & Quality Normalization (`CACHE_VERSION = "11"`, `MAX_RESULTS = 100`, `PAGE_SIZE = 18`):**
+- **Platform Search Volume & Quality Normalization (`CACHE_VERSION = "12"`, `MAX_RESULTS = 100`, `PAGE_SIZE = 18`):**
+  - **Strict Platform Isolation Gate (`enforcePlatformIsolation` in `src/lib/radar-relevance.ts`, `src/lib/radar.ts` & `src/components/radar/RadarView.tsx`):**
+    - Selecting `META` strictly returns only Meta (Facebook, Instagram, Reels, Messenger, Audience Network) ads (`platform === "META"`, `adId` prefixed `meta_`, blocking TikTok/Google/YouTube domains and media).
+    - Selecting `TIKTOK` strictly returns only TikTok ads (`platform === "TIKTOK"`, `adId` prefixed `tiktok_`, blocking Meta/Facebook/Instagram/Google/YouTube domains and media).
+    - Selecting `GOOGLE` strictly returns only Google Ads (Search RSA, Google Shopping, Display/Performance Max) and YouTube Video Ads (`platform === "GOOGLE"`, `adId` prefixed `google_`, blocking Meta/Facebook/Instagram/TikTok domains and media).
+    - Switching the platform selector in `RadarView.tsx` immediately isolates results to the selected platform and triggers a platform-isolated search when a query is present.
   - **Semantic Ad Search & Relevance Engine (`src/lib/radar-relevance.ts` & `skills/semantic-ad-search-relevance/SKILL.md`):**
     1. *Intent-to-Domain & Vertical Taxonomy Resolver:* Maps generic category queries (e.g., `"car"`, `"running shoes"`, `"skincare"`, `"pet food"`, `"horse"`) to authoritative category domains (such as `carsales.com.au`, `toyota.com.au`, `mazda.com.au`, `drive.com.au` for `"car"`).
     2. *Word-Boundary & Prefix Collision Guard:* Blocks false-positive substring matches on Google advertiser lookups (e.g., blocking `"Cara HO"`, `"Care"`, `"Skincare"`, `"CeraVe"`, `"Carpet"` when searching `"car"`).

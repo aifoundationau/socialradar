@@ -187,15 +187,21 @@ export function RadarView() {
 
   const selectedBrandId = filters.brandId || activeBrand?.brandId || brands?.[0]?.brandId || "";
 
-  const ads = useMemo(() => (result ? [...result.ads].sort(SORTERS[sort]) : []), [result, sort]);
+  const ads = useMemo(
+    () => (result ? result.ads.filter((ad) => ad.platform === filters.platform).sort(SORTERS[sort]) : []),
+    [result, filters.platform, sort],
+  );
   // The server returns ads ranked by raw winning score, which the capped 0-100 score can't show.
-  const ranks = useMemo(() => new Map(result?.ads.map((ad, i) => [ad.adId, i + 1])), [result]);
+  const ranks = useMemo(
+    () => new Map(result?.ads.filter((ad) => ad.platform === filters.platform).map((ad, i) => [ad.adId, i + 1])),
+    [result, filters.platform],
+  );
   const pageCount = Math.max(1, Math.ceil(ads.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount - 1);
   const pageStart = currentPage * PAGE_SIZE;
   const pageAds = ads.slice(pageStart, pageStart + PAGE_SIZE);
   const selected = ads.find((ad) => ad.adId === selectedAdId) ?? null;
-  const winners = result ? result.ads.filter((ad) => ad.activeDaysCount >= PROVEN_WINNER_DAYS).length : 0;
+  const winners = ads.filter((ad) => ad.activeDaysCount >= PROVEN_WINNER_DAYS).length;
   // Ads the "proven winners" filter hid (results saved before this field existed count as none).
   const hiddenNewer = result && searched?.provenWinnersOnly ? Math.max(0, (result.unfilteredCount ?? 0) - result.ads.length) : 0;
 
@@ -261,7 +267,19 @@ export function RadarView() {
       <AmbientGlow />
       <RadarFilterBar
         filters={{ ...filters, brandId: selectedBrandId }}
-        onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+        onChange={(patch) => {
+          const next = { ...filters, ...patch };
+          setFilters(next);
+          if (patch.platform && patch.platform !== filters.platform) {
+            if (next.query.trim().length >= 2) {
+              void search(next);
+            } else {
+              setResult(null);
+              setSearched(null);
+              setSelectedAdId(null);
+            }
+          }
+        }}
         onSearch={() => search()}
         searching={searching}
         sort={sort}
@@ -269,7 +287,7 @@ export function RadarView() {
           setSort(next);
           setPage(0);
         }}
-        summary={result ? { total: result.ads.length, winners } : null}
+        summary={result && searched?.platform === filters.platform ? { total: ads.length, winners } : null}
         brands={brands}
       />
 

@@ -259,3 +259,48 @@ export function filterRelevantDrafts<T extends DraftCandidate>(
     return true;
   });
 }
+
+const META_COMPETITOR_DOMAINS = /\b(?:tiktok\.com|bytedance\.com|youtube\.com|youtu\.be|ads\.google\.com)\b/i;
+const TIKTOK_COMPETITOR_DOMAINS = /\b(?:facebook\.com|instagram\.com|fb\.com|fb\.watch|meta\.com|youtube\.com|youtu\.be|ads\.google\.com)\b/i;
+const GOOGLE_COMPETITOR_DOMAINS = /\b(?:facebook\.com|instagram\.com|fb\.com|fb\.watch|meta\.com|tiktok\.com|bytedance\.com)\b/i;
+
+/**
+ * Stage 4: Strict Platform Isolation Gate.
+ * Guarantees that:
+ * - Selecting META returns ONLY Meta (Facebook / Instagram / Messenger / Audience Network) ads.
+ * - Selecting TIKTOK returns ONLY TikTok ads.
+ * - Selecting GOOGLE returns ONLY Google (Search, Shopping, Display/PMax) and YouTube ads.
+ */
+export function enforcePlatformIsolation<
+  T extends Pick<
+    DraftCandidate,
+    "adId" | "platform" | "advertiserName" | "headline" | "primaryCopy" | "landingPageUrl" | "mediaUrls"
+  >,
+>(items: T[], requestedPlatform: "META" | "TIKTOK" | "GOOGLE"): T[] {
+  return items.filter((item) => {
+    if (item.platform !== requestedPlatform) return false;
+
+    const mediaJoined = item.mediaUrls.join(" ");
+    const landingAndAdv = `${item.advertiserName} ${item.landingPageUrl}`;
+
+    if (requestedPlatform === "META") {
+      if (!item.adId.startsWith("meta_")) return false;
+      if (META_COMPETITOR_DOMAINS.test(landingAndAdv) || META_COMPETITOR_DOMAINS.test(mediaJoined)) return false;
+      return true;
+    }
+
+    if (requestedPlatform === "TIKTOK") {
+      if (!item.adId.startsWith("tiktok_")) return false;
+      if (TIKTOK_COMPETITOR_DOMAINS.test(landingAndAdv) || TIKTOK_COMPETITOR_DOMAINS.test(mediaJoined)) return false;
+      return true;
+    }
+
+    if (requestedPlatform === "GOOGLE") {
+      if (!item.adId.startsWith("google_")) return false;
+      if (GOOGLE_COMPETITOR_DOMAINS.test(landingAndAdv) || GOOGLE_COMPETITOR_DOMAINS.test(mediaJoined)) return false;
+      return true;
+    }
+
+    return false;
+  });
+}
