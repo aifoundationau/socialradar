@@ -25,7 +25,7 @@ For the full, detailed system documentation, technical architecture, and operati
 - **Brand Strategy Portfolio:** Store up to 25 detailed brand profiles (target audience avatars, visceral pain points, unique mechanisms, landing page funnels, tone of voice, and versioning).
 - **Customize Brand Strategy Service:** Direct routing to strategy team with 200+ word brief input, 55 token fee, and 10,000-character multi-angle strategy delivery with 1-click Copy Text.
 - **Democratic Token Economy:** Strict integer tokens (`Math.round`), AUD platform pricing with exclusive Australian GST (10%) and $0 tax for international/NZ buyers via native Stripe Automatic Tax.
-- **Monthly Search Subscription:** 1,000 monthly search tokens for AUD $500/month (configurable by SuperAdmin).
+- **Monthly Search Subscription:** 1,000 monthly search tokens for AUD $700/month (configurable by SuperAdmin).
 - **Redistributive Equity Ledger:** Automated dividend distribution pool allocating token revenue to registered equity partners under Australian statutory standards.
 - **SuperAdmin & Main Admin Governance Suite:** Role-governed administration (5 tabs for Main Admin, full suite for SuperAdmin including messages, RBAC, ledger, pricing, and diagnostics).
 - **7-Year Statutory Retention Messaging:** Plain-text anti-tamper compliance archive with Gemini-assisted AI Work Reply Designer and two-step permanent deletion (`Delete` → `Confirm Delete`).
