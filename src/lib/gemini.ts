@@ -196,13 +196,15 @@ export async function generateRemix(ad: NormalizedAd, brand: BrandProfile): Prom
     callToAction: ad.ctaText,
     landingPage: ad.landingPageUrl,
   };
-  const tiktokDirective =
+  const platformDirective =
     ad.platform === "TIKTOK"
       ? "\n\nTIKTOK VIRAL INTELLIGENCE DIRECTIVE: Deconstruct the 0-2s visual thumbstop and 2-6s retention bridge. Design all 3 variations with TikTok-native UGC delivery (e.g., Green Screen, POV, Creator Review/Unboxing, or Problem-Agitate-Solve), punchy on-screen native text overlays, and high-converting verbal hooks."
-      : "";
+      : ad.platform === "GOOGLE"
+        ? "\n\nGOOGLE ADS WINNER INTELLIGENCE DIRECTIVE: Deconstruct the high-intent Google Search RSA headline/sitelink architecture, YouTube 0-5s pre-skip bumper hook, or Performance Max/Shopping offer framing. Design all 3 variations to maximize high-intent search conversion, YouTube 5-second pre-skip retention, and clear commercial callouts."
+        : "";
   const media = await mediaPart(ad);
   const parts: Part[] = [
-    { text: `SOURCE AD${media ? " (its creative is attached)" : " (creative unavailable; work from the copy)"}:\n${JSON.stringify(source, null, 2)}${tiktokDirective}` },
+    { text: `SOURCE AD${media ? " (its creative is attached)" : " (creative unavailable; work from the copy)"}:\n${JSON.stringify(source, null, 2)}${platformDirective}` },
     ...(media ? [media] : []),
     { text: `BRAND:\n${JSON.stringify(brand, null, 2)}` },
   ];

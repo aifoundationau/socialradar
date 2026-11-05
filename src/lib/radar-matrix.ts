@@ -18,9 +18,9 @@ const HOOK_PATTERNS = [
   /\b(?:we tested|proven|scientific|research|study)\b/i,
   /\b(?:warning|alert|attention|psa|unpopular opinion)\b/i,
   /\b(?:before you|if you|are you|pov:|grwm)\b/i,
-  /\b(?:90%|95%|99%|1 in \d+|thousands of|top 1% ctr|top 5% ctr)\b/i,
-  /\b(?:guaranteed|risk-free|money back|free shipping|bundle)\b/i,
-  /\b(?:tiktok made|i tried|my honest|honest review|unboxing|obsessed|game changer|holy grail)\b/i,
+  /\b(?:90%|95%|99%|1 in \d+|thousands of|top 1% ctr|top 5% ctr|position #[1-4]|live auction winner)\b/i,
+  /\b(?:guaranteed|risk-free|money back|free shipping|bundle|free quote|instant quote|official site|compare)\b/i,
+  /\b(?:tiktok made|i tried|my honest|honest review|unboxing|obsessed|game changer|holy grail|sitelinks:|evergreen winner)\b/i,
 ];
 
 /** Extract meaningful lowercase word tokens (min length 4, ignoring common stop words). */

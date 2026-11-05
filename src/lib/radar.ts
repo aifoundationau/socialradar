@@ -23,6 +23,12 @@ import {
   inferTikTokCta,
 } from "./tiktok-topads";
 import {
+  buildGoogleHeadline,
+  buildGooglePrimaryCopy,
+  fetchGoogleSerpPaidAds,
+  inferGoogleCta,
+} from "./google-topads";
+import {
   filterRelevantDrafts,
   isRelevantGoogleAdvertiser,
   resolveSearchIntent,
@@ -32,7 +38,7 @@ import type { BrandProfile } from "./contracts";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /** Part of every cache key: bump it when normalization changes so stale result sets aren't served. */
-const CACHE_VERSION = "9";
+const CACHE_VERSION = "10";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS = 100;
 
@@ -477,29 +483,48 @@ async function searchTikTok(req: RadarSearchRequest): Promise<LibraryResult> {
   return { drafts, notice };
 }
 
-// ---------- Google Ads Transparency Center (Search, YouTube, Display) ----------
-// Credit budget: a search by website is 1 request; by keyword it is 2 (advertiser lookup + list), or 3
-// when the whole phrase matches no advertiser. Creatives and copy are only fetched when an ad is
-// remixed (see enrichGoogleAd), because each detail lookup is another credit.
+// ---------- 3-Engine Google Ads Winner System (SERP RSA + Shopping + Transparency Center) ----------
 
 /**
- * The Transparency Center only searches by advertiser or domain, and advertiser names rarely contain a
- * phrase like "running shoes". So try the whole query, then its longest word, taking matching
- * advertisers first and a matching domain otherwise.
+ * Resolves up to 3 authoritative Google Ads Transparency Center targets (domains or advertiser IDs)
+ * combining live SERP bidding domains, category authority domains, and verified advertiser lookups.
  */
-async function findGoogleTarget(
+async function findGoogleTargets(
   req: RadarSearchRequest,
   intent: ResolvedSearchIntent,
-): Promise<{ target: Record<string, string>; matched: string } | null> {
-  // Stage 1: If the query is a known product/vertical category (e.g. "car", "running shoes", "skincare"),
-  // target authoritative category domains directly or query unambiguous brand terms.
+  discoveredDomains: string[],
+): Promise<{ targets: Array<Record<string, string>>; matchedLabels: string[] }> {
+  const targets: Array<Record<string, string>> = [];
+  const matchedLabels: string[] = [];
+  const seenDomains = new Set<string>();
+
+  const addDomainTarget = (domain: string, label?: string) => {
+    const clean = domain.trim().toLowerCase();
+    if (!clean || !DOMAIN.test(clean) || seenDomains.has(clean)) return;
+    seenDomains.add(clean);
+    targets.push({ domain: clean });
+    matchedLabels.push(label ?? clean);
+  };
+
+  // Stage 1: Include live SERP auction bidding domains discovered from Engine 1
+  for (const d of discoveredDomains.slice(0, 2)) {
+    addDomainTarget(d, d);
+  }
+
+  // Stage 2: If the query is a known product/vertical category (e.g. "car", "running shoes", "skincare"),
+  // include up to 3 authoritative category domains instead of only 1 domain.
   if (intent.isCategoryQuery && intent.googleDomains.length > 0) {
+    for (const d of intent.googleDomains) {
+      if (targets.length >= 3) break;
+      addDomainTarget(d, d);
+    }
     return {
-      target: { domain: intent.googleDomains[0] },
-      matched: `${intent.categoryLabel} (${intent.googleDomains[0]})`,
+      targets: targets.slice(0, 3),
+      matchedLabels: [`${intent.categoryLabel} (${matchedLabels.slice(0, 3).join(", ")})`],
     };
   }
 
+  // Stage 3: Query Google Ads Transparency Center Advertiser Search for verified Advertiser IDs (`AR...`) or domains
   const longestWord = req.query
     .split(/\s+/)
     .filter((w) => w.length >= 4)
@@ -509,125 +534,207 @@ async function findGoogleTarget(
     : [...new Set([req.query, longestWord ?? req.query])];
 
   for (const q of candidateQueries) {
-    const found = await searchApi("google_ads_transparency_center_advertiser_search", {
-      q,
-      region: req.country,
-      num_advertisers: "10",
-      num_domains: "5",
-    });
+    if (targets.length >= 3) break;
+    try {
+      const found = await searchApi("google_ads_transparency_center_advertiser_search", {
+        q,
+        region: req.country,
+        num_advertisers: "10",
+        num_domains: "5",
+      });
 
-    // Stage 2: Filter advertisers and domains through word-boundary & negative collision guard
-    // so prefix collisions (like "car" -> "Cara HO" skincare) are deterministically rejected.
-    const ids = list(found.advertisers)
-      .filter((a) => isRelevantGoogleAdvertiser(String(obj(a).name ?? ""), intent))
-      .map((a) => String(obj(a).id ?? ""))
-      .filter((id) => /^AR\d+$/.test(id))
-      .slice(0, 5);
-    if (ids.length) return { target: { advertiser_id: ids.join(",") }, matched: q };
+      const ids = list(found.advertisers)
+        .filter((a) => isRelevantGoogleAdvertiser(String(obj(a).name ?? ""), intent))
+        .map((a) => String(obj(a).id ?? ""))
+        .filter((id) => /^AR\d+$/.test(id))
+        .slice(0, 5);
+      if (ids.length) {
+        targets.unshift({ advertiser_id: ids.join(",") });
+        matchedLabels.unshift(q);
+        break;
+      }
 
-    const domain = list(found.domains)
-      .map((d) => String(obj(d).name ?? ""))
-      .find((d) => DOMAIN.test(d) && isRelevantGoogleAdvertiser(d, intent));
-    if (domain) return { target: { domain: domain.toLowerCase() }, matched: q };
+      const domain = list(found.domains)
+        .map((d) => String(obj(d).name ?? ""))
+        .find((d) => DOMAIN.test(d) && isRelevantGoogleAdvertiser(d, intent));
+      if (domain) {
+        addDomainTarget(domain, q);
+        break;
+      }
+    } catch (err) {
+      if (targets.length === 0 && q === candidateQueries[candidateQueries.length - 1]) throw err;
+    }
   }
-  return null;
+
+  return { targets: targets.slice(0, 3), matchedLabels };
 }
 
 async function searchGoogle(req: RadarSearchRequest, intent: ResolvedSearchIntent): Promise<LibraryResult> {
-  let target: Record<string, string>;
+  // Engine 1: Run Live Google SERP Sponsored Search & Shopping Discovery
+  const serpResult = await fetchGoogleSerpPaidAds({
+    query: req.query,
+    country: req.country,
+    mediaType: req.mediaType,
+    intent,
+  });
+
+  let targets: Array<Record<string, string>> = [];
   let notice = "";
+
   if (DOMAIN.test(req.query)) {
-    target = { domain: req.query.toLowerCase() };
+    targets = [{ domain: req.query.toLowerCase() }];
   } else {
-    const found = await findGoogleTarget(req, intent);
-    if (!found) {
+    const resolved = await findGoogleTargets(req, intent, serpResult.discoveredDomains);
+    targets = resolved.targets;
+    if (targets.length === 0 && serpResult.drafts.length === 0) {
       return {
         drafts: [],
         notice: `Google's ad library is searched by advertiser, and none matched "${req.query}". Try a brand name or a website like nike.com.`,
       };
     }
-    target = found.target;
-    if (found.matched !== req.query) notice = `Google's ad library is searched by advertiser/domain, so these are verified ads from ${found.matched}.`;
+    const primaryLabel = resolved.matchedLabels[0] ?? req.query;
+    if (primaryLabel !== req.query && serpResult.drafts.length === 0) {
+      notice = `Google's ad library is searched by advertiser/domain, so these are verified ads from ${primaryLabel}.`;
+    }
   }
 
-  const baseParams: Record<string, string | undefined> = {
-    ...target,
-    region: req.country,
-    ad_format: req.mediaType === "ALL" ? undefined : req.mediaType.toLowerCase(),
-    num: "100",
-  };
-  const json = await searchApi("google_ads_transparency_center", baseParams);
-  const rawCreatives = [...list(json.ad_creatives)];
+  // Engine 2: Multi-Advertiser Google Ads Transparency Center ingestion
+  const rawCreatives: unknown[] = [];
+  if (targets.length > 0) {
+    const targetResponses = await Promise.allSettled(
+      targets.map(async (target, idx) => {
+        const baseParams: Record<string, string | undefined> = {
+          ...target,
+          region: req.country,
+          ad_format: req.mediaType === "ALL" ? undefined : req.mediaType.toLowerCase(),
+          num: "100",
+        };
+        const json = await searchApi("google_ads_transparency_center", baseParams);
+        const batch = [...list(json.ad_creatives)];
 
-  const nextToken = typeof obj(json.pagination).next_page_token === "string"
-    ? String(obj(json.pagination).next_page_token)
-    : "";
-  if (rawCreatives.length < 60 && nextToken) {
-    try {
-      const page2 = await searchApi("google_ads_transparency_center", {
-        ...baseParams,
-        next_page_token: nextToken,
-      });
-      rawCreatives.push(...list(page2.ad_creatives));
-    } catch {
-      // Keep page 1 results if page 2 fails
+        // Fetch page 2 for the primary target if fewer than 60 creatives returned
+        const nextToken =
+          idx === 0 && typeof obj(json.pagination).next_page_token === "string"
+            ? String(obj(json.pagination).next_page_token)
+            : "";
+        if (idx === 0 && batch.length < 60 && nextToken) {
+          try {
+            const page2 = await searchApi("google_ads_transparency_center", {
+              ...baseParams,
+              next_page_token: nextToken,
+            });
+            batch.push(...list(page2.ad_creatives));
+          } catch {
+            // Keep page 1 results if page 2 fails
+          }
+        }
+        return batch;
+      }),
+    );
+
+    const fulfilled = targetResponses.filter(
+      (r): r is PromiseFulfilledResult<unknown[]> => r.status === "fulfilled",
+    );
+    if (fulfilled.length === 0 && serpResult.drafts.length === 0) {
+      const firstRejected = targetResponses.find(
+        (r): r is PromiseRejectedResult => r.status === "rejected",
+      );
+      if (firstRejected) throw firstRejected.reason;
+    }
+    for (const f of fulfilled) {
+      rawCreatives.push(...f.value);
+    }
+  }
+
+  // Track multi-creative scaling per advertiser so `duplicates` reflects real campaign depth
+  const advertiserCreativeCounts = new Map<string, number>();
+  for (const raw of rawCreatives) {
+    const c = obj(raw);
+    const advId = idPart(obj(c.advertiser).id) || String(c.target_domain ?? "").toLowerCase();
+    if (advId) {
+      advertiserCreativeCounts.set(advId, (advertiserCreativeCounts.get(advId) ?? 0) + 1);
     }
   }
 
   // Extract c.image.link for Image and Video ads while keeping pure Text ads formatted as TEXT.
-  const drafts = rawCreatives.flatMap((raw): Draft[] => {
+  const transparencyDrafts = rawCreatives.flatMap((raw): Draft[] => {
     const c = obj(raw);
     const id = idPart(c.id);
     const first = isoDate(c.first_shown_datetime);
     const last = isoDate(c.last_shown_datetime);
     if (!id || !first || !last || (c.format !== "video" && c.format !== "image" && c.format !== "text")) return [];
     const advertiser = obj(c.advertiser);
-    const domain = typeof c.target_domain === "string" && DOMAIN.test(c.target_domain) ? c.target_domain : "";
+    const advertiserName = text(advertiser.name, 300);
+    const advertiserId = idPart(advertiser.id);
+    const domain = typeof c.target_domain === "string" && DOMAIN.test(c.target_domain) ? c.target_domain.toLowerCase() : "";
     const mediaType = c.format === "video" ? "VIDEO" : c.format === "text" ? "TEXT" : "IMAGE";
     const previewImg = https(obj(c.image).link) || https(c.image);
+    const activeDaysCount = Math.max(1, Math.round(Number(c.total_days_shown)) || daysBetween(first, last));
+    const advKey = advertiserId || domain;
+    const totalForAdv = advKey ? (advertiserCreativeCounts.get(advKey) ?? 1) : 1;
+    const duplicates = Math.min(8, Math.max(0, Math.floor((totalForAdv - 1) / 3)));
+
+    const rawCopy = text(c.description || c.snippet || c.text, 5000);
+    const rawHeadline = text(c.long_headline || c.headline || c.title, 500);
+    const primaryCopy = buildGooglePrimaryCopy({
+      rawCopy,
+      advertiserName,
+      domain,
+      mediaType,
+      activeDays: activeDaysCount,
+      country: req.country,
+      query: req.query,
+    });
+    const headline = buildGoogleHeadline({
+      rawHeadline,
+      copy: primaryCopy,
+      advertiserName,
+      domain,
+      mediaType,
+      activeDays: activeDaysCount,
+      query: req.query,
+    });
+    const ctaText = inferGoogleCta(c.call_to_action, primaryCopy, headline, mediaType);
 
     return [
       {
         adId: `google_${id}`,
         platform: "GOOGLE",
-        advertiserName: text(advertiser.name, 300),
-        advertiserId: idPart(advertiser.id),
+        advertiserName,
+        advertiserId,
         mediaType,
         mediaUrls: mediaType === "IMAGE" && previewImg ? [previewImg] : [],
         thumbnailUrl: mediaType !== "TEXT" ? previewImg : "",
-        primaryCopy: "",
-        headline: "",
-        ctaText: "",
+        primaryCopy,
+        headline,
+        ctaText,
         landingPageUrl: domain ? `https://${domain}` : "",
         countryCode: req.country,
         firstSeenDate: first,
         lastSeenDate: last,
-        activeDaysCount: Math.max(1, Math.round(Number(c.total_days_shown)) || daysBetween(first, last)),
-        duplicates: 0,
+        activeDaysCount,
+        duplicates,
       },
     ];
   });
 
-  // Only enrich up to 2 ads if fewer than 3 visuals came back from the list call, conserving SearchApi credits.
-  const hasVisualCount = drafts.filter((d) => Boolean(d.thumbnailUrl || d.mediaUrls.length)).length;
-  const missingVisuals =
-    hasVisualCount >= 3
-      ? []
-      : drafts
-          .filter((d) => d.mediaType !== "TEXT" && !d.thumbnailUrl && !d.mediaUrls.length && d.advertiserId)
-          .sort((a, b) => b.activeDaysCount - a.activeDaysCount)
-          .slice(0, 2);
+  // Engine 3: Deep Winner Detail Enrichment for top longevity winners (pulling YouTube video links, real headlines, copy & CTAs)
+  const topWinnersToEnrich = [...transparencyDrafts]
+    .filter((d) => d.advertiserId && (!d.thumbnailUrl || d.primaryCopy.startsWith("Verified Google ")))
+    .sort((a, b) => b.activeDaysCount - a.activeDaysCount)
+    .slice(0, 3);
 
-  if (missingVisuals.length > 0) {
+  if (topWinnersToEnrich.length > 0) {
     await Promise.allSettled(
-      missingVisuals.map(async (d) => {
+      topWinnersToEnrich.map(async (d) => {
         const det = await searchApi("google_ads_transparency_center_ad_details", {
           advertiser_id: d.advertiserId,
           creative_id: d.adId.replace(/^google_/, ""),
         });
         const v = obj(list(det.variations)[0]);
         const videoId = typeof v.video_id === "string" && /^[\w-]{6,20}$/.test(v.video_id) ? v.video_id : "";
-        const videoUrl = https(v.video_link);
+        const videoUrl =
+          https(v.video_link) || (videoId ? `https://www.youtube.com/watch?v=${videoId}` : "");
         const firstImg = https(list(v.images)[0]);
         const imgUrl =
           https(v.thumbnail) ||
@@ -639,26 +746,38 @@ async function searchGoogle(req: RadarSearchRequest, intent: ResolvedSearchInten
         } else if (d.mediaType === "IMAGE" && imgUrl) {
           d.mediaUrls = [imgUrl];
         }
-        if (imgUrl) d.thumbnailUrl = imgUrl;
-        d.primaryCopy = text(v.description, 5000) || text(v.snippet, 5000) || d.primaryCopy;
-        d.headline = text(v.long_headline, 500) || text(v.title, 500) || text(v.product_name, 500) || d.headline;
-        d.ctaText = ctaLabel(v.call_to_action) || d.ctaText;
+        if (imgUrl && d.mediaType !== "TEXT") d.thumbnailUrl = imgUrl;
+
+        const detCopy = text(v.description, 5000) || text(v.snippet, 5000);
+        const detHeadline = text(v.long_headline, 500) || text(v.title, 500) || text(v.product_name, 500);
+        if (detCopy) d.primaryCopy = detCopy;
+        if (detHeadline) d.headline = detHeadline;
+        d.ctaText = inferGoogleCta(v.call_to_action, d.primaryCopy, d.headline, d.mediaType);
+        const detLink = https(v.link) || https(v.displayed_link);
+        if (detLink) d.landingPageUrl = detLink;
       }),
     );
   }
 
-  return { drafts, notice };
+  const combinedDrafts = [...serpResult.drafts, ...transparencyDrafts];
+  return { drafts: combinedDrafts, notice };
 }
 
-/** True for a Google ad whose creative and copy haven't been fetched yet. */
+/** True for a Google Transparency Center ad whose full variation copy hasn't been fetched yet. */
 export const needsGoogleDetails = (ad: NormalizedAd) =>
-  ad.platform === "GOOGLE" && !ad.headline && !ad.primaryCopy;
+  ad.platform === "GOOGLE" &&
+  !ad.adId.startsWith("google_serp_") &&
+  !ad.adId.startsWith("google_shop_") &&
+  (!ad.headline || !ad.primaryCopy || ad.primaryCopy.startsWith("Verified Google "));
 
 /**
  * Fills in a Google ad's creative and copy from its detail page (1 SearchApi credit). Best effort:
  * on any failure the ad comes back unchanged and the remix works from what's known.
  */
 export async function enrichGoogleAd(ad: NormalizedAd): Promise<NormalizedAd> {
+  if (ad.adId.startsWith("google_serp_") || ad.adId.startsWith("google_shop_")) {
+    return ad;
+  }
   let v: Json;
   try {
     const json = await searchApi("google_ads_transparency_center_ad_details", {
@@ -671,19 +790,23 @@ export async function enrichGoogleAd(ad: NormalizedAd): Promise<NormalizedAd> {
   }
   const videoId = typeof v.video_id === "string" && /^[\w-]{6,20}$/.test(v.video_id) ? v.video_id : "";
   const firstImg = https(list(v.images)[0]);
-  const media = https(v.video_link) || (ad.mediaType === "IMAGE" ? https(v.image) || https(v.thumbnail) || firstImg : "");
+  const videoUrl =
+    https(v.video_link) || (videoId ? `https://www.youtube.com/watch?v=${videoId}` : "");
+  const media = videoUrl || (ad.mediaType === "IMAGE" ? https(v.image) || https(v.thumbnail) || firstImg : "");
   const thumb =
     https(v.thumbnail) ||
     https(v.image) ||
     firstImg ||
     (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : ad.thumbnailUrl);
+  const detCopy = text(v.description, 5000) || text(v.snippet, 5000) || ad.primaryCopy;
+  const detHeadline = text(v.long_headline, 500) || text(v.title, 500) || text(v.product_name, 500) || ad.headline;
   const enriched = NormalizedAdSchema.safeParse({
     ...ad,
     mediaUrls: media ? [media] : ad.mediaUrls,
     thumbnailUrl: ad.mediaType === "TEXT" ? "" : thumb,
-    primaryCopy: text(v.description, 5000) || text(v.snippet, 5000) || ad.primaryCopy,
-    headline: text(v.long_headline, 500) || text(v.title, 500) || text(v.product_name, 500) || ad.headline,
-    ctaText: ctaLabel(v.call_to_action) || ad.ctaText,
+    primaryCopy: detCopy,
+    headline: detHeadline,
+    ctaText: inferGoogleCta(v.call_to_action, detCopy, detHeadline, ad.mediaType) || ad.ctaText,
     landingPageUrl: https(v.link) || https(v.displayed_link) || ad.landingPageUrl,
   });
   return enriched.success ? enriched.data : ad;
