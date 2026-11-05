@@ -10,6 +10,7 @@ import {
   getSystemConfig,
   grantDevAdminRole,
   recordStripePurchase,
+  resetPartnerTokens,
   resetRedistributiveLedger,
   updateEquityPartner,
   updateSystemConfig,
@@ -68,6 +69,27 @@ export async function PUT(req: Request) {
       const updated = await deleteEquityPartner(partnerId);
       const ledger = await getRedistributiveLedger();
       return NextResponse.json({ success: true, equityPartners: updated, ledger });
+    }
+
+    if (body.action === "RESET_PARTNER_TOKENS") {
+      const partnerId = String(body.partnerId);
+      const result = await resetPartnerTokens({
+        partnerId,
+        resetByEmail: caller.email,
+        callerUid: caller.uid,
+      });
+      const [ledger, recentPurchases] = await Promise.all([
+        getRedistributiveLedger(),
+        getStripePurchases(50),
+      ]);
+      return NextResponse.json({
+        success: true,
+        equityPartners: result.equityPartners,
+        ledger,
+        recentPurchases,
+        clearedTokens: result.clearedTokens,
+        partnerEmail: result.partnerEmail,
+      });
     }
 
     if (body.action === "RESET_REDISTRIBUTIVE_LEDGER") {

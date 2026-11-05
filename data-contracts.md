@@ -298,7 +298,12 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 | `percentage` | number | Percentage share (0.01 - 100), total across all active partners <= 100% |
 | `notes` | string | Optional description or account reference, max 500 |
 | `status` | enum | `"active" | "inactive"` |
-| `createdAt` | ISO-8601 | |
+| `createdAt` | ISO-8601 | Creation date |
+| `claimedTokens` | integer | Cumulative tokens claimed/cleared via Individual Reset (Strict integer) |
+| `claimedAudCents` | integer | Cumulative AUD cents claimed/cleared via Individual Reset |
+| `claimedUsdCents` | integer | Cumulative USD cents claimed/cleared via Individual Reset |
+| `lastResetAt` | ISO-8601 | optional, timestamp of last reset to 0 tokens |
+| `lastResetBy` | string | optional, email of admin who performed the reset |
 
 ### `StripePurchaseRecord` (`stripe_purchases/{purchaseId}`)
 | Field | Type | Rules |
@@ -318,9 +323,15 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
   - `totalGrossAudCents`: Sum of all Stripe purchases in AUD cents (USD amounts converted at standard FX `0.65`).
   - `totalGrossUsdCents`: Sum of all Stripe purchases in USD cents (AUD amounts converted at standard FX `0.65`).
 - **Partner Entitlement**:
-  - `ownedTokens = Math.round(totalTokens * (percentage / 100))` (Strict integer)
-  - `ownedAudCents = Math.round(totalGrossAudCents * (percentage / 100))`
-  - `ownedUsdCents = Math.round(totalGrossUsdCents * (percentage / 100))`
+  - `grossTokens = Math.round(totalTokens * (percentage / 100))` (Strict integer)
+  - `ownedTokens = Math.max(0, grossTokens - (claimedTokens || 0))` (Strict integer)
+  - `ownedAudCents = Math.max(0, Math.round(totalGrossAudCents * (percentage / 100)) - (claimedAudCents || 0))`
+  - `ownedUsdCents = Math.max(0, Math.round(totalGrossUsdCents * (percentage / 100)) - (claimedUsdCents || 0))`
+- **Individual Partner Refresh to 0 Tokens (`PUT /api/admin/config` action `RESET_PARTNER_TOKENS`)**:
+  - Sets `claimedTokens = grossTokens`, `claimedAudCents = grossAudCents`, `claimedUsdCents = grossUsdCents`, `lastResetAt = now`, `lastResetBy = caller.email`.
+  - Resets that partner's row in `Owner Redistribution Breakdown` to `⚡ 0` tokens.
+  - Also resets the partner's user wallet balance in `users/{uid}` to 0 tokens (if registered) and logs `ADMIN_RESET` in `token_transactions`.
+  - Requires two-step UI confirmation (`reset-partner-tokens-{partnerId}` -> `confirm-reset-partner-{partnerId}`).
 - **Treasury Retained**:
   - `treasuryPercentage = 100% - sum(active partners percentage)`.
   - `treasuryTokens = Math.round(totalTokens * (treasuryPercentage / 100))`

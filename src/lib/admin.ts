@@ -210,10 +210,19 @@ export async function getRedistributiveLedger(): Promise<RedistributiveLedgerSum
   const distributions: PartnerDistribution[] = partners.map((p) => {
     const pct = Number(p.percentage) || 0;
     const isActive = p.status === "active";
-    const ownedTokens = isActive ? Math.round(totalTokens * (pct / 100)) : 0;
-    const ownedAudCents = isActive ? Math.round(totalGrossAudCents * (pct / 100)) : 0;
-    const ownedUsdCents = isActive ? Math.round(totalGrossUsdCents * (pct / 100)) : 0;
+    const grossTokens = isActive ? Math.round(totalTokens * (pct / 100)) : 0;
+    const grossAudCents = isActive ? Math.round(totalGrossAudCents * (pct / 100)) : 0;
+    const grossUsdCents = isActive ? Math.round(totalGrossUsdCents * (pct / 100)) : 0;
+
+    const claimedTokens = Math.round(Number(p.claimedTokens || 0));
+    const claimedAudCents = Math.round(Number(p.claimedAudCents || 0));
+    const claimedUsdCents = Math.round(Number(p.claimedUsdCents || 0));
+
+    const ownedTokens = Math.max(0, grossTokens - claimedTokens);
+    const ownedAudCents = Math.max(0, grossAudCents - claimedAudCents);
+    const ownedUsdCents = Math.max(0, grossUsdCents - claimedUsdCents);
     const ownedCents = ownedAudCents;
+
     return {
       partnerId: p.partnerId,
       name: p.name || p.email.split("@")[0] || p.email,
@@ -278,12 +287,108 @@ export async function resetRedistributiveLedger(callerUid?: string): Promise<{
     }
   }
 
+  const current = await getSystemConfig();
+  if (current.equityPartners?.length) {
+    const resetPartners = current.equityPartners.map((p) => ({
+      ...p,
+      claimedTokens: 0,
+      claimedAudCents: 0,
+      claimedUsdCents: 0,
+    }));
+    await updateSystemConfig({ equityPartners: resetPartners });
+  }
+
   const [ledger, recentPurchases] = await Promise.all([
     getRedistributiveLedger(),
     getStripePurchases(50),
   ]);
 
   return { deletedCount, ledger, recentPurchases };
+}
+
+/**
+ * Resets an individual Owner / Partner's accumulated tokens to 0 in the Redistribution Ledger
+ * and also resets their user wallet tokenBalance to 0 (if a user account exists with their email).
+ */
+export async function resetPartnerTokens(params: {
+  partnerId: string;
+  resetByEmail: string;
+  callerUid?: string;
+}): Promise<{
+  equityPartners: EquityPartner[];
+  clearedTokens: number;
+  partnerEmail: string;
+}> {
+  const current = await getSystemConfig();
+  const partners = current.equityPartners || [];
+  const partnerIndex = partners.findIndex((p) => p.partnerId === params.partnerId);
+
+  if (partnerIndex === -1) {
+    throw new Error(`Equity partner "${params.partnerId}" not found.`);
+  }
+
+  const targetPartner = partners[partnerIndex];
+  const purchasesSnap = await db.collection(PURCHASES_COL).get();
+
+  let totalTokens = 0;
+  let totalGrossAudCents = 0;
+  let totalGrossUsdCents = 0;
+
+  for (const doc of purchasesSnap.docs) {
+    const data = doc.data() as StripePurchaseRecord;
+    const tokens = Math.round(Number(data.tokens || 0));
+    const rawCents = Math.round(Number(data.amountCents || 0));
+    const curr = (data.currency || "aud").toLowerCase();
+
+    totalTokens += tokens;
+
+    if (curr === "usd") {
+      totalGrossUsdCents += rawCents;
+      totalGrossAudCents += Math.round(rawCents / 0.65);
+    } else {
+      totalGrossAudCents += rawCents;
+      totalGrossUsdCents += Math.round(rawCents * 0.65);
+    }
+  }
+
+  const pct = Number(targetPartner.percentage) || 0;
+  const grossTokens = targetPartner.status === "active" ? Math.round(totalTokens * (pct / 100)) : 0;
+  const grossAudCents = targetPartner.status === "active" ? Math.round(totalGrossAudCents * (pct / 100)) : 0;
+  const grossUsdCents = targetPartner.status === "active" ? Math.round(totalGrossUsdCents * (pct / 100)) : 0;
+
+  const prevClaimedTokens = Math.round(Number(targetPartner.claimedTokens || 0));
+  const clearedTokens = Math.max(0, grossTokens - prevClaimedTokens);
+
+  const updatedPartner: EquityPartner = {
+    ...targetPartner,
+    claimedTokens: grossTokens,
+    claimedAudCents: grossAudCents,
+    claimedUsdCents: grossUsdCents,
+    lastResetAt: new Date().toISOString(),
+    lastResetBy: params.resetByEmail,
+  };
+
+  const updatedPartners = [...partners];
+  updatedPartners[partnerIndex] = updatedPartner;
+
+  await updateSystemConfig({ equityPartners: updatedPartners });
+
+  // If partner has a user wallet account, also reset their tokenBalance to 0
+  try {
+    await resetTokensForUser({
+      recipientEmail: targetPartner.email,
+      note: `Owner Redistribution cleared to 0 by Admin (${params.resetByEmail})`,
+      resetByEmail: params.resetByEmail,
+    });
+  } catch {
+    // Non-fatal if no user wallet registered under this email yet
+  }
+
+  return {
+    equityPartners: updatedPartners,
+    clearedTokens,
+    partnerEmail: targetPartner.email,
+  };
 }
 
 /** Adds a new equity partner to system config. */

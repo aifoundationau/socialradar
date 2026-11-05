@@ -219,6 +219,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
   // Equity Partner delete confirmation
   const [confirmDeletePartnerId, setConfirmDeletePartnerId] = useState<string | null>(null);
+  const [confirmResetPartnerId, setConfirmResetPartnerId] = useState<string | null>(null);
+  const [resettingPartnerId, setResettingPartnerId] = useState<string | null>(null);
 
   // New Pack input state
   const [newPack, setNewPack] = useState<TokenPackItem>({
@@ -847,6 +849,44 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       setErrorMsg(errorMessage(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleResetPartnerTokens(partnerId: string, email: string) {
+    setResettingPartnerId(partnerId);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{
+        success: boolean;
+        equityPartners: EquityPartner[];
+        ledger: RedistributiveLedgerSummary;
+        clearedTokens: number;
+        partnerEmail: string;
+      }>("/api/admin/config", {
+        method: "PUT",
+        body: {
+          action: "RESET_PARTNER_TOKENS",
+          partnerId,
+        },
+      });
+
+      if (config) {
+        setConfig({ ...config, equityPartners: data.equityPartners });
+      }
+      setLedger(data.ledger);
+      setConfirmResetPartnerId(null);
+      setStatusMsg(
+        `Refreshed ${data.partnerEmail} to 0 tokens in the Owner Redistribution Breakdown (cleared ${data.clearedTokens.toLocaleString("en-AU")} ⚡ tokens).`
+      );
+      setRbacUsers((prev) =>
+        prev.map((u) => (u.email.toLowerCase() === email.toLowerCase() ? { ...u, tokenBalance: 0 } : u))
+      );
+      window.dispatchEvent(new CustomEvent("wallet-updated"));
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setResettingPartnerId(null);
     }
   }
 
@@ -2137,7 +2177,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                       {dist.percentage}%
                                     </td>
                                     <td className="px-2.5 py-2 font-mono text-primary font-semibold text-[11px] whitespace-nowrap">
-                                      ⚡ {dist.ownedTokens.toLocaleString("en-AU")}
+                                      <div>⚡ {dist.ownedTokens.toLocaleString("en-AU")}</div>
+                                      {partner.lastResetAt && (
+                                        <div className="text-[9px] font-mono text-secondary">
+                                          {dist.ownedTokens === 0 ? "Refreshed to 0" : `Reset ${new Date(partner.lastResetAt).toLocaleDateString("en-AU")}`}
+                                        </div>
+                                      )}
                                     </td>
                                     <td className="px-2.5 py-2 font-mono font-semibold text-on-surface text-[11px] whitespace-nowrap">
                                       {formatAud(dist.ownedAudCents ?? dist.ownedCents)}
@@ -2158,35 +2203,89 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                         {dist.status.toUpperCase()}
                                       </button>
                                     </td>
-                                    <td className="px-3 py-2 text-right">
-                                      {confirmDeletePartnerId === dist.partnerId ? (
-                                        <div className="flex items-center justify-end gap-1 animate-fadeIn">
+                                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                                      <div className="flex items-center justify-end gap-1.5">
+                                        {/* Refresh to 0 Tokens Button with 2-Step Confirmation */}
+                                        {confirmResetPartnerId === dist.partnerId ? (
+                                          <div className="flex items-center gap-1 animate-fadeIn">
+                                            <button
+                                              type="button"
+                                              disabled={resettingPartnerId === dist.partnerId}
+                                              onClick={() => handleResetPartnerTokens(dist.partnerId, dist.email)}
+                                              data-testid={`confirm-reset-partner-${dist.partnerId}`}
+                                              data-agent-id={`confirm-reset-partner-${dist.partnerId}`}
+                                              aria-label={`Confirm refresh ${dist.email} to 0 tokens`}
+                                              className="inline-flex items-center gap-1 rounded border border-amber-500/60 bg-amber-500/25 px-2 py-0.5 font-mono text-[10px] font-bold text-amber-200 hover:bg-amber-500/35 disabled:opacity-50 transition"
+                                            >
+                                              <Icon
+                                                name="refresh"
+                                                className={`size-2.5 ${resettingPartnerId === dist.partnerId ? "animate-spin" : ""}`}
+                                              />
+                                              <span>{resettingPartnerId === dist.partnerId ? "Resetting…" : "Confirm 0 ⚡"}</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setConfirmResetPartnerId(null)}
+                                              className="rounded border border-white/10 bg-surface-container-highest px-1.5 py-0.5 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        ) : (
                                           <button
                                             type="button"
-                                            onClick={() => handleDeletePartner(dist.partnerId)}
-                                            className={`${btnDanger} px-2 py-1 text-[10px]`}
-                                            data-testid={`confirm-delete-partner-${dist.partnerId}`}
+                                            onClick={() => {
+                                              setConfirmResetPartnerId(dist.partnerId);
+                                              setConfirmDeletePartnerId(null);
+                                            }}
+                                            data-testid={`reset-partner-tokens-${dist.partnerId}`}
+                                            data-agent-id={`reset-partner-tokens-${dist.partnerId}`}
+                                            aria-label={`Refresh ${dist.email} to 0 tokens`}
+                                            className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20 hover:border-amber-500/50 transition"
+                                            title={`Refresh ${dist.email} to 0 tokens`}
                                           >
-                                            Confirm
+                                            <Icon name="refresh" className="size-2.5" />
+                                            <span>Reset 0 ⚡</span>
                                           </button>
+                                        )}
+
+                                        {/* Delete Partner Button with 2-Step Confirmation */}
+                                        {confirmDeletePartnerId === dist.partnerId ? (
+                                          <div className="flex items-center gap-1 animate-fadeIn">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeletePartner(dist.partnerId)}
+                                              className={`${btnDanger} px-2 py-0.5 text-[10px]`}
+                                              data-testid={`confirm-delete-partner-${dist.partnerId}`}
+                                              data-agent-id={`confirm-delete-partner-${dist.partnerId}`}
+                                              aria-label={`Confirm delete partner ${dist.email}`}
+                                            >
+                                              Confirm
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setConfirmDeletePartnerId(null)}
+                                              className={`${btnSecondary} px-1.5 py-0.5 text-[10px]`}
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        ) : (
                                           <button
                                             type="button"
-                                            onClick={() => setConfirmDeletePartnerId(null)}
-                                            className={`${btnSecondary} px-2 py-1 text-[10px]`}
+                                            onClick={() => {
+                                              setConfirmDeletePartnerId(dist.partnerId);
+                                              setConfirmResetPartnerId(null);
+                                            }}
+                                            className="text-error hover:text-error/80 font-mono text-[10px] underline ml-1"
+                                            data-testid={`delete-partner-${dist.partnerId}`}
+                                            data-agent-id={`delete-partner-${dist.partnerId}`}
+                                            aria-label={`Delete partner ${dist.email}`}
                                           >
-                                            Cancel
+                                            Delete
                                           </button>
-                                        </div>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          onClick={() => setConfirmDeletePartnerId(dist.partnerId)}
-                                          className="text-error hover:text-error/80 font-mono text-[10px] underline"
-                                          data-testid={`delete-partner-${dist.partnerId}`}
-                                        >
-                                          Delete
-                                        </button>
-                                      )}
+                                        )}
+                                      </div>
                                     </td>
                                   </tr>
                                 );

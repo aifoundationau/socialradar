@@ -404,6 +404,11 @@ export const EquityPartnerSchema = z
     notes: z.string().trim().max(500).default(""),
     status: z.enum(["active", "inactive"]).default("active"),
     createdAt: isoDate,
+    claimedTokens: z.number().int().nonnegative().optional(),
+    claimedAudCents: z.number().int().nonnegative().optional(),
+    claimedUsdCents: z.number().int().nonnegative().optional(),
+    lastResetAt: z.string().optional(),
+    lastResetBy: z.string().optional(),
   })
   .strict();
 export type EquityPartner = z.infer<typeof EquityPartnerSchema>;
