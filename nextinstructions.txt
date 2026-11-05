@@ -131,6 +131,18 @@
 27. **Strict Platform Isolation Gate & Plain-English Update Summary (`121b6f5`, `11f874d`):**
     - Added `enforcePlatformIsolation` in `src/lib/radar-relevance.ts`, `src/lib/radar.ts` (`CACHE_VERSION = "12"`), and `src/components/radar/RadarView.tsx` so selecting `META` strictly returns only Meta ads, `TIKTOK` strictly returns only TikTok ads, and `GOOGLE` strictly returns only Google & YouTube ads.
     - Documented plain-English summary of all search upgrades in `update.txt`.
+28. **MIT Licence, SEO Package & 10,000-Character Message Limit (`99c3c5f`, `8cfd27e`, `7ea04a8`):**
+    - Created `mitlicence.txt` with standard MIT License terms.
+    - Upgraded SEO metadata (`title`, `description`, `keywords`, `openGraph`, `twitter`, `canonical`) across `src/app/layout.tsx` and all dashboard views (`radar`, `brands`, `customize`, `wallet`).
+    - Expanded message body limit from 2,000 to 10,000 characters across `contracts.ts`, `admin.ts`, `customize-ai.ts`, and all modal textareas so comprehensive multi-angle strategy packages never get cut off.
+    - Seeded complete `Instafans` Customize Brand Strategy sample (`cust_sample_instafans_2026`) and documented in `sample-instafans-customize-strategy.txt`.
+29. **One-Click Copy Text Buttons Across All Message Views (`cb82104`):**
+    - Added "Copy Text" (`Copied ✓`) buttons across SuperAdmin Message Viewer pane & Compose box (`SuperAdminModal.tsx`), Customize Replies & submitted briefs cards (`CustomizeView.tsx`), Contact Admin history (`ContactAdminModal.tsx`), and Supporter messages (`SupporterModal.tsx`).
+30. **Two-Step Delete + Confirm Delete for Firestore Messages (`562cc25`):**
+    - Built `deleteAdminMessage` in `src/lib/admin.ts` and `DELETE /api/admin/messages`.
+    - Added two-step `Delete` -> `Confirm Delete` button in `SuperAdminModal.tsx` to permanently delete selected messages from the Firestore database.
+31. **Comprehensive System Readme (`readme.txt`, `7ba6690`):**
+    - Created `readme.txt` covering full architectural breakdown, tech stack, 15 core feature modules, 7 AI agent skills, data contracts, environment configuration, local development, deployment, and legal compliance.
 
 
 
