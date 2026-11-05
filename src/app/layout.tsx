@@ -16,9 +16,64 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const SITE_URL = process.env.APP_URL || "https://adradarhq.com";
+const SEO_TITLE = "AdRadarHQ | AI Ad Spy & Creative Remix for Meta, TikTok & Google";
+const SEO_DESCRIPTION =
+  "Discover proven, long-running winning ads across Meta (Facebook & Instagram), TikTok, Google & YouTube. Deconstruct top hooks and generate AI ad variations.";
+
 export const metadata: Metadata = {
-  title: { default: "AdRadarHQ", template: "%s · AdRadarHQ" },
-  description: "Find long-running winning ads on Meta, TikTok and Google, then remix them for your brand.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: SEO_TITLE,
+    template: "%s | AdRadarHQ",
+  },
+  description: SEO_DESCRIPTION,
+  applicationName: "AdRadarHQ",
+  keywords: [
+    "AdRadarHQ",
+    "ad spy tool",
+    "competitor ad intelligence",
+    "Meta Ad Library search",
+    "TikTok Creative Center top ads",
+    "Google Ads Transparency Center",
+    "YouTube ad spy",
+    "AI ad creative remix",
+    "direct response ad copy",
+    "winning ads finder",
+    "Facebook Instagram ad spy",
+    "AI Foundation Australia",
+  ],
+  authors: [{ name: "AI Foundation", url: "https://aifoundation.net.au/" }],
+  creator: "AI Foundation",
+  publisher: "AdRadarHQ",
+  category: "Marketing & Advertising Intelligence",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_AU",
+    url: SITE_URL,
+    siteName: "AdRadarHQ",
+    title: SEO_TITLE,
+    description: SEO_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SEO_TITLE,
+    description: SEO_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
+  },
 };
 
 // viewport-fit=cover lets the header and tab bar extend under notches; they pad with safe-area insets.
