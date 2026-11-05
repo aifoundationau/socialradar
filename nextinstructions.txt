@@ -147,6 +147,12 @@
     - Transformed the Brand creation/edit popup from a right-hand slideover drawer into a dead-centered modal dialog (`BrandSlideOver.tsx`) using `createPortal(..., document.body)`.
     - Designed a balanced, responsive 2-column layout in `BrandForm.tsx` (Left: Brand Name, Tone of Voice, Product/Service, Target Avatar, Pain Points; Right: Unique Mechanism, Landing URLs, Version Tag, Community Discovery toggle).
     - Calibrated compact heights and geometry so the entire modal fits comfortably within standard laptop and desktop viewports (650–800px) with **zero scrolling required**, while preserving fluid single-column scrolling on small mobile screens.
+33. **Individual Owner / Email Token Refresh Button in Owner Redistribution Breakdown (`04a5a0e`):**
+    - Added a two-step `Reset 0 ⚡` -> `Confirm 0 ⚡` button to each Owner / Email row in the Owner Redistribution Breakdown table (`SuperAdminModal.tsx`).
+    - Built `resetPartnerTokens` in `src/lib/admin.ts` and `PUT /api/admin/config` action `RESET_PARTNER_TOKENS`.
+    - Tracks `claimedTokens`, `claimedAudCents`, `claimedUsdCents`, `lastResetAt`, and `lastResetBy` on `EquityPartner` so the partner's accumulated entitlement resets to `⚡ 0` tokens (and $0.00 AUD/USD) immediately, while allowing new earnings to accrue cleanly on future purchases.
+    - Also clears the Owner's registered user wallet token balance to 0 (if an account exists with their email) and logs an immutable `ADMIN_RESET` entry in `token_transactions`.
+    - Updated `data-contracts.md` Section 6.
 
 
 
