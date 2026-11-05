@@ -520,6 +520,14 @@ export async function updateAdminMessageStatus(
   await db.collection(MESSAGES_COL).doc(messageId).update({ status });
 }
 
+/** Permanently deletes an admin message from the Firestore database. */
+export async function deleteAdminMessage(messageId: string): Promise<void> {
+  if (!messageId.trim()) {
+    throw new Error("Message ID is required.");
+  }
+  await db.collection(MESSAGES_COL).doc(messageId.trim()).delete();
+}
+
 // ============================================================================
 // PROFESSIONAL CUSTOMIZE SERVICE (ROUTED TO SUPERADMIN & MAIN ADMIN)
 // ============================================================================

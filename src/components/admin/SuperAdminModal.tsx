@@ -142,6 +142,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [adminMessages, setAdminMessages] = useState<AdminMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<AdminMessage | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [confirmDeleteMessageId, setConfirmDeleteMessageId] = useState<string | null>(null);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
 
   async function handleCopyMessageText(text: string, id: string) {
     if (!text) return;
@@ -1035,6 +1037,31 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       }
     } catch (err) {
       setErrorMsg(errorMessage(err));
+    }
+  }
+
+  async function handleDeleteMessage(messageId: string) {
+    setDeletingMessageId(messageId);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{ success: boolean; deletedMessageId: string; messages: AdminMessage[] }>(
+        "/api/admin/messages",
+        {
+          method: "DELETE",
+          body: { messageId },
+        }
+      );
+      setAdminMessages(data.messages);
+      if (selectedMessage?.messageId === messageId) {
+        setSelectedMessage(null);
+      }
+      setConfirmDeleteMessageId(null);
+      setStatusMsg(`Message (${messageId}) permanently deleted from the Firestore database.`);
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setDeletingMessageId(null);
     }
   }
 
@@ -3011,6 +3038,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               key={msg.messageId}
                               onClick={() => {
                                 setSelectedMessage(msg);
+                                setConfirmDeleteMessageId(null);
                                 if (msg.status === "unread") {
                                   handleUpdateMessageStatus(msg.messageId, "read");
                                 }
@@ -3169,6 +3197,49 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   className={btnSecondary}
                                 >
                                   Move to Inbox
+                                </button>
+                              )}
+                              {confirmDeleteMessageId === selectedMessage.messageId ? (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    disabled={deletingMessageId === selectedMessage.messageId}
+                                    onClick={() => handleDeleteMessage(selectedMessage.messageId)}
+                                    data-testid="viewer-confirm-delete-message-btn"
+                                    data-agent-id="viewer-confirm-delete-message-btn"
+                                    aria-label="Confirm permanent message deletion"
+                                    className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/60 bg-rose-500/25 px-3 py-2 font-mono text-xs font-bold text-rose-200 hover:bg-rose-500/35 disabled:opacity-50 transition"
+                                  >
+                                    <Icon
+                                      name={deletingMessageId === selectedMessage.messageId ? "refresh" : "trash"}
+                                      className={`size-3.5 ${deletingMessageId === selectedMessage.messageId ? "animate-spin" : ""}`}
+                                    />
+                                    <span>
+                                      {deletingMessageId === selectedMessage.messageId ? "Deleting…" : "Confirm Delete"}
+                                    </span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteMessageId(null)}
+                                    data-testid="viewer-cancel-delete-message-btn"
+                                    data-agent-id="viewer-cancel-delete-message-btn"
+                                    aria-label="Cancel message deletion"
+                                    className={btnSecondary}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteMessageId(selectedMessage.messageId)}
+                                  data-testid="viewer-delete-message-btn"
+                                  data-agent-id="viewer-delete-message-btn"
+                                  aria-label="Delete message from database"
+                                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 font-mono text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition"
+                                >
+                                  <Icon name="trash" className="size-3.5" />
+                                  <span>Delete</span>
                                 </button>
                               )}
                             </div>

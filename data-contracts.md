@@ -339,7 +339,7 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 | `recipientUid` | string | optional, Recipient user ID |
 | `direction` | enum | `"user_to_admin" \| "admin_to_user"`, default `"user_to_admin"` |
 | `subject` | string | Message subject, max 150 chars. Plain text only, strictly NO URLs or upload links. |
-| `body` | string | Plain text message body, max 2000 chars. **STRICTLY PLAIN TEXT ONLY: NO ATTACHMENTS, NO UPLOAD LINKS, NO URLS**. |
+| `body` | string | Plain text message body, max 10000 chars. **STRICTLY PLAIN TEXT ONLY: NO ATTACHMENTS, NO UPLOAD LINKS, NO URLS**. |
 | `status` | enum | `"unread" \| "read" \| "archived"` |
 | `createdAt` | ISO-8601 | Date message sent |
 | `retentionUntil` | ISO-8601 | **Strict 7-year statutory compliance date** (`createdAt + 7 years`). Messages are preserved for 7 years in database backup. |
@@ -350,15 +350,23 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 - **Superadmin Authority:** Superadmin can message **anyone** (any email or registered user).
 
 ### `POST /api/contact`
-Body: `{ "subject": "string (1-150)", "body": "string (1-2000)" }`.
+Body: `{ "subject": "string (1-150)", "body": "string (1-10000)" }`.
 Requires authenticated user. Validates plain text only, rejects file upload links & URLs, sets `retentionUntil = now + 7 years`, sets `direction = "user_to_admin"`.
 
 ### `GET /api/contact`
 Requires authenticated user. Returns messages where caller is either sender (`uid == caller.uid`) or recipient (`recipientEmail == caller.email` or `recipientUid == caller.uid`).
 
 ### `POST /api/admin/messages`
-Body: `{ "recipientEmail": "email", "subject": "string (1-150)", "body": "string (1-2000)" }`.
-Requires Superadmin. Allows Superadmin to message anyone. Validates plain text only, rejects file upload links & URLs, sets `direction = "admin_to_user"`, sets `retentionUntil = now + 7 years`.
+Body: `{ "recipientEmail": "email", "subject": "string (1-150)", "body": "string (1-10000)" }`.
+Requires Admin / Superadmin. Allows Superadmin to message anyone. Validates plain text only, rejects file upload links & URLs, sets `direction = "admin_to_user"`, sets `retentionUntil = now + 7 years`.
+
+### `PATCH /api/admin/messages`
+Body: `{ "messageId": "string", "status": "unread|read|archived" }` (`additionalProperties: false`).
+Requires Admin / Superadmin. Updates message status in `admin_messages/{messageId}`.
+
+### `DELETE /api/admin/messages`
+Body: `{ "messageId": "string" }` (`additionalProperties: false`).
+Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Permanently deletes `admin_messages/{messageId}` from the Firestore database after two-step UI confirmation (`viewer-delete-message-btn` → `viewer-confirm-delete-message-btn`).
 
 ## 8. Role-Based Access Control (RBAC) Matrix (`system_config/rbac`)
 
