@@ -116,5 +116,22 @@
     - Added `POST /api/wallet/confirm` for immediate return verification and token distribution alongside idempotent webhook handling (`POST /api/webhooks/stripe`).
     - Updated `settingupstripepaymentprompt.txt` and `data-contracts.md` Section 18.
 
+## Recent Progress (November 5, 2026):
+24. **Brand Rename to `AdRadarHQ`, Firebase Service Account Auth & Footer AI Foundation Button (`b5e0b90`, `9f28f1f`, `ba06420`, `e1858c2`):**
+    - Renamed platform brand to `AdRadarHQ` across all UI components, metadata, legal policies, and `data-contracts.md`.
+    - Configured `FIREBASE_SERVICE_ACCOUNT_BASE64` (`socialradar-sa@ai-foundation-firebase.iam.gserviceaccount.com`) in `.env.local` for permanent zero-expiration Firebase Admin authentication (`POST /api/me` verified HTTP 200 on port 3005).
+    - Converted footer copyright in `src/components/layout/AppFooter.tsx` into an interactive pill button (`2026 AI Foundation`) linking to `https://aifoundation.net.au/`.
+25. **Frankfurter API AUD → USD Currency Converter Popup & Memorandum of Agreement (`fffcd15`..`d125d79`):**
+    - Created `src/app/api/currency/route.ts` (`https://api.frankfurter.dev/v1/latest?from=AUD&to=USD` with 1h cache and 0.65 fallback) and zero-scrollbar `src/components/currency/CurrencyConverterModal.tsx` triggered by `geo-chip-currency` in its original footer position.
+    - Created `MemorandumOfAgreement.txt` between Creative Owner David Robertson and the Main Admin.
+26. **Multi-Engine Winner Intelligence Systems Across TikTok, Google/YouTube & Meta (`551c675`, `9c7ad29`, `ba6efe0`):**
+    - **TikTok Dual-Engine Top Ads System (`src/lib/tiktok-topads.ts` & `skills/tiktok-viral-ad-intelligence/SKILL.md`):** Combines 4-page exact-phrase `tiktok_ads_library` (`unique_users_seen_high_to_low`) with TikTok Creative Center Top Ads (`APIFY_API_TOKEN` / `TIKTOK_CREATIVE_CENTER_API_URL`), UGC format classification, CTA/headline inference, and daily view velocity scoring ($V_{\text{daily}}$).
+    - **Google 3-Engine Winner System (`src/lib/google-topads.ts` & `skills/google-ads-winner-intelligence/SKILL.md`):** Combines Live Google SERP Sponsored Search RSAs & Shopping Ads (`engine: "google"`), Multi-Advertiser Google Ads Transparency Center (`up to 3 domains in parallel`), and Deep Winner Detail Enrichment (`google_ads_transparency_center_ad_details` for YouTube video links, headlines, descriptions, and CTAs).
+    - **Meta Dual-Engine Winner System (`src/lib/meta-topads.ts` & `skills/meta-ads-winner-intelligence/SKILL.md`):** Combines exact-phrase (`search_type: "keyword_exact_phrase"`) + broad `meta_ad_library` passes with same-page active creative scaling (`collation_count` + `pageCreativeCounts`), multi-card Carousel/DCO extraction, `page_like_count`, and omnichannel placement telemetry.
+27. **Strict Platform Isolation Gate & Plain-English Update Summary (`121b6f5`, `11f874d`):**
+    - Added `enforcePlatformIsolation` in `src/lib/radar-relevance.ts`, `src/lib/radar.ts` (`CACHE_VERSION = "12"`), and `src/components/radar/RadarView.tsx` so selecting `META` strictly returns only Meta ads, `TIKTOK` strictly returns only TikTok ads, and `GOOGLE` strictly returns only Google & YouTube ads.
+    - Documented plain-English summary of all search upgrades in `update.txt`.
+
+
 
 
