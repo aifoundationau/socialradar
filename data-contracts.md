@@ -148,13 +148,15 @@ From the SuperAdmin Control Panel, all rates can be dynamically set to free (`0 
   - `LIKES`: Most likes (`totalLikes ?? compositeLikes`) descending.
   - `VIEWS`: Most views (`totalViews ?? compositeViews`) descending.
   - `LONGEST`: Longest ad online (`activeDaysCount`) descending.
-- **Platform Search Volume & Quality Normalization (`CACHE_VERSION = "10"`, `MAX_RESULTS = 100`, `PAGE_SIZE = 18`):**
+- **Platform Search Volume & Quality Normalization (`CACHE_VERSION = "11"`, `MAX_RESULTS = 100`, `PAGE_SIZE = 18`):**
   - **Semantic Ad Search & Relevance Engine (`src/lib/radar-relevance.ts` & `skills/semantic-ad-search-relevance/SKILL.md`):**
     1. *Intent-to-Domain & Vertical Taxonomy Resolver:* Maps generic category queries (e.g., `"car"`, `"running shoes"`, `"skincare"`, `"pet food"`, `"horse"`) to authoritative category domains (such as `carsales.com.au`, `toyota.com.au`, `mazda.com.au`, `drive.com.au` for `"car"`).
     2. *Word-Boundary & Prefix Collision Guard:* Blocks false-positive substring matches on Google advertiser lookups (e.g., blocking `"Cara HO"`, `"Care"`, `"Skincare"`, `"CeraVe"`, `"Carpet"` when searching `"car"`).
     3. *Post-Fetch Semantic Ad Gate:* Purges any off-topic ads matching negative collision patterns before ranking and caching.
     4. *Zero-Downtime Cache Recovery:* Recovers previously cached real upstream ads if SearchApi credits are temporarily exhausted (`HTTP 429`).
-  - **Meta:** Follows `pagination.next_page_token` up to 3 pages (~60–100 ads per search).
+  - **Meta Dual-Engine Winner Intelligence System (`src/lib/meta-topads.ts` & `skills/meta-ads-winner-intelligence/SKILL.md`):**
+    1. *Engine 1 — Dual-Pass `meta_ad_library` + Optional External Connector:* Runs an exact-phrase commercial pass (`search_type: "keyword_exact_phrase"`, up to 3 pages) supplemented by a broad/category pass when <40 ads return, plus optional `APIFY_META_ADS_ACTOR_ID` / `META_TOPADS_API_URL` ingestion.
+    2. *Engine 2 — Deep Snapshot, Advantage+ Omnichannel & Multi-Card DCO Extraction:* Combines `collation_count` with same-page active creative counts (`duplicates`), extracts `publisher_platform` (`Facebook · Instagram · Messenger · Audience Network`), `page_like_count`, `aaa_info.eu_total_reach`, multi-card `snapshot.cards[]` copy, `link_description`, and synthesizes headlines (`buildMetaHeadline`) & CTAs (`inferMetaCta`).
   - **TikTok Dual-Engine Top Ads System (`src/lib/tiktok-topads.ts` & `skills/tiktok-viral-ad-intelligence/SKILL.md`):** Combines SearchApi.io `tiktok_ads_library` (`sort_by: "unique_users_seen_high_to_low"`, exact-phrase + broad pass) with TikTok Creative Center Top Ads (`ads.tiktok.com/business/creativecenter/inspiration/topads/` via `APIFY_API_TOKEN` / `TIKTOK_CREATIVE_CENTER_API_URL`), classifies UGC creative formats, infers CTAs/headlines, and scores daily view velocity ($V_{\text{daily}} = V_{\text{total}} / D_{\text{active}}$).
   - **Google 3-Engine Winner Intelligence System (`src/lib/google-topads.ts` & `skills/google-ads-winner-intelligence/SKILL.md`):**
     1. *Engine 1 — Live SERP Sponsored Search & Shopping Auction (`engine: "google"`):* Captures live Sponsored Responsive Search Ads (`ads`) with sitelink/callout extensions, live Sponsored Google Shopping Ads (`shopping_ads`) with pricing/ratings, and extracts top bidding domains (`discoveredDomains`).

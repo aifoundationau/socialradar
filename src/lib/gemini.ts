@@ -201,7 +201,7 @@ export async function generateRemix(ad: NormalizedAd, brand: BrandProfile): Prom
       ? "\n\nTIKTOK VIRAL INTELLIGENCE DIRECTIVE: Deconstruct the 0-2s visual thumbstop and 2-6s retention bridge. Design all 3 variations with TikTok-native UGC delivery (e.g., Green Screen, POV, Creator Review/Unboxing, or Problem-Agitate-Solve), punchy on-screen native text overlays, and high-converting verbal hooks."
       : ad.platform === "GOOGLE"
         ? "\n\nGOOGLE ADS WINNER INTELLIGENCE DIRECTIVE: Deconstruct the high-intent Google Search RSA headline/sitelink architecture, YouTube 0-5s pre-skip bumper hook, or Performance Max/Shopping offer framing. Design all 3 variations to maximize high-intent search conversion, YouTube 5-second pre-skip retention, and clear commercial callouts."
-        : "";
+        : "\n\nMETA ADS WINNER INTELLIGENCE DIRECTIVE: Deconstruct the 0-3s Facebook/Instagram Feed & Reels visual thumbstop, the above-the-fold Primary Text hook (first 125 chars), multi-card Carousel/DCO offer stacking, and below-creative Headline + CTA alignment. Design all 3 variations for high-ROAS Advantage+ scaling across Reels, Stories, and Feed.";
   const media = await mediaPart(ad);
   const parts: Part[] = [
     { text: `SOURCE AD${media ? " (its creative is attached)" : " (creative unavailable; work from the copy)"}:\n${JSON.stringify(source, null, 2)}${platformDirective}` },

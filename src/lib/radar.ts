@@ -29,6 +29,13 @@ import {
   inferGoogleCta,
 } from "./google-topads";
 import {
+  buildMetaHeadline,
+  buildMetaPrimaryCopy,
+  estimateMetaViewsAndLikes,
+  fetchMetaExternalTopAds,
+  inferMetaCta,
+} from "./meta-topads";
+import {
   filterRelevantDrafts,
   isRelevantGoogleAdvertiser,
   resolveSearchIntent,
@@ -38,7 +45,7 @@ import type { BrandProfile } from "./contracts";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /** Part of every cache key: bump it when normalization changes so stale result sets aren't served. */
-const CACHE_VERSION = "10";
+const CACHE_VERSION = "11";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS = 100;
 
@@ -236,39 +243,87 @@ async function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
   }
 }
 
-// ---------- Meta Ad Library ----------
-async function searchMeta(req: RadarSearchRequest): Promise<LibraryResult> {
-  const baseParams: Record<string, string | undefined> = {
-    q: req.query,
-    country: req.country,
-    active_status: "active",
-    media_type: req.mediaType === "ALL" ? undefined : req.mediaType.toLowerCase(),
-  };
+// ---------- Dual-Engine Meta Ad Library Winner System ----------
+async function fetchMetaPages(
+  baseParams: Record<string, string | undefined>,
+  maxPages: number,
+  requiredFirstPage: boolean,
+): Promise<unknown[]> {
+  const collected: unknown[] = [];
+  let nextToken: string | undefined;
 
-  const firstPage = await searchApi("meta_ad_library", baseParams);
-  const rawAds = [...list(firstPage.ads)];
-  let nextToken = typeof obj(firstPage.pagination).next_page_token === "string"
-    ? String(obj(firstPage.pagination).next_page_token)
-    : "";
-
-  for (let page = 2; page <= 3 && nextToken && rawAds.length < MAX_RESULTS; page++) {
+  for (let page = 1; page <= maxPages && collected.length < MAX_RESULTS; page++) {
     try {
-      const nextJson = await searchApi("meta_ad_library", {
+      const json = await searchApi("meta_ad_library", {
         ...baseParams,
         next_page_token: nextToken,
       });
-      rawAds.push(...list(nextJson.ads));
-      nextToken = typeof obj(nextJson.pagination).next_page_token === "string"
-        ? String(obj(nextJson.pagination).next_page_token)
-        : "";
-    } catch {
+      const batch = list(json.ads);
+      collected.push(...batch);
+      const token = obj(json.pagination).next_page_token;
+      nextToken = typeof token === "string" && token ? token : undefined;
+      if (!nextToken || batch.length === 0) break;
+    } catch (err) {
+      if (page === 1 && requiredFirstPage) throw err;
       break;
+    }
+  }
+  return collected;
+}
+
+async function searchMeta(req: RadarSearchRequest): Promise<LibraryResult> {
+  const cleanQuery = req.query.replace(/"/g, "").trim();
+  const isMultiWord = /\s+/.test(cleanQuery);
+  const primaryQuery = isMultiWord ? `"${cleanQuery}"` : cleanQuery;
+
+  const baseParams: Record<string, string | undefined> = {
+    q: primaryQuery,
+    country: req.country,
+    active_status: "active",
+    media_type: req.mediaType === "ALL" ? undefined : req.mediaType.toLowerCase(),
+    ...(isMultiWord ? { search_type: "keyword_exact_phrase" } : {}),
+  };
+
+  // Run Engine 1 (Dual-Pass SearchApi.io `meta_ad_library` + optional external Meta Top-Ads connector) in parallel
+  const [externalDrafts, rawAds] = await Promise.all([
+    fetchMetaExternalTopAds({
+      query: cleanQuery,
+      country: req.country,
+      mediaType: req.mediaType,
+    }),
+    fetchMetaPages(baseParams, 3, true),
+  ]);
+
+  // Pass B: If multi-word exact phrase returned fewer than 40 ads, supplement with broad commercial pass
+  if (isMultiWord && rawAds.length < 40) {
+    const broadAds = await fetchMetaPages(
+      {
+        q: cleanQuery,
+        country: req.country,
+        active_status: "active",
+        media_type: req.mediaType === "ALL" ? undefined : req.mediaType.toLowerCase(),
+      },
+      2,
+      false,
+    );
+    rawAds.push(...broadAds);
+  }
+
+  // Count active creatives per advertiser (`page_id`) to detect multi-creative campaign scaling
+  const pageCreativeCounts = new Map<string, number>();
+  for (const raw of rawAds) {
+    const ad = obj(raw);
+    const snap = obj(ad.snapshot);
+    const pageKey = idPart(ad.page_id ?? snap.page_id) || text(ad.page_name ?? snap.page_name, 120).toLowerCase();
+    if (pageKey) {
+      pageCreativeCounts.set(pageKey, (pageCreativeCounts.get(pageKey) ?? 0) + 1);
     }
   }
 
   const now = new Date().toISOString();
 
-  const drafts = rawAds.flatMap((raw): Draft[] => {
+  // Engine 2: Deep Snapshot, Advantage+ Omnichannel & Multi-Card Carousel/DCO Extraction
+  const libraryDrafts = rawAds.flatMap((raw): Draft[] => {
     const ad = obj(raw);
     const snap = obj(ad.snapshot);
     const id = idPart(ad.ad_archive_id);
@@ -282,29 +337,68 @@ async function searchMeta(req: RadarSearchRequest): Promise<LibraryResult> {
     const videoUrls = videos.map((v) => https(v.video_hd_url) || https(v.video_sd_url)).filter(Boolean);
     const imageUrls = images.map((i) => https(i.original_image_url) || https(i.resized_image_url)).filter(Boolean);
 
+    const advertiserName = text(ad.page_name, 300) || text(snap.page_name, 300);
+    const advertiserId = idPart(ad.page_id ?? snap.page_id);
+    const mediaType = videoUrls.length ? "VIDEO" : cards.length > 1 ? "CAROUSEL" : "IMAGE";
+    const activeDaysCount = daysBetween(first, last);
+
+    // Combine `collation_count` (identical creative across ad sets) with same-page active creative scaling
+    const collationDuplicates = Math.max(0, Number(ad.collation_count) - 1 || 0);
+    const pageKey = advertiserId || advertiserName.toLowerCase();
+    const samePageBonus = Math.min(4, Math.max(0, Math.floor(((pageCreativeCounts.get(pageKey) ?? 1) - 1) / 2)));
+    const duplicates = collationDuplicates + samePageBonus;
+
+    const platforms = list(ad.publisher_platform);
+    const platformCount = Math.max(1, platforms.length);
+
+    const primaryCopy = buildMetaPrimaryCopy(snap, cards);
+    const headline = buildMetaHeadline({
+      rawTitle: snap.title,
+      cardTitle: card.title,
+      linkDescription: snap.link_description ?? card.link_description,
+      caption: snap.caption ?? card.caption,
+      copy: primaryCopy,
+      advertiserName,
+      activeDays: activeDaysCount,
+      duplicates,
+      mediaType,
+      platformCount,
+      cardCount: cards.length,
+    });
+    const ctaText = inferMetaCta(snap.cta_text ?? card.cta_text, primaryCopy, headline);
+    const { totalViews, totalLikes } = estimateMetaViewsAndLikes({
+      ad,
+      snap,
+      activeDays: activeDaysCount,
+      duplicates,
+      platformCount,
+    });
+
     return [
       {
         adId: `meta_${id}`,
         platform: "META",
-        advertiserName: text(ad.page_name, 300) || text(snap.page_name, 300),
-        advertiserId: idPart(ad.page_id ?? snap.page_id),
-        mediaType: videoUrls.length ? "VIDEO" : cards.length > 1 ? "CAROUSEL" : "IMAGE",
+        advertiserName,
+        advertiserId,
+        mediaType,
         mediaUrls: (videoUrls.length ? videoUrls : imageUrls).slice(0, 20),
         thumbnailUrl: videos.map((v) => https(v.video_preview_image_url)).find(Boolean) || imageUrls[0] || "",
-        primaryCopy: text(obj(snap.body).text, 5000) || text(snap.body, 5000) || text(card.body, 5000),
-        headline: text(snap.title, 500) || text(card.title, 500),
-        ctaText: text(snap.cta_text, 100) || text(card.cta_text, 100),
+        primaryCopy,
+        headline,
+        ctaText,
         landingPageUrl: https(snap.link_url) || https(card.link_url),
         countryCode: req.country,
         firstSeenDate: first,
         lastSeenDate: last,
-        activeDaysCount: daysBetween(first, last),
-        // collation_count counts every ad sharing this creative, including this one.
-        duplicates: Math.max(0, Number(ad.collation_count) - 1 || 0),
+        activeDaysCount,
+        totalViews,
+        totalLikes,
+        duplicates,
       },
     ];
   });
-  return { drafts, notice: "" };
+
+  return { drafts: [...externalDrafts, ...libraryDrafts], notice: "" };
 }
 
 // ---------- TikTok Ads Library ----------
