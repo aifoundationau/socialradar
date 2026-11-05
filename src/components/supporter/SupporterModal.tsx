@@ -58,6 +58,27 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
   const [sendingMessage, setSendingMessage] = useState(false);
   const [messageStatusMsg, setMessageStatusMsg] = useState<string | null>(null);
   const [messageErrorMsg, setMessageErrorMsg] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  async function handleCopyText(text: string, id: string) {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopiedId(id);
+    setTimeout(() => {
+      setCopiedId((prev) => (prev === id ? null : prev));
+    }, 2000);
+  }
 
   const composeHasLinks = LINK_URL_PATTERN.test(composeSubject) || LINK_URL_PATTERN.test(composeBody);
 
@@ -646,7 +667,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                           data-testid={`supporter-message-card-${m.messageId}`}
                           className={`${card} p-4 space-y-2 border border-white/[0.08] hover:border-white/20 transition`}
                         >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <span className="text-body font-semibold text-on-surface">
                                 {m.subject}
@@ -657,12 +678,25 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                                 </span>
                               )}
                             </div>
-                            <span className="font-mono text-[11px] text-outline">
-                              {new Date(m.createdAt).toLocaleString("en-AU", {
-                                dateStyle: "medium",
-                                timeStyle: "short",
-                              })}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleCopyText(m.body, m.messageId)}
+                                data-testid={`copy-supporter-msg-btn-${m.messageId}`}
+                                data-agent-id={`copy-supporter-msg-btn-${m.messageId}`}
+                                aria-label={`Copy text of message ${m.subject}`}
+                                className="inline-flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 py-0.5 font-mono text-[10px] font-bold text-primary hover:bg-primary/25 transition"
+                              >
+                                <Icon name={copiedId === m.messageId ? "checkCircle" : "copy"} className="size-3" />
+                                <span>{copiedId === m.messageId ? "Copied ✓" : "Copy Text"}</span>
+                              </button>
+                              <span className="font-mono text-[11px] text-outline">
+                                {new Date(m.createdAt).toLocaleString("en-AU", {
+                                  dateStyle: "medium",
+                                  timeStyle: "short",
+                                })}
+                              </span>
+                            </div>
                           </div>
 
                           <p className="text-body-sm text-on-surface-variant whitespace-pre-wrap leading-relaxed">

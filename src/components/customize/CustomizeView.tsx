@@ -55,7 +55,28 @@ export function CustomizeView() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [pending, setPending] = useState<boolean>(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const submitKey = useRef<string | null>(null);
+
+  async function handleCopyText(text: string, id: string) {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopiedId(id);
+    setTimeout(() => {
+      setCopiedId((prev) => (prev === id ? null : prev));
+    }, 2000);
+  }
 
   async function loadCustomizeState() {
     setLoadingData(true);
@@ -497,14 +518,28 @@ export function CustomizeView() {
 
             {/* Extra Details & Descriptions to Think About Box */}
             <div className="rounded-xl border border-primary/35 bg-primary/5 p-4 space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <label htmlFor="customize-extraDetailsAndNotes" className="text-body font-bold text-primary flex items-center gap-1.5">
                   <Icon name="sparkles" className="size-4" />
                   <span>Extra Details & Descriptions to Think About *</span>
                 </label>
-                <span className="font-mono text-[11px] text-on-surface-variant">
-                  {extraDetailsAndNotes.length} / 2000
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={!extraDetailsAndNotes}
+                    onClick={() => handleCopyText(extraDetailsAndNotes, "extra-details")}
+                    data-testid="copy-extra-details-btn"
+                    data-agent-id="copy-extra-details-btn"
+                    aria-label="Copy extra details text"
+                    className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-surface-container-high px-2.5 py-0.5 font-mono text-[11px] font-semibold text-on-surface hover:border-primary/50 hover:text-primary disabled:opacity-40 transition"
+                  >
+                    <Icon name={copiedId === "extra-details" ? "checkCircle" : "copy"} className="size-3.5" />
+                    <span>{copiedId === "extra-details" ? "Copied ✓" : "Copy Text"}</span>
+                  </button>
+                  <span className="font-mono text-[11px] text-on-surface-variant">
+                    {extraDetailsAndNotes.length} / 2000
+                  </span>
+                </div>
               </div>
               <p className="text-[12px] text-on-surface-variant leading-relaxed">
                 Share any extra context, competitor angles, creative ideas, specific hooks, objections, seasonal offers, or special instructions you want our professional strategists to think about when crafting your customized reply.
@@ -595,15 +630,28 @@ export function CustomizeView() {
                       <span className="font-semibold text-compact text-on-surface truncate">
                         {req.brandName}
                       </span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
-                          req.status === "completed"
-                            ? "bg-secondary/20 text-secondary border border-secondary/30"
-                            : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                        }`}
-                      >
-                        {req.status === "completed" ? "Reply Delivered ✓" : "With Strategy Team"}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(req.extraDetailsAndNotes, `req-${req.requestId}`)}
+                          data-testid={`copy-customize-req-btn-${req.requestId}`}
+                          data-agent-id={`copy-customize-req-btn-${req.requestId}`}
+                          aria-label={`Copy brief text for ${req.brandName}`}
+                          className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] font-semibold text-on-surface hover:border-primary/50 hover:text-primary transition"
+                        >
+                          <Icon name={copiedId === `req-${req.requestId}` ? "checkCircle" : "copy"} className="size-3" />
+                          <span>{copiedId === `req-${req.requestId}` ? "Copied ✓" : "Copy Text"}</span>
+                        </button>
+                        <span
+                          className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
+                            req.status === "completed"
+                              ? "bg-secondary/20 text-secondary border border-secondary/30"
+                              : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                          }`}
+                        >
+                          {req.status === "completed" ? "Reply Delivered ✓" : "With Strategy Team"}
+                        </span>
+                      </div>
                     </div>
                     <p className="text-[12px] text-on-surface-variant line-clamp-2">
                       {req.extraDetailsAndNotes}
@@ -644,7 +692,7 @@ export function CustomizeView() {
                 Your customized confirmation and completed strategy replies from our team will appear right here and in your account Message Panel.
               </div>
             ) : (
-              <div className="space-y-3 max-h-[30rem] overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-[36rem] overflow-y-auto pr-1">
                 {messages.map((m) => {
                   const isFromAdmin = m.direction === "admin_to_user";
                   return (
@@ -657,13 +705,26 @@ export function CustomizeView() {
                           : "border-white/10 bg-surface-container-low"
                       }`}
                     >
-                      <div className="flex items-center justify-between text-[11px] font-mono">
+                      <div className="flex items-center justify-between gap-2 text-[11px] font-mono">
                         <span className={`font-bold ${isFromAdmin ? "text-primary" : "text-on-surface-variant"}`}>
                           {isFromAdmin ? "★ Strategy Team / Super Admin Reply" : "Your Submitted Brief"}
                         </span>
-                        <span className="text-on-surface-variant">
-                          {new Date(m.createdAt).toLocaleDateString("en-AU")}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleCopyText(m.body, `msg-${m.messageId}`)}
+                            data-testid={`copy-customize-msg-btn-${m.messageId}`}
+                            data-agent-id={`copy-customize-msg-btn-${m.messageId}`}
+                            aria-label={`Copy complete text of ${m.subject}`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 py-0.5 font-mono text-[11px] font-bold text-primary hover:bg-primary/25 transition"
+                          >
+                            <Icon name={copiedId === `msg-${m.messageId}` ? "checkCircle" : "copy"} className="size-3.5" />
+                            <span>{copiedId === `msg-${m.messageId}` ? "Copied ✓" : "Copy Text"}</span>
+                          </button>
+                          <span className="text-on-surface-variant">
+                            {new Date(m.createdAt).toLocaleDateString("en-AU")}
+                          </span>
+                        </div>
                       </div>
                       <h4 className="text-compact font-bold text-on-surface">{m.subject}</h4>
                       <p className="text-[12px] text-on-surface-variant whitespace-pre-wrap leading-relaxed">

@@ -141,6 +141,28 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [confirmResetLedgerOpen, setConfirmResetLedgerOpen] = useState(false);
   const [adminMessages, setAdminMessages] = useState<AdminMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<AdminMessage | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
+  async function handleCopyMessageText(text: string, id: string) {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopiedMessageId(id);
+    setTimeout(() => {
+      setCopiedMessageId((prev) => (prev === id ? null : prev));
+    }, 2000);
+  }
+
   // Superadmin Messaging Anyone state
   const [showComposeMessage, setShowComposeMessage] = useState(false);
   const [composeRecipientEmail, setComposeRecipientEmail] = useState("");
@@ -2900,15 +2922,29 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       </div>
 
                       <div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between mb-1">
                           <label className={label}>Message Body (Plain Text Only)</label>
-                          <span className="font-mono text-[11px] text-on-surface-variant">
-                            {composeBody.length} / 10000
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={!composeBody}
+                              onClick={() => handleCopyMessageText(composeBody, "compose-body")}
+                              data-testid="copy-compose-body-btn"
+                              data-agent-id="copy-compose-body-btn"
+                              aria-label="Copy compose message body"
+                              className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-surface-container-high px-2.5 py-1 font-mono text-[11px] font-semibold text-on-surface hover:border-primary/50 hover:text-primary disabled:opacity-40 transition"
+                            >
+                              <Icon name={copiedMessageId === "compose-body" ? "checkCircle" : "copy"} className="size-3.5" />
+                              <span>{copiedMessageId === "compose-body" ? "Copied ✓" : "Copy Text"}</span>
+                            </button>
+                            <span className="font-mono text-[11px] text-on-surface-variant">
+                              {composeBody.length} / 10000
+                            </span>
+                          </div>
                         </div>
                         <textarea
                           required
-                          rows={4}
+                          rows={6}
                           maxLength={10000}
                           placeholder="Type your plain-text message here..."
                           value={composeBody}
@@ -2993,7 +3029,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               </div>
                               <p className="mt-1 text-body font-semibold text-on-surface truncate">{msg.subject}</p>
                               <p className="mt-1 text-[12px] text-on-surface-variant line-clamp-2">{msg.body}</p>
-                              <div className="mt-2 flex items-center justify-between">
+                              <div className="mt-2 flex items-center justify-between gap-2">
                                 <span
                                   className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold uppercase ${
                                     msg.status === "unread"
@@ -3005,9 +3041,25 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 >
                                   {msg.status}
                                 </span>
-                                <span className="text-[10px] text-on-surface-variant font-mono">
-                                  Retained until: {new Date(msg.retentionUntil).toLocaleDateString("en-AU")}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCopyMessageText(msg.body, `list-${msg.messageId}`);
+                                    }}
+                                    data-testid={`copy-list-msg-btn-${msg.messageId}`}
+                                    data-agent-id={`copy-list-msg-btn-${msg.messageId}`}
+                                    aria-label={`Copy text of message ${msg.subject}`}
+                                    className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] font-semibold text-on-surface hover:border-primary/50 hover:text-primary transition"
+                                  >
+                                    <Icon name={copiedMessageId === `list-${msg.messageId}` ? "checkCircle" : "copy"} className="size-3" />
+                                    <span>{copiedMessageId === `list-${msg.messageId}` ? "Copied ✓" : "Copy Text"}</span>
+                                  </button>
+                                  <span className="text-[10px] text-on-surface-variant font-mono">
+                                    Retained until: {new Date(msg.retentionUntil).toLocaleDateString("en-AU")}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           );
@@ -3039,8 +3091,23 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             </div>
 
                             <div className="space-y-2">
-                              <span className="text-[11px] font-mono uppercase text-on-surface-variant">Message Body (Plain Text)</span>
-                              <div className="rounded-xl border border-white/[0.08] bg-surface-container-lowest p-4 text-[13px] text-on-surface whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[11px] font-mono uppercase text-on-surface-variant">
+                                  Message Body (Plain Text • {selectedMessage.body.length} chars)
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyMessageText(selectedMessage.body, `viewer-${selectedMessage.messageId}`)}
+                                  data-testid="viewer-copy-message-body-btn"
+                                  data-agent-id="viewer-copy-message-body-btn"
+                                  aria-label="Copy complete message text"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 px-3 py-1 font-mono text-xs font-bold text-primary hover:bg-primary/25 transition"
+                                >
+                                  <Icon name={copiedMessageId === `viewer-${selectedMessage.messageId}` ? "checkCircle" : "copy"} className="size-3.5" />
+                                  <span>{copiedMessageId === `viewer-${selectedMessage.messageId}` ? "Copied Complete Text ✓" : "Copy Text"}</span>
+                                </button>
+                              </div>
+                              <div className="rounded-xl border border-white/[0.08] bg-surface-container-lowest p-4 text-[13px] text-on-surface whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
                                 {selectedMessage.body}
                               </div>
                             </div>
@@ -3051,6 +3118,17 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             </div>
 
                             <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-white/[0.08]">
+                              <button
+                                type="button"
+                                onClick={() => handleCopyMessageText(selectedMessage.body, `viewer-footer-${selectedMessage.messageId}`)}
+                                data-testid="viewer-footer-copy-btn"
+                                data-agent-id="viewer-footer-copy-btn"
+                                aria-label="Copy complete message text"
+                                className={btnSecondary}
+                              >
+                                <Icon name={copiedMessageId === `viewer-footer-${selectedMessage.messageId}` ? "checkCircle" : "copy"} className="size-3.5" />
+                                <span>{copiedMessageId === `viewer-footer-${selectedMessage.messageId}` ? "Copied ✓" : "Copy Text"}</span>
+                              </button>
                               <button
                                 type="button"
                                 disabled={aiDrafting}
