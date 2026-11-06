@@ -222,6 +222,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [selectedRefundTxId, setSelectedRefundTxId] = useState("");
   const [confirmTopRefundOpen, setConfirmTopRefundOpen] = useState(false);
   const [isMasterLedgerExpanded, setIsMasterLedgerExpanded] = useState(false);
+  const [isUserBalancesExpanded, setIsUserBalancesExpanded] = useState(false);
   const [userBalanceSearch, setUserBalanceSearch] = useState("");
   const [userRowAction, setUserRowAction] = useState<{
     uid: string;
@@ -4780,7 +4781,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           type="text"
                           placeholder="Search user email or role..."
                           value={userBalanceSearch}
-                          onChange={(e) => setUserBalanceSearch(e.target.value)}
+                          onChange={(e) => {
+                            setUserBalanceSearch(e.target.value);
+                            if (e.target.value.trim()) {
+                              setIsUserBalancesExpanded(true);
+                            }
+                          }}
                           className={`${field} !py-1.5 !text-[12px] w-48 sm:w-60`}
                           data-agent-id="user-token-balances-search"
                           data-testid="user-token-balances-search"
@@ -4796,10 +4802,27 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           <Icon name="refresh" className={`size-3.5 ${rbacLoading ? "animate-spin" : ""}`} />
                           Refresh Balances
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsUserBalancesExpanded((prev) => !prev)}
+                          aria-expanded={isUserBalancesExpanded}
+                          data-agent-id="toggle-user-token-balances-btn"
+                          data-testid="toggle-user-token-balances-btn"
+                          className={`${btnSecondary} font-mono text-xs`}
+                        >
+                          <Icon
+                            name="chevronDown"
+                            className={`size-3.5 transition-transform duration-200 ${
+                              isUserBalancesExpanded ? "rotate-180" : ""
+                            }`}
+                          />
+                          <span>{isUserBalancesExpanded ? "Collapse Balances" : "Expand Balances"}</span>
+                        </button>
                       </div>
                     </div>
 
-                    {(() => {
+                    {isUserBalancesExpanded &&
+                      (() => {
                       const q = userBalanceSearch.trim().toLowerCase();
                       const registeredUsers = rbacUsers
                         .filter((u) => Boolean(u.email))
