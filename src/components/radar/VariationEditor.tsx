@@ -48,9 +48,13 @@ export function VariationEditor({
 
   return (
     <div className="flex min-w-0 flex-col gap-4 bg-surface-container-lowest p-3 sm:p-4 xl:col-span-8">
-      <div className="flex flex-col gap-3 border-b border-white/[0.06] pb-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
-        <div className="-mx-3 overflow-x-auto px-3 no-scrollbar sm:mx-0 sm:px-0">
-          <div role="tablist" aria-label="Variations" className="inline-flex gap-1 rounded-lg border border-white/[0.08] bg-surface-container-low p-1">
+      <div className="flex flex-col gap-2.5 border-b border-white/[0.06] pb-3">
+        <div className="-mx-3 overflow-x-auto px-3 no-scrollbar sm:mx-0 sm:px-0 md:overflow-visible">
+          <div
+            role="tablist"
+            aria-label="Variations"
+            className="inline-flex gap-1 rounded-lg border border-white/[0.08] bg-surface-container-low p-1 md:flex md:w-full md:flex-nowrap"
+          >
             {variations.map((variation, i) => (
               <button
                 key={i}
@@ -59,28 +63,31 @@ export function VariationEditor({
                 id={`variation-tab-${i}`}
                 data-agent-id={`variation-tab-${i}`}
                 data-testid={`variation-tab-${i}`}
+                title={`${variationLetter(i)}: ${variation.angleName}`}
                 aria-label={`Variation ${variationLetter(i)}: ${variation.angleName}`}
                 aria-selected={i === active}
                 aria-controls="variation-panel"
                 onClick={() => onSelect(i)}
-                className={`flex h-10 items-center rounded px-3 text-compact whitespace-nowrap transition sm:h-8 ${
+                className={`flex h-10 items-center justify-center rounded px-2.5 text-xs whitespace-nowrap transition sm:h-8 md:min-w-0 md:flex-1 lg:px-3 lg:text-compact ${
                   i === active
                     ? "bg-primary font-semibold text-on-primary shadow-[0_0_12px_rgba(192,193,255,0.35)]"
                     : "font-medium text-on-surface-variant hover:text-on-surface"
                 }`}
               >
-                {variationLetter(i)}: {variation.angleName}
+                <span className="truncate">
+                  {variationLetter(i)}: {variation.angleName}
+                </span>
               </button>
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 font-mono text-[11px]">
+        <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] md:flex-nowrap">
           {badges.map((b, i) => (
             <span
               key={b}
-              className={`flex items-center gap-1 rounded border border-white/10 bg-surface-container-low px-2 py-1 ${i === 0 ? "text-on-surface" : "text-outline"}`}
+              className={`flex items-center gap-1 rounded border border-white/10 bg-surface-container-low px-2 py-1 whitespace-nowrap ${i === 0 ? "text-on-surface" : "text-outline"}`}
             >
-              {i === 0 && <span className="size-1.5 rounded-full bg-secondary" />}
+              {i === 0 && <span className="size-1.5 shrink-0 rounded-full bg-secondary" />}
               {b}
             </span>
           ))}
