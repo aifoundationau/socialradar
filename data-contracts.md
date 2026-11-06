@@ -851,4 +851,12 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 ```
 - **Permanent Forfeit Confirmation:** Requires explicit two-step user confirmation (`confirmForfeit: true`) acknowledging that unused tokens cannot be retrieved once refreshed to 0. Atomically updates `users/{uid}.tokenBalance` to `0` and logs an immutable `ADMIN_RESET` transaction in `token_transactions`.
 
+## 22. Super Admin Exclusive Token Controls (`POST /api/admin/orders`)
+- **Strict Super Admin Authorization (`requireRole: "superadmin"`):** Only `role === "superadmin"` is authorized to execute token ledger mutations via `POST /api/admin/orders`.
+- **Permitted Actions Only:**
+  1. **Add Tokens (`GIFT_TOKENS` / `ADD_TOKENS`)**: Validated via `AdminGiftTokensRequestSchema`.
+  2. **Remove Tokens (`DEDUCT_TOKENS` / `REMOVE_TOKENS`)**: Validated via `AdminDeductTokensRequestSchema` with mandatory confirmation.
+  3. **Refund Tokens (`REFUND_ORDER`)**: Validated via `AdminRefundOrderRequestSchema` with mandatory confirmation to restore deducted tokens to the customer wallet.
+
+
 

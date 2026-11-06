@@ -137,9 +137,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [giftTokensInput, setGiftTokensInput] = useState("0");
   const [giftNote, setGiftNote] = useState("");
   const [gifting, setGifting] = useState(false);
-  const [tokenActionMode, setTokenActionMode] = useState<"GIFT" | "DEDUCT" | "RESET">("GIFT");
+  const [tokenActionMode, setTokenActionMode] = useState<"GIFT" | "DEDUCT" | "REFUND">("GIFT");
   const [confirmDeductOpen, setConfirmDeductOpen] = useState(false);
-  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+  const [selectedRefundTxId, setSelectedRefundTxId] = useState("");
+  const [confirmTopRefundOpen, setConfirmTopRefundOpen] = useState(false);
   const [confirmResetLedgerOpen, setConfirmResetLedgerOpen] = useState(false);
   const [adminMessages, setAdminMessages] = useState<AdminMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<AdminMessage | null>(null);
@@ -488,11 +489,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     const recipientEmail = giftEmail.trim().toLowerCase();
     const tokens = Math.round(Number(giftTokensInput) || 0);
     if (!recipientEmail) {
-      setErrorMsg("Enter a recipient email address to gift tokens.");
+      setErrorMsg("Enter a customer email address to add tokens.");
       return;
     }
     if (tokens <= 0) {
-      setErrorMsg("Gift token amount must be a positive integer (1 or more).");
+      setErrorMsg("Token amount to add must be a positive integer (1 or more).");
       return;
     }
 
@@ -521,7 +522,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       const gifted = data.tokens ?? (data as Record<string, unknown>).creditedTokens ?? tokens;
       const bal = data.newBalance ?? (data as Record<string, unknown>).balanceAfter ?? 0;
       setStatusMsg(
-        `Gifted +${Number(gifted).toLocaleString("en-AU")} tokens at no charge to ${recipientEmail} (new balance: ${Number(bal).toLocaleString("en-AU")} ⚡).`
+        `Added +${Number(gifted).toLocaleString("en-AU")} tokens to ${recipientEmail} (new balance: ${Number(bal).toLocaleString("en-AU")} ⚡).`
       );
       setRbacUsers((prev) =>
         prev.map((u) => (u.email.toLowerCase() === recipientEmail ? { ...u, tokenBalance: Number(bal) } : u))
@@ -538,11 +539,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     const recipientEmail = giftEmail.trim().toLowerCase();
     const tokens = Math.round(Number(giftTokensInput) || 0);
     if (!recipientEmail) {
-      setErrorMsg("Enter a recipient email address to deduct tokens.");
+      setErrorMsg("Enter a customer email address to remove tokens.");
       return;
     }
     if (tokens <= 0) {
-      setErrorMsg("Token deduction amount must be a positive integer (1 or more).");
+      setErrorMsg("Token amount to remove must be a positive integer (1 or more).");
       return;
     }
 
@@ -571,53 +572,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       const deducted = data.deductedTokens ?? tokens;
       const balance = data.balanceAfter ?? 0;
       setStatusMsg(
-        `Successfully deducted ${deducted.toLocaleString("en-AU")} tokens from ${recipientEmail}. New balance: ${balance.toLocaleString("en-AU")} ⚡.`
+        `Removed -${deducted.toLocaleString("en-AU")} tokens from ${recipientEmail}. New balance: ${balance.toLocaleString("en-AU")} ⚡.`
       );
       setRbacUsers((prev) =>
         prev.map((u) => (u.email.toLowerCase() === recipientEmail ? { ...u, tokenBalance: balance } : u))
-      );
-      window.dispatchEvent(new CustomEvent("wallet-updated"));
-    } catch (err) {
-      setErrorMsg(errorMessage(err));
-    } finally {
-      setGifting(false);
-    }
-  }
-
-  async function handleResetTokens() {
-    const recipientEmail = giftEmail.trim().toLowerCase();
-    if (!recipientEmail) {
-      setErrorMsg("Enter a recipient email address to reset tokens.");
-      return;
-    }
-
-    setGifting(true);
-    setErrorMsg(null);
-    setStatusMsg(null);
-    try {
-      const data = await apiFetch<{
-        success: boolean;
-        clearedTokens?: number;
-        balanceAfter?: number;
-        orders: TokenTransactionDoc[];
-      }>("/api/admin/orders", {
-        method: "POST",
-        body: {
-          action: "RESET_TOKENS",
-          recipientEmail,
-          note: giftNote.trim() || undefined,
-        },
-      });
-      if (data.orders) setOrderLedger(data.orders);
-      setConfirmResetOpen(false);
-      setGiftNote("");
-      setGiftTokensInput("0");
-      const cleared = data.clearedTokens ?? 0;
-      setStatusMsg(
-        `Successfully reset token balance to 0 for ${recipientEmail} (cleared ${cleared.toLocaleString("en-AU")} tokens).`
-      );
-      setRbacUsers((prev) =>
-        prev.map((u) => (u.email.toLowerCase() === recipientEmail ? { ...u, tokenBalance: 0 } : u))
       );
       window.dispatchEvent(new CustomEvent("wallet-updated"));
     } catch (err) {
@@ -634,8 +592,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     try {
       const data = await apiFetch<{
         success: boolean;
-        refundedTokens: number;
-        newBalance: number;
+        refundedTokens?: number;
+        newBalance?: number;
+        refundResult?: { balanceAfter: number };
         orders: TokenTransactionDoc[];
       }>("/api/admin/orders", {
         method: "POST",
@@ -646,8 +605,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       });
       if (data.orders) setOrderLedger(data.orders);
       setConfirmRefundTxId(null);
+      setConfirmTopRefundOpen(false);
+      setSelectedRefundTxId("");
+      const refundedAmt = Number(data.refundedTokens ?? 0);
+      const balAfter = Number(data.newBalance ?? data.refundResult?.balanceAfter ?? 0);
       setStatusMsg(
-        `Refunded +${data.refundedTokens.toLocaleString("en-AU")} tokens to customer wallet (new balance: ${data.newBalance.toLocaleString("en-AU")} ⚡).`
+        `Refunded +${refundedAmt.toLocaleString("en-AU")} tokens to customer wallet (new balance: ${balAfter.toLocaleString("en-AU")} ⚡).`
       );
       window.dispatchEvent(new CustomEvent("wallet-updated"));
     } catch (err) {
@@ -2408,365 +2371,443 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     </div>
                   </div>
 
-              {/* USER TOKEN MANAGEMENT: GIFT, DEDUCT & REFRESH TO 0 (SuperAdmin & Main Admin) */}
-              <div
-                className={`${card} p-4 border border-primary/30 bg-primary/[0.03] space-y-3.5`}
-                data-agent-id="user-token-management-card"
-                data-testid="user-token-management-card"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Icon name="sparkles" className="size-4 text-primary" />
-                      <h4 className="text-compact font-bold text-on-surface">
-                        User Token Controls (Gift, Deduct &amp; Reset to 0)
-                      </h4>
-                      <span className="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
-                        SuperAdmin &amp; Main Admin
+              {/* SUPER ADMIN TOKEN CONTROLS: ADD TOKENS, REMOVE TOKENS & REFUND TOKENS ONLY */}
+              {isSuper && (
+                <div
+                  className={`${card} p-4 border border-primary/30 bg-primary/[0.03] space-y-3.5`}
+                  data-agent-id="user-token-management-card"
+                  data-testid="user-token-management-card"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Icon name="sparkles" className="size-4 text-primary" />
+                        <h4 className="text-compact font-bold text-on-surface">
+                          Super Admin Token Controls (Add Tokens, Remove Tokens &amp; Refund Tokens Only)
+                        </h4>
+                        <span className="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
+                          Super Admin Only
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-on-surface-variant">
+                        Super Admin exclusive controls: Add tokens, remove tokens, or refund tokens on any deduction order.
+                      </p>
+                    </div>
+
+                    {/* Action Mode Toggle: Add Tokens | Remove Tokens | Refund Tokens ONLY */}
+                    <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-surface-container-high/60 p-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTokenActionMode("GIFT");
+                          setConfirmDeductOpen(false);
+                          setConfirmTopRefundOpen(false);
+                        }}
+                        data-agent-id="token-mode-gift-btn"
+                        data-testid="token-mode-gift-btn"
+                        aria-label="Add Tokens Mode"
+                        className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                          tokenActionMode === "GIFT"
+                            ? "bg-primary text-on-primary shadow-sm"
+                            : "text-on-surface-variant hover:text-on-surface"
+                        }`}
+                      >
+                        <Icon name="plus" className="size-3" />
+                        <span>Add Tokens</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTokenActionMode("DEDUCT");
+                          setConfirmDeductOpen(false);
+                          setConfirmTopRefundOpen(false);
+                        }}
+                        data-agent-id="token-mode-deduct-btn"
+                        data-testid="token-mode-deduct-btn"
+                        aria-label="Remove Tokens Mode"
+                        className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                          tokenActionMode === "DEDUCT"
+                            ? "bg-warning text-black shadow-sm font-bold"
+                            : "text-on-surface-variant hover:text-on-surface"
+                        }`}
+                      >
+                        <Icon name="trash" className="size-3" />
+                        <span>Remove Tokens</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTokenActionMode("REFUND");
+                          setConfirmDeductOpen(false);
+                          setConfirmTopRefundOpen(false);
+                        }}
+                        data-agent-id="token-mode-refund-btn"
+                        data-testid="token-mode-refund-btn"
+                        aria-label="Refund Tokens Mode"
+                        className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                          tokenActionMode === "REFUND"
+                            ? "bg-amber-400 text-black shadow-sm font-bold"
+                            : "text-on-surface-variant hover:text-on-surface"
+                        }`}
+                      >
+                        <Icon name="refresh" className="size-3" />
+                        <span>Refund Tokens</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Quick Presets */}
+                  {tokenActionMode === "GIFT" && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] font-mono text-outline">Quick Add Presets:</span>
+                      {[10, 45, 100, 500, 1000].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setGiftTokensInput(String(preset))}
+                          className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                            Math.round(Number(giftTokensInput) || 0) === preset
+                              ? "border-primary bg-primary/20 text-primary"
+                              : "border-white/10 bg-surface-container-highest text-on-surface-variant hover:border-primary/40 hover:text-on-surface"
+                          }`}
+                          data-testid={`gift-preset-${preset}`}
+                        >
+                          +{preset} ⚡
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {tokenActionMode === "DEDUCT" && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] font-mono text-outline">Quick Remove Presets:</span>
+                      {[5, 10, 25, 50, 100].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setGiftTokensInput(String(preset))}
+                          className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                            Math.round(Number(giftTokensInput) || 0) === preset
+                              ? "border-warning bg-warning/20 text-warning"
+                              : "border-white/10 bg-surface-container-highest text-on-surface-variant hover:border-warning/40 hover:text-on-surface"
+                          }`}
+                          data-testid={`deduct-preset-${preset}`}
+                        >
+                          -{preset} ⚡
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Target User Peek */}
+                  {giftEmail && (
+                    <div className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-surface-container-high/50 px-3 py-1.5 font-mono text-xs">
+                      <span className="text-on-surface-variant">Target User:</span>
+                      <span className="font-semibold text-on-surface">{giftEmail}</span>
+                      <span className="text-white/20">•</span>
+                      <span className="text-on-surface-variant">Current Balance:</span>
+                      <span className="font-bold text-primary">
+                        ⚡ {(rbacUsers.find((u) => u.email.toLowerCase() === giftEmail.trim().toLowerCase())?.tokenBalance ?? 0).toLocaleString("en-AU")} tokens
                       </span>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                      Give complimentary gift tokens, take away tokens, or refresh a user&apos;s token balance to 0 with explicit confirmation.
-                    </p>
-                  </div>
+                  )}
 
-                  {/* Action Mode Toggle */}
-                  <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-surface-container-high/60 p-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTokenActionMode("GIFT");
-                        setConfirmDeductOpen(false);
-                        setConfirmResetOpen(false);
-                      }}
-                      data-agent-id="token-mode-gift-btn"
-                      data-testid="token-mode-gift-btn"
-                      className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
-                        tokenActionMode === "GIFT"
-                          ? "bg-primary text-on-primary shadow-sm"
-                          : "text-on-surface-variant hover:text-on-surface"
-                      }`}
-                    >
-                      <Icon name="zap" className="size-3" />
-                      <span>Gift Tokens</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTokenActionMode("DEDUCT");
-                        setConfirmDeductOpen(false);
-                        setConfirmResetOpen(false);
-                      }}
-                      data-agent-id="token-mode-deduct-btn"
-                      data-testid="token-mode-deduct-btn"
-                      className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
-                        tokenActionMode === "DEDUCT"
-                          ? "bg-warning text-black shadow-sm font-bold"
-                          : "text-on-surface-variant hover:text-on-surface"
-                      }`}
-                    >
-                      <Icon name="trash" className="size-3" />
-                      <span>Take Away</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTokenActionMode("RESET");
-                        setConfirmDeductOpen(false);
-                        setConfirmResetOpen(false);
-                      }}
-                      data-agent-id="token-mode-reset-btn"
-                      data-testid="token-mode-reset-btn"
-                      className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
-                        tokenActionMode === "RESET"
-                          ? "bg-error text-on-error shadow-sm font-bold"
-                          : "text-on-surface-variant hover:text-on-surface"
-                      }`}
-                    >
-                      <Icon name="refresh" className="size-3" />
-                      <span>Refresh to 0</span>
-                    </button>
-                  </div>
-                </div>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (tokenActionMode === "GIFT") {
+                        handleGiftTokens(e);
+                      } else if (tokenActionMode === "DEDUCT") {
+                        setConfirmDeductOpen(true);
+                      } else if (tokenActionMode === "REFUND") {
+                        if (!selectedRefundTxId) {
+                          setErrorMsg("Select a deduction order to refund tokens.");
+                          return;
+                        }
+                        setConfirmTopRefundOpen(true);
+                      }
+                    }}
+                    className="space-y-3"
+                  >
+                    {tokenActionMode !== "REFUND" ? (
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12 items-end">
+                        <div className="sm:col-span-4">
+                          <label className={label}>Customer Email *</label>
+                          <input
+                            type="email"
+                            required
+                            list="gift-registered-users-list"
+                            placeholder="customer@example.com"
+                            value={giftEmail}
+                            onChange={(e) => {
+                              setGiftEmail(e.target.value);
+                              setConfirmDeductOpen(false);
+                            }}
+                            className={field}
+                            data-agent-id="gift-recipient-email-input"
+                            data-testid="gift-recipient-email-input"
+                          />
+                          <datalist id="gift-registered-users-list">
+                            {rbacUsers.map((u) => (
+                              <option key={u.uid} value={u.email}>
+                                {u.email} (Balance: {u.tokenBalance ?? 0} ⚡)
+                              </option>
+                            ))}
+                          </datalist>
+                        </div>
 
-                {/* Quick Presets */}
-                {tokenActionMode === "GIFT" && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-mono text-outline">Quick Gift Presets:</span>
-                    {[10, 45, 100, 500, 1000].map((preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        onClick={() => setGiftTokensInput(String(preset))}
-                        className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
-                          Math.round(Number(giftTokensInput) || 0) === preset
-                            ? "border-primary bg-primary/20 text-primary"
-                            : "border-white/10 bg-surface-container-highest text-on-surface-variant hover:border-primary/40 hover:text-on-surface"
-                        }`}
-                        data-testid={`gift-preset-${preset}`}
-                      >
-                        +{preset} ⚡
-                      </button>
-                    ))}
-                  </div>
-                )}
+                        <div className="sm:col-span-2">
+                          <label className={label}>
+                            {tokenActionMode === "GIFT" ? "Tokens to Add *" : "Tokens to Remove *"}
+                          </label>
+                          <input
+                            id="gift-tokens-amount-input"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            required
+                            value={giftTokensInput}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => {
+                              setGiftTokensInput(e.target.value.replace(/[^0-9]/g, ""));
+                              setConfirmDeductOpen(false);
+                            }}
+                            className={`${field} font-mono text-center`}
+                            data-agent-id="gift-tokens-amount-input"
+                            data-testid="gift-tokens-amount-input"
+                          />
+                        </div>
 
-                {tokenActionMode === "DEDUCT" && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-mono text-outline">Quick Deduct Presets:</span>
-                    {[5, 10, 25, 50, 100].map((preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        onClick={() => setGiftTokensInput(String(preset))}
-                        className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
-                          Math.round(Number(giftTokensInput) || 0) === preset
-                            ? "border-warning bg-warning/20 text-warning"
-                            : "border-white/10 bg-surface-container-highest text-on-surface-variant hover:border-warning/40 hover:text-on-surface"
-                        }`}
-                        data-testid={`deduct-preset-${preset}`}
-                      >
-                        -{preset} ⚡
-                      </button>
-                    ))}
-                  </div>
-                )}
+                        <div className="sm:col-span-4">
+                          <label className={label}>Reason / Audit Note (Optional)</label>
+                          <input
+                            type="text"
+                            maxLength={200}
+                            placeholder={
+                              tokenActionMode === "GIFT"
+                                ? "e.g. VIP onboarding credit / promo bonus"
+                                : "e.g. Manual adjustment / token removal"
+                            }
+                            value={giftNote}
+                            onChange={(e) => setGiftNote(e.target.value)}
+                            className={field}
+                            data-agent-id="gift-tokens-note-input"
+                            data-testid="gift-tokens-note-input"
+                          />
+                        </div>
 
-                {/* Target User Peek */}
-                {giftEmail && (
-                  <div className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-surface-container-high/50 px-3 py-1.5 font-mono text-xs">
-                    <span className="text-on-surface-variant">Target User:</span>
-                    <span className="font-semibold text-on-surface">{giftEmail}</span>
-                    <span className="text-white/20">•</span>
-                    <span className="text-on-surface-variant">Current Balance:</span>
-                    <span className="font-bold text-primary">
-                      ⚡ {(rbacUsers.find((u) => u.email.toLowerCase() === giftEmail.trim().toLowerCase())?.tokenBalance ?? 0).toLocaleString("en-AU")} tokens
-                    </span>
-                  </div>
-                )}
+                        <div className="sm:col-span-2">
+                          {tokenActionMode === "GIFT" && (
+                            <button
+                              type="submit"
+                              disabled={gifting}
+                              className={`${btnPrimary} w-full justify-center`}
+                              data-agent-id="submit-gift-tokens-button"
+                              data-testid="submit-gift-tokens-button"
+                            >
+                              <Icon name="plus" className="size-3.5" />
+                              {gifting ? "Adding..." : "Add Tokens"}
+                            </button>
+                          )}
 
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (tokenActionMode === "GIFT") {
-                      handleGiftTokens(e);
-                    } else if (tokenActionMode === "DEDUCT") {
-                      setConfirmDeductOpen(true);
-                    } else if (tokenActionMode === "RESET") {
-                      setConfirmResetOpen(true);
-                    }
-                  }}
-                  className="space-y-3"
-                >
-                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12 items-end">
-                    <div className={tokenActionMode === "RESET" ? "sm:col-span-6" : "sm:col-span-4"}>
-                      <label className={label}>Recipient Customer Email *</label>
-                      <input
-                        type="email"
-                        required
-                        list="gift-registered-users-list"
-                        placeholder="customer@example.com"
-                        value={giftEmail}
-                        onChange={(e) => {
-                          setGiftEmail(e.target.value);
-                          setConfirmDeductOpen(false);
-                          setConfirmResetOpen(false);
-                        }}
-                        className={field}
-                        data-agent-id="gift-recipient-email-input"
-                        data-testid="gift-recipient-email-input"
-                      />
-                      <datalist id="gift-registered-users-list">
-                        {rbacUsers.map((u) => (
-                          <option key={u.uid} value={u.email}>
-                            {u.email} (Balance: {u.tokenBalance ?? 0} ⚡)
-                          </option>
-                        ))}
-                      </datalist>
-                    </div>
-
-                    {tokenActionMode !== "RESET" && (
-                      <div className="sm:col-span-2">
-                        <label className={label}>
-                          {tokenActionMode === "GIFT" ? "Tokens to Gift *" : "Tokens to Deduct *"}
-                        </label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          required
-                          value={giftTokensInput}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => {
-                            setGiftTokensInput(e.target.value.replace(/[^0-9]/g, ""));
-                            setConfirmDeductOpen(false);
-                          }}
-                          className={`${field} font-mono text-center`}
-                          data-agent-id="gift-tokens-amount-input"
-                          data-testid="gift-tokens-amount-input"
-                        />
+                          {tokenActionMode === "DEDUCT" && !confirmDeductOpen && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!giftEmail.trim()) {
+                                  setErrorMsg("Enter a customer email to remove tokens.");
+                                  return;
+                                }
+                                const amt = Number(giftTokensInput);
+                                if (isNaN(amt) || amt <= 0) {
+                                  setErrorMsg("Enter a valid number of tokens to remove (1 or more).");
+                                  return;
+                                }
+                                setConfirmDeductOpen(true);
+                              }}
+                              disabled={gifting}
+                              className={`${btnSecondary} w-full justify-center text-warning hover:border-warning/50`}
+                              data-agent-id="trigger-deduct-tokens-button"
+                              data-testid="trigger-deduct-tokens-button"
+                            >
+                              <Icon name="trash" className="size-3.5" />
+                              Remove Tokens
+                            </button>
+                          )}
+                        </div>
                       </div>
+                    ) : (
+                      /* REFUND TOKENS MODE */
+                      (() => {
+                        const emailQ = giftEmail.trim().toLowerCase();
+                        const refundableOrders = orderLedger.filter(
+                          (tx) =>
+                            tx.delta < 0 &&
+                            !tx.refunded &&
+                            (!emailQ || (tx.email || "").toLowerCase().includes(emailQ))
+                        );
+                        const selectedOrder = refundableOrders.find((tx) => tx.txId === selectedRefundTxId);
+
+                        return (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12 items-end">
+                              <div className="sm:col-span-4">
+                                <label className={label}>Filter by Customer Email (Optional)</label>
+                                <input
+                                  type="text"
+                                  list="gift-registered-users-list"
+                                  placeholder="All customers or filter email..."
+                                  value={giftEmail}
+                                  onChange={(e) => {
+                                    setGiftEmail(e.target.value);
+                                    setConfirmTopRefundOpen(false);
+                                  }}
+                                  className={field}
+                                  data-agent-id="refund-filter-email-input"
+                                  data-testid="refund-filter-email-input"
+                                />
+                              </div>
+
+                              <div className="sm:col-span-6">
+                                <label className={label}>
+                                  Select Deduction Order to Refund ({refundableOrders.length} eligible) *
+                                </label>
+                                <select
+                                  value={selectedRefundTxId}
+                                  onChange={(e) => {
+                                    setSelectedRefundTxId(e.target.value);
+                                    setConfirmTopRefundOpen(false);
+                                  }}
+                                  className={`${field} font-mono text-xs`}
+                                  data-agent-id="refund-order-select"
+                                  data-testid="refund-order-select"
+                                >
+                                  <option value="">-- Choose a deduction order to refund tokens --</option>
+                                  {refundableOrders.map((tx) => (
+                                    <option key={tx.txId} value={tx.txId}>
+                                      {new Date(tx.createdAt).toLocaleDateString("en-AU", {
+                                        day: "2-digit",
+                                        month: "short",
+                                      })}{" "}
+                                      • {tx.email || tx.uid} • {tx.type} ({tx.delta} ⚡) — {tx.referenceId.slice(0, 50)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="sm:col-span-2">
+                                {!confirmTopRefundOpen && (
+                                  <button
+                                    type="button"
+                                    disabled={!selectedOrder || refundingTxId === selectedOrder?.txId}
+                                    onClick={() => {
+                                      if (!selectedOrder) {
+                                        setErrorMsg("Select a deduction order to refund tokens.");
+                                        return;
+                                      }
+                                      setConfirmTopRefundOpen(true);
+                                    }}
+                                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-400/40 bg-amber-500/15 px-3 py-2 font-mono text-xs font-bold text-amber-300 hover:bg-amber-500/25 disabled:opacity-40 transition"
+                                    data-agent-id="trigger-top-refund-tokens-button"
+                                    data-testid="trigger-top-refund-tokens-button"
+                                  >
+                                    <Icon name="refresh" className="size-3.5" />
+                                    Refund Tokens
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {confirmTopRefundOpen && selectedOrder && (
+                              <div
+                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-amber-400/50 bg-amber-500/10 p-3"
+                                data-agent-id="confirm-top-refund-dialog"
+                                data-testid="confirm-top-refund-dialog"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <Icon name="alert" className="size-4 text-amber-300 shrink-0" />
+                                  <p className="font-mono text-xs text-on-surface">
+                                    Confirm refunding{" "}
+                                    <strong className="text-amber-300 font-bold">
+                                      +{Math.abs(selectedOrder.delta).toLocaleString("en-AU")} tokens
+                                    </strong>{" "}
+                                    to <strong className="text-on-surface">{selectedOrder.email || selectedOrder.uid}</strong> for{" "}
+                                    <span className="text-on-surface-variant">{selectedOrder.referenceId}</span>?
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmTopRefundOpen(false)}
+                                    className={`${btnSecondary} text-xs py-1 px-2.5`}
+                                    data-agent-id="cancel-top-refund-button"
+                                    data-testid="cancel-top-refund-button"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={refundingTxId === selectedOrder.txId}
+                                    onClick={() => handleRefundOrder(selectedOrder.txId)}
+                                    className={`${btnDanger} text-xs py-1 px-3 bg-amber-400 hover:bg-amber-300 text-black font-bold`}
+                                    data-agent-id="confirm-top-refund-tokens-button"
+                                    data-testid="confirm-top-refund-tokens-button"
+                                  >
+                                    {refundingTxId === selectedOrder.txId
+                                      ? "Refunding..."
+                                      : `Confirm Refund (+${Math.abs(selectedOrder.delta)} ⚡)`}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()
                     )}
 
-                    <div className={tokenActionMode === "RESET" ? "sm:col-span-4" : "sm:col-span-4"}>
-                      <label className={label}>Reason / Audit Note (Optional)</label>
-                      <input
-                        type="text"
-                        maxLength={200}
-                        placeholder={
-                          tokenActionMode === "GIFT"
-                            ? "e.g. VIP onboarding credit / promo bonus"
-                            : tokenActionMode === "DEDUCT"
-                              ? "e.g. Manual correction / clawback"
-                              : "e.g. Fresh season account reset / trial purge"
-                        }
-                        value={giftNote}
-                        onChange={(e) => setGiftNote(e.target.value)}
-                        className={field}
-                        data-agent-id="gift-tokens-note-input"
-                        data-testid="gift-tokens-note-input"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      {tokenActionMode === "GIFT" && (
-                        <button
-                          type="submit"
-                          disabled={gifting}
-                          className={`${btnPrimary} w-full justify-center`}
-                          data-agent-id="submit-gift-tokens-button"
-                          data-testid="submit-gift-tokens-button"
-                        >
-                          <Icon name="zap" className="size-3.5" />
-                          {gifting ? "Gifting..." : "Gift Tokens"}
-                        </button>
-                      )}
-
-                      {tokenActionMode === "DEDUCT" && !confirmDeductOpen && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!giftEmail.trim()) {
-                              setErrorMsg("Enter a customer email to deduct tokens.");
-                              return;
-                            }
-                            const amt = Number(giftTokensInput);
-                            if (isNaN(amt) || amt <= 0) {
-                              setErrorMsg("Enter a valid number of tokens to deduct (1 or more).");
-                              return;
-                            }
-                            setConfirmDeductOpen(true);
-                          }}
-                          disabled={gifting}
-                          className={`${btnSecondary} w-full justify-center text-warning hover:border-warning/50`}
-                          data-agent-id="trigger-deduct-tokens-button"
-                          data-testid="trigger-deduct-tokens-button"
-                        >
-                          <Icon name="trash" className="size-3.5" />
-                          Take Away
-                        </button>
-                      )}
-
-                      {tokenActionMode === "RESET" && !confirmResetOpen && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!giftEmail.trim()) {
-                              setErrorMsg("Enter a customer email to reset tokens.");
-                              return;
-                            }
-                            setConfirmResetOpen(true);
-                          }}
-                          disabled={gifting}
-                          className={`${btnDanger} w-full justify-center`}
-                          data-agent-id="trigger-reset-tokens-button"
-                          data-testid="trigger-reset-tokens-button"
-                        >
-                          <Icon name="refresh" className="size-3.5" />
-                          Refresh to 0
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* CONFIRMATION BANNER FOR DEDUCT TOKENS */}
-                  {confirmDeductOpen && tokenActionMode === "DEDUCT" && (
-                    <div
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3"
-                      data-agent-id="confirm-deduct-dialog"
-                      data-testid="confirm-deduct-dialog"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Icon name="alert" className="size-4 text-warning shrink-0" />
-                        <p className="font-mono text-xs text-on-surface">
-                          Confirm taking away <strong className="text-warning font-bold">{Number(giftTokensInput).toLocaleString("en-AU")} tokens</strong> from <strong className="text-on-surface">{giftEmail}</strong>?
-                        </p>
+                    {/* CONFIRMATION BANNER FOR REMOVE TOKENS */}
+                    {confirmDeductOpen && tokenActionMode === "DEDUCT" && (
+                      <div
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3"
+                        data-agent-id="confirm-deduct-dialog"
+                        data-testid="confirm-deduct-dialog"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Icon name="alert" className="size-4 text-warning shrink-0" />
+                          <p className="font-mono text-xs text-on-surface">
+                            Confirm removing{" "}
+                            <strong className="text-warning font-bold">
+                              {Number(giftTokensInput).toLocaleString("en-AU")} tokens
+                            </strong>{" "}
+                            from <strong className="text-on-surface">{giftEmail}</strong>?
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeductOpen(false)}
+                            className={`${btnSecondary} text-xs py-1 px-2.5`}
+                            data-agent-id="cancel-deduct-button"
+                            data-testid="cancel-deduct-button"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDeductTokens}
+                            disabled={gifting}
+                            className={`${btnDanger} text-xs py-1 px-3 bg-warning hover:bg-warning/90 text-black font-bold`}
+                            data-agent-id="confirm-deduct-tokens-button"
+                            data-testid="confirm-deduct-tokens-button"
+                          >
+                            {gifting ? "Removing..." : "Confirm Remove Tokens"}
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeductOpen(false)}
-                          className={`${btnSecondary} text-xs py-1 px-2.5`}
-                          data-agent-id="cancel-deduct-button"
-                          data-testid="cancel-deduct-button"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleDeductTokens}
-                          disabled={gifting}
-                          className={`${btnDanger} text-xs py-1 px-3 bg-warning hover:bg-warning/90 text-black font-bold`}
-                          data-agent-id="confirm-deduct-tokens-button"
-                          data-testid="confirm-deduct-tokens-button"
-                        >
-                          {gifting ? "Deducting..." : "Confirm Deduction"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* CONFIRMATION BANNER FOR REFRESH TO 0 */}
-                  {confirmResetOpen && tokenActionMode === "RESET" && (
-                    <div
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-error/50 bg-error/10 p-3"
-                      data-agent-id="confirm-reset-dialog"
-                      data-testid="confirm-reset-dialog"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Icon name="alert" className="size-4 text-error shrink-0" />
-                        <p className="font-mono text-xs text-on-surface">
-                          Are you sure you want to refresh token amount to <strong className="text-error font-bold">0 tokens</strong> for <strong className="text-on-surface">{giftEmail}</strong>?
-                          {(rbacUsers.find((u) => u.email.toLowerCase() === giftEmail.trim().toLowerCase())?.tokenBalance ?? 0) > 0 && (
-                            <span className="text-error"> (Will clear {(rbacUsers.find((u) => u.email.toLowerCase() === giftEmail.trim().toLowerCase())?.tokenBalance ?? 0).toLocaleString("en-AU")} tokens).</span>
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setConfirmResetOpen(false)}
-                          className={`${btnSecondary} text-xs py-1 px-2.5`}
-                          data-agent-id="cancel-reset-button"
-                          data-testid="cancel-reset-button"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleResetTokens}
-                          disabled={gifting}
-                          className={`${btnDanger} text-xs py-1 px-3`}
-                          data-agent-id="confirm-reset-tokens-button"
-                          data-testid="confirm-reset-tokens-button"
-                        >
-                          {gifting ? "Resetting..." : "Confirm Reset to 0"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </form>
-              </div>
+                    )}
+                  </form>
+                </div>
+              )}
 
                   {/* MASTER ORDER LEDGER: ALL TRANSACTIONS, STRIPE PURCHASES, SEARCH ORDERS & REFUNDS */}
                   <div
@@ -2776,16 +2817,24 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                   >
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="text-compact font-bold text-on-surface">
-                            Master Order Ledger (All Transactions, Stripe Purchases & Search Orders)
+                            Master Order Ledger (All Transactions, Stripe Purchases &amp; Search Orders)
                           </h4>
                           <span className="rounded-full bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
                             {orderLedger.length} Total Logged
                           </span>
+                          {isSuper && (
+                            <span className="rounded-full bg-primary/15 border border-primary/30 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
+                              Super Admin: Add, Remove &amp; Refund Tokens Only
+                            </span>
+                          )}
                         </div>
                         <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                          Complete chronological audit of every Stripe purchase, AdRadarHQ search order, AI Remix, Customize brief, Gift credit, and Token Refund. Click &ldquo;Refund Tokens&rdquo; on any deduction order to restore tokens to the customer wallet.
+                          Complete chronological audit of every Stripe purchase, AdRadarHQ search order, AI Remix, Customize brief, Gift credit, and Token Refund.{" "}
+                          {isSuper
+                            ? "Super Admin can Add Tokens, Remove Tokens, or click “Refund Tokens” on any deduction order to restore tokens to the customer wallet."
+                            : "Token adjustments (Add, Remove, Refund) are restricted to Super Admin only."}
                         </p>
                       </div>
 
@@ -2854,7 +2903,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         ) {
                           return false;
                         }
-                        if (orderFilter === "GIFT_REFUND" && tx.type !== "GIFT" && tx.type !== "REFUND") {
+                        if (
+                          orderFilter === "GIFT_REFUND" &&
+                          tx.type !== "GIFT" &&
+                          tx.type !== "REFUND" &&
+                          tx.type !== "ADMIN_DEDUCT"
+                        ) {
                           return false;
                         }
                         if (!q) return true;
@@ -2886,7 +2940,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 <th className="px-3 py-2">Order Details</th>
                                 <th className="px-2.5 py-2 text-right">Tokens</th>
                                 <th className="px-2.5 py-2 text-right">Balance</th>
-                                <th className="px-3 py-2 text-right">Refund Action</th>
+                                <th className="px-3 py-2 text-right">
+                                  {isSuper ? "Super Admin (Add / Remove / Refund)" : "Refund Status"}
+                                </th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-white/[0.04] font-mono">
@@ -2947,47 +3003,98 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                       {tx.balanceAfter} ⚡
                                     </td>
                                     <td className="px-3 py-2 text-right whitespace-nowrap">
-                                      {tx.refunded ? (
+                                      {isSuper ? (
+                                        <div className="inline-flex items-center justify-end gap-1.5">
+                                          {tx.email && (
+                                            <>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setGiftEmail(tx.email || "");
+                                                  setTokenActionMode("GIFT");
+                                                  setConfirmDeductOpen(false);
+                                                  setConfirmTopRefundOpen(false);
+                                                  if (Number(giftTokensInput) <= 0) setGiftTokensInput("100");
+                                                  document.getElementById("gift-tokens-amount-input")?.focus();
+                                                }}
+                                                title={`Add tokens to ${tx.email}`}
+                                                aria-label={`Add tokens to ${tx.email}`}
+                                                data-agent-id={`ledger-add-tokens-${tx.txId}`}
+                                                data-testid={`ledger-add-tokens-${tx.txId}`}
+                                                className="rounded-lg border border-primary/30 bg-primary/10 px-2 py-1 font-mono text-[10px] font-semibold text-primary hover:bg-primary/20 transition"
+                                              >
+                                                + Add
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setGiftEmail(tx.email || "");
+                                                  setTokenActionMode("DEDUCT");
+                                                  setConfirmDeductOpen(false);
+                                                  setConfirmTopRefundOpen(false);
+                                                  if (Number(giftTokensInput) <= 0) setGiftTokensInput("25");
+                                                  document.getElementById("gift-tokens-amount-input")?.focus();
+                                                }}
+                                                title={`Remove tokens from ${tx.email}`}
+                                                aria-label={`Remove tokens from ${tx.email}`}
+                                                data-agent-id={`ledger-remove-tokens-${tx.txId}`}
+                                                data-testid={`ledger-remove-tokens-${tx.txId}`}
+                                                className="rounded-lg border border-warning/30 bg-warning/10 px-2 py-1 font-mono text-[10px] font-semibold text-warning hover:bg-warning/20 transition"
+                                              >
+                                                - Remove
+                                              </button>
+                                            </>
+                                          )}
+                                          {tx.refunded ? (
+                                            <span
+                                              className="rounded bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300"
+                                              title={tx.refundTxId ? `Refund TX: ${tx.refundTxId}` : "Tokens refunded"}
+                                            >
+                                              Refunded
+                                            </span>
+                                          ) : canRefund ? (
+                                            confirmRefundTxId === tx.txId ? (
+                                              <div className="inline-flex items-center gap-1 animate-fadeIn">
+                                                <button
+                                                  type="button"
+                                                  disabled={refundingTxId === tx.txId}
+                                                  onClick={() => handleRefundOrder(tx.txId)}
+                                                  className={`${btnDanger} !px-2 !py-1 !text-[10px]`}
+                                                  data-agent-id={`confirm-refund-order-${tx.txId}`}
+                                                  data-testid={`confirm-refund-order-${tx.txId}`}
+                                                >
+                                                  {refundingTxId === tx.txId
+                                                    ? "Refunding..."
+                                                    : `Confirm Refund (+${Math.abs(tx.delta)} ⚡)`}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setConfirmRefundTxId(null)}
+                                                  className={`${btnSecondary} !px-2 !py-1 !text-[10px]`}
+                                                >
+                                                  Cancel
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                onClick={() => setConfirmRefundTxId(tx.txId)}
+                                                className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 font-mono text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20 transition"
+                                                data-agent-id={`refund-order-${tx.txId}`}
+                                                data-testid={`refund-order-${tx.txId}`}
+                                              >
+                                                Refund Tokens
+                                              </button>
+                                            )
+                                          ) : null}
+                                        </div>
+                                      ) : tx.refunded ? (
                                         <span
                                           className="rounded bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300"
                                           title={tx.refundTxId ? `Refund TX: ${tx.refundTxId}` : "Tokens refunded"}
                                         >
                                           Refunded
                                         </span>
-                                      ) : canRefund ? (
-                                        confirmRefundTxId === tx.txId ? (
-                                          <div className="inline-flex items-center gap-1 animate-fadeIn">
-                                            <button
-                                              type="button"
-                                              disabled={refundingTxId === tx.txId}
-                                              onClick={() => handleRefundOrder(tx.txId)}
-                                              className={`${btnDanger} !px-2 !py-1 !text-[10px]`}
-                                              data-agent-id={`confirm-refund-order-${tx.txId}`}
-                                              data-testid={`confirm-refund-order-${tx.txId}`}
-                                            >
-                                              {refundingTxId === tx.txId
-                                                ? "Refunding..."
-                                                : `Confirm Refund (+${Math.abs(tx.delta)} ⚡)`}
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => setConfirmRefundTxId(null)}
-                                              className={`${btnSecondary} !px-2 !py-1 !text-[10px]`}
-                                            >
-                                              Cancel
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={() => setConfirmRefundTxId(tx.txId)}
-                                            className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 font-mono text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20 transition"
-                                            data-agent-id={`refund-order-${tx.txId}`}
-                                            data-testid={`refund-order-${tx.txId}`}
-                                          >
-                                            Refund Tokens
-                                          </button>
-                                        )
                                       ) : (
                                         <span className="text-[10px] text-outline">—</span>
                                       )}
