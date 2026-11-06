@@ -58,15 +58,19 @@ export async function PUT(req: Request) {
 
     if (body.action === "ASSIGN_USER_ROLE") {
       const parsed = AssignUserRoleRequestSchema.parse(body);
+      const targetRoles =
+        parsed.roles && parsed.roles.length > 0
+          ? parsed.roles
+          : parsed.role!;
       const assigned = await assignUserRole(
         parsed.email,
-        parsed.role,
+        targetRoles,
         caller.email,
       );
       const users = await getRbacUsersList(100);
       return NextResponse.json({
         success: true,
-        message: `Assigned role ${parsed.role} to ${parsed.email}`,
+        message: `Assigned roles (${assigned.roles.join(", ")}) to ${parsed.email}`,
         assigned,
         users,
       });

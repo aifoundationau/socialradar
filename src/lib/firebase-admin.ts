@@ -159,11 +159,19 @@ export async function verifyRequest(
 
   const isSuper = isDatabaseAdmin(token, token.email);
   const rawRole = (token as Record<string, unknown>)?.role;
-  const isMainAdmin = !isSuper && (rawRole === "admin" || (token as Record<string, unknown>)?.admin === true);
+  const rawRoles = Array.isArray((token as Record<string, unknown>)?.roles)
+    ? ((token as Record<string, unknown>).roles as string[])
+    : [];
+  const isMainAdmin =
+    !isSuper &&
+    (rawRole === "admin" ||
+      rawRoles.includes("admin") ||
+      (token as Record<string, unknown>)?.admin === true);
   let claims: CustomClaims;
   if (isSuper) {
     claims = {
       role: "superadmin",
+      roles: ["superadmin", "admin", "ad_agent", "supporter"],
       tier: "agency",
       isSuperAdmin: true,
       admin: true,
@@ -172,15 +180,22 @@ export async function verifyRequest(
   } else if (isMainAdmin) {
     claims = {
       role: "admin",
+      roles: rawRoles.length > 0 ? (rawRoles as CustomClaims["roles"]) : ["admin"],
       tier: "agency",
       isSuperAdmin: false,
       admin: true,
       superadmin: false,
     };
   } else {
+    const validRole =
+      typeof rawRole === "string" &&
+      ["ad_agent", "moderator", "agency", "supporter"].includes(rawRole)
+        ? (rawRole as CustomClaims["role"])
+        : "supporter";
     claims = {
-      role: "supporter",
-      tier: "supporter",
+      role: validRole,
+      roles: rawRoles.length > 0 ? (rawRoles as CustomClaims["roles"]) : [validRole],
+      tier: validRole === "agency" || rawRoles.includes("agency") ? "agency" : "supporter",
       isSuperAdmin: false,
       admin: false,
       superadmin: false,

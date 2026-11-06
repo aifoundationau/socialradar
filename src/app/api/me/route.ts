@@ -17,17 +17,34 @@ export async function POST(req: Request) {
       .map((d) => d.data() as BrandProfile)
       .sort((a, b) => a.brandName.localeCompare(b.brandName));
 
-    // Sync Auth custom claims if missing or misaligned
+    // Sync Auth custom claims if missing or misaligned, while preserving assigned multi-roles
     const isSuper = isDatabaseAdmin(caller.token, caller.email);
-    const expectedRole = isSuper ? "superadmin" : "supporter";
-    const expectedTier = isSuper ? "agency" : "supporter";
-    if (caller.token.role !== expectedRole || caller.token.tier !== expectedTier) {
+    if (isSuper) {
+      if (caller.token.role !== "superadmin" || caller.token.tier !== "agency") {
+        await setUserClaims(caller.uid, {
+          role: "superadmin",
+          roles: ["superadmin", "admin", "ad_agent", "supporter"],
+          tier: "agency",
+          isSuperAdmin: true,
+          admin: true,
+          superadmin: true,
+        });
+      }
+    } else if (!caller.token.role) {
+      const docRole = user.role && user.role !== "superadmin" ? user.role : "supporter";
+      const docRoles =
+        Array.isArray(user.roles) && user.roles.length > 0
+          ? user.roles.filter((r) => r !== "superadmin")
+          : [docRole];
+      const expectedTier =
+        docRoles.includes("agency") || docRoles.includes("admin") ? "agency" : "supporter";
       await setUserClaims(caller.uid, {
-        role: expectedRole,
+        role: docRole,
+        roles: docRoles,
         tier: expectedTier,
-        isSuperAdmin: isSuper,
-        admin: isSuper,
-        superadmin: isSuper,
+        isSuperAdmin: false,
+        admin: docRoles.includes("admin"),
+        superadmin: false,
       });
     }
 

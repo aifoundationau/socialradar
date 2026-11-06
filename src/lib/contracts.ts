@@ -28,6 +28,7 @@ export const TierSchema = z.enum(["supporter", "starter", "growth", "agency"]);
 export const CustomClaimsSchema = z
   .object({
     role: RoleSchema,
+    roles: z.array(RoleSchema).optional(),
     tier: TierSchema,
     isSuperAdmin: z.boolean().optional(),
     admin: z.boolean().optional(),
@@ -40,6 +41,12 @@ export const UserDocSchema = z
   .object({
     uid: z.string().regex(/^[A-Za-z0-9]{1,128}$/),
     email: z.email().max(254),
+    role: RoleSchema.optional(),
+    roles: z.array(RoleSchema).optional(),
+    tier: z.string().max(32).optional(),
+    isAdAgent: z.boolean().optional(),
+    adAgentId: z.string().max(128).optional(),
+    roleUpdatedBy: z.string().max(254).optional(),
     tokenBalance: tokenInt.min(0),
     activeBrandId: z.string().max(128),
     stripeCustomerId: z.union([z.literal(""), z.string().regex(/^cus_[A-Za-z0-9]+$/)]),
@@ -598,13 +605,26 @@ export const UpdateRolePermissionsRequestSchema = z
   .strict();
 export type UpdateRolePermissionsRequest = z.infer<typeof UpdateRolePermissionsRequestSchema>;
 
+export const AssignableRbacRoleSchema = z.enum([
+  "admin",
+  "ad_agent",
+  "moderator",
+  "agency",
+  "supporter",
+]);
+export type AssignableRbacRole = z.infer<typeof AssignableRbacRoleSchema>;
+
 export const AssignUserRoleRequestSchema = z
   .object({
     action: z.literal("ASSIGN_USER_ROLE"),
     email: z.string().trim().toLowerCase().email().max(254),
-    role: z.enum(["admin", "ad_agent", "moderator", "agency", "supporter"]),
+    role: AssignableRbacRoleSchema.optional(),
+    roles: z.array(AssignableRbacRoleSchema).min(1).max(6).optional(),
   })
-  .strict();
+  .strict()
+  .refine((d) => Boolean(d.role || (d.roles && d.roles.length > 0)), {
+    message: "At least one RBAC role is required",
+  });
 export type AssignUserRoleRequest = z.infer<typeof AssignUserRoleRequestSchema>;
 
 // ---------- 10. Frequently Asked Questions (FAQs) ----------

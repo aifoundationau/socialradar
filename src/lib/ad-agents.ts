@@ -201,11 +201,17 @@ export async function registerOrUpdateAdAgent(params: {
   // Determine resulting RBAC role:
   // Super Admin stays superadmin; Main Admin stays admin; everyone else becomes ad_agent
   const assignedRole: RbacRole = isSuper ? "superadmin" : isMainAdmin ? "admin" : "ad_agent";
+  const mergedRoles: RbacRole[] = isSuper
+    ? ["superadmin", "admin", "ad_agent", "supporter"]
+    : isMainAdmin
+      ? ["admin", "ad_agent", "supporter"]
+      : ["ad_agent", "supporter"];
 
   if (!isSuper && !isMainAdmin) {
     try {
       await adminAuth.setCustomUserClaims(params.uid, {
         role: "ad_agent",
+        roles: mergedRoles,
         tier: "supporter",
         isSuperAdmin: false,
         admin: false,
@@ -223,6 +229,7 @@ export async function registerOrUpdateAdAgent(params: {
       .set(
         {
           role: assignedRole,
+          roles: mergedRoles,
           isAdAgent: true,
           adAgentId: agentId,
           updatedAt: now,

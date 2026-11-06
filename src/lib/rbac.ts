@@ -56,10 +56,51 @@ export interface RbacUserItem {
   displayName?: string;
   photoUrl?: string;
   role: RbacRole;
+  roles: RbacRole[];
   tier: string;
   createdAt: string;
   isPermanentSuperAdmin: boolean;
   tokenBalance?: number;
+}
+
+const ROLE_PRIORITY: RbacRole[] = [
+  "superadmin",
+  "admin",
+  "ad_agent",
+  "moderator",
+  "agency",
+  "supporter",
+];
+
+export function normalizeUserRoles(
+  rawRoles?: unknown,
+  fallbackRole?: unknown,
+  isSuper = false,
+): RbacRole[] {
+  const set = new Set<RbacRole>();
+  if (isSuper) {
+    set.add("superadmin");
+    set.add("admin");
+    set.add("ad_agent");
+    set.add("supporter");
+  }
+  if (Array.isArray(rawRoles)) {
+    for (const r of rawRoles) {
+      if (typeof r === "string" && RBAC_ROLES_LIST.includes(r as RbacRole)) {
+        if (!isSuper && r === "superadmin") continue;
+        set.add(r as RbacRole);
+      }
+    }
+  }
+  if (typeof fallbackRole === "string" && RBAC_ROLES_LIST.includes(fallbackRole as RbacRole)) {
+    if (isSuper || fallbackRole !== "superadmin") {
+      set.add(fallbackRole as RbacRole);
+    }
+  }
+  if (set.size === 0) {
+    set.add(isSuper ? "superadmin" : "supporter");
+  }
+  return ROLE_PRIORITY.filter((r) => set.has(r));
 }
 
 /** Fetches RBAC config from Firestore or bootstraps defaults. */
@@ -131,24 +172,30 @@ export async function updateRolePermissions(
   return updatedMatrix;
 }
 
-/** Assigns a role to a registered user by email address. */
+/** Assigns one or multiple RBAC roles to a registered user by email address. */
 export async function assignUserRole(
   email: string,
-  targetRole: Exclude<RbacRole, "superadmin">,
+  targetRoleOrRoles: Exclude<RbacRole, "superadmin"> | Exclude<RbacRole, "superadmin">[],
   updatedBy: string,
-): Promise<{ uid: string; email: string; role: RbacRole; tier: string }> {
+): Promise<{ uid: string; email: string; role: RbacRole; roles: RbacRole[]; tier: string }> {
   const normEmail = email.trim().toLowerCase();
 
   if (isDatabaseAdmin(null, normEmail)) {
     throw new Error("Cannot modify permanent database superadmin account");
   }
 
-  const tier = targetRole === "agency" || targetRole === "admin" ? "agency" : "supporter";
+  const inputArray = Array.isArray(targetRoleOrRoles) ? targetRoleOrRoles : [targetRoleOrRoles];
+  const roles = normalizeUserRoles(inputArray, inputArray[0], false);
+  const primaryRole = roles[0] || "supporter";
+  const tier = roles.includes("agency") || roles.includes("admin") ? "agency" : "supporter";
+
   const newClaims = {
-    role: targetRole,
+    role: primaryRole,
+    roles,
     tier,
     isSuperAdmin: false,
-    admin: targetRole === "admin",
+    admin: roles.includes("admin"),
+    ad_agent: roles.includes("ad_agent"),
     superadmin: false,
   };
 
@@ -167,7 +214,7 @@ export async function assignUserRole(
     }
   }
 
-  // Keep users/{uid} in sync
+  // Keep users/{uid} in sync with both `role` (primary) and `roles` (all assigned roles)
   try {
     await db
       .collection("users")
@@ -175,8 +222,10 @@ export async function assignUserRole(
       .set(
         {
           email: normEmail,
-          role: targetRole,
+          role: primaryRole,
+          roles,
           tier,
+          isAdAgent: roles.includes("ad_agent"),
           updatedAt: new Date().toISOString(),
           roleUpdatedBy: updatedBy,
         },
@@ -189,7 +238,8 @@ export async function assignUserRole(
   return {
     uid,
     email: normEmail,
-    role: targetRole,
+    role: primaryRole,
+    roles,
     tier,
   };
 }
@@ -204,6 +254,7 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
 
     const balanceMap = new Map<string, number>();
     const firestoreRoleMap = new Map<string, RbacRole>();
+    const firestoreRolesMap = new Map<string, RbacRole[]>();
     const healPromises: Promise<unknown>[] = [];
     usersSnap.forEach((doc) => {
       const data = doc.data();
@@ -218,15 +269,24 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
       }
       const bal = Math.max(0, Math.round(Number.isFinite(rawBal) ? rawBal : 0));
       balanceMap.set(doc.id, bal);
+      const docRoles = Array.isArray(data.roles)
+        ? (data.roles.filter((r: unknown) => typeof r === "string" && RBAC_ROLES_LIST.includes(r as RbacRole)) as RbacRole[])
+        : undefined;
       if (data.email) {
         const cleanEmail = String(data.email).toLowerCase().trim();
         balanceMap.set(cleanEmail, bal);
         if (data.role && RBAC_ROLES_LIST.includes(data.role as RbacRole)) {
           firestoreRoleMap.set(cleanEmail, data.role as RbacRole);
         }
+        if (docRoles && docRoles.length > 0) {
+          firestoreRolesMap.set(cleanEmail, docRoles);
+        }
       }
       if (data.role && RBAC_ROLES_LIST.includes(data.role as RbacRole)) {
         firestoreRoleMap.set(doc.id, data.role as RbacRole);
+      }
+      if (docRoles && docRoles.length > 0) {
+        firestoreRolesMap.set(doc.id, docRoles);
       }
     });
     if (healPromises.length > 0) {
@@ -239,12 +299,15 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
       if (email) seenEmails.add(email);
       const isSuper = isDatabaseAdmin(u.customClaims, email);
       const claimRole = u.customClaims?.role as RbacRole | undefined;
+      const claimRoles = u.customClaims?.roles as RbacRole[] | undefined;
       const docRole = firestoreRoleMap.get(u.uid) || firestoreRoleMap.get(email);
+      const docRoles = firestoreRolesMap.get(u.uid) || firestoreRolesMap.get(email);
       const rawRole = claimRole || docRole || (isSuper ? "superadmin" : "supporter");
-      const role: RbacRole = isSuper ? "superadmin" : (RBAC_ROLES_LIST.includes(rawRole) ? rawRole : "supporter");
+      const roles = normalizeUserRoles(docRoles || claimRoles, rawRole, isSuper);
+      const role: RbacRole = isSuper ? "superadmin" : roles[0] || "supporter";
       const tier =
         (u.customClaims?.tier as string) ||
-        (role === "agency" || role === "admin" || isSuper ? "agency" : "supporter");
+        (roles.includes("agency") || roles.includes("admin") || isSuper ? "agency" : "supporter");
       const tokenBalance = balanceMap.get(u.uid) ?? balanceMap.get(email) ?? 0;
 
       return {
@@ -253,6 +316,7 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
         displayName: u.displayName || undefined,
         photoUrl: u.photoURL || undefined,
         role,
+        roles,
         tier,
         createdAt: u.metadata.creationTime || new Date().toISOString(),
         isPermanentSuperAdmin: isSuper,
@@ -268,14 +332,16 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
       seenEmails.add(email);
       const isSuper = isDatabaseAdmin(null, email);
       const rawRole = (data.role as RbacRole) || (isSuper ? "superadmin" : "supporter");
-      const role: RbacRole = isSuper ? "superadmin" : (RBAC_ROLES_LIST.includes(rawRole) ? rawRole : "supporter");
-      const tier = role === "agency" || role === "admin" || isSuper ? "agency" : "supporter";
+      const roles = normalizeUserRoles(data.roles, rawRole, isSuper);
+      const role: RbacRole = isSuper ? "superadmin" : roles[0] || "supporter";
+      const tier = roles.includes("agency") || roles.includes("admin") || isSuper ? "agency" : "supporter";
       const tokenBalance = balanceMap.get(doc.id) ?? balanceMap.get(email) ?? 0;
       combined.push({
         uid: doc.id,
         email,
         displayName: typeof data.displayName === "string" ? data.displayName : undefined,
         role,
+        roles,
         tier,
         createdAt: typeof data.createdAt === "string" ? data.createdAt : new Date().toISOString(),
         isPermanentSuperAdmin: isSuper,

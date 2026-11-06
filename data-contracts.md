@@ -19,7 +19,8 @@
 ### Custom Claims (Firebase Admin)
 ```json
 {
-  "role": "superadmin" | "admin" | "supporter" | "user",
+  "role": "superadmin" | "admin" | "ad_agent" | "moderator" | "agency" | "supporter" | "user",
+  "roles"?: ("superadmin" | "admin" | "ad_agent" | "moderator" | "agency" | "supporter")[],
   "tier": "supporter" | "starter" | "growth" | "agency",
   "isSuperAdmin"?: boolean,
   "admin"?: boolean,
@@ -52,6 +53,8 @@
 | `tokenBalance` | integer | `>= 0`, mutated ONLY via server-side `runTransaction` |
 | `activeBrandId` | string | `""` or brandId |
 | `stripeCustomerId` | string | `""` or `^cus_[A-Za-z0-9]+$` |
+| `role` | enum (optional) | Primary RBAC role (`"superadmin" \| "admin" \| "ad_agent" \| "moderator" \| "agency" \| "supporter"`) |
+| `roles` | array (optional) | Multi-role RBAC array (`RbacRole[]`, e.g. `["admin", "ad_agent", "supporter"]`) |
 | `updatedAt` | ISO-8601 | |
 
 ### `TokenTransactionDoc`

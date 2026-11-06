@@ -45,10 +45,59 @@ interface RbacUserItem {
   displayName?: string;
   photoUrl?: string;
   role: RbacRole;
+  roles?: RbacRole[];
   tier: string;
   createdAt: string;
   isPermanentSuperAdmin: boolean;
   tokenBalance?: number;
+}
+
+type AssignableRbacRole = Exclude<RbacRole, "superadmin">;
+
+const ASSIGNABLE_ROLE_OPTIONS: { value: AssignableRbacRole; label: string }[] = [
+  { value: "supporter", label: "Supporter" },
+  { value: "ad_agent", label: "Ad Agent" },
+  { value: "agency", label: "Agency" },
+  { value: "moderator", label: "Moderator" },
+  { value: "admin", label: "Main Admin" },
+];
+
+function formatRbacRoleLabel(r: RbacRole): string {
+  if (r === "superadmin") return "Super Admin";
+  if (r === "admin") return "Main Admin";
+  if (r === "ad_agent") return "Ad Agent";
+  if (r === "agency") return "Agency";
+  if (r === "moderator") return "Moderator";
+  return "Supporter";
+}
+
+function getUserRolesList(u: RbacUserItem): RbacRole[] {
+  if (Array.isArray(u.roles) && u.roles.length > 0) {
+    return u.roles;
+  }
+  return [u.role];
+}
+
+function getUserAssignableRoles(u: RbacUserItem): AssignableRbacRole[] {
+  const raw = getUserRolesList(u).filter((r): r is AssignableRbacRole => r !== "superadmin");
+  if (raw.length > 0) return raw;
+  return [u.role === "superadmin" ? "admin" : u.role];
+}
+
+function toggleRoleSelection(
+  current: AssignableRbacRole[],
+  target: AssignableRbacRole,
+): AssignableRbacRole[] {
+  const order: AssignableRbacRole[] = ["admin", "ad_agent", "moderator", "agency", "supporter"];
+  const set = new Set<AssignableRbacRole>(current);
+  if (set.has(target)) {
+    if (set.size > 1) {
+      set.delete(target);
+    }
+  } else {
+    set.add(target);
+  }
+  return order.filter((r) => set.has(r));
 }
 
 const PERMISSION_METADATA: Record<RbacPermission, { label: string; desc: string }> = {
@@ -209,9 +258,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<"ALL" | RbacRole>("ALL");
   const [quickAssignEmail, setQuickAssignEmail] = useState("");
-  const [quickAssignRole, setQuickAssignRole] = useState<Exclude<RbacRole, "superadmin">>("supporter");
+  const [quickAssignRoles, setQuickAssignRoles] = useState<AssignableRbacRole[]>(["supporter"]);
   const [confirmQuickAssignOpen, setConfirmQuickAssignOpen] = useState(false);
-  const [pendingUserRoles, setPendingUserRoles] = useState<Record<string, Exclude<RbacRole, "superadmin">>>({});
+  const [pendingUserRoles, setPendingUserRoles] = useState<Record<string, AssignableRbacRole[]>>({});
   const [confirmingRoleUid, setConfirmingRoleUid] = useState<string | null>(null);
 
   // FAQ Management state
@@ -709,9 +758,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
   async function handleAssignUserRole(
     email: string,
-    targetRole: Exclude<RbacRole, "superadmin">,
+    targetRoleOrRoles: AssignableRbacRole | AssignableRbacRole[],
     uid?: string
   ) {
+    const rolesArray: AssignableRbacRole[] = Array.isArray(targetRoleOrRoles)
+      ? targetRoleOrRoles.length > 0
+        ? targetRoleOrRoles
+        : ["supporter"]
+      : [targetRoleOrRoles];
     setRbacSaving(true);
     if (uid) setConfirmingRoleUid(uid);
     setErrorMsg(null);
@@ -722,7 +776,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         body: {
           action: "ASSIGN_USER_ROLE",
           email,
-          role: targetRole,
+          role: rolesArray[0],
+          roles: rolesArray,
         },
       });
       if (data.users) setRbacUsers(data.users);
@@ -733,13 +788,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           return next;
         });
       }
-      const roleLabel =
-        targetRole === "ad_agent"
-          ? "Ad Agent"
-          : targetRole === "admin"
-            ? "Main Admin"
-            : targetRole.toUpperCase();
-      setStatusMsg(`Confirmed: Role "${roleLabel}" assigned to ${email} in RBAC.`);
+      const roleLabels = rolesArray.map((r) => formatRbacRoleLabel(r)).join(", ");
+      setStatusMsg(
+        `Confirmed: ${rolesArray.length > 1 ? "Roles" : "Role"} [${roleLabels}] assigned to ${email} in RBAC.`
+      );
       setQuickAssignEmail("");
       setConfirmQuickAssignOpen(false);
     } catch (err) {
@@ -5138,14 +5190,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       <div className="flex flex-wrap items-center gap-2">
                         <Icon name="user" className="size-4 text-primary" />
                         <h3 className="text-title-sm font-semibold text-on-surface">
-                          All Users &amp; RBAC Role Assignment
+                          All Users &amp; Multi-Role RBAC Assignment
                         </h3>
                         <span className="rounded-full border border-primary/40 bg-primary/15 px-2.5 py-0.5 font-mono text-[11px] font-bold text-primary">
                           {rbacUsers.length} Registered {rbacUsers.length === 1 ? "User" : "Users"}
                         </span>
                       </div>
                       <p className="mt-1 text-compact text-on-surface-variant">
-                        View all registered users across AdRadarHQ. Super Admin can select an RBAC role for any user and click <strong>Confirm</strong> to update their role.
+                        View all registered users across AdRadarHQ. Super Admin can toggle <strong>multiple RBAC roles</strong> for any user and click <strong>Confirm</strong> to update their roles.
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -5179,27 +5231,27 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         { key: "ALL" as const, label: `All (${rbacUsers.length})` },
                         {
                           key: "superadmin" as const,
-                          label: `Super Admin (${rbacUsers.filter((u) => u.role === "superadmin").length})`,
+                          label: `Super Admin (${rbacUsers.filter((u) => getUserRolesList(u).includes("superadmin")).length})`,
                         },
                         {
                           key: "admin" as const,
-                          label: `Main Admin (${rbacUsers.filter((u) => u.role === "admin").length})`,
+                          label: `Main Admin (${rbacUsers.filter((u) => getUserRolesList(u).includes("admin")).length})`,
                         },
                         {
                           key: "ad_agent" as const,
-                          label: `Ad Agent (${rbacUsers.filter((u) => u.role === "ad_agent").length})`,
+                          label: `Ad Agent (${rbacUsers.filter((u) => getUserRolesList(u).includes("ad_agent")).length})`,
                         },
                         {
                           key: "agency" as const,
-                          label: `Agency (${rbacUsers.filter((u) => u.role === "agency").length})`,
+                          label: `Agency (${rbacUsers.filter((u) => getUserRolesList(u).includes("agency")).length})`,
                         },
                         {
                           key: "moderator" as const,
-                          label: `Moderator (${rbacUsers.filter((u) => u.role === "moderator").length})`,
+                          label: `Moderator (${rbacUsers.filter((u) => getUserRolesList(u).includes("moderator")).length})`,
                         },
                         {
                           key: "supporter" as const,
-                          label: `Supporter (${rbacUsers.filter((u) => u.role === "supporter").length})`,
+                          label: `Supporter (${rbacUsers.filter((u) => getUserRolesList(u).includes("supporter")).length})`,
                         },
                       ]
                     ).map((f) => {
@@ -5223,7 +5275,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     })}
                   </div>
 
-                  {/* Quick Assign Role by Email with Confirm Button (Super Admin) */}
+                  {/* Quick Assign Multiple Roles by Email with Confirm Button (Super Admin) */}
                   {isSuperAdmin && (
                     <div
                       className={`${card} p-3.5 border border-primary/30 bg-primary/[0.04]`}
@@ -5232,58 +5284,85 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     >
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <span className="font-mono text-xs font-bold uppercase tracking-wider text-primary">
-                          Super Admin Quick Assign Role by Email
+                          Super Admin Quick Assign Multiple Roles by Email
                         </span>
                         <span className="font-mono text-[10px] text-on-surface-variant">
-                          Select user email &amp; target RBAC role, then click Confirm
+                          Select user email &amp; toggle one or multiple RBAC roles, then click Confirm
                         </span>
                       </div>
-                      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <div className="mt-2.5 flex flex-col gap-2.5 lg:flex-row lg:items-center">
                         <input
                           type="email"
                           list="all-users-email-datalist"
                           placeholder="Select or enter user email (e.g. user@example.com)..."
                           value={quickAssignEmail}
                           onChange={(e) => {
-                            setQuickAssignEmail(e.target.value);
+                            const val = e.target.value;
+                            setQuickAssignEmail(val);
                             setConfirmQuickAssignOpen(false);
+                            const matched = rbacUsers.find(
+                              (u) => u.email.toLowerCase() === val.trim().toLowerCase()
+                            );
+                            if (matched && !matched.isPermanentSuperAdmin) {
+                              setQuickAssignRoles(getUserAssignableRoles(matched));
+                            }
                           }}
                           data-agent-id="users-quick-assign-email-input"
                           data-testid="users-quick-assign-email-input"
-                          className={`flex-1 ${field} py-1.5 text-xs`}
+                          className={`w-full lg:w-72 ${field} py-1.5 text-xs`}
                         />
                         <datalist id="all-users-email-datalist">
                           {rbacUsers
                             .filter((u) => !u.isPermanentSuperAdmin)
                             .map((u) => (
                               <option key={u.uid} value={u.email}>
-                                {u.displayName ? `${u.displayName} (${u.role})` : u.role}
+                                {u.displayName
+                                  ? `${u.displayName} (${getUserRolesList(u).join(", ")})`
+                                  : getUserRolesList(u).join(", ")}
                               </option>
                             ))}
                         </datalist>
-                        <select
-                          value={quickAssignRole}
-                          onChange={(e) => {
-                            setQuickAssignRole(e.target.value as Exclude<RbacRole, "superadmin">);
-                            setConfirmQuickAssignOpen(false);
-                          }}
-                          data-agent-id="users-quick-assign-role-select"
-                          data-testid="users-quick-assign-role-select"
-                          className={`w-full sm:w-48 ${field} py-1.5 text-xs font-mono`}
+
+                        <div
+                          className="flex flex-wrap items-center gap-1.5 flex-1"
+                          role="group"
+                          aria-label="Select one or multiple RBAC roles to assign"
+                          data-agent-id="users-quick-assign-roles-group"
+                          data-testid="users-quick-assign-roles-group"
                         >
-                          <option value="supporter">Supporter (Default)</option>
-                          <option value="ad_agent">Ad Agent</option>
-                          <option value="agency">Agency Tier</option>
-                          <option value="moderator">Moderator</option>
-                          <option value="admin">Main Admin</option>
-                        </select>
+                          {ASSIGNABLE_ROLE_OPTIONS.map((opt) => {
+                            const isSelected = quickAssignRoles.includes(opt.value);
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => {
+                                  setQuickAssignRoles((prev) => toggleRoleSelection(prev, opt.value));
+                                  setConfirmQuickAssignOpen(false);
+                                }}
+                                aria-pressed={isSelected}
+                                data-agent-id={`users-quick-role-pill-${opt.value}`}
+                                data-testid={`users-quick-role-pill-${opt.value}`}
+                                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                                  isSelected
+                                    ? "border-primary bg-primary/20 text-primary shadow-sm"
+                                    : "border-white/10 bg-surface-container-low text-on-surface-variant hover:border-white/25 hover:text-on-surface"
+                                }`}
+                              >
+                                <span>{isSelected ? "☑" : "☐"}</span>
+                                <span>{opt.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
                         {confirmQuickAssignOpen ? (
                           <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               type="button"
                               onClick={() => {
                                 if (!quickAssignEmail.trim()) return;
-                                handleAssignUserRole(quickAssignEmail.trim(), quickAssignRole);
+                                handleAssignUserRole(quickAssignEmail.trim(), quickAssignRoles);
                               }}
                               disabled={rbacSaving || !quickAssignEmail.trim()}
                               data-agent-id="users-confirm-quick-assign-btn"
@@ -5291,7 +5370,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 font-mono text-xs font-bold text-on-primary hover:bg-primary-fixed disabled:opacity-50 transition"
                             >
                               <Icon name="checkCircle" className="size-3.5" />
-                              <span>{rbacSaving ? "Saving…" : "Confirm Role"}</span>
+                              <span>{rbacSaving ? "Saving…" : `Confirm (${quickAssignRoles.length})`}</span>
                             </button>
                             <button
                               type="button"
@@ -5315,14 +5394,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             data-testid="users-quick-assign-btn"
                             className={`${btnPrimary} shrink-0 py-1.5 text-xs`}
                           >
-                            Assign Role
+                            Assign {quickAssignRoles.length > 1 ? `Roles (${quickAssignRoles.length})` : "Role"}
                           </button>
                         )}
                       </div>
                     </div>
                   )}
 
-                  {/* All Users Table with RBAC Role Selector & Confirm Button */}
+                  {/* All Users Table with Multi-Role Toggles & Confirm Button */}
                   <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-surface-container">
                     <table
                       className="w-full table-auto text-left text-compact border-collapse"
@@ -5333,32 +5412,35 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         <tr className="border-b border-white/[0.08] bg-surface-container-high/60 font-mono text-[11px] text-on-surface-variant">
                           <th className="px-3.5 py-2.5 font-semibold text-on-surface">User Account</th>
                           <th className="px-3 py-2.5">Token Balance</th>
-                          <th className="px-3 py-2.5">Current RBAC Role</th>
-                          <th className="px-3 py-2.5 hidden md:table-cell">Tier</th>
+                          <th className="px-3 py-2.5">Current RBAC Roles</th>
+                          <th className="px-3 py-2.5 hidden xl:table-cell">Tier</th>
                           <th className="px-3.5 py-2.5 text-right">
-                            {isSuperAdmin ? "Give RBAC Role & Confirm" : "Actions"}
+                            {isSuperAdmin ? "Toggle Multiple Roles & Confirm" : "Actions"}
                           </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/[0.04]">
                         {rbacUsers
                           .filter((u) => {
-                            if (roleFilter !== "ALL" && u.role !== roleFilter) return false;
+                            const userRoles = getUserRolesList(u);
+                            if (roleFilter !== "ALL" && !userRoles.includes(roleFilter)) return false;
                             const q = userSearchQuery.trim().toLowerCase();
                             if (!q) return true;
                             return (
                               u.email.toLowerCase().includes(q) ||
                               (u.displayName || "").toLowerCase().includes(q) ||
                               u.uid.toLowerCase().includes(q) ||
-                              u.role.toLowerCase().includes(q)
+                              userRoles.some((r) => r.toLowerCase().includes(q))
                             );
                           })
                           .map((user) => {
-                            const currentRole: Exclude<RbacRole, "superadmin"> =
-                              user.role === "superadmin" ? "admin" : user.role;
-                            const selectedRole = pendingUserRoles[user.uid] ?? currentRole;
-                            const isRoleChanged = selectedRole !== user.role;
+                            const currentRoles = getUserAssignableRoles(user);
+                            const selectedRoles = pendingUserRoles[user.uid] ?? currentRoles;
+                            const isRoleChanged =
+                              selectedRoles.length !== currentRoles.length ||
+                              selectedRoles.some((r) => !currentRoles.includes(r));
                             const isRowSaving = rbacSaving && confirmingRoleUid === user.uid;
+                            const displayRoles = getUserRolesList(user);
 
                             return (
                               <tr
@@ -5382,40 +5464,41 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   </div>
                                 </td>
 
-                                <td className="px-3 py-2.5 font-mono text-xs font-semibold text-primary">
+                                <td className="px-3 py-2.5 font-mono text-xs font-semibold text-primary whitespace-nowrap">
                                   ⚡ {Math.max(0, Math.round(user.tokenBalance ?? 0)).toLocaleString("en-AU")}
                                 </td>
 
                                 <td className="px-3 py-2.5">
-                                  <span
-                                    className={`inline-block rounded px-2 py-0.5 font-mono text-[11px] font-semibold uppercase ${
-                                      user.isPermanentSuperAdmin
-                                        ? "border border-primary/40 bg-primary/20 text-primary"
-                                        : user.role === "admin"
-                                          ? "border border-secondary/40 bg-secondary/20 text-secondary"
-                                          : user.role === "ad_agent"
-                                            ? "border border-tertiary/40 bg-tertiary/20 text-tertiary"
-                                            : user.role === "moderator"
-                                              ? "border border-tertiary/40 bg-tertiary/20 text-tertiary"
-                                              : "border border-white/10 bg-surface-container-highest text-on-surface-variant"
-                                    }`}
-                                  >
-                                    {user.role === "ad_agent"
-                                      ? "Ad Agent"
-                                      : user.role === "admin"
-                                        ? "Main Admin"
-                                        : user.role === "superadmin"
-                                          ? "Super Admin"
-                                          : user.role}
-                                  </span>
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    {displayRoles.map((r) => (
+                                      <span
+                                        key={r}
+                                        className={`inline-block rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase ${
+                                          r === "superadmin"
+                                            ? "border border-primary/40 bg-primary/20 text-primary"
+                                            : r === "admin"
+                                              ? "border border-secondary/40 bg-secondary/20 text-secondary"
+                                              : r === "ad_agent"
+                                                ? "border border-tertiary/40 bg-tertiary/20 text-tertiary"
+                                                : r === "moderator"
+                                                  ? "border border-amber-400/40 bg-amber-500/15 text-amber-300"
+                                                  : r === "agency"
+                                                    ? "border border-sky-400/40 bg-sky-500/15 text-sky-300"
+                                                    : "border border-white/10 bg-surface-container-highest text-on-surface-variant"
+                                        }`}
+                                      >
+                                        {formatRbacRoleLabel(r)}
+                                      </span>
+                                    ))}
+                                  </div>
                                 </td>
 
-                                <td className="px-3 py-2.5 hidden md:table-cell font-mono text-[11px] text-on-surface-variant uppercase">
+                                <td className="px-3 py-2.5 hidden xl:table-cell font-mono text-[11px] text-on-surface-variant uppercase">
                                   {user.tier}
                                 </td>
 
                                 <td className="px-3.5 py-2.5 text-right">
-                                  <div className="flex flex-wrap items-center justify-end gap-2">
+                                  <div className="flex flex-wrap items-center justify-end gap-1.5">
                                     <button
                                       type="button"
                                       title={`Message ${user.email}`}
@@ -5428,7 +5511,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                       }}
                                       data-agent-id={`all-users-message-btn-${user.uid}`}
                                       data-testid={`all-users-message-btn-${user.uid}`}
-                                      className="rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-mono text-primary hover:bg-primary/20 transition"
+                                      className="rounded-lg border border-primary/30 bg-primary/10 px-2 py-1 text-[11px] font-mono text-primary hover:bg-primary/20 transition"
                                     >
                                       Message
                                     </button>
@@ -5438,37 +5521,48 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                         Permanent Super Admin 🔒
                                       </span>
                                     ) : isSuperAdmin ? (
-                                      <div className="inline-flex items-center gap-1.5">
-                                        <select
-                                          value={selectedRole}
-                                          onChange={(e) =>
-                                            setPendingUserRoles((prev) => ({
-                                              ...prev,
-                                              [user.uid]: e.target.value as Exclude<RbacRole, "superadmin">,
-                                            }))
-                                          }
-                                          disabled={rbacSaving}
-                                          aria-label={`Select RBAC role for ${user.email}`}
-                                          data-agent-id={`all-users-role-select-${user.uid}`}
-                                          data-testid={`all-users-role-select-${user.uid}`}
-                                          className="rounded-lg border border-white/15 bg-surface-container-low px-2.5 py-1 text-xs text-on-surface font-mono focus:border-primary focus:outline-none"
-                                        >
-                                          <option value="supporter">Supporter</option>
-                                          <option value="ad_agent">Ad Agent</option>
-                                          <option value="agency">Agency</option>
-                                          <option value="moderator">Moderator</option>
-                                          <option value="admin">Main Admin</option>
-                                        </select>
+                                      <div className="inline-flex flex-wrap items-center justify-end gap-1">
+                                        {ASSIGNABLE_ROLE_OPTIONS.map((opt) => {
+                                          const isChecked = selectedRoles.includes(opt.value);
+                                          return (
+                                            <button
+                                              key={opt.value}
+                                              type="button"
+                                              disabled={rbacSaving}
+                                              onClick={() =>
+                                                setPendingUserRoles((prev) => ({
+                                                  ...prev,
+                                                  [user.uid]: toggleRoleSelection(
+                                                    prev[user.uid] ?? currentRoles,
+                                                    opt.value
+                                                  ),
+                                                }))
+                                              }
+                                              aria-pressed={isChecked}
+                                              aria-label={`Toggle ${opt.label} role for ${user.email}`}
+                                              data-agent-id={`all-users-role-toggle-${user.uid}-${opt.value}`}
+                                              data-testid={`all-users-role-toggle-${user.uid}-${opt.value}`}
+                                              className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${
+                                                isChecked
+                                                  ? "border-primary bg-primary/20 text-primary"
+                                                  : "border-white/10 bg-surface-container-low text-on-surface-variant hover:border-white/25 hover:text-on-surface"
+                                              }`}
+                                            >
+                                              <span>{isChecked ? "☑" : "☐"}</span>
+                                              <span>{opt.label}</span>
+                                            </button>
+                                          );
+                                        })}
                                         <button
                                           type="button"
                                           disabled={rbacSaving}
                                           onClick={() =>
-                                            handleAssignUserRole(user.email, selectedRole, user.uid)
+                                            handleAssignUserRole(user.email, selectedRoles, user.uid)
                                           }
                                           data-agent-id={`confirm-user-role-btn-${user.uid}`}
                                           data-testid={`confirm-user-role-btn-${user.uid}`}
-                                          aria-label={`Confirm RBAC role ${selectedRole} for ${user.email}`}
-                                          className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-xs font-bold transition ${
+                                          aria-label={`Confirm RBAC roles (${selectedRoles.join(", ")}) for ${user.email}`}
+                                          className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[11px] font-bold transition ${
                                             isRoleChanged
                                               ? "bg-primary text-on-primary shadow-sm ring-1 ring-primary/50 hover:bg-primary-fixed"
                                               : "border border-primary/40 bg-primary/15 text-primary hover:bg-primary/25"
@@ -5515,7 +5609,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       <div>
                         <strong className="text-primary font-semibold">Strict Database Superadmin Gate:</strong>
                         <p className="text-[12px] text-on-surface-variant mt-0.5">
-                          Only the authenticated Firebase database administrator email holds permanent Super Admin status. All permissions for Super Admin are locked. Non-admin users start at Supporter level and can be granted operational or administrative roles below.
+                          Only the authenticated Firebase database administrator email holds permanent Super Admin status. All permissions for Super Admin are locked. Non-admin users start at Supporter level and can be granted one or multiple operational or administrative roles below.
                         </p>
                       </div>
                     </div>
@@ -5610,15 +5704,15 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     </div>
                   </div>
 
-                  {/* 2. USER ROLE ASSIGNMENT TABLE */}
+                  {/* 2. USER MULTI-ROLE ASSIGNMENT TABLE */}
                   <div className="space-y-4 pt-4 border-t border-white/[0.08]">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h4 className="text-compact font-semibold text-on-surface">
-                          2. User Role Assignments
+                          2. User Multi-Role Assignments
                         </h4>
                         <p className="text-[12px] text-on-surface-variant">
-                          Select a role for any user and click <strong>Confirm</strong> to update their RBAC role in Firebase custom claims.
+                          Toggle one or multiple roles for any user and click <strong>Confirm</strong> to update their RBAC roles in Firebase custom claims.
                         </p>
                       </div>
                       <input
@@ -5632,46 +5726,73 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
                     {/* Quick Assign Card */}
                     <div className={`${card} p-4`}>
-                      <span className="font-mono text-mono-label text-on-surface-variant">Quick Assign Role by Email</span>
-                      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <span className="font-mono text-mono-label text-on-surface-variant">
+                        Quick Assign Multiple Roles by Email
+                      </span>
+                      <div className="mt-2 flex flex-col gap-2.5 lg:flex-row lg:items-center">
                         <input
                           type="email"
                           placeholder="user@example.com"
                           value={quickAssignEmail}
                           onChange={(e) => {
-                            setQuickAssignEmail(e.target.value);
+                            const val = e.target.value;
+                            setQuickAssignEmail(val);
                             setConfirmQuickAssignOpen(false);
+                            const matched = rbacUsers.find(
+                              (u) => u.email.toLowerCase() === val.trim().toLowerCase()
+                            );
+                            if (matched && !matched.isPermanentSuperAdmin) {
+                              setQuickAssignRoles(getUserAssignableRoles(matched));
+                            }
                           }}
-                          className={`flex-1 ${field}`}
+                          className={`w-full lg:w-72 ${field}`}
                         />
-                        <select
-                          value={quickAssignRole}
-                          onChange={(e) => {
-                            setQuickAssignRole(e.target.value as Exclude<RbacRole, "superadmin">);
-                            setConfirmQuickAssignOpen(false);
-                          }}
-                          className={`w-full sm:w-44 ${field}`}
+                        <div
+                          className="flex flex-wrap items-center gap-1.5 flex-1"
+                          role="group"
+                          aria-label="Select one or multiple RBAC roles to assign"
+                          data-agent-id="rbac-quick-assign-roles-group"
+                          data-testid="rbac-quick-assign-roles-group"
                         >
-                          <option value="supporter">Supporter (Default)</option>
-                          <option value="ad_agent">Ad Agent</option>
-                          <option value="agency">Agency Tier</option>
-                          <option value="moderator">Moderator</option>
-                          <option value="admin">Main Admin</option>
-                        </select>
+                          {ASSIGNABLE_ROLE_OPTIONS.map((opt) => {
+                            const isSelected = quickAssignRoles.includes(opt.value);
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => {
+                                  setQuickAssignRoles((prev) => toggleRoleSelection(prev, opt.value));
+                                  setConfirmQuickAssignOpen(false);
+                                }}
+                                aria-pressed={isSelected}
+                                data-agent-id={`rbac-quick-role-pill-${opt.value}`}
+                                data-testid={`rbac-quick-role-pill-${opt.value}`}
+                                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                                  isSelected
+                                    ? "border-primary bg-primary/20 text-primary shadow-sm"
+                                    : "border-white/10 bg-surface-container-low text-on-surface-variant hover:border-white/25 hover:text-on-surface"
+                                }`}
+                              >
+                                <span>{isSelected ? "☑" : "☐"}</span>
+                                <span>{opt.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                         {confirmQuickAssignOpen ? (
                           <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               type="button"
                               onClick={() => {
                                 if (!quickAssignEmail.trim()) return;
-                                handleAssignUserRole(quickAssignEmail.trim(), quickAssignRole);
+                                handleAssignUserRole(quickAssignEmail.trim(), quickAssignRoles);
                               }}
                               disabled={rbacSaving || !quickAssignEmail.trim()}
                               data-testid="confirm-quick-assign-button"
                               data-agent-id="confirm-quick-assign-btn"
                               className={btnPrimary}
                             >
-                              {rbacSaving ? "Saving…" : "Confirm Role"}
+                              {rbacSaving ? "Saving…" : `Confirm (${quickAssignRoles.length})`}
                             </button>
                             <button
                               type="button"
@@ -5693,7 +5814,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             data-agent-id="quick-assign-btn"
                             className={`${btnPrimary} shrink-0`}
                           >
-                            Assign Role
+                            Assign {quickAssignRoles.length > 1 ? `Roles (${quickAssignRoles.length})` : "Role"}
                           </button>
                         )}
                       </div>
@@ -5705,9 +5826,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         <thead>
                           <tr className="border-b border-white/[0.08] bg-surface-container-high/60 font-mono text-[11px] text-on-surface-variant">
                             <th className="p-3 font-semibold text-on-surface">User Account</th>
-                            <th className="p-3">Current Role</th>
+                            <th className="p-3">Current Roles</th>
                             <th className="p-3">Tier</th>
-                            <th className="p-3 text-right">Assign Role &amp; Confirm</th>
+                            <th className="p-3 text-right">Toggle Multiple Roles &amp; Confirm</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/[0.04]">
@@ -5717,11 +5838,13 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               (u.displayName || "").toLowerCase().includes(userSearchQuery.toLowerCase())
                             )
                             .map((user) => {
-                              const currentRole: Exclude<RbacRole, "superadmin"> =
-                                user.role === "superadmin" ? "admin" : user.role;
-                              const selectedRole = pendingUserRoles[user.uid] ?? currentRole;
-                              const isRoleChanged = selectedRole !== user.role;
+                              const currentRoles = getUserAssignableRoles(user);
+                              const selectedRoles = pendingUserRoles[user.uid] ?? currentRoles;
+                              const isRoleChanged =
+                                selectedRoles.length !== currentRoles.length ||
+                                selectedRoles.some((r) => !currentRoles.includes(r));
                               const isRowSaving = rbacSaving && confirmingRoleUid === user.uid;
+                              const displayRoles = getUserRolesList(user);
 
                               return (
                                 <tr key={user.uid} className="hover:bg-white/[0.02] transition-colors">
@@ -5732,27 +5855,34 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     </div>
                                   </td>
                                   <td className="p-3">
-                                    <span
-                                      className={`inline-block rounded px-2 py-0.5 font-mono text-[11px] font-semibold uppercase ${
-                                        user.isPermanentSuperAdmin
-                                          ? "border border-primary/40 bg-primary/20 text-primary"
-                                          : user.role === "admin"
-                                          ? "border border-secondary/40 bg-secondary/20 text-secondary"
-                                          : user.role === "ad_agent"
-                                          ? "border border-tertiary/40 bg-tertiary/20 text-tertiary"
-                                          : user.role === "moderator"
-                                          ? "border border-tertiary/40 bg-tertiary/20 text-tertiary"
-                                          : "border border-white/10 bg-surface-container-highest text-on-surface-variant"
-                                      }`}
-                                    >
-                                      {user.role === "ad_agent" ? "Ad Agent" : user.role}
-                                    </span>
+                                    <div className="flex flex-wrap items-center gap-1">
+                                      {displayRoles.map((r) => (
+                                        <span
+                                          key={r}
+                                          className={`inline-block rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase ${
+                                            r === "superadmin"
+                                              ? "border border-primary/40 bg-primary/20 text-primary"
+                                              : r === "admin"
+                                                ? "border border-secondary/40 bg-secondary/20 text-secondary"
+                                                : r === "ad_agent"
+                                                  ? "border border-tertiary/40 bg-tertiary/20 text-tertiary"
+                                                  : r === "moderator"
+                                                    ? "border border-amber-400/40 bg-amber-500/15 text-amber-300"
+                                                    : r === "agency"
+                                                      ? "border border-sky-400/40 bg-sky-500/15 text-sky-300"
+                                                      : "border border-white/10 bg-surface-container-highest text-on-surface-variant"
+                                          }`}
+                                        >
+                                          {formatRbacRoleLabel(r)}
+                                        </span>
+                                      ))}
+                                    </div>
                                   </td>
                                   <td className="p-3 font-mono text-[12px] text-on-surface-variant uppercase">
                                     {user.tier}
                                   </td>
                                   <td className="p-3 text-right">
-                                    <div className="flex flex-wrap items-center justify-end gap-2">
+                                    <div className="flex flex-wrap items-center justify-end gap-1.5">
                                       <button
                                         type="button"
                                         title={`Message ${user.email}`}
@@ -5772,36 +5902,47 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                           Permanent Super Admin 🔒
                                         </span>
                                       ) : (
-                                        <div className="inline-flex items-center gap-1.5">
-                                          <select
-                                            value={selectedRole}
-                                            onChange={(e) =>
-                                              setPendingUserRoles((prev) => ({
-                                                ...prev,
-                                                [user.uid]: e.target.value as Exclude<RbacRole, "superadmin">,
-                                              }))
-                                            }
-                                            disabled={rbacSaving}
-                                            aria-label={`Change role for ${user.email}`}
-                                            data-agent-id={`rbac-user-role-select-${user.uid}`}
-                                            data-testid={`rbac-user-role-select-${user.uid}`}
-                                            className="rounded border border-white/15 bg-surface-container-low px-2 py-1 text-xs text-on-surface font-mono focus:border-primary focus:outline-none"
-                                          >
-                                            <option value="supporter">Supporter</option>
-                                            <option value="ad_agent">Ad Agent</option>
-                                            <option value="agency">Agency</option>
-                                            <option value="moderator">Moderator</option>
-                                            <option value="admin">Main Admin</option>
-                                          </select>
+                                        <div className="inline-flex flex-wrap items-center justify-end gap-1">
+                                          {ASSIGNABLE_ROLE_OPTIONS.map((opt) => {
+                                            const isChecked = selectedRoles.includes(opt.value);
+                                            return (
+                                              <button
+                                                key={opt.value}
+                                                type="button"
+                                                disabled={rbacSaving}
+                                                onClick={() =>
+                                                  setPendingUserRoles((prev) => ({
+                                                    ...prev,
+                                                    [user.uid]: toggleRoleSelection(
+                                                      prev[user.uid] ?? currentRoles,
+                                                      opt.value
+                                                    ),
+                                                  }))
+                                                }
+                                                aria-pressed={isChecked}
+                                                aria-label={`Toggle ${opt.label} role for ${user.email}`}
+                                                data-agent-id={`rbac-user-role-toggle-${user.uid}-${opt.value}`}
+                                                data-testid={`rbac-user-role-toggle-${user.uid}-${opt.value}`}
+                                                className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${
+                                                  isChecked
+                                                    ? "border-primary bg-primary/20 text-primary"
+                                                    : "border-white/10 bg-surface-container-low text-on-surface-variant hover:border-white/25 hover:text-on-surface"
+                                                }`}
+                                              >
+                                                <span>{isChecked ? "☑" : "☐"}</span>
+                                                <span>{opt.label}</span>
+                                              </button>
+                                            );
+                                          })}
                                           <button
                                             type="button"
                                             disabled={rbacSaving}
                                             onClick={() =>
-                                              handleAssignUserRole(user.email, selectedRole, user.uid)
+                                              handleAssignUserRole(user.email, selectedRoles, user.uid)
                                             }
                                             data-agent-id={`rbac-confirm-user-role-btn-${user.uid}`}
                                             data-testid={`rbac-confirm-user-role-btn-${user.uid}`}
-                                            aria-label={`Confirm RBAC role ${selectedRole} for ${user.email}`}
+                                            aria-label={`Confirm RBAC roles (${selectedRoles.join(", ")}) for ${user.email}`}
                                             className={`inline-flex items-center gap-1 rounded px-2.5 py-1 font-mono text-xs font-bold transition ${
                                               isRoleChanged
                                                 ? "bg-primary text-on-primary shadow-sm ring-1 ring-primary/50 hover:bg-primary-fixed"

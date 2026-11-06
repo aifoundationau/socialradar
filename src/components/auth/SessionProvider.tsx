@@ -71,8 +71,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // The superadmin should only be the firebase database admin email. Everyone else starts at supporter level.
   const isSuper = isSuperAdminEmail(user?.email);
-  const isMainAdmin = !isSuper && (myClaims?.role === "admin" || myClaims?.admin === true);
-  const isAdAgentRole = !isSuper && !isMainAdmin && myClaims?.role === "ad_agent";
+  const myProfileData = user && profile?.uid === user.uid ? profile.value : null;
+  const userRolesList = Array.isArray(myProfileData?.roles)
+    ? myProfileData.roles
+    : Array.isArray(myClaims?.roles)
+      ? (myClaims.roles as string[])
+      : [];
+  const isMainAdmin =
+    !isSuper &&
+    (myClaims?.role === "admin" ||
+      myClaims?.admin === true ||
+      myProfileData?.role === "admin" ||
+      userRolesList.includes("admin"));
+  const isAdAgentRole =
+    !isSuper &&
+    !isMainAdmin &&
+    (myClaims?.role === "ad_agent" ||
+      myProfileData?.role === "ad_agent" ||
+      userRolesList.includes("ad_agent"));
   const realRole: ActiveRole = isSuper ? "superadmin" : isMainAdmin ? "admin" : isAdAgentRole ? "ad_agent" : "supporter";
 
   const [actingAsRole, setActingAsRoleState] = useState<ActiveRole | null>(null);
