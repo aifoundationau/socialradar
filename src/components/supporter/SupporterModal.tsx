@@ -10,7 +10,7 @@ import { Icon } from "@/components/ui/Icon";
 import { alertError, alertInfo, btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
 import { TokenPacks } from "@/components/wallet/TokenPacks";
 import { apiFetch, errorMessage } from "@/lib/api-client";
-import { LINK_URL_PATTERN, type AdminMessage, type TokenTransactionDoc } from "@/lib/contracts";
+import { LINK_URL_PATTERN, type AdAgentContractor, type AdminMessage, type TokenTransactionDoc } from "@/lib/contracts";
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -27,7 +27,7 @@ export interface SupporterModalProps {
   initialTab?: SupporterTab;
 }
 
-export type SupporterTab = "TOKENS" | "BUY_TOKENS" | "MESSAGES";
+export type SupporterTab = "TOKENS" | "BUY_TOKENS" | "MESSAGES" | "CONTRACTORS";
 
 export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalProps) {
   const isClient = useIsClient();
@@ -110,6 +110,155 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
 
   const composeHasLinks = LINK_URL_PATTERN.test(composeSubject) || LINK_URL_PATTERN.test(composeBody);
 
+  // Contractors state (Ad Agents contractor list)
+  const [contractors, setContractors] = useState<AdAgentContractor[]>([]);
+  const [loadingContractors, setLoadingContractors] = useState(false);
+  const [contractorSearch, setContractorSearch] = useState("");
+  const [showAddContractor, setShowAddContractor] = useState(false);
+  const [editingContractorId, setEditingContractorId] = useState<string | null>(null);
+  const [savingContractor, setSavingContractor] = useState(false);
+  const [contractorFormError, setContractorFormError] = useState<string | null>(null);
+  const [contractorStatusMsg, setContractorStatusMsg] = useState<string | null>(null);
+  const [confirmDeleteContractorId, setConfirmDeleteContractorId] = useState<string | null>(null);
+  const [deletingContractor, setDeletingContractor] = useState(false);
+
+  const [contractorForm, setContractorForm] = useState({
+    name: "",
+    location: "",
+    email: "",
+    phone: "",
+    expertise: "Graphic Design",
+    payIdPaymentDetails: "",
+    averageRates: "",
+    notes: "",
+  });
+
+  async function loadContractors() {
+    if (!uid) return;
+    setLoadingContractors(true);
+    try {
+      const data = await apiFetch<{ success: boolean; contractors: AdAgentContractor[] }>("/api/contractors", {
+        method: "GET",
+      });
+      if (data.contractors) setContractors(data.contractors);
+    } catch {
+      // Quietly ignore network blip
+    } finally {
+      setLoadingContractors(false);
+    }
+  }
+
+  function handleStartAddContractor() {
+    setEditingContractorId(null);
+    setContractorForm({
+      name: "",
+      location: "",
+      email: "",
+      phone: "",
+      expertise: "Graphic Design",
+      payIdPaymentDetails: "",
+      averageRates: "",
+      notes: "",
+    });
+    setContractorFormError(null);
+    setShowAddContractor(true);
+  }
+
+  function handleStartEditContractor(c: AdAgentContractor) {
+    setEditingContractorId(c.contractorId);
+    setContractorForm({
+      name: c.name,
+      location: c.location,
+      email: c.email,
+      phone: c.phone,
+      expertise: c.expertise,
+      payIdPaymentDetails: c.payIdPaymentDetails || "",
+      averageRates: c.averageRates || "",
+      notes: c.notes || "",
+    });
+    setContractorFormError(null);
+    setShowAddContractor(true);
+  }
+
+  async function handleSaveContractor(e: React.FormEvent) {
+    e.preventDefault();
+    if (!contractorForm.name.trim()) {
+      setContractorFormError("Contractor name is required.");
+      return;
+    }
+    if (!contractorForm.location.trim()) {
+      setContractorFormError("Contractor location is required.");
+      return;
+    }
+    if (!contractorForm.email.trim()) {
+      setContractorFormError("Contractor email is required.");
+      return;
+    }
+    if (!contractorForm.phone.trim()) {
+      setContractorFormError("Contractor phone number is required.");
+      return;
+    }
+
+    setSavingContractor(true);
+    setContractorFormError(null);
+    setContractorStatusMsg(null);
+
+    try {
+      if (editingContractorId) {
+        const res = await apiFetch<{ success: boolean; contractors: AdAgentContractor[] }>("/api/contractors", {
+          method: "POST",
+          body: {
+            action: "UPDATE_CONTRACTOR",
+            contractorId: editingContractorId,
+            patch: contractorForm,
+          },
+        });
+        if (res.contractors) setContractors(res.contractors);
+        setContractorStatusMsg("Contractor details updated successfully.");
+      } else {
+        const res = await apiFetch<{ success: boolean; contractors: AdAgentContractor[] }>("/api/contractors", {
+          method: "POST",
+          body: {
+            action: "CREATE_CONTRACTOR",
+            contractor: contractorForm,
+          },
+        });
+        if (res.contractors) setContractors(res.contractors);
+        setContractorStatusMsg("New contractor added successfully.");
+      }
+      setShowAddContractor(false);
+      setEditingContractorId(null);
+      window.dispatchEvent(new CustomEvent("adradar:contractors-updated"));
+    } catch (err) {
+      setContractorFormError(errorMessage(err));
+    } finally {
+      setSavingContractor(false);
+    }
+  }
+
+  async function handleDeleteContractor(contractorId: string) {
+    setDeletingContractor(true);
+    setContractorFormError(null);
+    setContractorStatusMsg(null);
+    try {
+      const res = await apiFetch<{ success: boolean; contractors: AdAgentContractor[] }>("/api/contractors", {
+        method: "POST",
+        body: {
+          action: "DELETE_CONTRACTOR",
+          contractorId,
+        },
+      });
+      if (res.contractors) setContractors(res.contractors);
+      setConfirmDeleteContractorId(null);
+      setContractorStatusMsg("Contractor removed from your directory.");
+      window.dispatchEvent(new CustomEvent("adradar:contractors-updated"));
+    } catch (err) {
+      setContractorFormError(errorMessage(err));
+    } finally {
+      setDeletingContractor(false);
+    }
+  }
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape" && isOpen) {
@@ -120,12 +269,15 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
       loadMessages();
+      loadContractors();
+      window.addEventListener("adradar:contractors-updated", loadContractors);
     } else {
       document.body.style.overflow = "";
     }
     return () => {
       document.body.style.overflow = "";
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("adradar:contractors-updated", loadContractors);
     };
   }, [isOpen, onClose]);
 
@@ -243,6 +395,22 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
     });
   }, [rows, searchFilter, platformFilter, typeFilter]);
 
+  const filteredContractors = useMemo(() => {
+    const q = contractorSearch.trim().toLowerCase();
+    if (!q) return contractors;
+    return contractors.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.expertise.toLowerCase().includes(q) ||
+        c.location.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        c.phone.toLowerCase().includes(q) ||
+        c.averageRates.toLowerCase().includes(q) ||
+        (c.payIdPaymentDetails && c.payIdPaymentDetails.toLowerCase().includes(q)) ||
+        (c.notes && c.notes.toLowerCase().includes(q))
+    );
+  }, [contractors, contractorSearch]);
+
   if (!isClient || !isOpen) return null;
 
   return createPortal(
@@ -279,7 +447,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                 </span>
               </div>
               <p className="text-[12px] text-on-surface-variant font-mono">
-                Tokens · Buy More Tokens · Messages
+                Tokens · Buy More Tokens · Messages · Contractors
               </p>
             </div>
           </div>
@@ -318,18 +486,18 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
           </div>
         </div>
 
-        {/* 3 Dedicated Navigation Tabs: Tokens, Buy More Tokens, Messages */}
+        {/* 4 Dedicated Navigation Tabs: Tokens, Buy More Tokens, Messages, Contractors */}
         <nav
           aria-label="Supporter Panel Navigation"
           data-testid="supporter-navbar"
-          className="flex items-center gap-2 px-5 pt-3 border-b border-white/[0.08] bg-surface-container shrink-0"
+          className="flex items-center gap-2 px-5 pt-3 border-b border-white/[0.08] bg-surface-container shrink-0 overflow-x-auto no-scrollbar"
         >
           <button
             type="button"
             onClick={() => setTab("TOKENS")}
             data-testid="supporter-tab-tokens"
             data-agent-id="supporter-tab-tokens"
-            className={`flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 ${
+            className={`flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 shrink-0 ${
               tab === "TOKENS"
                 ? "border-primary text-primary bg-primary/10 shadow-sm"
                 : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-white/[0.03]"
@@ -347,7 +515,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
             onClick={() => setTab("BUY_TOKENS")}
             data-testid="supporter-tab-buy"
             data-agent-id="supporter-tab-buy"
-            className={`flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 ${
+            className={`flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 shrink-0 ${
               tab === "BUY_TOKENS"
                 ? "border-secondary text-secondary bg-secondary/10 shadow-sm"
                 : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-white/[0.03]"
@@ -362,7 +530,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
             onClick={() => setTab("MESSAGES")}
             data-testid="supporter-tab-messages"
             data-agent-id="supporter-tab-messages"
-            className={`flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 ${
+            className={`flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 shrink-0 ${
               tab === "MESSAGES"
                 ? "border-tertiary-container text-tertiary-container bg-tertiary-container/10 shadow-sm"
                 : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-white/[0.03]"
@@ -375,6 +543,24 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                 {messages.filter((m) => m.status === "unread").length}
               </span>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab("CONTRACTORS")}
+            data-testid="supporter-tab-contractors"
+            data-agent-id="supporter-tab-contractors"
+            className={`flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 shrink-0 ${
+              tab === "CONTRACTORS"
+                ? "border-amber-400 text-amber-300 bg-amber-400/10 shadow-sm"
+                : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-white/[0.03]"
+            }`}
+          >
+            <Icon name="users" className="size-3.5" />
+            <span>Contractors</span>
+            <span className="ml-1 rounded-full bg-amber-400/20 text-amber-200 px-2 py-0.2 font-mono text-[10px] font-bold">
+              {contractors.length}
+            </span>
           </button>
         </nav>
 
@@ -950,6 +1136,375 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                   </div>
                 </form>
               )}
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* TAB 4: CONTRACTORS */}
+          {/* ========================================================================= */}
+          {tab === "CONTRACTORS" && (
+            <div className="space-y-5" data-testid="supporter-contractors-section">
+              {/* Header Card with Add Contractor Button */}
+              <div className={`${card} p-5 bg-gradient-to-r from-surface-container-high to-surface-container border border-white/10 space-y-3 shadow-md`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-amber-400/20 text-amber-300">
+                        <Icon name="users" className="size-4" />
+                      </span>
+                      <h3 className="text-title-sm font-bold text-on-surface">
+                        Ad Agent Contractors Directory
+                      </h3>
+                      <span className="rounded-full bg-amber-400/15 border border-amber-400/30 px-2.5 py-0.5 font-mono text-[10px] font-bold text-amber-200">
+                        {contractors.length} {contractors.length === 1 ? "Contractor" : "Contractors"}
+                      </span>
+                    </div>
+                    <p className="text-[12px] text-on-surface-variant mt-1 max-w-2xl leading-relaxed">
+                      List your creative contractors, videographers, graphic artists, and AI specialists. These contractors can be selected directly from the Service Provider box in the Ad Agent Registration &amp; Customize Orders Panel.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleStartAddContractor}
+                    data-agent-id="add-contractor-btn"
+                    data-testid="add-contractor-btn"
+                    className={`${btnPrimary} shrink-0 text-xs py-2 px-3.5`}
+                  >
+                    <Icon name="plus" className="size-3.5 mr-1.5" />
+                    <span>Add Contractor</span>
+                  </button>
+                </div>
+
+                {contractorStatusMsg && (
+                  <div className={alertInfo} role="status">
+                    {contractorStatusMsg}
+                  </div>
+                )}
+                {contractorFormError && (
+                  <div className={alertError} role="alert">
+                    {contractorFormError}
+                  </div>
+                )}
+              </div>
+
+              {/* Add / Edit Contractor Form Drawer */}
+              {showAddContractor && (
+                <form
+                  onSubmit={handleSaveContractor}
+                  className={`${card} p-5 space-y-4 border-2 border-primary/40 bg-surface-container shadow-xl`}
+                  data-testid="contractor-form"
+                  data-agent-id="contractor-form"
+                >
+                  <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+                    <h4 className="font-mono text-sm font-bold text-primary flex items-center gap-2">
+                      <Icon name="tag" className="size-4" />
+                      <span>{editingContractorId ? "Edit Contractor" : "Add New Contractor"}</span>
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddContractor(false)}
+                      className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-white/[0.08]"
+                      data-agent-id="close-contractor-form-btn"
+                      data-testid="close-contractor-form-btn"
+                      aria-label="Close form"
+                    >
+                      <Icon name="x" className="size-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className={label}>Name *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Sarah Chen Creative Studio"
+                        value={contractorForm.name}
+                        onChange={(e) => setContractorForm({ ...contractorForm, name: e.target.value })}
+                        className={field}
+                        data-agent-id="contractor-name-input"
+                        data-testid="contractor-name-input"
+                      />
+                    </div>
+
+                    <div>
+                      <label className={label}>Location *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Sydney, NSW, Australia"
+                        value={contractorForm.location}
+                        onChange={(e) => setContractorForm({ ...contractorForm, location: e.target.value })}
+                        className={field}
+                        data-agent-id="contractor-location-input"
+                        data-testid="contractor-location-input"
+                      />
+                    </div>
+
+                    <div>
+                      <label className={label}>Email *</label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="e.g. sarah@creativestudio.com.au"
+                        value={contractorForm.email}
+                        onChange={(e) => setContractorForm({ ...contractorForm, email: e.target.value })}
+                        className={field}
+                        data-agent-id="contractor-email-input"
+                        data-testid="contractor-email-input"
+                      />
+                    </div>
+
+                    <div>
+                      <label className={label}>Phone Number *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. +61 400 123 456"
+                        value={contractorForm.phone}
+                        onChange={(e) => setContractorForm({ ...contractorForm, phone: e.target.value })}
+                        className={field}
+                        data-agent-id="contractor-phone-input"
+                        data-testid="contractor-phone-input"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className={label}>Expertise *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Graphic Designer, UGC Video Editor, Visual AI Specialist, Copywriter"
+                        value={contractorForm.expertise}
+                        onChange={(e) => setContractorForm({ ...contractorForm, expertise: e.target.value })}
+                        className={field}
+                        data-agent-id="contractor-expertise-input"
+                        data-testid="contractor-expertise-input"
+                      />
+                    </div>
+
+                    <div>
+                      <label className={label}>PayID and payment details</label>
+                      <textarea
+                        rows={2}
+                        placeholder="e.g. PayID: studio@creativestudio.com.au / BSB: 062-000 Acc: 12345678"
+                        value={contractorForm.payIdPaymentDetails}
+                        onChange={(e) => setContractorForm({ ...contractorForm, payIdPaymentDetails: e.target.value })}
+                        className={`${field} resize-none font-mono text-xs`}
+                        data-agent-id="contractor-payid-input"
+                        data-testid="contractor-payid-input"
+                      />
+                    </div>
+
+                    <div>
+                      <label className={label}>Average Rates Box (Hourly, per job, etc.)</label>
+                      <textarea
+                        rows={2}
+                        placeholder="e.g. $80/hr or $250 per short-form UGC video, $600 full package"
+                        value={contractorForm.averageRates}
+                        onChange={(e) => setContractorForm({ ...contractorForm, averageRates: e.target.value })}
+                        className={`${field} resize-none font-mono text-xs`}
+                        data-agent-id="contractor-rates-input"
+                        data-testid="contractor-rates-input"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className={label}>Specialty Notes (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 48hr delivery, specialized in e-commerce fashion & beauty campaigns"
+                        value={contractorForm.notes}
+                        onChange={(e) => setContractorForm({ ...contractorForm, notes: e.target.value })}
+                        className={field}
+                        data-agent-id="contractor-notes-input"
+                        data-testid="contractor-notes-input"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.08]">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddContractor(false)}
+                      className={btnSecondary}
+                      data-agent-id="cancel-contractor-form-btn"
+                      data-testid="cancel-contractor-form-btn"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingContractor}
+                      className={btnPrimary}
+                      data-agent-id="save-contractor-btn"
+                      data-testid="save-contractor-btn"
+                    >
+                      {savingContractor ? "Saving..." : editingContractorId ? "Update Contractor" : "Save Contractor"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Contractors Search & Directory Cards */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-on-surface-variant pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search contractors by name, expertise, location, rates..."
+                      value={contractorSearch}
+                      onChange={(e) => setContractorSearch(e.target.value)}
+                      className={`${field} pl-9 text-xs`}
+                      data-agent-id="search-contractors-input"
+                      data-testid="search-contractors-input"
+                    />
+                  </div>
+                </div>
+
+                {loadingContractors ? (
+                  <div className="p-8 text-center font-mono text-xs text-on-surface-variant">
+                    Loading contractors directory...
+                  </div>
+                ) : filteredContractors.length === 0 ? (
+                  <div className="rounded-xl border border-white/10 bg-surface-container/50 p-8 text-center space-y-2">
+                    <Icon name="users" className="size-8 mx-auto text-on-surface-variant/50" />
+                    <p className="font-mono text-xs font-semibold text-on-surface">
+                      {contractorSearch ? "No contractors match your search." : "No contractors listed yet."}
+                    </p>
+                    <p className="text-[11px] text-on-surface-variant max-w-md mx-auto">
+                      {contractorSearch
+                        ? "Try searching with a different term."
+                        : "Ad Agents can list as many contractors as they want (videographers, graphic artists, AI specialists). They can then be chosen directly from the Service Provider box when fulfilling customize orders."}
+                    </p>
+                    {!contractorSearch && (
+                      <button
+                        type="button"
+                        onClick={handleStartAddContractor}
+                        className={`${btnPrimary} text-xs py-1.5 px-3 mt-2`}
+                      >
+                        + Add First Contractor
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {filteredContractors.map((c) => (
+                      <div
+                        key={c.contractorId}
+                        className={`${card} p-4 space-y-3 border border-white/10 bg-surface-container hover:border-amber-400/40 transition`}
+                        data-agent-id={`contractor-card-${c.contractorId}`}
+                        data-testid={`contractor-card-${c.contractorId}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-bold text-on-surface text-sm sm:text-base truncate">
+                              {c.name}
+                            </h4>
+                            <span className="inline-block mt-0.5 rounded-full bg-secondary/15 border border-secondary/30 px-2 py-0.2 font-mono text-[10px] font-semibold text-secondary">
+                              {c.expertise}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditContractor(c)}
+                              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-white/10 transition"
+                              data-agent-id={`edit-contractor-btn-${c.contractorId}`}
+                              data-testid={`edit-contractor-btn-${c.contractorId}`}
+                              aria-label={`Edit ${c.name}`}
+                              title="Edit Contractor"
+                            >
+                              <Icon name="sliders" className="size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteContractorId(c.contractorId)}
+                              className="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition"
+                              data-agent-id={`delete-contractor-btn-${c.contractorId}`}
+                              data-testid={`delete-contractor-btn-${c.contractorId}`}
+                              aria-label={`Delete ${c.name}`}
+                              title="Delete Contractor"
+                            >
+                              <Icon name="trash" className="size-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Confirm Delete Banner */}
+                        {confirmDeleteContractorId === c.contractorId && (
+                          <div className="rounded-lg border border-rose-500/50 bg-rose-500/15 p-2.5 space-y-2">
+                            <p className="font-mono text-xs text-rose-200">
+                              Delete <strong>{c.name}</strong> from your contractors?
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={deletingContractor}
+                                onClick={() => handleDeleteContractor(c.contractorId)}
+                                className="rounded-md bg-rose-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white hover:bg-rose-700 transition"
+                                data-agent-id={`confirm-delete-contractor-btn-${c.contractorId}`}
+                                data-testid={`confirm-delete-contractor-btn-${c.contractorId}`}
+                              >
+                                {deletingContractor ? "Deleting..." : "Confirm Delete"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteContractorId(null)}
+                                className="rounded-md bg-white/10 px-2.5 py-1 font-mono text-[11px] text-on-surface hover:bg-white/20 transition"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5 text-xs text-on-surface-variant font-mono">
+                          <div className="flex items-center gap-1.5">
+                            <Icon name="mapPin" className="size-3.5 text-primary shrink-0" />
+                            <span className="truncate">{c.location}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Icon name="mail" className="size-3.5 text-outline shrink-0" />
+                            <a href={`mailto:${c.email}`} className="truncate hover:text-primary transition underline decoration-dotted">
+                              {c.email}
+                            </a>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Icon name="phone" className="size-3.5 text-outline shrink-0" />
+                            <span>{c.phone}</span>
+                          </div>
+                        </div>
+
+                        {/* Average Rates Box */}
+                        {c.averageRates && (
+                          <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 p-2 font-mono text-[11px] text-on-surface">
+                            <span className="font-bold text-amber-300 block mb-0.5">Average Rates Box:</span>
+                            <span className="whitespace-pre-line">{c.averageRates}</span>
+                          </div>
+                        )}
+
+                        {/* PayID and Payment Details */}
+                        {c.payIdPaymentDetails && (
+                          <div className="rounded-lg border border-white/10 bg-surface-container-lowest/60 p-2 font-mono text-[11px] text-on-surface-variant">
+                            <span className="font-semibold text-outline block mb-0.5">PayID &amp; Payment Details:</span>
+                            <span className="whitespace-pre-line">{c.payIdPaymentDetails}</span>
+                          </div>
+                        )}
+
+                        {c.notes && (
+                          <p className="text-[11px] text-on-surface-variant italic">
+                            &quot;{c.notes}&quot;
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

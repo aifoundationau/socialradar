@@ -75,6 +75,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Ad Agent Contractors registry: any signed-in user can read available contractors.
+    // Mutations are server-only via Firebase Admin SDK.
+    match /ad_agent_contractors/{contractorId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
     // Global shared brands catalog: any signed-in user can read.
     // Mutations are server-only via Firebase Admin SDK.
     match /global_brands/{brandId} {

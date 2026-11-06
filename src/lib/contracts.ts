@@ -789,6 +789,48 @@ export const SuperAdminAddAdAgentRequestSchema = z
   .strict();
 export type SuperAdminAddAdAgentRequest = z.infer<typeof SuperAdminAddAdAgentRequestSchema>;
 
+// ---------- Ad Agent Contractors Registry ----------
+export const AdAgentContractorSchema = z
+  .object({
+    contractorId: z.string().min(1).max(64),
+    agentUid: z.string().min(1).max(128),
+    agentEmail: z.string().trim().toLowerCase().email().max(254),
+    name: safeText(1, 100),
+    location: safeText(1, 150),
+    email: z.string().trim().toLowerCase().email().max(254),
+    phone: safeText(1, 50),
+    expertise: safeText(1, 100),
+    payIdPaymentDetails: z.string().trim().max(300).default(""),
+    averageRates: z.string().trim().max(300).default(""),
+    notes: z.string().trim().max(500).default(""),
+    createdAt: isoDate,
+    updatedAt: isoDate,
+  })
+  .strict();
+export type AdAgentContractor = z.infer<typeof AdAgentContractorSchema>;
+
+export const CreateContractorRequestSchema = z
+  .object({
+    name: safeText(1, 100),
+    location: safeText(1, 150),
+    email: z.string().trim().toLowerCase().email().max(254),
+    phone: safeText(1, 50),
+    expertise: safeText(1, 100),
+    payIdPaymentDetails: z.string().trim().max(300).optional().default(""),
+    averageRates: z.string().trim().max(300).optional().default(""),
+    notes: z.string().trim().max(500).optional().default(""),
+  })
+  .strict();
+export type CreateContractorRequest = z.infer<typeof CreateContractorRequestSchema>;
+
+export const UpdateContractorRequestSchema = z
+  .object({
+    contractorId: z.string().min(1).max(64),
+    patch: CreateContractorRequestSchema.partial(),
+  })
+  .strict();
+export type UpdateContractorRequest = z.infer<typeof UpdateContractorRequestSchema>;
+
 export const SuperAdminUpdateAdAgentPercentRequestSchema = z
   .object({
     agentId: z.string().min(1).max(128),

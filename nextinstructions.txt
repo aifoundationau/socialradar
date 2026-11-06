@@ -256,6 +256,10 @@
 53. **Monthly Search Subscription Value Proposition & Hero Copy Updates (`MonthlySubscriptionModal.tsx`, `SuperAdminModal.tsx`, `page.tsx`):**
     - Updated the Monthly Search Subscription description to: *"Options for every search: Every option is one token. This gives you 1,000 of those. Get Access to 'Free to Use' Times."* across contracts, admin configurations, and modal views.
     - Replaced the homepage hero pricing copy with: *"Pay as you go or buy with tokens or buy an agency subscription: Search Proven Ads, Top Performers, Long Term winners / Get assistance from top Social Media Agencies, Videographers, and Visual AI Experts"*.
+54. **Ad Agent Contractors Directory & Service Provider Integration (`SupporterModal.tsx`, `AdAgentModal.tsx`, `/api/contractors`, `contracts.ts`, `firestore.rules`):**
+    - Added the **Contractors** section under the **Supporter Admin Panel** (`SupporterModal.tsx` tab `CONTRACTORS`) allowing Ad Agents to list as many creative contractors as they want (Name, Location, Email, Phone Number, Expertise, PayID and payment details, Average Rates Box, and Notes) with search, edit, and deletion with confirm delete.
+    - Built backend REST endpoints (`GET /api/contractors`, `POST /api/contractors`) and added Firestore security rules (`ad_agent_contractors`, 71/71 tests passing).
+    - Integrated "⚡ Pick Contractor" quick dropdowns into the **Service Provider** boxes in the **Ad Agent Registration & Customize Orders Panel** (`AdAgentModal.tsx` for Custom Graphic Art, Custom Video Work, and Other Recommended Services).
 
 ## What to Do When Reopened Next Startup
 1. **Read `nextinstructions.txt` First:** Start here and review the latest completed milestones above.

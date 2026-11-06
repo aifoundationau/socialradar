@@ -16,6 +16,7 @@ import {
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { autofindUserLocation, loadGeoConfig } from "@/lib/geo";
 import type {
+  AdAgentContractor,
   AdAgentLocation,
   AdAgentProfile,
   AiCustomizeReplyDraftResponse,
@@ -239,6 +240,27 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
     setAgentEmail(defaultEmail);
     loadAgentData(defaultEmail);
   }, [isOpen, registeredEmail]);
+
+  // Contractors State (Loaded for Service Provider auto-selection)
+  const [contractors, setContractors] = useState<AdAgentContractor[]>([]);
+
+  async function loadContractors() {
+    try {
+      const data = await apiFetch<{ success: boolean; contractors: AdAgentContractor[] }>("/api/contractors", {
+        method: "GET",
+      });
+      if (data.contractors) setContractors(data.contractors);
+    } catch {
+      // non-blocking fallback
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) return;
+    loadContractors();
+    window.addEventListener("adradar:contractors-updated", loadContractors);
+    return () => window.removeEventListener("adradar:contractors-updated", loadContractors);
+  }, [isOpen]);
 
   async function loadAgentData(emailOverride?: string) {
     setLoading(true);
@@ -1208,9 +1230,38 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                                     />
                                   </div>
                                   <div className="sm:col-span-3">
-                                    <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
-                                      Service Provider
-                                    </label>
+                                    <div className="flex items-center justify-between gap-1 mb-1">
+                                      <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
+                                        Service Provider
+                                      </label>
+                                      {contractors.length > 0 && (
+                                        <select
+                                          className="bg-surface-container border border-white/15 rounded px-1.5 py-0.5 text-[10px] font-mono text-primary cursor-pointer max-w-[140px] truncate"
+                                          defaultValue=""
+                                          onChange={(e) => {
+                                            const selected = contractors.find((c) => c.contractorId === e.target.value);
+                                            if (selected) {
+                                              setRecGraphicArtProvider(`${selected.name} (${selected.location})`);
+                                              if (selected.averageRates && !recGraphicArtPrice) {
+                                                setRecGraphicArtPrice(selected.averageRates);
+                                              }
+                                              setRecGraphicArtEnabled(true);
+                                            }
+                                            e.target.value = "";
+                                          }}
+                                          data-agent-id={`select-contractor-graphic-${reqDoc.requestId}`}
+                                          data-testid={`select-contractor-graphic-${reqDoc.requestId}`}
+                                          aria-label="Pick contractor for Graphic Art"
+                                        >
+                                          <option value="">⚡ Pick Contractor</option>
+                                          {contractors.map((c) => (
+                                            <option key={c.contractorId} value={c.contractorId}>
+                                              {c.name} ({c.expertise})
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )}
+                                    </div>
                                     <input
                                       type="text"
                                       placeholder="e.g. Studio Name / Agent"
@@ -1285,9 +1336,38 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                                     />
                                   </div>
                                   <div className="sm:col-span-3">
-                                    <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
-                                      Service Provider
-                                    </label>
+                                    <div className="flex items-center justify-between gap-1 mb-1">
+                                      <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
+                                        Service Provider
+                                      </label>
+                                      {contractors.length > 0 && (
+                                        <select
+                                          className="bg-surface-container border border-white/15 rounded px-1.5 py-0.5 text-[10px] font-mono text-primary cursor-pointer max-w-[140px] truncate"
+                                          defaultValue=""
+                                          onChange={(e) => {
+                                            const selected = contractors.find((c) => c.contractorId === e.target.value);
+                                            if (selected) {
+                                              setRecVideoWorkProvider(`${selected.name} (${selected.location})`);
+                                              if (selected.averageRates && !recVideoWorkPrice) {
+                                                setRecVideoWorkPrice(selected.averageRates);
+                                              }
+                                              setRecVideoWorkEnabled(true);
+                                            }
+                                            e.target.value = "";
+                                          }}
+                                          data-agent-id={`select-contractor-video-${reqDoc.requestId}`}
+                                          data-testid={`select-contractor-video-${reqDoc.requestId}`}
+                                          aria-label="Pick contractor for Video Work"
+                                        >
+                                          <option value="">⚡ Pick Contractor</option>
+                                          {contractors.map((c) => (
+                                            <option key={c.contractorId} value={c.contractorId}>
+                                              {c.name} ({c.expertise})
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )}
+                                    </div>
                                     <input
                                       type="text"
                                       placeholder="e.g. Video Creator / Agency"
@@ -1327,12 +1407,38 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
 
                               {/* 3. Other Recommended Services (Short Paragraph Box) */}
                               <div className="rounded-lg border border-white/10 bg-surface-container-low p-3 space-y-1.5">
-                                <label
-                                  htmlFor={`rec-other-services-notes-${reqDoc.requestId}`}
-                                  className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface"
-                                >
-                                  Other Recommended Services, Who Provides Them &amp; Estimate Pricing (Optional)
-                                </label>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                                  <label
+                                    htmlFor={`rec-other-services-notes-${reqDoc.requestId}`}
+                                    className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface"
+                                  >
+                                    Other Recommended Services, Who Provides Them &amp; Estimate Pricing (Optional)
+                                  </label>
+                                  {contractors.length > 0 && (
+                                    <select
+                                      className="bg-surface-container border border-white/15 rounded px-2 py-0.5 text-[10px] font-mono text-primary cursor-pointer max-w-[170px] truncate"
+                                      defaultValue=""
+                                      onChange={(e) => {
+                                        const selected = contractors.find((c) => c.contractorId === e.target.value);
+                                        if (selected) {
+                                          const line = `Service: ${selected.expertise}\nProvider: ${selected.name} (${selected.location} · ${selected.email} · ${selected.phone})\nRates: ${selected.averageRates || "Contact for quote"}`;
+                                          setRecOtherServicesNotes((prev) => (prev ? `${prev}\n\n${line}` : line));
+                                        }
+                                        e.target.value = "";
+                                      }}
+                                      data-agent-id={`insert-contractor-other-${reqDoc.requestId}`}
+                                      data-testid={`insert-contractor-other-${reqDoc.requestId}`}
+                                      aria-label="Insert contractor into other recommended services"
+                                    >
+                                      <option value="">+ Insert Contractor</option>
+                                      {contractors.map((c) => (
+                                        <option key={c.contractorId} value={c.contractorId}>
+                                          {c.name} ({c.expertise})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
+                                </div>
                                 <textarea
                                   id={`rec-other-services-notes-${reqDoc.requestId}`}
                                   rows={3}

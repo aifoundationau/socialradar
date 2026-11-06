@@ -979,6 +979,58 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   - Mounted at the root of `<body>` in `src/app/layout.tsx` (`data-agent-id="free-access-red-top-banner"`).
   - Queries public `GET /api/wallet/checkout` (`no-store`) and checks `isCountryEligibleForFreeAccess(freeAccessWindow, userCountry)` so whenever the Timed Free Access Window (`15m`, `30m`, `60m`) is active for the user's country, a full-width Red Banner (`bg-gradient-to-r from-red-700 via-red-600 to-red-700`) is displayed across the top of the entire web app — including the front start page (`/`) and before logging in — stating `"AdRadarHQ is currently FREE TO USE for Monthly Subscribers!"` along with the active countries badge and live countdown timer (`mm:ss`).
 
+## 26. Ad Agent Contractors Directory (`ad_agent_contractors` & `/api/contractors`)
+
+### `AdAgentContractor` (`AdAgentContractorSchema`)
+```json
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractorId",
+    "agentUid",
+    "agentEmail",
+    "name",
+    "location",
+    "email",
+    "phone",
+    "expertise",
+    "payIdPaymentDetails",
+    "averageRates",
+    "notes",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "contractorId": { "type": "string", "maxLength": 64 },
+    "agentUid": { "type": "string", "maxLength": 128 },
+    "agentEmail": { "type": "string", "format": "email", "maxLength": 254 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "location": { "type": "string", "minLength": 1, "maxLength": 150 },
+    "email": { "type": "string", "format": "email", "maxLength": 254 },
+    "phone": { "type": "string", "minLength": 1, "maxLength": 50 },
+    "expertise": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "payIdPaymentDetails": { "type": "string", "maxLength": 300 },
+    "averageRates": { "type": "string", "maxLength": 300 },
+    "notes": { "type": "string", "maxLength": 500 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  }
+}
+```
+
+### Endpoints
+- `GET /api/contractors`: Authenticated Ad Agent / User retrieves their saved contractor directory (ordered newest first).
+- `POST /api/contractors`:
+  - `action: "CREATE_CONTRACTOR"`: Validates and saves a new contractor to `ad_agent_contractors`.
+  - `action: "UPDATE_CONTRACTOR"`: Updates contractor details (with caller ownership verification).
+  - `action: "DELETE_CONTRACTOR"`: Deletes contractor (requires explicit UI confirm delete confirmation).
+
+### Integration Points
+- **Supporter Admin Panel (`SupporterModal.tsx` under `CONTRACTORS` Tab):** Ad Agents can add as many contractors as they want, manage their directory with search, live rates box, PayID/banking notes, editing, and deletion with mandatory confirmation.
+- **Service Provider Box (`AdAgentModal.tsx`):** Direct "⚡ Pick Contractor" quick dropdowns on **Custom Ad Graphic Art** and **Custom Video Work**, plus "+ Insert Contractor" on **Other Recommended Services**, automatically populating contractor name, location, phone, and average pricing.
+
+
 
 
 
