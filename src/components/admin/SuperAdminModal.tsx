@@ -3096,14 +3096,47 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     >
                                       Bank Details or PayID Details
                                     </label>
-                                    <span className="font-mono text-[9px] text-on-surface-variant">
-                                      BSB / Account # or PayID
-                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-mono text-[9px] text-on-surface-variant hidden sm:inline">
+                                        BSB / Account # or PayID
+                                      </span>
+                                      <button
+                                        type="button"
+                                        disabled={!newAdAgent.bankOrPayIdDetails.trim()}
+                                        onClick={() =>
+                                          handleCopyMessageText(
+                                            newAdAgent.bankOrPayIdDetails.trim(),
+                                            "form-ad-agent-bank"
+                                          )
+                                        }
+                                        data-agent-id="copy-form-ad-agent-bank-btn"
+                                        data-testid="copy-form-ad-agent-bank-btn"
+                                        aria-label="Copy Bank Details or PayID details from box"
+                                        title={
+                                          newAdAgent.bankOrPayIdDetails.trim()
+                                            ? `Copy: ${newAdAgent.bankOrPayIdDetails.trim()}`
+                                            : "No Bank / PayID details entered yet"
+                                        }
+                                        className="inline-flex items-center gap-1 rounded border border-primary/40 bg-primary/15 px-1.5 py-0.5 font-mono text-[9px] font-bold text-primary hover:bg-primary/25 disabled:opacity-40 transition"
+                                      >
+                                        <Icon
+                                          name={copiedMessageId === "form-ad-agent-bank" ? "checkCircle" : "copy"}
+                                          className="size-2.5"
+                                        />
+                                        <span>
+                                          {copiedMessageId === "form-ad-agent-bank" ? "Copied ✓" : "Copy"}
+                                        </span>
+                                      </button>
+                                    </div>
                                   </div>
                                   <textarea
                                     id="ad-agent-bank-payid-details-box"
                                     rows={2}
                                     maxLength={500}
+                                    title={
+                                      newAdAgent.bankOrPayIdDetails.trim() ||
+                                      "Enter BSB, Account Number, Account Name or PayID details"
+                                    }
                                     placeholder="BSB, Account Number, Account Name or PayID (Email / Mobile / ABN)..."
                                     value={newAdAgent.bankOrPayIdDetails}
                                     onChange={(e) =>
@@ -3150,7 +3183,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           <p className="text-xs italic">No Ad Agents in the distribution ledger yet.</p>
                         </div>
                       ) : (
-                        <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-surface-container">
+                        <div className="overflow-visible rounded-xl border border-white/[0.08] bg-surface-container">
                           <table
                             className="w-full table-auto text-left text-[11px]"
                             data-agent-id="ad-agent-distribution-ledger-table"
@@ -3217,30 +3250,121 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                         {agent.phone && agent.phone !== "Not specified" ? ` · ${agent.phone}` : ""} · 📍{" "}
                                         {agent.locationLabel}
                                       </div>
-                                      {/* Mobile-only fallback for Bank/PayID */}
-                                      <div className="mt-0.5 font-mono text-[9px] md:hidden">
+                                      {/* Mobile-only fallback for Bank/PayID with Copy & Hover */}
+                                      <div
+                                        className="mt-1 flex items-center gap-1.5 font-mono text-[9px] md:hidden"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
                                         {agent.bankOrPayIdDetails ? (
-                                          <span className="text-primary">
-                                            🏦 {agent.bankOrPayIdDetails}
-                                          </span>
+                                          <>
+                                            <span
+                                              className="text-primary truncate max-w-[180px]"
+                                              title={agent.bankOrPayIdDetails}
+                                            >
+                                              🏦 {agent.bankOrPayIdDetails}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleCopyMessageText(
+                                                  agent.bankOrPayIdDetails!,
+                                                  `bank-mob-${agent.agentId}`
+                                                )
+                                              }
+                                              data-agent-id={`copy-ad-agent-bank-mobile-${agent.agentId}`}
+                                              data-testid={`copy-ad-agent-bank-mobile-${agent.agentId}`}
+                                              className="inline-flex items-center gap-0.5 rounded border border-primary/40 bg-primary/15 px-1.5 py-0.5 text-[8px] font-bold text-primary"
+                                            >
+                                              <Icon
+                                                name={
+                                                  copiedMessageId === `bank-mob-${agent.agentId}`
+                                                    ? "checkCircle"
+                                                    : "copy"
+                                                }
+                                                className="size-2.5"
+                                              />
+                                              <span>
+                                                {copiedMessageId === `bank-mob-${agent.agentId}`
+                                                  ? "Copied ✓"
+                                                  : "Copy"}
+                                              </span>
+                                            </button>
+                                          </>
                                         ) : (
                                           <span className="text-outline italic">No Bank / PayID</span>
                                         )}
                                       </div>
                                     </td>
 
-                                    {/* 2. Dedicated Desktop/Laptop Column: Bank Details / PayID */}
-                                    <td className="px-2 py-2 hidden md:table-cell font-mono text-[10px] max-w-[190px]">
+                                    {/* 2. Dedicated Desktop/Laptop Column: Bank Details / PayID with Hover Preview & Copy Button */}
+                                    <td
+                                      className="px-2 py-2 hidden md:table-cell font-mono text-[10px] max-w-[220px]"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
                                       {agent.bankOrPayIdDetails ? (
                                         <div
-                                          className="rounded border border-primary/30 bg-primary/10 px-2 py-1 text-primary truncate"
-                                          title={agent.bankOrPayIdDetails}
+                                          className="group/bank relative flex items-center gap-1.5"
+                                          data-agent-id={`ad-agent-bank-cell-${agent.agentId}`}
+                                          data-testid={`ad-agent-bank-cell-${agent.agentId}`}
                                         >
-                                          🏦 {agent.bankOrPayIdDetails}
+                                          <div
+                                            className="rounded border border-primary/30 bg-primary/10 px-2 py-1 text-primary truncate max-w-[145px] cursor-help"
+                                            title={agent.bankOrPayIdDetails}
+                                          >
+                                            🏦 {agent.bankOrPayIdDetails}
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleCopyMessageText(
+                                                agent.bankOrPayIdDetails!,
+                                                `bank-${agent.agentId}`
+                                              )
+                                            }
+                                            data-agent-id={`copy-ad-agent-bank-${agent.agentId}`}
+                                            data-testid={`copy-ad-agent-bank-${agent.agentId}`}
+                                            aria-label={`Copy Bank or PayID details for ${agent.name}`}
+                                            title={`Copy Bank / PayID: ${agent.bankOrPayIdDetails}`}
+                                            className="inline-flex shrink-0 items-center gap-1 rounded border border-primary/40 bg-primary/15 px-1.5 py-1 font-mono text-[9px] font-bold text-primary hover:bg-primary/25 transition"
+                                          >
+                                            <Icon
+                                              name={
+                                                copiedMessageId === `bank-${agent.agentId}`
+                                                  ? "checkCircle"
+                                                  : "copy"
+                                              }
+                                              className="size-2.5"
+                                            />
+                                            <span>
+                                              {copiedMessageId === `bank-${agent.agentId}`
+                                                ? "Copied ✓"
+                                                : "Copy"}
+                                            </span>
+                                          </button>
+
+                                          {/* Hover Tooltip Popover showing Full Bank Details / PayID Details */}
+                                          <div
+                                            role="tooltip"
+                                            data-agent-id={`ad-agent-bank-hover-tooltip-${agent.agentId}`}
+                                            data-testid={`ad-agent-bank-hover-tooltip-${agent.agentId}`}
+                                            className="pointer-events-none invisible opacity-0 group-hover/bank:visible group-hover/bank:opacity-100 transition-all duration-150 absolute bottom-full left-0 z-50 mb-1.5 w-72 rounded-xl border border-primary/40 bg-surface-container-highest p-2.5 shadow-2xl"
+                                          >
+                                            <div className="flex items-center justify-between border-b border-white/10 pb-1 mb-1">
+                                              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-primary">
+                                                🏦 Bank / PayID — {agent.name}
+                                              </span>
+                                              <span className="font-mono text-[9px] text-on-surface-variant">
+                                                Hover Preview
+                                              </span>
+                                            </div>
+                                            <p className="font-mono text-[11px] text-on-surface whitespace-pre-wrap break-words leading-relaxed">
+                                              {agent.bankOrPayIdDetails}
+                                            </p>
+                                          </div>
                                         </div>
                                       ) : (
                                         <span className="text-outline italic text-[10px]">
-                                          Click to add Bank / PayID
+                                          Click row to add Bank / PayID
                                         </span>
                                       )}
                                     </td>
