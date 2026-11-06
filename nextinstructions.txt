@@ -208,6 +208,15 @@
     - **Customer Choice When Multiple Ad Agents Are Available (`CustomizeView.tsx`, `ad-agents.ts`, `admin.ts`, `contracts.ts`):** Displays all available active Ad Agents sorted by proximity when more than one Ad Agent exists and lets the customer choose their preferred Ad Agent (`preferredAgentId`).
     - **All Registered `Ad Agent` Role Users in Ad Agent Distribution Ledger (`ad-agents.ts`, `rbac.ts`, `SuperAdminModal.tsx`):** Automatically syncs and displays every user registered with the RBAC role of `Ad Agent` in the **Ad Agent Distribution Ledger**.
     - **Collapsible All Users Token Balances (`SuperAdminModal.tsx`):** Added `Expand Balances / Collapse Balances` toggle (`toggle-user-token-balances-btn`) with auto-expand on search.
+43. **End-of-Day Firestore Database Health Check (`efaad4c` — 10/10 Passed):**
+    - Verified `system_config/global`, `system_config/faqs`, `system_config/rbac` (all 6 roles: `superadmin`, `admin`, `moderator`, `agency`, `supporter`, `ad_agent`), `system_config/rag_corpus`, `token_transactions` (27 records, non-negative audit), `users` (10 users, non-negative `tokenBalance >= 0`), `admin_messages`, `customize_requests`, `stripe_purchases`, and `ad_agents` (2 profiles + RBAC sync).
+
+## What to Do When Reopened Next Startup
+1. **Read `nextinstructions.txt` First:** Start here and review the latest completed milestones above.
+2. **Start Local Dev Server & Find Open Port:** Run `npm run dev` (e.g., port `3005` at `http://localhost:3005`) and ask the developer if they wish to view the local hosted web app version of the current development.
+3. **Verify Firestore & Auth Connectivity:** Run `node scripts/verify-database.mjs` if needed to confirm all 10 Firestore collections and RBAC roles are online.
+4. **Work Through Next Developer Directives:** Continue from the user's next instruction one step at a time.
+
 
 
 
