@@ -190,10 +190,16 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
       ? profilesList.find((a) => a.email.toLowerCase() === cleanTarget) || null
       : null;
 
-    if (matched) {
+    const hasCompletedRegistration = Boolean(
+      matched &&
+        ((matched.phone && matched.phone !== "Not specified") ||
+          (matched.bankOrPayIdDetails && matched.bankOrPayIdDetails.trim().length > 0)),
+    );
+
+    if (matched && hasCompletedRegistration) {
       setMyAgentProfile(matched);
       setName(matched.name || "");
-      setPhone(matched.phone || "");
+      setPhone(matched.phone === "Not specified" ? "" : matched.phone || "");
       setBankOrPayIdDetails(matched.bankOrPayIdDetails || "");
       setAgentStatus(matched.status === "inactive" ? "inactive" : "active");
       if (matched.location) {

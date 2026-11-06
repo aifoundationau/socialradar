@@ -63,14 +63,21 @@ export function formatAgentLocationLabel(loc?: Partial<AdAgentLocation> | null):
  */
 export async function getAdAgents(): Promise<AdAgentProfile[]> {
   try {
-    const snap = await db.collection(AD_AGENTS_COL).get();
+    const [snap, usersSnap, authList] = await Promise.all([
+      db.collection(AD_AGENTS_COL).get(),
+      db.collection("users").get().catch(() => null),
+      adminAuth.listUsers(100).catch(() => null),
+    ]);
     const agents: AdAgentProfile[] = [];
+    const seenEmails = new Set<string>();
     for (const doc of snap.docs) {
       const d = doc.data() as AdAgentProfile;
+      const cleanEmail = (d.email || "").toLowerCase().trim();
+      if (cleanEmail) seenEmails.add(cleanEmail);
       agents.push({
         ...d,
         agentId: d.agentId || doc.id,
-        email: (d.email || "").toLowerCase().trim(),
+        email: cleanEmail,
         redistributionPercentage: normalizeRedistributionPercent(d.redistributionPercentage),
         location: {
           suburb: d.location?.suburb || "Sydney",
@@ -81,6 +88,80 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
           label: formatAgentLocationLabel(d.location),
         },
       });
+    }
+
+    // Ensure every user registered with the RBAC role of "ad_agent" appears in the Ad Agent Distribution Ledger
+    const now = new Date().toISOString();
+    const roleAgentCandidates = new Map<string, { uid: string; email: string; name: string }>();
+
+    if (usersSnap) {
+      usersSnap.forEach((doc) => {
+        const u = doc.data() || {};
+        const email = String(u.email || "").toLowerCase().trim();
+        if (!email) return;
+        const rolesArr = Array.isArray(u.roles) ? (u.roles as string[]) : [];
+        const hasAdAgentRole =
+          u.role === "ad_agent" || rolesArr.includes("ad_agent") || u.isAdAgent === true;
+        if (hasAdAgentRole) {
+          roleAgentCandidates.set(email, {
+            uid: doc.id,
+            email,
+            name: String(u.displayName || email.split("@")[0] || "Ad Agent").trim(),
+          });
+        }
+      });
+    }
+
+    if (authList?.users) {
+      for (const u of authList.users) {
+        const email = (u.email || "").toLowerCase().trim();
+        if (!email) continue;
+        const claims = (u.customClaims || {}) as Record<string, unknown>;
+        const claimRoles = Array.isArray(claims.roles) ? (claims.roles as string[]) : [];
+        const hasAdAgentClaim =
+          claims.role === "ad_agent" ||
+          claimRoles.includes("ad_agent") ||
+          claims.ad_agent === true;
+        if (hasAdAgentClaim && !roleAgentCandidates.has(email)) {
+          roleAgentCandidates.set(email, {
+            uid: u.uid,
+            email,
+            name: (u.displayName || email.split("@")[0] || "Ad Agent").trim(),
+          });
+        }
+      }
+    }
+
+    const syncPromises: Promise<unknown>[] = [];
+    for (const [email, candidate] of roleAgentCandidates.entries()) {
+      if (seenEmails.has(email)) continue;
+      seenEmails.add(email);
+      const cleanUid = candidate.uid.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 16) || randomBytes(4).toString("hex");
+      const newRoleAgent: AdAgentProfile = {
+        agentId: `agent_rbac_${cleanUid}`,
+        uid: candidate.uid,
+        name: candidate.name,
+        phone: "Not specified",
+        email,
+        location: DEFAULT_SUPERADMIN_LOCATION,
+        bankOrPayIdDetails: "",
+        redistributionPercentage: 30,
+        status: "active",
+        isSuperAdminBuiltIn: isDatabaseAdmin(null, email),
+        createdAt: now,
+        updatedAt: now,
+      };
+      agents.push(newRoleAgent);
+      syncPromises.push(
+        db
+          .collection(AD_AGENTS_COL)
+          .doc(newRoleAgent.agentId)
+          .set(newRoleAgent, { merge: true })
+          .catch(() => undefined),
+      );
+    }
+    if (syncPromises.length > 0) {
+      await Promise.all(syncPromises);
     }
 
     // Ensure Super Admin built-in Ad Agent exists (no registration required)

@@ -490,7 +490,39 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const customizeServiceUsdCents = audToUsdCents(customizeServiceAudCents);
 
   const liveAdAgentLedger = useMemo<AdAgentDistributionItem[]>(() => {
-    return adAgentLedger.map((agent) => {
+    const combinedLedger: AdAgentDistributionItem[] = [...adAgentLedger];
+    const seenEmails = new Set(combinedLedger.map((a) => a.email.trim().toLowerCase()));
+
+    for (const u of rbacUsers) {
+      const cleanEmail = (u.email || "").trim().toLowerCase();
+      if (!cleanEmail || seenEmails.has(cleanEmail)) continue;
+      if (getUserRolesList(u).includes("ad_agent")) {
+        seenEmails.add(cleanEmail);
+        const cleanUid = (u.uid || cleanEmail).replace(/[^a-zA-Z0-9_-]/g, "_");
+        combinedLedger.push({
+          agentId: `agent_rbac_${cleanUid}`,
+          name: (u.displayName || cleanEmail.split("@")[0] || "Ad Agent").trim(),
+          email: cleanEmail,
+          phone: "Not specified",
+          bankOrPayIdDetails: "",
+          locationLabel: "Sydney, NSW, AU",
+          latitude: -33.8688,
+          longitude: 151.2093,
+          customizationsCount: 1,
+          totalCustomizationsTokens: customizeServiceUnitTokens,
+          totalCustomizationsAudCents: customizeServiceAudCents,
+          totalCustomizationsUsdCents: customizeServiceUsdCents,
+          redistributionPercentage: 30,
+          redistributionTokens: Math.round((customizeServiceUnitTokens * 30) / 100),
+          redistributionAudCents: Math.round((customizeServiceAudCents * 30) / 100),
+          redistributionUsdCents: audToUsdCents(Math.round((customizeServiceAudCents * 30) / 100)),
+          status: "active",
+          isSuperAdminBuiltIn: false,
+        });
+      }
+    }
+
+    return combinedLedger.map((agent) => {
       const effectiveOrdersCount = Math.max(1, Math.round(Number(agent.customizationsCount || 1)));
       const totalCustomizationsTokens = Math.round(effectiveOrdersCount * customizeServiceUnitTokens);
       const totalCustomizationsAudCents = Math.round(totalCustomizationsTokens * audCentsPerTokenUnit);
@@ -517,7 +549,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         redistributionUsdCents,
       };
     });
-  }, [adAgentLedger, customizeServiceUnitTokens, audCentsPerTokenUnit]);
+  }, [
+    adAgentLedger,
+    rbacUsers,
+    customizeServiceUnitTokens,
+    audCentsPerTokenUnit,
+    customizeServiceAudCents,
+    customizeServiceUsdCents,
+  ]);
 
   function selectAndAutofillAdAgent(agentKey: string, ledgerList: AdAgentDistributionItem[] = liveAdAgentLedger) {
     setSelectedRegisteredAgentKey(agentKey);
@@ -923,6 +962,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         },
       });
       if (data.users) setRbacUsers(data.users);
+      reloadAdAgents();
       if (uid) {
         setPendingUserRoles((prev) => {
           const next = { ...prev };

@@ -225,7 +225,13 @@ export async function assignUserRole(
   }
 
   // Keep users/{uid} in sync with both `role` (primary) and `roles` (all assigned roles)
+  const now = new Date().toISOString();
+  let userDisplayName = "";
   try {
+    const existingUserSnap = await db.collection("users").doc(uid).get();
+    if (existingUserSnap.exists) {
+      userDisplayName = String(existingUserSnap.data()?.displayName || "").trim();
+    }
     await db
       .collection("users")
       .doc(uid)
@@ -236,13 +242,57 @@ export async function assignUserRole(
           roles,
           tier,
           isAdAgent: roles.includes("ad_agent"),
-          updatedAt: new Date().toISOString(),
+          updatedAt: now,
           roleUpdatedBy: updatedBy,
         },
         { merge: true },
       );
   } catch {
     // Non-blocking fallback
+  }
+
+  // If the user is granted the "ad_agent" role, ensure they appear in `ad_agents` for the Ad Agent Distribution Ledger
+  if (roles.includes("ad_agent")) {
+    try {
+      const existingAgentSnap = await db
+        .collection("ad_agents")
+        .where("email", "==", normEmail)
+        .limit(1)
+        .get();
+      if (existingAgentSnap.empty) {
+        const cleanUid = uid.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 16) || "user";
+        const agentId = `agent_rbac_${cleanUid}`;
+        await db
+          .collection("ad_agents")
+          .doc(agentId)
+          .set(
+            {
+              agentId,
+              uid,
+              name: userDisplayName || normEmail.split("@")[0] || "Ad Agent",
+              phone: "Not specified",
+              email: normEmail,
+              location: {
+                suburb: "Sydney",
+                state: "NSW",
+                country: "AU",
+                latitude: -33.8688,
+                longitude: 151.2093,
+                label: "Sydney, NSW, AU",
+              },
+              bankOrPayIdDetails: "",
+              redistributionPercentage: 30,
+              status: "active",
+              isSuperAdminBuiltIn: false,
+              createdAt: now,
+              updatedAt: now,
+            },
+            { merge: true },
+          );
+      }
+    } catch {
+      // Non-blocking fallback
+    }
   }
 
   return {
