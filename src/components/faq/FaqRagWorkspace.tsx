@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch, errorMessage } from "@/lib/api-client";
+import { useSession } from "@/components/auth/SessionProvider";
 import { Icon } from "@/components/ui/Icon";
 import { btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
 import { SUPPORTED_RAG_LANGUAGES, getRagLanguageMeta } from "@/lib/rag-languages";
@@ -53,6 +54,8 @@ export function PerFaqRagDrawer({
   ragEntriesForFaq: RagSentenceItem[];
   onRagUpdated: () => void;
 }) {
+  const { role } = useSession();
+  const canSeeIndividualSentences = role === "superadmin" || role === "admin";
   const [targetLang, setTargetLang] = useState<string>("id");
   const [translating, setTranslating] = useState(false);
   const [savingToRag, setSavingToRag] = useState(false);
@@ -163,16 +166,18 @@ export function PerFaqRagDrawer({
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1 rounded bg-primary/20 px-2 py-0.5 font-mono text-[10px] font-bold text-primary uppercase">
             <Icon name="layers" className="size-3" />
-            FAQ RAG & Multilingual Translator
+            {canSeeIndividualSentences ? "FAQ RAG & Multilingual Translator" : "FAQ Multilingual Translator"}
           </span>
           <span className="font-mono text-[11px] text-on-surface-variant">
-            {atomicSentences.length} Indexed Sentences • {multilingualEntries.length} Multilingual RAG Translations
+            {canSeeIndividualSentences
+              ? `${atomicSentences.length} Indexed Sentences • ${multilingualEntries.length} Multilingual RAG Translations`
+              : `${multilingualEntries.length} Multilingual FAQ Translations`}
           </span>
         </div>
       </div>
 
-      {/* 1. Indexed RAG Sentences for this FAQ */}
-      {atomicSentences.length > 0 && (
+      {/* 1. Indexed RAG Sentences for this FAQ (Strictly hidden from Supporter role) */}
+      {canSeeIndividualSentences && atomicSentences.length > 0 && (
         <div className="space-y-1.5">
           <p className="font-mono text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
             Indexed RAG Sentences for this FAQ:
@@ -394,6 +399,8 @@ export function GlobalRagCorpusSection({
   isAdmin?: boolean;
   onFaqPublished?: () => void;
 }) {
+  const { role } = useSession();
+  const canSeeIndividualSentences = Boolean(isAdmin && (role === "superadmin" || role === "admin"));
   const [entries, setEntries] = useState<RagSentenceItem[]>([]);
   const [stats, setStats] = useState<RagStats>({
     total: 0,
@@ -679,63 +686,72 @@ export function GlobalRagCorpusSection({
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/15 px-2.5 py-0.5 font-mono text-[11px] font-bold text-primary uppercase">
               <Icon name="layers" className="size-3.5" />
-              RAG Knowledge & Multilingual Engine
+              {canSeeIndividualSentences ? "RAG Knowledge & Multilingual Engine" : "Multilingual FAQ Translation"}
             </span>
-            <span className="rounded-md border border-secondary/40 bg-secondary/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-secondary">
-              {stats.total} Indexed Sentences
-            </span>
+            {canSeeIndividualSentences && (
+              <span className="rounded-md border border-secondary/40 bg-secondary/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-secondary">
+                {stats.total} Indexed Sentences
+              </span>
+            )}
           </div>
           <h4 className="mt-1.5 text-title-sm font-bold text-on-surface">
-            Website Sentences, AI Works & Multilingual FAQ RAG Studio
+            {canSeeIndividualSentences
+              ? "Website Sentences, AI Works & Multilingual FAQ RAG Studio"
+              : "Translate FAQs into Multiple Languages"}
           </h4>
           <p className="mt-0.5 text-compact text-on-surface-variant">
-            1) Full RAG index of every FAQ, every sentence used across this website, and all AI works (Radar Feed Searches, AI Creative Remixes, Customize Strategies).{" "}
-            2) Write or translate FAQs into 22 languages using Google Translator with mandatory Human Edit before adding to RAG.
+            {canSeeIndividualSentences
+              ? "1) Full RAG index of every FAQ, every sentence used across this website, and all AI works (Radar Feed Searches, AI Creative Remixes, Customize Strategies). 2) Write or translate FAQs into all ASEAN & global languages using Google Translator with mandatory Human Edit before adding to RAG."
+              : "Select an FAQ and translate it into any ASEAN or global language using Google Translator with Human Edit."}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleSyncCorpus}
-          disabled={syncing}
-          data-agent-id="sync-rag-corpus-btn"
-          data-testid="sync-rag-corpus-btn"
-          aria-label="Sync live website and AI works into RAG corpus"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-secondary/40 bg-secondary/15 px-3.5 py-2 font-mono text-xs font-bold text-secondary hover:bg-secondary/25 disabled:opacity-50 transition"
-        >
-          <Icon name="refresh" className={`size-3.5 ${syncing ? "animate-spin" : ""}`} />
-          <span>{syncing ? "Syncing Live AI Works…" : "Sync Website & AI Works ⚡"}</span>
-        </button>
+        {canSeeIndividualSentences && (
+          <button
+            type="button"
+            onClick={handleSyncCorpus}
+            disabled={syncing}
+            data-agent-id="sync-rag-corpus-btn"
+            data-testid="sync-rag-corpus-btn"
+            aria-label="Sync live website and AI works into RAG corpus"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-secondary/40 bg-secondary/15 px-3.5 py-2 font-mono text-xs font-bold text-secondary hover:bg-secondary/25 disabled:opacity-50 transition"
+          >
+            <Icon name="refresh" className={`size-3.5 ${syncing ? "animate-spin" : ""}`} />
+            <span>{syncing ? "Syncing Live AI Works…" : "Sync Website & AI Works ⚡"}</span>
+          </button>
+        )}
       </div>
 
-      {/* RAG Telemetry Summary Cards */}
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
-        <div className="rounded-xl border border-white/[0.08] bg-surface-container p-3">
-          <div className="font-mono text-[10px] text-on-surface-variant uppercase">Total RAG Sentences</div>
-          <div className="mt-1 font-mono text-lg font-bold text-on-surface">{stats.total}</div>
-        </div>
-        <div className="rounded-xl border border-primary/25 bg-primary/10 p-3">
-          <div className="font-mono text-[10px] text-primary uppercase">FAQ Sentences</div>
-          <div className="mt-1 font-mono text-lg font-bold text-primary">{stats.faqCount}</div>
-        </div>
-        <div className="rounded-xl border border-secondary/25 bg-secondary/10 p-3">
-          <div className="font-mono text-[10px] text-secondary uppercase">Website UI Copy</div>
-          <div className="mt-1 font-mono text-lg font-bold text-secondary">{stats.websiteUiCount}</div>
-        </div>
-        <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3">
-          <div className="font-mono text-[10px] text-emerald-300 uppercase">Radar Feed Searches</div>
-          <div className="mt-1 font-mono text-lg font-bold text-emerald-300">{stats.radarSearchCount}</div>
-        </div>
-        <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 p-3">
-          <div className="font-mono text-[10px] text-amber-300 uppercase">AI Remixes & Customize</div>
-          <div className="mt-1 font-mono text-lg font-bold text-amber-300">
-            {stats.aiRemixCount + stats.customizeAiCount}
+      {/* RAG Telemetry Summary Cards (Admin / SuperAdmin Only — Supporter role does not see individual sentence stats) */}
+      {canSeeIndividualSentences && (
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="rounded-xl border border-white/[0.08] bg-surface-container p-3">
+            <div className="font-mono text-[10px] text-on-surface-variant uppercase">Total RAG Sentences</div>
+            <div className="mt-1 font-mono text-lg font-bold text-on-surface">{stats.total}</div>
+          </div>
+          <div className="rounded-xl border border-primary/25 bg-primary/10 p-3">
+            <div className="font-mono text-[10px] text-primary uppercase">FAQ Sentences</div>
+            <div className="mt-1 font-mono text-lg font-bold text-primary">{stats.faqCount}</div>
+          </div>
+          <div className="rounded-xl border border-secondary/25 bg-secondary/10 p-3">
+            <div className="font-mono text-[10px] text-secondary uppercase">Website UI Copy</div>
+            <div className="mt-1 font-mono text-lg font-bold text-secondary">{stats.websiteUiCount}</div>
+          </div>
+          <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3">
+            <div className="font-mono text-[10px] text-emerald-300 uppercase">Radar Feed Searches</div>
+            <div className="mt-1 font-mono text-lg font-bold text-emerald-300">{stats.radarSearchCount}</div>
+          </div>
+          <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 p-3">
+            <div className="font-mono text-[10px] text-amber-300 uppercase">AI Remixes & Customize</div>
+            <div className="mt-1 font-mono text-lg font-bold text-amber-300">
+              {stats.aiRemixCount + stats.customizeAiCount}
+            </div>
+          </div>
+          <div className="rounded-xl border border-purple-400/25 bg-purple-500/10 p-3">
+            <div className="font-mono text-[10px] text-purple-300 uppercase">Multilingual RAG</div>
+            <div className="mt-1 font-mono text-lg font-bold text-purple-300">{stats.multilingualCount}</div>
           </div>
         </div>
-        <div className="rounded-xl border border-purple-400/25 bg-purple-500/10 p-3">
-          <div className="font-mono text-[10px] text-purple-300 uppercase">Multilingual RAG</div>
-          <div className="mt-1 font-mono text-lg font-bold text-purple-300">{stats.multilingualCount}</div>
-        </div>
-      </div>
+      )}
 
       {feedbackMsg && (
         <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-compact text-emerald-300">
@@ -762,10 +778,14 @@ export function GlobalRagCorpusSection({
             </span>
             <div>
               <h5 className="text-body font-bold text-on-surface">
-                Multilingual FAQ & Sentence Translator (Google Translator → Human Edit → Add to RAG)
+                {canSeeIndividualSentences
+                  ? "Multilingual FAQ & Sentence Translator (Google Translator → Human Edit → Add to RAG)"
+                  : "Multilingual FAQ Translator (Google Translator → Human Edit → Add to RAG)"}
               </h5>
               <p className="text-xs text-on-surface-variant">
-                Select any FAQ or website sentence (or write your own FAQ), click Instant Google Translate, then human-edit before adding to the RAG corpus.
+                {canSeeIndividualSentences
+                  ? "Select any FAQ or website sentence (or write your own FAQ), click Instant Google Translate, then human-edit before adding to the RAG corpus."
+                  : "Select any FAQ (or write your own FAQ), click Instant Google Translate, then human-edit before adding to the FAQ RAG corpus."}
               </p>
             </div>
           </div>
@@ -783,7 +803,9 @@ export function GlobalRagCorpusSection({
               aria-label="Select an existing FAQ to translate or write custom"
               className={field}
             >
-              <option value="">✍️ Write Custom FAQ / Website Sentence…</option>
+              <option value="">
+                {canSeeIndividualSentences ? "✍️ Write Custom FAQ / Website Sentence…" : "✍️ Write Custom FAQ…"}
+              </option>
               {faqs.map((f) => (
                 <option key={f.faqId} value={f.faqId}>
                   [{f.category}] {f.question}
@@ -945,7 +967,8 @@ export function GlobalRagCorpusSection({
         </div>
       </form>
 
-      {/* PURPOSE 1: COMPLETE LIST OF ALL SENTENCES IN THIS WEBSITE & FROM ALL AI WORKS */}
+      {/* PURPOSE 1: COMPLETE LIST OF ALL SENTENCES IN THIS WEBSITE & FROM ALL AI WORKS (Strictly Admin / SuperAdmin Only — Hidden from Supporter role) */}
+      {canSeeIndividualSentences && (
       <div className={`${card} p-5 space-y-4`}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -1229,6 +1252,7 @@ export function GlobalRagCorpusSection({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

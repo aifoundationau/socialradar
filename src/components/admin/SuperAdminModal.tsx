@@ -4039,7 +4039,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                   {/* UNDER ALL FAQS: Global Website Sentences, AI Works & Multilingual FAQ RAG Corpus */}
                   <GlobalRagCorpusSection
                     faqs={faqs}
-                    isAdmin={true}
+                    isAdmin={role === "superadmin" || role === "admin"}
                     onFaqPublished={() => {
                       reloadFaqs();
                     }}
