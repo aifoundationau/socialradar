@@ -21,6 +21,7 @@ import { CostTag } from "@/components/ui/CostTag";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { btnPrimary } from "@/components/ui/styles";
 import { useSession } from "@/components/auth/SessionProvider";
+import { loadGeoConfig } from "@/lib/geo";
 import { COUNTRIES, MEDIA_FILTERS, PLATFORMS, PLATFORM_ORDER, SORTS, type SortKey } from "./options";
 
 export type RadarFilters = RadarSearchRequest;
@@ -133,9 +134,19 @@ export function RadarFilterBar({
   const [liveServiceCosts, setLiveServiceCosts] = useState<ServiceCosts | undefined>(undefined);
   const [isTokenSystemEnabled, setIsTokenSystemEnabled] = useState<boolean>(true);
   const [freeAccessWindow, setFreeAccessWindow] = useState<FreeAccessWindow | null>(null);
+  const [userCountry, setUserCountry] = useState<string>("AU");
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
   useEffect(() => {
+    function syncGeo() {
+      try {
+        const geo = loadGeoConfig();
+        if (geo?.country) setUserCountry(geo.country.trim().toUpperCase());
+      } catch {
+        // Fallback to AU
+      }
+    }
+
     function syncPricingConfig() {
       fetch("/api/wallet/checkout", { headers: { accept: "application/json" }, cache: "no-store" })
         .then((res) => (res.ok ? res.json() : null))
@@ -149,11 +160,14 @@ export function RadarFilterBar({
         .catch(() => {});
     }
 
+    syncGeo();
     syncPricingConfig();
     window.addEventListener("adradar:config-updated", syncPricingConfig);
+    window.addEventListener("adradar:geo-updated", syncGeo);
     const interval = setInterval(() => setNowMs(Date.now()), 5000);
     return () => {
       window.removeEventListener("adradar:config-updated", syncPricingConfig);
+      window.removeEventListener("adradar:geo-updated", syncGeo);
       clearInterval(interval);
     };
   }, []);
@@ -162,7 +176,8 @@ export function RadarFilterBar({
     { isTokenSystemEnabled, freeAccessWindow },
     nowMs,
     profile,
-    isSuperAdmin
+    isSuperAdmin,
+    userCountry
   );
   const totalCost = chargingActive ? calculateSearchCost(filters, liveServiceCosts) : 0;
   const currentBalance = Math.max(0, profile ? profile.tokenBalance : 0);

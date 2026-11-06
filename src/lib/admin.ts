@@ -15,7 +15,7 @@ import {
   type TokenPackId,
   type TokenTransactionDoc,
 } from "./contracts";
-import { TOKEN_PACKS, isFreeAccessWindowActive } from "./pricing";
+import { TOKEN_PACKS, isFreeAccessWindowActive, normalizeAllowedCountries } from "./pricing";
 import { creditTokens } from "./token-ledger";
 import { findClosestAdAgent, formatAgentLocationLabel } from "./ad-agents";
 
@@ -44,6 +44,7 @@ export const DEFAULT_FREE_ACCESS_WINDOW: FreeAccessWindow = {
   startedAt: null,
   expiresAt: null,
   activatedByEmail: null,
+  allowedCountries: ["ALL"],
 };
 
 export const DEFAULT_CONFIG: AdminSystemConfig = {
@@ -89,17 +90,22 @@ export async function getSystemConfig(): Promise<AdminSystemConfig> {
     }
     const data = snap.data() || {};
     const rawWindow = data.freeAccessWindow as Partial<FreeAccessWindow> | undefined;
+    const savedCountries = normalizeAllowedCountries(rawWindow?.allowedCountries);
     let normalizedWindow: FreeAccessWindow = {
       ...DEFAULT_FREE_ACCESS_WINDOW,
       ...(rawWindow || {}),
+      allowedCountries: savedCountries,
     };
 
     if (normalizedWindow.enabled && !isFreeAccessWindowActive(normalizedWindow)) {
-      normalizedWindow = { ...DEFAULT_FREE_ACCESS_WINDOW };
+      normalizedWindow = {
+        ...DEFAULT_FREE_ACCESS_WINDOW,
+        allowedCountries: savedCountries,
+      };
       // Best-effort async cleanup in Firestore when timer expires
       db.doc(CONFIG_DOC_PATH)
         .update({
-          freeAccessWindow: DEFAULT_FREE_ACCESS_WINDOW,
+          freeAccessWindow: normalizedWindow,
           updatedAt: new Date().toISOString(),
         })
         .catch(() => {});
@@ -131,13 +137,29 @@ export async function getSystemConfig(): Promise<AdminSystemConfig> {
 }
 
 /**
- * SuperAdmin-exclusive control to turn on a Timed Free Access Window (15, 30, or 60 minutes)
- * or turn it off (`durationMinutes = null`). While active, the web app is free to use for all registered users.
+ * SuperAdmin-exclusive control to turn on a Timed Free Access Window (15, 30, or 60 minutes),
+ * turn it off (`durationMinutes = null`), or update `allowedCountries` (`durationMinutes = undefined`).
+ * While active, the web app is free to use for Monthly Subscribers in the selected countries.
  */
 export async function setFreeAccessWindow(
-  durationMinutes: FreeAccessDurationMinutes | null,
-  callerEmail: string
+  durationMinutes: FreeAccessDurationMinutes | null | undefined,
+  callerEmail: string,
+  allowedCountries?: string[]
 ): Promise<AdminSystemConfig> {
+  const current = await getSystemConfig();
+  const nextCountries =
+    allowedCountries !== undefined
+      ? normalizeAllowedCountries(allowedCountries)
+      : normalizeAllowedCountries(current.freeAccessWindow?.allowedCountries);
+
+  if (durationMinutes === undefined) {
+    const freeAccessWindow: FreeAccessWindow = {
+      ...(current.freeAccessWindow ?? DEFAULT_FREE_ACCESS_WINDOW),
+      allowedCountries: nextCountries,
+    };
+    return updateSystemConfig({ freeAccessWindow });
+  }
+
   const now = new Date();
   const freeAccessWindow: FreeAccessWindow =
     durationMinutes === 15 || durationMinutes === 30 || durationMinutes === 60
@@ -147,8 +169,12 @@ export async function setFreeAccessWindow(
           startedAt: now.toISOString(),
           expiresAt: new Date(now.getTime() + durationMinutes * 60_000).toISOString(),
           activatedByEmail: callerEmail.toLowerCase(),
+          allowedCountries: nextCountries,
         }
-      : { ...DEFAULT_FREE_ACCESS_WINDOW };
+      : {
+          ...DEFAULT_FREE_ACCESS_WINDOW,
+          allowedCountries: nextCountries,
+        };
 
   return updateSystemConfig({ freeAccessWindow });
 }

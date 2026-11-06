@@ -48,10 +48,17 @@ export async function PUT(req: Request) {
     if (body.action === "SET_FREE_ACCESS_WINDOW" || body.freeAccessWindow !== undefined) {
       const superCaller = await verifyRequest(req, { requireRole: "superadmin" });
       if (body.action === "SET_FREE_ACCESS_WINDOW") {
+        const hasDuration = Object.prototype.hasOwnProperty.call(body, "durationMinutes");
         const rawDuration = body.durationMinutes;
-        const durationMinutes: FreeAccessDurationMinutes | null =
-          rawDuration === 15 || rawDuration === 30 || rawDuration === 60 ? rawDuration : null;
-        const updated = await setFreeAccessWindow(durationMinutes, superCaller.email);
+        const durationMinutes: FreeAccessDurationMinutes | null | undefined = !hasDuration
+          ? undefined
+          : rawDuration === 15 || rawDuration === 30 || rawDuration === 60
+            ? rawDuration
+            : null;
+        const allowedCountries = Array.isArray(body.allowedCountries)
+          ? body.allowedCountries.map((c) => String(c))
+          : undefined;
+        const updated = await setFreeAccessWindow(durationMinutes, superCaller.email, allowedCountries);
         const ledger = await getRedistributiveLedger();
         return NextResponse.json({ success: true, config: updated, ledger });
       }

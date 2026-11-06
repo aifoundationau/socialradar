@@ -955,23 +955,29 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["enabled", "durationMinutes", "startedAt", "expiresAt", "activatedByEmail"],
+  "required": ["enabled", "durationMinutes", "startedAt", "expiresAt", "activatedByEmail", "allowedCountries"],
   "properties": {
     "enabled": { "type": "boolean" },
     "durationMinutes": { "type": ["integer", "null"], "enum": [15, 30, 60, null] },
     "startedAt": { "type": ["string", "null"], "format": "date-time" },
     "expiresAt": { "type": ["string", "null"], "format": "date-time" },
-    "activatedByEmail": { "type": ["string", "null"], "format": "email" }
+    "activatedByEmail": { "type": ["string", "null"], "format": "email" },
+    "allowedCountries": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 2, "maxLength": 8 }
+    }
   }
 }
 ```
-- **Super Admin Exclusive Control (`PUT /api/admin/config` with `action: "SET_FREE_ACCESS_WINDOW"`):**
+- **Super Admin Exclusive Control & World Country Selector (`PUT /api/admin/config` with `action: "SET_FREE_ACCESS_WINDOW"`):**
   - Strictly enforces `{ requireRole: "superadmin" }` (`role === "superadmin"`). Main Admin (`admin`) and all other roles are rejected with `403 FORBIDDEN`.
-  - Top panel under **Service Pricing** in `SuperAdminModal.tsx` (`feature-card-pricing-free-access`) provides three toggle buttons: **Free 15 Minutes** (`15`), **Free 30 Minutes** (`30`), and **Free Hour** (`60`), plus **Turn Off Free Access Now** (`null`).
-  - While `enabled === true` and `Date.parse(expiresAt) > Date.now()`, `isChargingEnabled(config, nowMs, userData, isSuperAdmin)` returns `false` **only for Monthly Subscribers** (`isMonthlySubscriber(userData, isSuperAdmin)` — i.e., `subscriptionStatus === "active"` or `subscriptionPackId === "SUB_MONTHLY_1000"` or `isSuperAdmin`), and `withTokenGate` forces `effectiveCost = 0` across all endpoints (`RADAR_SEARCH`, `AI_REMIX`, `REGENERATE_VARIATIONS`, `BRAND_CLONE`, `CUSTOMIZE_SERVICE`), making the web app free to use for Monthly Subscribers until the timer expires or Super Admin turns it off.
+  - Top panel under **Service Pricing** in `SuperAdminModal.tsx` (`feature-card-pricing-free-access`) provides:
+    1. **All Countries Dropdown (`free-access-country-dropdown`):** Lists `"ALL"` (`🌐 All Countries (Worldwide)`) plus all 249 ISO 3166-1 alpha-2 world countries (`WORLD_COUNTRIES` in `src/lib/countries.ts`) so Super Admin can select which countries receive free use and remove or reset countries at any time.
+    2. **Three Timed Toggle Buttons:** **Free 15 Minutes** (`15`), **Free 30 Minutes** (`30`), and **Free Hour** (`60`), plus **Turn Off Free Access Now** (`null`).
+  - While `enabled === true` and `Date.parse(expiresAt) > Date.now()`, `isChargingEnabled(config, nowMs, userData, isSuperAdmin, userCountry)` returns `false` **only for Monthly Subscribers in the selected countries** (`isMonthlySubscriber(userData, isSuperAdmin) && isCountryEligibleForFreeAccess(config.freeAccessWindow, userCountry)`), and `withTokenGate` forces `effectiveCost = 0` across all endpoints (`RADAR_SEARCH`, `AI_REMIX`, `REGENERATE_VARIATIONS`, `BRAND_CLONE`, `CUSTOMIZE_SERVICE`).
 - **Global Top Red Banner (`src/components/layout/FreeAccessTopBanner.tsx` & `src/app/layout.tsx`):**
   - Mounted at the root of `<body>` in `src/app/layout.tsx` (`data-agent-id="free-access-red-top-banner"`).
-  - Queries public `GET /api/wallet/checkout` (`no-store`) and listens to `"adradar:config-updated"` so whenever the Timed Free Access Window (`15m`, `30m`, `60m`) or global Free Mode is active, a full-width Red Banner (`bg-gradient-to-r from-red-700 via-red-600 to-red-700`) is displayed across the top of the entire web app — including the front start page (`/`) and before logging in — stating `"AdRadarHQ is currently FREE TO USE for Monthly Subscribers!"` with a live countdown timer (`mm:ss`).
+  - Queries public `GET /api/wallet/checkout` (`no-store`) and checks `isCountryEligibleForFreeAccess(freeAccessWindow, userCountry)` so whenever the Timed Free Access Window (`15m`, `30m`, `60m`) is active for the user's country, a full-width Red Banner (`bg-gradient-to-r from-red-700 via-red-600 to-red-700`) is displayed across the top of the entire web app — including the front start page (`/`) and before logging in — stating `"AdRadarHQ is currently FREE TO USE for Monthly Subscribers!"` along with the active countries badge and live countdown timer (`mm:ss`).
 
 
 

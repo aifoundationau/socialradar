@@ -299,7 +299,18 @@ export async function withTokenGate(
         usersCol().doc(caller.uid).get().catch(() => null),
       ]);
       const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
-      if (sysSnap?.exists && !isChargingEnabled(sysSnap.data(), Date.now(), userData, caller.claims.isSuperAdmin)) {
+      const userCountry = (
+        req.headers.get("x-user-country") ||
+        req.headers.get("x-vercel-ip-country") ||
+        req.headers.get("cf-ipcountry") ||
+        "AU"
+      )
+        .trim()
+        .toUpperCase();
+      if (
+        sysSnap?.exists &&
+        !isChargingEnabled(sysSnap.data(), Date.now(), userData, caller.claims.isSuperAdmin, userCountry)
+      ) {
         effectiveCost = 0;
       }
     }

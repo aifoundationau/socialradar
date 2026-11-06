@@ -413,6 +413,7 @@ export const FreeAccessWindowSchema = z
     startedAt: z.string().nullable().default(null),
     expiresAt: z.string().nullable().default(null),
     activatedByEmail: z.string().nullable().default(null),
+    allowedCountries: z.array(z.string().trim().toUpperCase().min(2).max(8)).default(["ALL"]),
   })
   .strict();
 export type FreeAccessWindow = z.infer<typeof FreeAccessWindowSchema>;

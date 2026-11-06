@@ -7,12 +7,17 @@ import { apiFetch, errorMessage } from "@/lib/api-client";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { alertError, alertInfo, btnDanger, btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
 import {
+  ALL_COUNTRIES_CODE,
+  WORLD_COUNTRIES,
   audToUsdCents,
+  formatAllowedCountriesSummary,
   formatAud,
   formatPrice,
   formatTokenEstimateHover,
   formatUsd,
+  getCountryName,
   isFreeAccessWindowActive,
+  normalizeAllowedCountries,
   usdToAudCents,
 } from "@/lib/pricing";
 import type { CurrencyRateResponse } from "@/app/api/currency/route";
@@ -1640,6 +1645,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   }
 
   const [freeAccessNowMs, setFreeAccessNowMs] = useState<number>(() => Date.now());
+  const [selectedCountryDropdown, setSelectedCountryDropdown] = useState<string>("");
 
   useEffect(() => {
     if (!isOpen || !config?.freeAccessWindow?.enabled) return;
@@ -1654,6 +1660,65 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     return () => clearInterval(timer);
   }, [isOpen, config?.freeAccessWindow?.enabled, config?.freeAccessWindow?.expiresAt]);
 
+  async function handleUpdateFreeAccessCountries(nextCountriesRaw: string[]) {
+    if (!isSuper) {
+      setErrorMsg("Only Super Admin can configure eligible countries for Free Access.");
+      return;
+    }
+    const nextCountries = normalizeAllowedCountries(nextCountriesRaw);
+    setSaving(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{
+        success: boolean;
+        config: AdminConfigData;
+        ledger?: RedistributiveLedgerSummary;
+      }>("/api/admin/config", {
+        method: "PUT",
+        body: {
+          action: "SET_FREE_ACCESS_WINDOW",
+          allowedCountries: nextCountries,
+        },
+      });
+      setConfig(data.config);
+      if (data.ledger) setLedger(data.ledger);
+      window.dispatchEvent(new CustomEvent("adradar:config-updated"));
+      setStatusMsg(
+        `Free Access countries updated: ${formatAllowedCountriesSummary(nextCountries)}.`
+      );
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleSelectCountryFromDropdown(countryCode: string) {
+    const code = countryCode.trim().toUpperCase();
+    if (!code) return;
+    setSelectedCountryDropdown("");
+    if (code === ALL_COUNTRIES_CODE) {
+      void handleUpdateFreeAccessCountries([ALL_COUNTRIES_CODE]);
+      return;
+    }
+    const current = normalizeAllowedCountries(config?.freeAccessWindow?.allowedCountries).filter(
+      (c) => c !== ALL_COUNTRIES_CODE
+    );
+    const next = current.includes(code)
+      ? current.filter((c) => c !== code)
+      : [...current, code];
+    void handleUpdateFreeAccessCountries(next.length > 0 ? next : [ALL_COUNTRIES_CODE]);
+  }
+
+  function handleRemoveFreeAccessCountry(countryCode: string) {
+    const code = countryCode.trim().toUpperCase();
+    const current = normalizeAllowedCountries(config?.freeAccessWindow?.allowedCountries).filter(
+      (c) => c !== ALL_COUNTRIES_CODE && c !== code
+    );
+    void handleUpdateFreeAccessCountries(current.length > 0 ? current : [ALL_COUNTRIES_CODE]);
+  }
+
   async function handleToggleFreeAccess(targetDuration: FreeAccessDurationMinutes | null) {
     if (!isSuper) {
       setErrorMsg("Only Super Admin can turn the Timed Free Access Window on or off.");
@@ -1663,6 +1728,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     const currentDuration = currentlyActive ? (config?.freeAccessWindow?.durationMinutes ?? null) : null;
     const nextDuration: FreeAccessDurationMinutes | null =
       targetDuration !== null && currentDuration === targetDuration ? null : targetDuration;
+    const currentCountries = normalizeAllowedCountries(config?.freeAccessWindow?.allowedCountries);
 
     setSaving(true);
     setErrorMsg(null);
@@ -1677,6 +1743,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         body: {
           action: "SET_FREE_ACCESS_WINDOW",
           durationMinutes: nextDuration,
+          allowedCountries: currentCountries,
         },
       });
       setConfig(data.config);
@@ -1685,7 +1752,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       window.dispatchEvent(new CustomEvent("adradar:config-updated"));
       if (nextDuration) {
         const labelStr = nextDuration === 60 ? "Free 1 Hour" : `Free ${nextDuration} Minutes`;
-        setStatusMsg(`${labelStr} toggled ON! The web app is now FREE to use for Monthly Subscribers.`);
+        const countriesStr = formatAllowedCountriesSummary(
+          data.config.freeAccessWindow?.allowedCountries
+        );
+        setStatusMsg(
+          `${labelStr} toggled ON! The web app is now FREE to use for Monthly Subscribers in ${countriesStr}.`
+        );
       } else {
         setStatusMsg("Timed Free Access turned OFF. Standard token pricing is now active.");
       }
@@ -2531,6 +2603,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     const freeWindow = config.freeAccessWindow;
                     const isFreeWindowOn = isFreeAccessWindowActive(freeWindow, freeAccessNowMs);
                     const activeDuration = isFreeWindowOn ? (freeWindow?.durationMinutes ?? null) : null;
+                    const selectedCountries = normalizeAllowedCountries(freeWindow?.allowedCountries);
+                    const isAllCountriesSelected = selectedCountries.includes(ALL_COUNTRIES_CODE);
+                    const selectedCountriesLabel = formatAllowedCountriesSummary(selectedCountries);
                     const remainingSec =
                       isFreeWindowOn && freeWindow?.expiresAt
                         ? Math.max(0, Math.ceil((Date.parse(freeWindow.expiresAt) - freeAccessNowMs) / 1000))
@@ -2579,9 +2654,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   ? `⚡ ACTIVE: ${activeDuration === 60 ? "Free 1 Hour" : `Free ${activeDuration}m`} (${countdownStr} left)`
                                   : "Super Admin Only · Off"}
                               </span>
+                              <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-primary">
+                                Countries: {selectedCountriesLabel}
+                              </span>
                             </div>
                             <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                              When one is toggled on, the web app is 100% free to use for Monthly Subscribers only. Can be turned on and off by Super Admin only.
+                              When one is toggled on, the web app is 100% free to use for Monthly Subscribers in the selected countries only. Can be turned on and off by Super Admin only.
                             </p>
                           </button>
                           <button
@@ -2604,6 +2682,114 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
                         {isFeatureExpanded("pricing_free_access") && (
                           <div className="space-y-3.5 pt-2 border-t border-white/[0.08]">
+                            {/* Country Selector Dropdown (All Countries in the World) */}
+                            <div
+                              className="rounded-xl border border-white/10 bg-surface-container p-3.5 space-y-3"
+                              data-agent-id="free-access-countries-panel"
+                              data-testid="free-access-countries-panel"
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div>
+                                  <label
+                                    htmlFor="free-access-country-dropdown"
+                                    className="block font-mono text-xs font-bold text-on-surface"
+                                  >
+                                    Select Countries That Receive Free Use (Monthly Subscribers)
+                                  </label>
+                                  <p className="text-[11px] text-on-surface-variant">
+                                    Choose from all {WORLD_COUNTRIES.length} world countries in the dropdown below to add or remove countries receiving free access.
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    disabled={saving || isAllCountriesSelected}
+                                    onClick={() => handleUpdateFreeAccessCountries([ALL_COUNTRIES_CODE])}
+                                    data-agent-id="free-access-select-all-countries-btn"
+                                    data-testid="free-access-select-all-countries-btn"
+                                    className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition cursor-pointer ${
+                                      isAllCountriesSelected
+                                        ? "border-winner/50 bg-winner/20 text-winner-soft"
+                                        : "border-white/15 bg-surface-container-highest text-on-surface hover:border-primary/50"
+                                    }`}
+                                  >
+                                    All Countries (Worldwide)
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                <div className="relative flex-1">
+                                  <select
+                                    id="free-access-country-dropdown"
+                                    data-agent-id="free-access-country-dropdown"
+                                    data-testid="free-access-country-dropdown"
+                                    disabled={saving}
+                                    value={selectedCountryDropdown}
+                                    onChange={(e) => handleSelectCountryFromDropdown(e.target.value)}
+                                    aria-label="Select countries that receive free use"
+                                    className={`${field} w-full pr-8 font-mono text-xs cursor-pointer`}
+                                  >
+                                    <option value="">
+                                      — Select a Country from All {WORLD_COUNTRIES.length} Countries to Add / Toggle —
+                                    </option>
+                                    <option value={ALL_COUNTRIES_CODE}>
+                                      🌐 All Countries (Worldwide) {isAllCountriesSelected ? "✓ [Selected]" : ""}
+                                    </option>
+                                    {WORLD_COUNTRIES.map((country) => {
+                                      const isSelected =
+                                        !isAllCountriesSelected && selectedCountries.includes(country.code);
+                                      return (
+                                        <option key={country.code} value={country.code}>
+                                          {country.name} ({country.code}){isSelected ? " ✓ [Selected]" : ""}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+                                </div>
+                              </div>
+
+                              {/* Selected Countries Pills */}
+                              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                <span className="font-mono text-[11px] font-semibold text-on-surface-variant mr-1">
+                                  Active Countries Receiving Free Use:
+                                </span>
+                                {isAllCountriesSelected ? (
+                                  <span
+                                    data-agent-id="free-access-country-pill-ALL"
+                                    data-testid="free-access-country-pill-ALL"
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-winner/40 bg-winner/15 px-3 py-1 font-mono text-xs font-bold text-winner-soft"
+                                  >
+                                    <span>🌐 All Countries (Worldwide)</span>
+                                  </span>
+                                ) : (
+                                  selectedCountries.map((code) => (
+                                    <span
+                                      key={code}
+                                      data-agent-id={`free-access-country-pill-${code}`}
+                                      data-testid={`free-access-country-pill-${code}`}
+                                      className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/15 px-2.5 py-1 font-mono text-xs font-semibold text-on-surface"
+                                    >
+                                      <span>
+                                        {getCountryName(code)} ({code})
+                                      </span>
+                                      <button
+                                        type="button"
+                                        disabled={saving}
+                                        onClick={() => handleRemoveFreeAccessCountry(code)}
+                                        aria-label={`Remove ${getCountryName(code)}`}
+                                        data-agent-id={`remove-free-access-country-${code}`}
+                                        data-testid={`remove-free-access-country-${code}`}
+                                        className="ml-0.5 inline-flex size-4 items-center justify-center rounded-full bg-black/30 text-[11px] font-bold text-on-surface-variant hover:bg-red-500/30 hover:text-red-200 transition cursor-pointer"
+                                      >
+                                        ×
+                                      </button>
+                                    </span>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                               {(
                                 [
@@ -2648,8 +2834,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     </div>
                                     <p className="text-[11px] text-on-surface-variant leading-snug">
                                       {isActiveOpt
-                                        ? `Active right now — ${countdownStr} remaining (0 tokens for Monthly Subscribers)`
-                                        : opt.subtitle}
+                                        ? `Active right now — ${countdownStr} remaining (${selectedCountriesLabel})`
+                                        : `${opt.subtitle} (${selectedCountriesLabel})`}
                                     </p>
                                   </button>
                                 );
@@ -2659,7 +2845,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             {isFreeWindowOn && (
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-winner/40 bg-winner/15 px-3.5 py-2.5 font-mono text-xs">
                                 <span className="text-winner-soft font-semibold">
-                                  ⚡ Web App is currently FREE for Monthly Subscribers ({activeDuration === 60 ? "Free Hour" : `Free ${activeDuration} Minutes`} · {countdownStr} remaining).
+                                  ⚡ Web App is currently FREE for Monthly Subscribers in {selectedCountriesLabel} ({activeDuration === 60 ? "Free Hour" : `Free ${activeDuration} Minutes`} · {countdownStr} remaining).
                                 </span>
                                 <button
                                   type="button"

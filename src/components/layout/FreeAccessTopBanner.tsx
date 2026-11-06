@@ -2,23 +2,38 @@
 
 import { useEffect, useState } from "react";
 import type { FreeAccessWindow } from "@/lib/contracts";
-import { isFreeAccessWindowActive } from "@/lib/pricing";
+import {
+  formatAllowedCountriesSummary,
+  isCountryEligibleForFreeAccess,
+  isFreeAccessWindowActive,
+} from "@/lib/pricing";
+import { loadGeoConfig } from "@/lib/geo";
 import { Icon } from "@/components/ui/Icon";
 
 /**
  * Global Red Banner displayed across the very top of the web app (including the front
  * start page `/` and before logging in) whenever the Timed Free Access Window
- * (Free 15 Minutes, Free 30 Minutes, Free Hour — for Monthly Subscribers only)
+ * (Free 15 Minutes, Free 30 Minutes, Free Hour — for Monthly Subscribers in selected countries)
  * or global Free Mode (`isTokenSystemEnabled === false`) is active.
  */
 export function FreeAccessTopBanner() {
   const [loaded, setLoaded] = useState(false);
   const [isTokenSystemEnabled, setIsTokenSystemEnabled] = useState<boolean>(true);
   const [freeAccessWindow, setFreeAccessWindow] = useState<FreeAccessWindow | null>(null);
+  const [userCountry, setUserCountry] = useState<string>("AU");
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
   useEffect(() => {
     let active = true;
+
+    function syncUserCountry() {
+      try {
+        const geo = loadGeoConfig();
+        if (geo?.country) setUserCountry(geo.country.trim().toUpperCase());
+      } catch {
+        // Fallback to AU
+      }
+    }
 
     async function fetchFreeStatus() {
       try {
@@ -40,14 +55,17 @@ export function FreeAccessTopBanner() {
       }
     }
 
+    syncUserCountry();
     void fetchFreeStatus();
     window.addEventListener("adradar:config-updated", fetchFreeStatus);
+    window.addEventListener("adradar:geo-updated", syncUserCountry);
     const pollTimer = setInterval(fetchFreeStatus, 10_000);
     const tickTimer = setInterval(() => setNowMs(Date.now()), 1_000);
 
     return () => {
       active = false;
       window.removeEventListener("adradar:config-updated", fetchFreeStatus);
+      window.removeEventListener("adradar:geo-updated", syncUserCountry);
       clearInterval(pollTimer);
       clearInterval(tickTimer);
     };
@@ -55,9 +73,15 @@ export function FreeAccessTopBanner() {
 
   if (!loaded) return null;
 
-  const timedWindowActive = isFreeAccessWindowActive(freeAccessWindow, nowMs);
+  const timedWindowActive =
+    isFreeAccessWindowActive(freeAccessWindow, nowMs) &&
+    isCountryEligibleForFreeAccess(freeAccessWindow, userCountry);
   const showBanner = timedWindowActive || isTokenSystemEnabled === false;
   if (!showBanner) return null;
+
+  const countriesLabel = timedWindowActive
+    ? formatAllowedCountriesSummary(freeAccessWindow?.allowedCountries)
+    : "All Countries (Worldwide)";
 
   const durationMinutes = timedWindowActive ? (freeAccessWindow?.durationMinutes ?? null) : null;
   const remainingSec =
@@ -93,6 +117,15 @@ export function FreeAccessTopBanner() {
         <span className="font-semibold tracking-tight text-white">
           AdRadarHQ is currently <span className="underline decoration-white/80 underline-offset-2 font-bold">FREE TO USE</span> for Monthly Subscribers!
         </span>
+        {timedWindowActive && (
+          <span
+            data-agent-id="free-access-banner-countries"
+            data-testid="free-access-banner-countries"
+            className="inline-flex items-center gap-1 rounded-md bg-white/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-white"
+          >
+            <span>Countries: {countriesLabel}</span>
+          </span>
+        )}
         {timedWindowActive && (
           <span
             data-agent-id="free-access-banner-countdown"

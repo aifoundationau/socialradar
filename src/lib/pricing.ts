@@ -6,6 +6,23 @@
  * For all nations except Australia and New Zealand, an AUD to USD conversion is shown.
  */
 import type { FreeAccessWindow, TokenPackId, UserDoc } from "./contracts";
+import {
+  ALL_COUNTRIES_CODE,
+  WORLD_COUNTRIES,
+  formatAllowedCountriesSummary,
+  getCountryName,
+  normalizeAllowedCountries,
+  type WorldCountryOption,
+} from "./countries";
+
+export {
+  ALL_COUNTRIES_CODE,
+  WORLD_COUNTRIES,
+  formatAllowedCountriesSummary,
+  getCountryName,
+  normalizeAllowedCountries,
+  type WorldCountryOption,
+};
 
 /**
  * Returns true if the user has an active Monthly Search Subscription (`SUB_MONTHLY_1000`)
@@ -21,6 +38,21 @@ export function isMonthlySubscriber(
     user.subscriptionStatus === "active" ||
     (user.subscriptionPackId === "SUB_MONTHLY_1000" && user.subscriptionStatus !== "canceled")
   );
+}
+
+/**
+ * Returns true if the user's country is included in the SuperAdmin's selected countries
+ * for the Timed Free Access Window (`allowedCountries` contains `"ALL"` or `userCountry`).
+ */
+export function isCountryEligibleForFreeAccess(
+  freeAccessWindow?: Partial<FreeAccessWindow> | null,
+  userCountry?: string | null
+): boolean {
+  if (!freeAccessWindow) return false;
+  const countries = normalizeAllowedCountries(freeAccessWindow.allowedCountries);
+  if (countries.includes(ALL_COUNTRIES_CODE)) return true;
+  const cleanUserCountry = (userCountry || "AU").trim().toUpperCase();
+  return countries.includes(cleanUserCountry);
 }
 
 /**
@@ -41,7 +73,8 @@ export function isFreeAccessWindowActive(
 /**
  * Returns true if paid token charging is active for the given user.
  * - If `isTokenSystemEnabled === false`, charging is disabled for all users.
- * - If a Timed Free Access Window (15m/30m/60m) is active, charging is disabled ONLY for Monthly Subscribers.
+ * - If a Timed Free Access Window (15m/30m/60m) is active, charging is disabled ONLY for Monthly Subscribers
+ *   whose country is included in `freeAccessWindow.allowedCountries`.
  */
 export function isChargingEnabled(
   config?: {
@@ -50,11 +83,16 @@ export function isChargingEnabled(
   } | null,
   nowMs: number = Date.now(),
   user?: Partial<Pick<UserDoc, "subscriptionStatus" | "subscriptionPackId">> | null,
-  isSuperAdmin = false
+  isSuperAdmin = false,
+  userCountry?: string | null
 ): boolean {
   if (!config) return true;
   if (config.isTokenSystemEnabled === false) return false;
-  if (isFreeAccessWindowActive(config.freeAccessWindow, nowMs) && isMonthlySubscriber(user, isSuperAdmin)) {
+  if (
+    isFreeAccessWindowActive(config.freeAccessWindow, nowMs) &&
+    isMonthlySubscriber(user, isSuperAdmin) &&
+    isCountryEligibleForFreeAccess(config.freeAccessWindow, userCountry ?? "AU")
+  ) {
     return false;
   }
   return true;
