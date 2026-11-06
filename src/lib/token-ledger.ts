@@ -299,7 +299,7 @@ export async function withTokenGate(
         usersCol().doc(caller.uid).get().catch(() => null),
       ]);
       const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
-      if (sysSnap?.exists && !isChargingEnabled(sysSnap.data(), Date.now(), userData, caller.isSuperAdmin)) {
+      if (sysSnap?.exists && !isChargingEnabled(sysSnap.data(), Date.now(), userData, caller.claims.isSuperAdmin)) {
         effectiveCost = 0;
       }
     }

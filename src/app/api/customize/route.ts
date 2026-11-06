@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     ]);
 
     const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
-    const costTokens = isChargingEnabled(config, Date.now(), userData, caller.isSuperAdmin)
+    const costTokens = isChargingEnabled(config, Date.now(), userData, caller.claims.isSuperAdmin)
       ? Math.max(0, Math.round(config.serviceCosts?.customizeService ?? 55))
       : 0;
 

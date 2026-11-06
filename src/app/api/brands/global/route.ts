@@ -40,7 +40,7 @@ async function handleGlobalBrands(req: Request) {
     ]);
 
     const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
-    const brandCloneFee = isChargingEnabled(config, Date.now(), userData, caller.isSuperAdmin)
+    const brandCloneFee = isChargingEnabled(config, Date.now(), userData, caller.claims.isSuperAdmin)
       ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 1))
       : 0;
 
