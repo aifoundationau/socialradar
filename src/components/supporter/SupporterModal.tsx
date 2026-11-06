@@ -390,7 +390,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                     <div className="flex flex-wrap items-center gap-3 pt-1">
                       <div className="flex items-baseline gap-2">
                         <span className="font-mono text-3xl sm:text-4xl font-extrabold text-primary tabular-nums">
-                          {profile ? profile.tokenBalance.toLocaleString("en-AU") : "–"}
+                          {profile ? Math.max(0, Math.round(profile.tokenBalance)).toLocaleString("en-AU") : "–"}
                         </span>
                         <span className="font-mono text-sm font-semibold text-on-surface-variant uppercase tracking-wider">
                           Tokens
@@ -399,7 +399,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                       {!confirmRefreshZeroOpen && (
                         <button
                           type="button"
-                          disabled={!profile || profile.tokenBalance <= 0 || refreshingZero}
+                          disabled={!profile || Math.max(0, Math.round(profile.tokenBalance)) <= 0 || refreshingZero}
                           onClick={() => {
                             setRefreshZeroMsg(null);
                             setLedgerError(null);
@@ -416,7 +416,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                       )}
                     </div>
                     <p className="text-compact text-on-surface-variant">
-                      Standard paid rate is 1 Token = $1.00 AUD. Tokens never expire and deductions are atomic.
+                      Standard paid rate is 1 Token = $1.00 AUD. Tokens never expire, deductions are atomic, and no account can have negative tokens.
                     </p>
                   </div>
 
@@ -437,6 +437,32 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                     </span>
                   </div>
                 </div>
+
+                {profile && Math.max(0, Math.round(profile.tokenBalance)) === 0 && (
+                  <div
+                    role="alert"
+                    data-agent-id="supporter-zero-balance-buy-banner"
+                    data-testid="supporter-zero-balance-buy-banner"
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-body-sm text-amber-200"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon name="alert" className="size-4 shrink-0 text-amber-300" />
+                      <span>
+                        Your token balance is <strong className="font-mono">0</strong>. Nobody can have negative tokens — please buy more tokens to run Radar searches, AI Remixes, or Customizes.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTab("BUY_TOKENS")}
+                      data-agent-id="supporter-zero-balance-buy-cta"
+                      data-testid="supporter-zero-balance-buy-cta"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-1.5 font-mono text-xs font-bold text-black transition hover:bg-amber-300"
+                    >
+                      <Icon name="zap" className="size-3.5" />
+                      <span>Buy More Tokens</span>
+                    </button>
+                  </div>
+                )}
 
                 {confirmRefreshZeroOpen && (
                   <div

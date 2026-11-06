@@ -171,11 +171,16 @@
     - Added a two-step **"Refresh Tokens to 0"** -> **"Confirm Refresh to 0 (Cannot Retrieve Unused Tokens)"** button and warning dialog right next to the user's Token Balance in `src/components/wallet/WalletView.tsx` (`/wallet`) and `src/components/supporter/SupporterModal.tsx` (`TOKENS` tab).
     - Built `POST /api/wallet/reset` (`src/app/api/wallet/reset/route.ts`) validated by `WalletSelfResetRequestSchema` (`confirmForfeit: true`) to atomically set `users/{uid}.tokenBalance = 0` and log an immutable `ADMIN_RESET` record in `token_transactions`.
     - Documented Section 21 in `data-contracts.md`.
-37. **Master Order Ledger & Super Admin Exclusive Token Controls (`SuperAdminModal.tsx`, `/api/admin/orders`):**
+37. **Master Order Ledger & Super Admin Exclusive Token Controls (`SuperAdminModal.tsx`, `/api/admin/orders`, `cf837b3`):**
     - Enforced strict Super Admin (`role === "superadmin"`) exclusivity on `POST /api/admin/orders` (`requireRole: "superadmin"`) and in `SuperAdminModal.tsx` (`isSuper`).
     - Scoped Super Admin token capabilities to **Add Tokens**, **Remove Tokens**, and **Refund Tokens** only (removed admin customer-wallet reset-to-0 from `SuperAdminModal.tsx` and `POST /api/admin/orders`).
     - Added row-level **`+ Add`**, **`- Remove`**, and **`Refund Tokens`** actions in the **Master Order Ledger** alongside the top **Add Tokens | Remove Tokens | Refund Tokens** control bar.
     - Documented Section 22 in `data-contracts.md`.
+38. **Hard Non-Negative Token Balance Rule & Zero-Balance Purchase Requirement (`token-ledger.ts`, `admin.ts`, `CostTag.tsx`, `RadarFilterBar.tsx`, `WalletView.tsx`, `SupporterModal.tsx`):**
+    - **Hard Non-Negative Rule (`tokenBalance >= 0`):** Clamped all token balances across Firestore (`ensureUserDoc`, `deductTokens`, `refundTokens`, `creditTokens`), Admin operations (`deductTokensFromUser`, `giftTokensToUser`, `getMasterOrderLedger`), RBAC user lists (`getRbacUsersList`), and client state (`SessionProvider.tsx`, `WalletView.tsx`, `SupporterModal.tsx`) so no user can ever have a negative token balance. Super Admin "Remove Tokens" is blocked if a user's balance is `0` or less than the requested removal amount.
+    - **All Users Must Buy More Tokens at 0 (`tokenBalance === 0`):** Removed the `"0 tokens (Admin)"` exemption from `withTokenGate`, `RadarFilterBar.tsx`, and `CostTag.tsx` so **all users** (including Super Admin, Admin, Moderator, Agency, and Supporter) must have sufficient tokens to execute paid actions or buy more tokens when their balance is `0`.
+    - Added zero-balance **"Buy More Tokens"** alert banners/links in `RadarFilterBar.tsx`, `WalletView.tsx`, and `SupporterModal.tsx`, and documented Section 23 in `data-contracts.md`.
+
 
 
 

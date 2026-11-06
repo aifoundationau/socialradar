@@ -14,7 +14,14 @@ const toInt = (n: number) => Math.round(n);
 
 export class InsufficientTokensError extends ApiError {
   constructor(public readonly balance: number, public readonly required: number) {
-    super("INSUFFICIENT_TOKENS", `Insufficient tokens: ${balance} available, ${required} required`, 402);
+    const safeBalance = Math.max(0, Math.round(balance));
+    super(
+      "INSUFFICIENT_TOKENS",
+      safeBalance <= 0
+        ? `Your token balance is 0 (${required} required). Nobody can have negative tokens — please buy more tokens to continue.`
+        : `Insufficient tokens: ${safeBalance} available, ${required} required. Nobody can have negative tokens — please buy more tokens to continue.`,
+      402
+    );
   }
 }
 
@@ -35,12 +42,21 @@ export interface LedgerResult {
 /** Deterministic, per-user txId from a client idempotency key. */
 export const buildTxId = (uid: string, key: string) => `${uid}_${key}`;
 
-/** Ensures `users/{uid}` exists (balance 0) and returns it. Safe to call repeatedly. */
+/** Ensures `users/{uid}` exists (balance >= 0, never negative) and returns it. Safe to call repeatedly. */
 export async function ensureUserDoc(uid: string, email: string): Promise<UserDoc> {
   const ref = usersCol().doc(uid);
   return db.runTransaction(async (t) => {
     const snap = await t.get(ref);
-    if (snap.exists) return snap.data() as UserDoc;
+    if (snap.exists) {
+      const existing = snap.data() as UserDoc;
+      const rawBal = Number(existing.tokenBalance ?? 0);
+      if (!Number.isFinite(rawBal) || rawBal < 0) {
+        const now = new Date().toISOString();
+        t.update(ref, { tokenBalance: 0, updatedAt: now });
+        return { ...existing, tokenBalance: 0, updatedAt: now };
+      }
+      return { ...existing, tokenBalance: Math.max(0, toInt(rawBal)) };
+    }
     const doc: UserDoc = {
       uid,
       email: email.toLowerCase(),
@@ -55,8 +71,9 @@ export async function ensureUserDoc(uid: string, email: string): Promise<UserDoc
 }
 
 /**
- * Pre-flight atomic deduction. Verifies balance >= cost, decrements, and writes an
- * immutable ledger record in the same transaction. Idempotent on txId.
+ * Pre-flight atomic deduction. Hard rule: nobody can ever have negative tokens.
+ * Verifies balance > 0 and balance >= cost, decrements to an explicit non-negative integer,
+ * and writes an immutable ledger record in the same transaction. Idempotent on txId.
  */
 export async function deductTokens(params: {
   uid: string;
@@ -84,15 +101,15 @@ export async function deductTokens(params: {
       if ((await t.get(txCol().doc(`${params.txId}_refund`))).exists) {
         throw new ApiError("FORBIDDEN", "That request was refunded. Send it again with a new idempotency key.", 409);
       }
-      return { txId: params.txId, balanceAfter: prev.balanceAfter, replayed: true };
+      return { txId: params.txId, balanceAfter: Math.max(0, toInt(prev.balanceAfter)), replayed: true };
     }
 
-    const balance = toInt(userSnap.exists ? Number(userSnap.get("tokenBalance") ?? 0) : 0);
-    if (balance < cost) throw new InsufficientTokensError(balance, cost);
+    const balance = Math.max(0, toInt(userSnap.exists ? Number(userSnap.get("tokenBalance") ?? 0) : 0));
+    if (balance <= 0 || balance < cost) throw new InsufficientTokensError(balance, cost);
 
-    const balanceAfter = toInt(balance - cost);
+    const balanceAfter = Math.max(0, toInt(balance - cost));
     const now = new Date().toISOString();
-    t.update(userRef, { tokenBalance: FieldValue.increment(-cost), updatedAt: now });
+    t.update(userRef, { tokenBalance: balanceAfter, updatedAt: now });
     const record: TokenTransactionDoc = {
       txId: params.txId,
       uid: params.uid,
@@ -122,7 +139,11 @@ export async function refundTokens(originalTxId: string): Promise<LedgerResult> 
     if (!origSnap.exists) throw new Error(`Original transaction ${originalTxId} not found`);
     const orig = origSnap.data() as TokenTransactionDoc;
     if (refundSnap.exists) {
-      return { txId: refundId, balanceAfter: (refundSnap.data() as TokenTransactionDoc).balanceAfter, replayed: true };
+      return {
+        txId: refundId,
+        balanceAfter: Math.max(0, toInt((refundSnap.data() as TokenTransactionDoc).balanceAfter)),
+        replayed: true,
+      };
     }
     if (orig.delta >= 0 || orig.type === "REFUND" || orig.type === "TOPUP" || orig.type === "GIFT") {
       throw new Error("Only deductions can be refunded");
@@ -131,10 +152,11 @@ export async function refundTokens(originalTxId: string): Promise<LedgerResult> 
     const userRef = usersCol().doc(orig.uid);
     const userSnap = await t.get(userRef);
     const amount = toInt(Math.abs(orig.delta));
-    const balanceAfter = toInt(Number(userSnap.get("tokenBalance") ?? 0) + amount);
+    const currentBalance = Math.max(0, toInt(Number(userSnap.get("tokenBalance") ?? 0)));
+    const balanceAfter = Math.max(0, toInt(currentBalance + amount));
     const now = new Date().toISOString();
 
-    t.update(userRef, { tokenBalance: FieldValue.increment(amount), updatedAt: now });
+    t.update(userRef, { tokenBalance: balanceAfter, updatedAt: now });
     t.update(origRef, { refunded: true, refundTxId: refundId });
     t.create(refundRef, {
       txId: refundId,
@@ -151,7 +173,7 @@ export async function refundTokens(originalTxId: string): Promise<LedgerResult> 
 }
 
 /**
- * Credits a top-up (Stripe). txId should be the Stripe Checkout Session id so
+ * Credits a top-up (Stripe) or Super Admin token addition. txId should be the Stripe Checkout Session id so
  * webhook retries never double-credit. Creates the user doc if missing.
  */
 export async function creditTokens(params: {
@@ -180,10 +202,15 @@ export async function creditTokens(params: {
   return db.runTransaction(async (t) => {
     const [txSnap, userSnap] = await Promise.all([t.get(txRef), t.get(userRef)]);
     if (txSnap.exists) {
-      return { txId: params.txId, balanceAfter: (txSnap.data() as TokenTransactionDoc).balanceAfter, replayed: true };
+      return {
+        txId: params.txId,
+        balanceAfter: Math.max(0, toInt((txSnap.data() as TokenTransactionDoc).balanceAfter)),
+        replayed: true,
+      };
     }
     const now = new Date().toISOString();
-    const balanceAfter = toInt(Number(userSnap.exists ? userSnap.get("tokenBalance") ?? 0 : 0) + amount);
+    const currentBalance = Math.max(0, toInt(Number(userSnap.exists ? userSnap.get("tokenBalance") ?? 0 : 0)));
+    const balanceAfter = Math.max(0, toInt(currentBalance + amount));
     const customer = params.stripeCustomerId && /^cus_[A-Za-z0-9]+$/.test(params.stripeCustomerId) ? params.stripeCustomerId : undefined;
     const subFields = params.subscription
       ? {
@@ -202,7 +229,7 @@ export async function creditTokens(params: {
 
     if (userSnap.exists) {
       t.update(userRef, {
-        tokenBalance: FieldValue.increment(amount),
+        tokenBalance: balanceAfter,
         updatedAt: now,
         ...(customer ? { stripeCustomerId: customer } : {}),
         ...subFields,
@@ -211,7 +238,7 @@ export async function creditTokens(params: {
       t.set(userRef, {
         uid: params.uid,
         email: (params.email ?? "").toLowerCase(),
-        tokenBalance: amount,
+        tokenBalance: balanceAfter,
         activeBrandId: "",
         stripeCustomerId: customer ?? "",
         updatedAt: now,
@@ -246,7 +273,8 @@ export interface GateContext {
 /**
  * The three-step gate every paid API route uses:
  * 1. verify session & claims  2. atomic pre-flight deduction  3. auto-refund on failure.
- * Actions whose cost is 0 skip steps 2 and 3.
+ * Hard Rule: Nobody can have negative tokens. If an account is 0 (or < effectiveCost),
+ * ALL users (including admins/superadmins) must buy more tokens.
  */
 export async function withTokenGate(
   req: Request,
@@ -261,17 +289,11 @@ export async function withTokenGate(
     const key = requireIdempotencyKey(req);
     const ref = typeof referenceId === "function" ? referenceId(caller) : referenceId;
 
-    // Superadmin Token Exemption: Superadmin pays 0 tokens for any action on the platform
-    const isSuperadmin =
-      caller.claims.role === "admin" ||
-      caller.claims.role === "superadmin" ||
-      caller.claims.isSuperAdmin === true;
     const rawCost = customCost !== undefined ? customCost : ACTION_COSTS[action];
-    const effectiveCost = isSuperadmin ? 0 : rawCost;
+    const effectiveCost = Math.max(0, toInt(rawCost));
 
     if (effectiveCost === 0) {
-      // Free action or superadmin exemption: record the order in token_transactions with delta 0 so every search/order appears in the Order Ledger.
-      const balance = toInt(Number((await usersCol().doc(caller.uid).get()).get("tokenBalance") ?? 0));
+      const balance = Math.max(0, toInt(Number((await usersCol().doc(caller.uid).get()).get("tokenBalance") ?? 0)));
       const txId = buildTxId(caller.uid, key);
       const res = await handler({ caller, txId, balanceAfter: balance, replayed: false });
       try {

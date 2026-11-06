@@ -153,7 +153,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     apiFetch<{ user?: UserDoc; brands?: BrandProfile[] }>("/api/me")
       .then((res) => {
         if (res?.user) {
-          setProfile((prev) => (prev?.uid === uid && prev.value ? prev : { uid, value: res.user! }));
+          const normalizedUser: UserDoc = {
+            ...res.user,
+            tokenBalance: Math.max(0, Math.round(Number(res.user.tokenBalance ?? 0))),
+          };
+          setProfile((prev) => (prev?.uid === uid && prev.value ? prev : { uid, value: normalizedUser }));
         }
         if (Array.isArray(res?.brands)) {
           setBrands((prev) => (prev?.uid === uid ? prev : { uid, value: res.brands! }));
@@ -163,7 +167,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     const stopProfile = onSnapshot(
       doc(db, "users", uid),
-      (snap) => setProfile({ uid, value: snap.exists() ? (snap.data() as UserDoc) : null }),
+      (snap) => {
+        if (!snap.exists()) {
+          setProfile({ uid, value: null });
+          return;
+        }
+        const raw = snap.data() as UserDoc;
+        setProfile({
+          uid,
+          value: {
+            ...raw,
+            tokenBalance: Math.max(0, Math.round(Number(raw.tokenBalance ?? 0))),
+          },
+        });
+      },
       fail,
     );
     const stopBrands = onSnapshot(

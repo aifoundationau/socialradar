@@ -2623,6 +2623,22 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   setErrorMsg("Enter a valid number of tokens to remove (1 or more).");
                                   return;
                                 }
+                                const targetUser = rbacUsers.find(
+                                  (u) => u.email.toLowerCase() === giftEmail.trim().toLowerCase()
+                                );
+                                const targetBalance = Math.max(0, targetUser?.tokenBalance ?? 0);
+                                if (targetUser && targetBalance <= 0) {
+                                  setErrorMsg(
+                                    `Account "${giftEmail.trim()}" has 0 tokens. Nobody can have negative tokens — all users at 0 tokens must buy more tokens.`
+                                  );
+                                  return;
+                                }
+                                if (targetUser && amt > targetBalance) {
+                                  setErrorMsg(
+                                    `Cannot remove ${amt.toLocaleString("en-AU")} tokens from "${giftEmail.trim()}" (current balance: ${targetBalance.toLocaleString("en-AU")} tokens). Nobody can have negative tokens.`
+                                  );
+                                  return;
+                                }
                                 setConfirmDeductOpen(true);
                               }}
                               disabled={gifting}

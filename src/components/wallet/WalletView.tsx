@@ -16,7 +16,7 @@ export function WalletView() {
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const currentBalance = profile ? profile.tokenBalance : 0;
+  const currentBalance = Math.max(0, profile ? profile.tokenBalance : 0);
 
   async function handleConfirmRefreshToZero() {
     setRefreshing(true);
@@ -64,7 +64,7 @@ export function WalletView() {
                 className="flex items-center gap-2 font-mono text-[2.5rem] leading-none font-semibold text-secondary tabular-nums"
               >
                 <Icon name="zap" className="size-7" />
-                {profile ? profile.tokenBalance.toLocaleString("en-AU") : "–"}
+                {profile ? currentBalance.toLocaleString("en-AU") : "–"}
               </p>
 
               {!confirmRefreshOpen && (
@@ -91,6 +91,32 @@ export function WalletView() {
             If a search or remix fails on our side, its tokens are refunded automatically. Refund requests are to be made in writing by sending a message to the Super Admin.
           </p>
         </div>
+
+        {profile && currentBalance <= 0 && (
+          <div
+            role="status"
+            data-agent-id="wallet-zero-balance-buy-banner"
+            data-testid="wallet-zero-balance-buy-banner"
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3.5"
+          >
+            <div className="flex items-center gap-2.5">
+              <Icon name="alert" className="size-5 shrink-0 text-amber-300" />
+              <p className="text-body-sm text-on-surface">
+                <strong className="text-amber-200">Account balance is 0 tokens.</strong> Nobody can have negative tokens — all users at 0 tokens must buy more tokens below to continue.
+              </p>
+            </div>
+            <a
+              href="#packs"
+              data-agent-id="wallet-zero-balance-buy-btn"
+              data-testid="wallet-zero-balance-buy-btn"
+              aria-label="Buy more tokens"
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 font-mono text-xs font-bold text-on-primary transition hover:bg-primary-fixed"
+            >
+              <Icon name="plus" className="size-3.5" />
+              <span>Buy More Tokens</span>
+            </a>
+          </div>
+        )}
 
         {/* Mandatory Two-Step Confirmation Warning */}
         {confirmRefreshOpen && (

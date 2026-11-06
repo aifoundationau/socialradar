@@ -181,7 +181,7 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
     const balanceMap = new Map<string, number>();
     usersSnap.forEach((doc) => {
       const data = doc.data();
-      const bal = Number(data.tokenBalance ?? 0);
+      const bal = Math.max(0, Math.round(Number(data.tokenBalance ?? 0)));
       balanceMap.set(doc.id, bal);
       if (data.email) {
         balanceMap.set(String(data.email).toLowerCase().trim(), bal);

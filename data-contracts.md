@@ -858,5 +858,15 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   2. **Remove Tokens (`DEDUCT_TOKENS` / `REMOVE_TOKENS`)**: Validated via `AdminDeductTokensRequestSchema` with mandatory confirmation.
   3. **Refund Tokens (`REFUND_ORDER`)**: Validated via `AdminRefundOrderRequestSchema` with mandatory confirmation to restore deducted tokens to the customer wallet.
 
+## 23. Hard Non-Negative Token Balance & Zero-Balance Purchase Requirement Contract (`tokenBalance >= 0`)
+- **Hard Non-Negative Rule (`tokenBalance >= 0`):**
+  - No account can ever have a negative token balance in Firestore (`users/{uid}.tokenBalance`), API responses, or client state.
+  - `ensureUserDoc` in `src/lib/token-ledger.ts` automatically clamps and heals any negative `tokenBalance` in Firestore to `0`.
+  - `deductTokens` in `src/lib/token-ledger.ts` and `deductTokensFromUser` in `src/lib/admin.ts` reject any deduction or Super Admin token removal that would reduce a user's balance below `0`, and write explicit integer `tokenBalance: balanceAfter` (`Math.max(0, currentBalance - cost)`) values inside Firestore transactions.
+- **Zero-Balance Purchase Requirement (All Roles):**
+  - All role exemptions (`0 tokens (Admin)`) are removed from `withTokenGate`, `RadarFilterBar`, and `CostTag`.
+  - When an account's `tokenBalance` is `0` (or less than the action cost), **all users** (including Super Admin, Admin, Moderator, Agency, and Supporter) are blocked from executing paid actions (`RADAR_SEARCH`, `AI_REMIX`, `REGENERATE_VARIATIONS`, `BRAND_CLONE`, `CUSTOMIZE_SERVICE`) with HTTP `402 INSUFFICIENT_TOKENS` and must buy more tokens.
+
+
 
 

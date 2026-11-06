@@ -857,6 +857,7 @@ export async function getMasterOrderLedger(limit = 150): Promise<TokenTransactio
 
     const rows = Array.from(txMap.values()).map((tx) => ({
       ...tx,
+      balanceAfter: Math.max(0, Math.round(Number(tx.balanceAfter ?? 0))),
       refunded: tx.refunded || refundedOrigIds.has(tx.txId),
       refundTxId: tx.refundTxId || (refundedOrigIds.has(tx.txId) ? `${tx.txId}_refund` : undefined),
     }));
@@ -869,7 +870,7 @@ export async function getMasterOrderLedger(limit = 150): Promise<TokenTransactio
 }
 
 /**
- * SuperAdmin Gift Tokens: adds integer tokens at no charge ($0) to a user's wallet
+ * SuperAdmin Add Tokens: adds integer tokens at no charge ($0) to a user's wallet
  * and logs an immutable `GIFT` transaction in `token_transactions`.
  */
 export async function giftTokensToUser(params: {
@@ -905,8 +906,8 @@ export async function giftTokensToUser(params: {
 
   const txId = `gift_${Date.now()}_${randomBytes(4).toString("hex")}`;
   const refNote = params.note?.trim()
-    ? `Gift from Admin (${params.giftedByEmail}): ${params.note.trim()}`
-    : `Gift from Admin (${params.giftedByEmail}) — No Charge`;
+    ? `Tokens added by Super Admin (${params.giftedByEmail}): ${params.note.trim()}`
+    : `Tokens added by Super Admin (${params.giftedByEmail}) — No Charge`;
 
   const res = await creditTokens({
     uid: targetUid,
@@ -922,14 +923,14 @@ export async function giftTokensToUser(params: {
     uid: targetUid,
     email: cleanEmail,
     tokens: cleanTokens,
-    balanceAfter: res.balanceAfter,
+    balanceAfter: Math.max(0, res.balanceAfter),
   };
 }
 
 /**
- * SuperAdmin & Main Admin Deduct Tokens: removes integer tokens from a user's wallet
- * (clamped to 0 so balance never goes negative) and logs an immutable `ADMIN_DEDUCT`
- * transaction in `token_transactions`.
+ * SuperAdmin Remove Tokens: removes integer tokens from a user's wallet.
+ * Hard Rule: Nobody can have negative tokens. If the user's balance is 0 or less than
+ * the requested removal amount, the removal is rejected so balance never goes below 0.
  */
 export async function deductTokensFromUser(params: {
   recipientEmail: string;
@@ -971,13 +972,23 @@ export async function deductTokensFromUser(params: {
       throw new Error(`User wallet not initialized for "${cleanEmail}".`);
     }
     const currentBalance = Math.max(0, Math.round(Number(userSnap.get("tokenBalance") ?? 0)));
-    const actualDeduct = Math.min(currentBalance, cleanTokens);
+    if (currentBalance <= 0) {
+      throw new Error(
+        `Account "${cleanEmail}" has 0 tokens. Nobody can have negative tokens — all users at 0 tokens must buy more tokens.`
+      );
+    }
+    if (cleanTokens > currentBalance) {
+      throw new Error(
+        `Cannot remove ${cleanTokens} tokens from "${cleanEmail}" because their current balance is ${currentBalance} tokens. Nobody can have negative tokens (minimum balance is 0).`
+      );
+    }
+    const actualDeduct = cleanTokens;
     const balanceAfter = Math.max(0, currentBalance - actualDeduct);
     const now = new Date().toISOString();
 
     const refNote = params.note?.trim()
-      ? `Token deduction by Admin (${params.deductedByEmail}): ${params.note.trim()}`
-      : `Token deduction by Admin (${params.deductedByEmail})`;
+      ? `Tokens removed by Super Admin (${params.deductedByEmail}): ${params.note.trim()}`
+      : `Tokens removed by Super Admin (${params.deductedByEmail})`;
 
     t.update(userRef, { tokenBalance: balanceAfter, updatedAt: now });
     t.create(txRef, {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore, type FormEvent } from "react";
+import Link from "next/link";
 import {
   PROVEN_WINNER_DAYS,
   EXTENDED_WINNER_DAYS,
@@ -123,10 +124,12 @@ export function RadarFilterBar({
   summary: { total: number; winners: number } | null;
   brands?: BrandProfile[] | null;
 }) {
-  const { isAdmin } = useSession();
+  const { profile } = useSession();
   const input = useRef<HTMLInputElement>(null);
   const apple = useSyncExternalStore(noSubscribe, isApple, () => false);
   const totalCost = calculateSearchCost(filters);
+  const currentBalance = Math.max(0, profile ? profile.tokenBalance : 0);
+  const isZeroBalance = Boolean(profile && currentBalance <= 0);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -202,9 +205,9 @@ export function RadarFilterBar({
                 <ul className="space-y-1.5 text-[11px] leading-snug text-on-surface-variant">
                   <li>
                     <span className="font-semibold text-on-surface">
-                      Search {isAdmin ? "0 tokens (Admin)" : `${totalCost} ${totalCost === 1 ? "token" : "tokens"}`}:
+                      Search {totalCost} {totalCost === 1 ? "token" : "tokens"}:
                     </span>{" "}
-                    Queries live Meta, TikTok, or Google ad libraries. Base search is 1 token (0 tokens for Admin).
+                    Queries live Meta, TikTok, or Google ad libraries. Base search is 1 token. Nobody can have negative tokens — if balance is 0, buy more tokens.
                   </li>
                   <li>
                     <span className="font-semibold text-winner">Proven ({PROVEN_WINNER_DAYS}+d):</span>{" "}
@@ -222,7 +225,7 @@ export function RadarFilterBar({
               </div>
             </div>
 
-            <div className="group relative flex shrink-0">
+            <div className="group relative flex shrink-0 items-center gap-2">
               <button
                 type="submit"
                 data-agent-id="radar-search-submit-button"
@@ -230,7 +233,7 @@ export function RadarFilterBar({
                 aria-describedby="radar-search-button-tooltip"
                 className={`${btnPrimary} shrink-0`}
                 disabled={searching}
-                aria-label={isAdmin ? "Search (0 tokens • Superadmin Free)" : totalCost > 0 ? `Search (${totalCost} tokens)` : "Search (Free)"}
+                aria-label={totalCost > 0 ? `Search (${totalCost} tokens)` : "Search (Free)"}
               >
                 {searching ? (
                   <span className="size-4 animate-spin rounded-full border-2 border-on-primary/30 border-t-on-primary" />
@@ -238,11 +241,7 @@ export function RadarFilterBar({
                   <Icon name="search" />
                 )}
                 <span className="hidden sm:inline">Search</span>
-                {isAdmin ? (
-                  <span className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary">
-                    0 tokens (Admin)
-                  </span>
-                ) : totalCost > 0 ? (
+                {totalCost > 0 ? (
                   <span className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary">
                     {totalCost} {totalCost === 1 ? "token" : "tokens"}
                   </span>
@@ -251,7 +250,20 @@ export function RadarFilterBar({
                 )}
               </button>
 
-              {/* Hover explanation for Search 0 tokens (Admin) / Search button */}
+              {isZeroBalance && (
+                <Link
+                  href="/wallet#packs"
+                  data-agent-id="radar-zero-balance-buy-tokens-link"
+                  data-testid="radar-zero-balance-buy-tokens-link"
+                  aria-label="0 Tokens — Buy More Tokens"
+                  className="inline-flex h-11 sm:h-9 shrink-0 items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 font-mono text-xs font-bold text-amber-200 transition hover:bg-amber-500/25"
+                >
+                  <Icon name="zap" className="size-3.5 text-amber-300" />
+                  <span>0 Tokens · Buy More</span>
+                </Link>
+              )}
+
+              {/* Hover explanation for Search button */}
               <div
                 id="radar-search-button-tooltip"
                 role="tooltip"
@@ -261,16 +273,14 @@ export function RadarFilterBar({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-[11px] font-bold text-primary">
-                    {isAdmin ? "Search 0 tokens (Admin)" : `Search (${totalCost} ${totalCost === 1 ? "token" : "tokens"})`}
+                    Search ({totalCost} {totalCost === 1 ? "token" : "tokens"})
                   </span>
                   <span className="rounded bg-primary/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-primary">
-                    {isAdmin ? "Admin Exempt" : formatTokenEstimateHover(totalCost, false)}
+                    {formatTokenEstimateHover(totalCost, false)}
                   </span>
                 </div>
                 <p className="mt-1.5 text-[11px] leading-snug text-on-surface-variant">
-                  {isAdmin
-                    ? "Runs a live competitor ad search across the selected platform. Admin accounts are exempt from token charges (0 tokens)."
-                    : `Runs a live competitor ad search (1 token base + active filter surcharges = ${totalCost} ${totalCost === 1 ? "token" : "tokens"}). Auto-refunded if an upstream library fails.`}
+                  Runs a live competitor ad search (1 token base + active filter surcharges = {totalCost} {totalCost === 1 ? "token" : "tokens"}). Nobody can have negative tokens — if your balance is 0, you must buy more tokens.
                 </p>
               </div>
             </div>
@@ -342,7 +352,7 @@ export function RadarFilterBar({
                     Proven ({PROVEN_WINNER_DAYS}+d)
                   </span>
                   <span className="rounded bg-winner/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-winner">
-                    {isAdmin ? "+0 tokens (Admin)" : `+${SERVICE_SURCHARGES.PROVEN_WINNERS} token (${formatTokenEstimateHover(SERVICE_SURCHARGES.PROVEN_WINNERS, false)})`}
+                    +{SERVICE_SURCHARGES.PROVEN_WINNERS} token ({formatTokenEstimateHover(SERVICE_SURCHARGES.PROVEN_WINNERS, false)})
                   </span>
                 </div>
                 <p className="mt-1.5 text-[11px] leading-snug text-on-surface-variant">
@@ -389,7 +399,7 @@ export function RadarFilterBar({
                     Extended ({EXTENDED_WINNER_DAYS}+d)
                   </span>
                   <span className="rounded bg-secondary/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-secondary">
-                    {isAdmin ? "+0 tokens (Admin)" : `+${SERVICE_SURCHARGES.EXTENDED_DAYS} token (${formatTokenEstimateHover(SERVICE_SURCHARGES.EXTENDED_DAYS, false)})`}
+                    +{SERVICE_SURCHARGES.EXTENDED_DAYS} token ({formatTokenEstimateHover(SERVICE_SURCHARGES.EXTENDED_DAYS, false)})
                   </span>
                 </div>
                 <p className="mt-1.5 text-[11px] leading-snug text-on-surface-variant">
@@ -436,7 +446,7 @@ export function RadarFilterBar({
                     Top Winners ({ELITE_SCORE_THRESHOLD}%+)
                   </span>
                   <span className="rounded bg-hot/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-hot">
-                    {isAdmin ? "+0 tokens (Admin)" : `+${SERVICE_SURCHARGES.ELITE_SCORE} token (${formatTokenEstimateHover(SERVICE_SURCHARGES.ELITE_SCORE, false)})`}
+                    +{SERVICE_SURCHARGES.ELITE_SCORE} token ({formatTokenEstimateHover(SERVICE_SURCHARGES.ELITE_SCORE, false)})
                   </span>
                 </div>
                 <p className="mt-1.5 text-[11px] leading-snug text-on-surface-variant">
