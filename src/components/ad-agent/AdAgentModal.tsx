@@ -54,6 +54,18 @@ export const QUICK_GEO_PRESETS: Array<{
     { label: "New York, NY (US)", suburb: "New York", state: "NY", country: "US", latitude: 40.7128, longitude: -74.006 },
   ];
 
+export type AdAgentSectionKey =
+  | "reg_onboarding"
+  | "reg_role_status"
+  | "reg_personal_info"
+  | "reg_geolocation"
+  | "reg_bank_payouts"
+  | "orders_guide"
+  | "orders_list"
+  | "contractors_guide"
+  | "contractors_form"
+  | "contractors_list";
+
 export interface AdAgentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -73,6 +85,41 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
   const [detectingGeo, setDetectingGeo] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+  // All sections start collapsed (false) on start
+  const [expandedSections, setExpandedSections] = useState<Partial<Record<AdAgentSectionKey, boolean>>>({});
+  const [expandedOrderBriefIds, setExpandedOrderBriefIds] = useState<Set<string>>(() => new Set());
+
+  function isSectionExpanded(key: AdAgentSectionKey): boolean {
+    return Boolean(expandedSections[key]);
+  }
+
+  function toggleSectionExpanded(key: AdAgentSectionKey) {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  }
+
+  function setSectionExpanded(key: AdAgentSectionKey, open: boolean) {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [key]: open,
+    }));
+  }
+
+  function toggleOrderBriefExpanded(requestId: string) {
+    setExpandedOrderBriefIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(requestId)) next.delete(requestId);
+      else next.add(requestId);
+      return next;
+    });
+  }
+
+  function isOrderBriefExpanded(requestId: string): boolean {
+    return expandedOrderBriefIds.has(requestId);
+  }
 
   const [myAgentProfile, setMyAgentProfile] = useState<AdAgentProfile | null>(null);
   const [allAgentProfiles, setAllAgentProfiles] = useState<AdAgentProfile[]>([]);
@@ -292,6 +339,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
     });
     setContractorFormError(null);
     setShowAddContractor(true);
+    setSectionExpanded("contractors_form", true);
   }
 
   function handleStartEditContractor(c: AdAgentContractor) {
@@ -308,6 +356,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
     });
     setContractorFormError(null);
     setShowAddContractor(true);
+    setSectionExpanded("contractors_form", true);
   }
 
   async function handleSaveContractor(e: React.FormEvent) {
@@ -871,336 +920,568 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
           {statusMsg && <p className={alertInfo}>{statusMsg}</p>}
 
           {tab === "REGISTRATION" && (
-            <div className="space-y-5">
-              {/* New Ad Agent Role: Registration Callout */}
-              {!myAgentProfile && !isSuper && (
-                <div
-                  className="rounded-2xl border border-tertiary/40 bg-gradient-to-r from-tertiary/20 via-tertiary/10 to-surface-container p-4 sm:p-5 space-y-2.5"
-                  data-agent-id="new-ad-agent-registration-banner"
-                  data-testid="new-ad-agent-registration-banner"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="flex size-7 items-center justify-center rounded-lg bg-tertiary/30 text-tertiary">
-                      <Icon name="sparkles" className="size-4" />
-                    </span>
-                    <h3 className="font-mono text-sm font-bold text-on-surface">
-                      Welcome! Superadmin Has Updated Your Role to Ad Agent
-                    </h3>
-                    <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 font-mono text-[10px] font-bold text-amber-300 uppercase">
-                      Registration Required
-                    </span>
-                  </div>
-                  <p className="text-xs text-on-surface-variant leading-relaxed">
-                    Now that your role is set to <strong>Ad Agent</strong>, please complete your registration details and operating geolocation below. Once submitted, your profile will be registered in the Ad Agent Directory, you will be matched with clients via geolocation for Professional Customization orders, and your Bank / PayID details will be ready for redistribution payouts.
+            <div className="space-y-4">
+              {/* Category Header + Expand All / Collapse All */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
+                <div className="min-w-0">
+                  <h3 className="text-title-sm font-semibold text-on-surface">
+                    Ad Agent Registration &amp; Geolocation
+                  </h3>
+                  <p className="mt-0.5 text-[12px] text-on-surface-variant font-mono">
+                    All sections start collapsed. Expand any section below to view status, personal info, geolocation, or payout details.
                   </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const showOnboarding = !myAgentProfile && !isSuper;
+                    const allOpen =
+                      (!showOnboarding || isSectionExpanded("reg_onboarding")) &&
+                      isSectionExpanded("reg_role_status") &&
+                      isSectionExpanded("reg_personal_info") &&
+                      isSectionExpanded("reg_geolocation") &&
+                      isSectionExpanded("reg_bank_payouts");
+                    const next = !allOpen;
+                    setExpandedSections((prev) => ({
+                      ...prev,
+                      reg_onboarding: next,
+                      reg_role_status: next,
+                      reg_personal_info: next,
+                      reg_geolocation: next,
+                      reg_bank_payouts: next,
+                    }));
+                  }}
+                  data-agent-id="reg-expand-all-btn"
+                  data-testid="reg-expand-all-btn"
+                  className={`${btnSecondary} font-mono text-xs shrink-0 flex items-center gap-1.5`}
+                >
+                  <Icon
+                    name="chevronDown"
+                    className={`size-3.5 transition-transform duration-200 ${
+                      (!(!myAgentProfile && !isSuper) || isSectionExpanded("reg_onboarding")) &&
+                      isSectionExpanded("reg_role_status") &&
+                      isSectionExpanded("reg_personal_info") &&
+                      isSectionExpanded("reg_geolocation") &&
+                      isSectionExpanded("reg_bank_payouts")
+                        ? "rotate-180"
+                        : ""
+                    }`}
+                  />
+                  <span>
+                    {(!(!myAgentProfile && !isSuper) || isSectionExpanded("reg_onboarding")) &&
+                    isSectionExpanded("reg_role_status") &&
+                    isSectionExpanded("reg_personal_info") &&
+                    isSectionExpanded("reg_geolocation") &&
+                    isSectionExpanded("reg_bank_payouts")
+                      ? "Collapse All"
+                      : "Expand All"}
+                  </span>
+                </button>
+              </div>
+
+              {/* Section 1: New Ad Agent Role: Registration Callout */}
+              {!myAgentProfile && !isSuper && (
+                <div className={`${card} border border-tertiary/40 bg-surface-container-high/60 overflow-hidden`}>
+                  <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4">
+                    <button
+                      type="button"
+                      onClick={() => toggleSectionExpanded("reg_onboarding")}
+                      aria-expanded={isSectionExpanded("reg_onboarding")}
+                      data-agent-id="toggle-section-reg_onboarding"
+                      data-testid="toggle-section-reg_onboarding"
+                      className="flex-1 flex items-center justify-between text-left gap-2"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex size-7 items-center justify-center rounded-lg bg-tertiary/30 text-tertiary">
+                          <Icon name="sparkles" className="size-4" />
+                        </span>
+                        <div>
+                          <h4 className="font-mono text-sm font-bold text-on-surface">
+                            Ad Agent Onboarding Guide
+                          </h4>
+                          <p className="text-[11px] text-on-surface-variant font-mono">
+                            Welcome instructions &amp; activation requirements
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 font-mono text-[10px] font-bold text-amber-300 uppercase">
+                          Registration Required
+                        </span>
+                        <Icon
+                          name="chevronDown"
+                          className={`size-4 text-on-surface-variant transition-transform duration-200 ${
+                            isSectionExpanded("reg_onboarding") ? "rotate-180" : ""
+                          }`}
+                        />
+                      </div>
+                    </button>
+                  </div>
+                  {isSectionExpanded("reg_onboarding") && (
+                    <div className="border-t border-white/10 p-4 sm:p-5 bg-gradient-to-r from-tertiary/15 via-tertiary/5 to-transparent text-xs text-on-surface-variant leading-relaxed space-y-2">
+                      <p>
+                        Superadmin has updated your role to <strong>Ad Agent</strong>. To activate your account and start receiving customer customize orders, please complete your registration details and operating geolocation below.
+                      </p>
+                      <p>
+                        Once submitted, your profile will be registered in the Ad Agent Directory, you will be matched with clients via geolocation for Professional Customization orders, and your Bank / PayID details will be ready for redistribution payouts.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Role & Status Banner */}
-              <div
-                className={`${card} p-4 border space-y-2.5 ${agentStatus === "active"
-                    ? "border-primary/30 bg-primary/[0.04]"
-                    : "border-amber-500/30 bg-amber-500/[0.04]"
-                  }`}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Icon name="shield" className="size-4 text-primary" />
-                    <span className="font-mono text-xs font-bold uppercase tracking-wider text-primary">
-                      {isSuper
-                        ? "Super Admin — Built-In Ad Agent (No Registration Required)"
-                        : isMainAdmin
-                          ? "Main Admin — Ad Agent Registration Enabled"
-                          : myAgentProfile
-                            ? agentStatus === "active"
-                              ? "Registered Active Ad Agent (Status: ON)"
-                              : "Registered Ad Agent (Status: OFF — Paused)"
-                            : "Register as an AdRadarHQ Ad Agent"}
-                    </span>
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 font-mono text-[11px] font-semibold border ${agentStatus === "active"
-                          ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                          : "bg-amber-500/15 border-amber-500/30 text-amber-300"
-                        }`}
-                    >
-                      {agentStatus === "active"
-                        ? `ON (Active) · ${myAgentProfile?.redistributionPercentage ?? 30}% Redistribution Rate`
-                        : `OFF (Paused) · ${myAgentProfile?.redistributionPercentage ?? 30}% Redistribution Rate`}
-                    </span>
-                  </div>
-
+              {/* Section 2: Role & Status Banner */}
+              <div className={`${card} border border-white/10 bg-surface-container-high/60 overflow-hidden`}>
+                <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4">
                   <button
                     type="button"
-                    disabled={togglingStatus}
-                    onClick={() =>
-                      handleToggleOwnStatus(agentStatus === "active" ? "inactive" : "active")
-                    }
-                    data-agent-id="ad-agent-toggle-status-btn"
-                    data-testid="ad-agent-toggle-status-btn"
-                    aria-label={
-                      agentStatus === "active"
-                        ? "Turn Ad Agent status OFF"
-                        : "Turn Ad Agent status ON"
-                    }
-                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 font-mono text-xs font-bold transition ${agentStatus === "active"
-                        ? "border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
-                        : "border-emerald-500/40 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
-                      } disabled:opacity-50`}
+                    onClick={() => toggleSectionExpanded("reg_role_status")}
+                    aria-expanded={isSectionExpanded("reg_role_status")}
+                    data-agent-id="toggle-section-reg_role_status"
+                    data-testid="toggle-section-reg_role_status"
+                    className="flex-1 flex items-center justify-between text-left gap-2"
                   >
-                    <Icon name="refresh" className={`size-3.5 ${togglingStatus ? "animate-spin" : ""}`} />
-                    <span>
-                      {togglingStatus
-                        ? "Updating Status…"
-                        : agentStatus === "active"
-                          ? "Turn Ad Agent Status OFF"
-                          : "Turn Ad Agent Status ON"}
-                    </span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                        <Icon name="shield" className="size-4" />
+                      </span>
+                      <div>
+                        <h4 className="font-mono text-sm font-bold text-on-surface">
+                          Ad Agent Status &amp; Redistribution Rate
+                        </h4>
+                        <p className="text-[11px] text-on-surface-variant font-mono">
+                          Live availability toggle &amp; commission payout percentage
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold border ${
+                          agentStatus === "active"
+                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                            : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                        }`}
+                      >
+                        {agentStatus === "active" ? "● ON (Active)" : "○ OFF (Paused)"} · {myAgentProfile?.redistributionPercentage ?? 30}% Rate
+                      </span>
+                      <Icon
+                        name="chevronDown"
+                        className={`size-4 text-on-surface-variant transition-transform duration-200 ${
+                          isSectionExpanded("reg_role_status") ? "rotate-180" : ""
+                        }`}
+                      />
+                    </div>
                   </button>
                 </div>
-                <p className="text-body-sm text-on-surface-variant">
-                  {agentStatus === "inactive"
-                    ? "Your Ad Agent status is currently OFF (Paused). Customers will not be matched to you for new Customize orders until you click 'Turn Ad Agent Status ON' above."
-                    : isSuper
-                      ? "As Super Admin, you are automatically an active Ad Agent with no registration required. You can turn your Ad Agent status OFF or back ON anytime, or update your geolocation coordinates and phone number below."
-                      : isMainAdmin
-                        ? "As Main Admin, you can register as an Ad Agent below while keeping your Main Admin privileges, and turn your Ad Agent status OFF or back ON whenever you want."
-                        : "Register your Name, Phone Number, Registered Email, and Geolocation below. You can turn your Ad Agent status OFF anytime to pause new Customize orders, and turn it back ON whenever you are ready."}
-                </p>
+                {isSectionExpanded("reg_role_status") && (
+                  <div className="border-t border-white/10 p-4 sm:p-5 space-y-3 bg-surface-container-low/50">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-mono text-xs font-bold text-on-surface">
+                          {isSuper
+                            ? "Super Admin — Built-In Ad Agent (No Registration Required)"
+                            : isMainAdmin
+                              ? "Main Admin — Ad Agent Registration Enabled"
+                              : myAgentProfile
+                                ? agentStatus === "active"
+                                  ? "Registered Active Ad Agent (Status: ON)"
+                                  : "Registered Ad Agent (Status: OFF — Paused)"
+                                : "Register as an AdRadarHQ Ad Agent"}
+                        </p>
+                        <p className="text-body-sm text-on-surface-variant mt-1 leading-relaxed">
+                          {agentStatus === "inactive"
+                            ? "Your Ad Agent status is currently OFF (Paused). Customers will not be matched to you for new Customize orders until you turn status ON."
+                            : isSuper
+                              ? "As Super Admin, you are automatically an active Ad Agent with no registration required. You can toggle status anytime."
+                              : isMainAdmin
+                                ? "As Main Admin, you can register as an Ad Agent while keeping Main Admin privileges."
+                                : "Register your details below. You can toggle status OFF anytime to pause new orders."}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={togglingStatus}
+                        onClick={() =>
+                          handleToggleOwnStatus(agentStatus === "active" ? "inactive" : "active")
+                        }
+                        data-agent-id="ad-agent-toggle-status-btn"
+                        data-testid="ad-agent-toggle-status-btn"
+                        className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 font-mono text-xs font-bold transition shrink-0 ${
+                          agentStatus === "active"
+                            ? "border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
+                            : "border-emerald-500/40 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
+                        } disabled:opacity-50`}
+                      >
+                        <Icon name="refresh" className={`size-3.5 ${togglingStatus ? "animate-spin" : ""}`} />
+                        <span>
+                          {togglingStatus
+                            ? "Updating Status…"
+                            : agentStatus === "active"
+                              ? "Turn Status OFF"
+                              : "Turn Status ON"}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Registration Form */}
-              <form onSubmit={handleRegisterSubmit} className={`${card} p-5 space-y-4`}>
-                {/* Email Check Header Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-surface-container px-3.5 py-2.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-primary">
-                      Ad Agent Email Verification:
-                    </span>
-                    {myAgentProfile ? (
-                      <span
-                        data-agent-id="ad-agent-email-check-status"
-                        data-testid="ad-agent-email-check-status"
-                        className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-300"
-                      >
-                        ✓ Registered Before ({myAgentProfile.email}) — Personal Details Loaded
-                      </span>
-                    ) : (
-                      <span
-                        data-agent-id="ad-agent-email-check-status"
-                        data-testid="ad-agent-email-check-status"
-                        className="rounded-full border border-sky-400/40 bg-sky-500/15 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-sky-300"
-                      >
-                        ✦ New Ad Agent ({agentEmail.trim() || "Enter Email"}) — Enter Your Own New Personal Details
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMyAgentProfile(null);
-                      setName("");
-                      setPhone("");
-                      setBankOrPayIdDetails("");
-                      setSuburb("");
-                      setStateRegion("");
-                      setCountry("AU");
-                      setStatusMsg(
-                        "Personal details cleared. Enter the new Ad Agent's email, full name, phone, geolocation, and bank/PayID details below.",
-                      );
-                    }}
-                    data-agent-id="ad-agent-clear-personal-details-btn"
-                    data-testid="ad-agent-clear-personal-details-btn"
-                    className="rounded-lg border border-white/15 bg-surface-container-highest px-2.5 py-1 font-mono text-[11px] font-semibold text-on-surface-variant hover:border-primary/40 hover:text-on-surface transition"
-                  >
-                    + Enter New Personal Details
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <div>
-                    <label className={label} htmlFor="ad-agent-email-input">
-                      Ad Agent Email (Checked Automatically) *
-                    </label>
-                    <input
-                      id="ad-agent-email-input"
-                      type="email"
-                      required
-                      maxLength={254}
-                      placeholder="agent@example.com"
-                      value={agentEmail}
-                      onChange={(e) => handleAgentEmailChange(e.target.value)}
-                      className={`${field} font-mono text-xs`}
-                      data-agent-id="ad-agent-email-input"
-                      data-testid="ad-agent-email-input"
-                    />
-                    <p className="mt-1 text-[11px] font-mono text-outline">
-                      {myAgentProfile
-                        ? "Existing Ad Agent found for this email"
-                        : "Not registered before — enter your own new personal details"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className={label} htmlFor="ad-agent-name-input">
-                      Ad Agent Full Name *
-                    </label>
-                    <input
-                      id="ad-agent-name-input"
-                      type="text"
-                      required
-                      maxLength={100}
-                      placeholder="Enter your own full name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className={field}
-                      data-agent-id="ad-agent-name-input"
-                      data-testid="ad-agent-name-input"
-                    />
-                  </div>
-
-                  <div>
-                    <label className={label} htmlFor="ad-agent-phone-input">
-                      Phone Number *
-                    </label>
-                    <input
-                      id="ad-agent-phone-input"
-                      type="tel"
-                      required
-                      maxLength={40}
-                      placeholder="Enter your own phone number"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className={field}
-                      data-agent-id="ad-agent-phone-input"
-                      data-testid="ad-agent-phone-input"
-                    />
-                  </div>
-                </div>
-
-                {/* Geolocation Section */}
-                <div className="rounded-xl border border-white/10 bg-surface-container p-4 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <h4 className="text-compact font-bold text-on-surface flex items-center gap-1.5">
-                        <Icon name="mapPin" className="size-4 text-primary" />
-                        <span>Ad Agent Geolocation (Used to Match Closest Customize Customers)</span>
-                      </h4>
-                      <p className="text-[11px] text-on-surface-variant">
-                        Detect your exact GPS coordinates or select a preset city so customers near you are automatically routed to you.
-                      </p>
-                    </div>
+              <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                {/* Section 3: Personal Information & Email Verification */}
+                <div className={`${card} border border-white/10 bg-surface-container-high/60 overflow-hidden`}>
+                  <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4">
                     <button
                       type="button"
-                      onClick={handleDetectGeolocation}
-                      disabled={detectingGeo}
-                      data-agent-id="ad-agent-detect-geo-btn"
-                      data-testid="ad-agent-detect-geo-btn"
-                      className={`${btnSecondary} shrink-0 flex items-center gap-1.5 font-mono text-xs`}
+                      onClick={() => toggleSectionExpanded("reg_personal_info")}
+                      aria-expanded={isSectionExpanded("reg_personal_info")}
+                      data-agent-id="toggle-section-reg_personal_info"
+                      data-testid="toggle-section-reg_personal_info"
+                      className="flex-1 flex items-center justify-between text-left gap-2"
                     >
-                      <Icon name="mapPin" className="size-3.5 text-primary" />
-                      <span>{detectingGeo ? "Detecting GPS..." : "Use My Current Geolocation"}</span>
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                          <Icon name="user" className="size-4" />
+                        </span>
+                        <div>
+                          <h4 className="font-mono text-sm font-bold text-on-surface">
+                            Personal Information &amp; Email Verification
+                          </h4>
+                          <p className="text-[11px] text-on-surface-variant font-mono">
+                            Full name, phone number, and authenticated agent email
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-white/5 border border-white/10 px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
+                          {name ? `${name} · ${phone || "No phone"}` : "Unfilled"}
+                        </span>
+                        <Icon
+                          name="chevronDown"
+                          className={`size-4 text-on-surface-variant transition-transform duration-200 ${
+                            isSectionExpanded("reg_personal_info") ? "rotate-180" : ""
+                          }`}
+                        />
+                      </div>
                     </button>
                   </div>
+                  {isSectionExpanded("reg_personal_info") && (
+                    <div className="border-t border-white/10 p-4 sm:p-5 space-y-4 bg-surface-container-low/50">
+                      {/* Email check header */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-surface-container px-3.5 py-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-primary">
+                            Ad Agent Email Verification:
+                          </span>
+                          {myAgentProfile ? (
+                            <span
+                              data-agent-id="ad-agent-email-check-status"
+                              data-testid="ad-agent-email-check-status"
+                              className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-300"
+                            >
+                              ✓ Registered Before ({myAgentProfile.email}) — Personal Details Loaded
+                            </span>
+                          ) : (
+                            <span
+                              data-agent-id="ad-agent-email-check-status"
+                              data-testid="ad-agent-email-check-status"
+                              className="rounded-full border border-sky-400/40 bg-sky-500/15 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-sky-300"
+                            >
+                              ✦ New Ad Agent ({agentEmail.trim() || "Enter Email"}) — Enter Your Own New Personal Details
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMyAgentProfile(null);
+                            setName("");
+                            setPhone("");
+                            setBankOrPayIdDetails("");
+                            setSuburb("");
+                            setStateRegion("");
+                            setCountry("AU");
+                            setStatusMsg(
+                              "Personal details cleared. Enter the new Ad Agent's email, full name, phone, geolocation, and bank/PayID details below.",
+                            );
+                          }}
+                          data-agent-id="ad-agent-clear-personal-details-btn"
+                          data-testid="ad-agent-clear-personal-details-btn"
+                          className="rounded-lg border border-white/15 bg-surface-container-highest px-2.5 py-1 font-mono text-[11px] font-semibold text-on-surface-variant hover:border-primary/40 hover:text-on-surface transition"
+                        >
+                          + Enter New Personal Details
+                        </button>
+                      </div>
 
-                  {/* Quick City Presets */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-mono text-[10px] text-outline mr-1">Quick Locations:</span>
-                    {QUICK_GEO_PRESETS.map((preset) => (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => {
-                          setSuburb(preset.suburb);
-                          setStateRegion(preset.state);
-                          setCountry(preset.country);
-                          setLatitude(preset.latitude);
-                          setLongitude(preset.longitude);
-                        }}
-                        className="rounded-lg border border-white/10 bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant hover:border-primary/40 hover:text-on-surface transition"
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div>
+                          <label className={label} htmlFor="ad-agent-email-input">
+                            Ad Agent Email (Checked Automatically) *
+                          </label>
+                          <input
+                            id="ad-agent-email-input"
+                            type="email"
+                            required
+                            maxLength={254}
+                            placeholder="agent@example.com"
+                            value={agentEmail}
+                            onChange={(e) => handleAgentEmailChange(e.target.value)}
+                            className={`${field} font-mono text-xs`}
+                            data-agent-id="ad-agent-email-input"
+                            data-testid="ad-agent-email-input"
+                          />
+                          <p className="mt-1 text-[11px] font-mono text-outline">
+                            {myAgentProfile
+                              ? "Existing Ad Agent found for this email"
+                              : "Not registered before — enter your own new personal details"}
+                          </p>
+                        </div>
 
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
-                    <div className="sm:col-span-2">
-                      <label className={label} htmlFor="ad-agent-suburb-input">
-                        Suburb / City *
-                      </label>
-                      <input
-                        id="ad-agent-suburb-input"
-                        type="text"
-                        required
-                        value={suburb}
-                        onChange={(e) => setSuburb(e.target.value)}
-                        className={field}
-                        data-agent-id="ad-agent-suburb-input"
-                        data-testid="ad-agent-suburb-input"
-                      />
-                    </div>
-                    <div>
-                      <label className={label} htmlFor="ad-agent-state-input">
-                        State / Region *
-                      </label>
-                      <input
-                        id="ad-agent-state-input"
-                        type="text"
-                        required
-                        value={stateRegion}
-                        onChange={(e) => setStateRegion(e.target.value)}
-                        className={field}
-                        data-agent-id="ad-agent-state-input"
-                        data-testid="ad-agent-state-input"
-                      />
-                    </div>
-                    <div>
-                      <label className={label} htmlFor="ad-agent-country-input">
-                        Country Code *
-                      </label>
-                      <input
-                        id="ad-agent-country-input"
-                        type="text"
-                        required
-                        maxLength={4}
-                        value={country}
-                        onChange={(e) => setCountry(e.target.value.toUpperCase())}
-                        className={`${field} font-mono uppercase`}
-                        data-agent-id="ad-agent-country-input"
-                        data-testid="ad-agent-country-input"
-                      />
-                    </div>
-                    <div>
-                      <label className={label}>Coordinates</label>
-                      <div className="rounded-xl border border-white/10 bg-surface-container-highest px-2.5 py-2 font-mono text-[11px] text-primary truncate">
-                        {Number(latitude).toFixed(3)}, {Number(longitude).toFixed(3)}
+                        <div>
+                          <label className={label} htmlFor="ad-agent-name-input">
+                            Ad Agent Full Name *
+                          </label>
+                          <input
+                            id="ad-agent-name-input"
+                            type="text"
+                            required
+                            maxLength={100}
+                            placeholder="Enter your own full name"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className={field}
+                            data-agent-id="ad-agent-name-input"
+                            data-testid="ad-agent-name-input"
+                          />
+                        </div>
+
+                        <div>
+                          <label className={label} htmlFor="ad-agent-phone-input">
+                            Phone Number *
+                          </label>
+                          <input
+                            id="ad-agent-phone-input"
+                            type="tel"
+                            required
+                            maxLength={40}
+                            placeholder="Enter your own phone number"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            className={field}
+                            data-agent-id="ad-agent-phone-input"
+                            data-testid="ad-agent-phone-input"
+                          />
+                        </div>
                       </div>
                     </div>
+                  )}
+                </div>
+
+                {/* Section 4: Operating Geolocation & Suburb */}
+                <div className={`${card} border border-white/10 bg-surface-container-high/60 overflow-hidden`}>
+                  <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4">
+                    <button
+                      type="button"
+                      onClick={() => toggleSectionExpanded("reg_geolocation")}
+                      aria-expanded={isSectionExpanded("reg_geolocation")}
+                      data-agent-id="toggle-section-reg_geolocation"
+                      data-testid="toggle-section-reg_geolocation"
+                      className="flex-1 flex items-center justify-between text-left gap-2"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                          <Icon name="mapPin" className="size-4" />
+                        </span>
+                        <div>
+                          <h4 className="font-mono text-sm font-bold text-on-surface">
+                            Operating Geolocation &amp; Local Suburb
+                          </h4>
+                          <p className="text-[11px] text-on-surface-variant font-mono">
+                            Coordinates used for matching closest customers
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-white/5 border border-white/10 px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
+                          {suburb ? `${suburb}, ${stateRegion} (${country})` : "No location set"}
+                        </span>
+                        <Icon
+                          name="chevronDown"
+                          className={`size-4 text-on-surface-variant transition-transform duration-200 ${
+                            isSectionExpanded("reg_geolocation") ? "rotate-180" : ""
+                          }`}
+                        />
+                      </div>
+                    </button>
                   </div>
+                  {isSectionExpanded("reg_geolocation") && (
+                    <div className="border-t border-white/10 p-4 sm:p-5 space-y-3 bg-surface-container-low/50">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <h5 className="text-compact font-bold text-on-surface flex items-center gap-1.5">
+                            <Icon name="mapPin" className="size-4 text-primary" />
+                            <span>Ad Agent Geolocation (Used to Match Closest Customize Customers)</span>
+                          </h5>
+                          <p className="text-[11px] text-on-surface-variant">
+                            Detect your exact GPS coordinates or select a preset city so customers near you are automatically routed to you.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleDetectGeolocation}
+                          disabled={detectingGeo}
+                          data-agent-id="ad-agent-detect-geo-btn"
+                          data-testid="ad-agent-detect-geo-btn"
+                          className={`${btnSecondary} shrink-0 flex items-center gap-1.5 font-mono text-xs`}
+                        >
+                          <Icon name="mapPin" className="size-3.5 text-primary" />
+                          <span>{detectingGeo ? "Detecting GPS..." : "Use My Current Geolocation"}</span>
+                        </button>
+                      </div>
+
+                      {/* Quick City Presets */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-[10px] text-outline mr-1">Quick Locations:</span>
+                        {QUICK_GEO_PRESETS.map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => {
+                              setSuburb(preset.suburb);
+                              setStateRegion(preset.state);
+                              setCountry(preset.country);
+                              setLatitude(preset.latitude);
+                              setLongitude(preset.longitude);
+                            }}
+                            className="rounded-lg border border-white/10 bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant hover:border-primary/40 hover:text-on-surface transition"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+                        <div className="sm:col-span-2">
+                          <label className={label} htmlFor="ad-agent-suburb-input">
+                            Suburb / City *
+                          </label>
+                          <input
+                            id="ad-agent-suburb-input"
+                            type="text"
+                            required
+                            value={suburb}
+                            onChange={(e) => setSuburb(e.target.value)}
+                            className={field}
+                            data-agent-id="ad-agent-suburb-input"
+                            data-testid="ad-agent-suburb-input"
+                          />
+                        </div>
+
+                        <div>
+                          <label className={label} htmlFor="ad-agent-state-input">
+                            State / Region *
+                          </label>
+                          <input
+                            id="ad-agent-state-input"
+                            type="text"
+                            required
+                            value={stateRegion}
+                            onChange={(e) => setStateRegion(e.target.value)}
+                            className={field}
+                            data-agent-id="ad-agent-state-input"
+                            data-testid="ad-agent-state-input"
+                          />
+                        </div>
+
+                        <div>
+                          <label className={label} htmlFor="ad-agent-country-input">
+                            Country Code *
+                          </label>
+                          <input
+                            id="ad-agent-country-input"
+                            type="text"
+                            required
+                            maxLength={4}
+                            value={country}
+                            onChange={(e) => setCountry(e.target.value.toUpperCase())}
+                            className={`${field} font-mono uppercase`}
+                            data-agent-id="ad-agent-country-input"
+                            data-testid="ad-agent-country-input"
+                          />
+                        </div>
+
+                        <div>
+                          <label className={label}>Coordinates</label>
+                          <div className="rounded-xl border border-white/10 bg-surface-container-highest px-2.5 py-2 font-mono text-[11px] text-primary truncate">
+                            {Number(latitude).toFixed(3)}, {Number(longitude).toFixed(3)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Bank Details or PayID Details Box */}
-                <div className="rounded-xl border border-white/10 bg-surface-container p-4 space-y-2">
-                  <label className={label} htmlFor="ad-agent-bank-payid-input">
-                    Bank Details or PayID Details (For Redistribution Payouts)
-                  </label>
-                  <textarea
-                    id="ad-agent-bank-payid-input"
-                    rows={2}
-                    maxLength={500}
-                    placeholder="e.g. PayID: agent@agency.com (or +61 400 000 000) | Bank: Commonwealth Bank, BSB: 062-000, Account: 1234 5678, Account Name: Sarah Jenkins"
-                    value={bankOrPayIdDetails}
-                    onChange={(e) => setBankOrPayIdDetails(e.target.value)}
-                    className={`${field} font-mono text-xs`}
-                    data-agent-id="ad-agent-bank-payid-input"
-                    data-testid="ad-agent-bank-payid-input"
-                  />
-                  <p className="text-[11px] font-mono text-outline">
-                    Automatically populates in the Super Admin Ad Agent Distribution Ledger for redistribution payouts.
-                  </p>
+                {/* Section 5: Bank Details or PayID Details Box */}
+                <div className={`${card} border border-white/10 bg-surface-container-high/60 overflow-hidden`}>
+                  <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4">
+                    <button
+                      type="button"
+                      onClick={() => toggleSectionExpanded("reg_bank_payouts")}
+                      aria-expanded={isSectionExpanded("reg_bank_payouts")}
+                      data-agent-id="toggle-section-reg_bank_payouts"
+                      data-testid="toggle-section-reg_bank_payouts"
+                      className="flex-1 flex items-center justify-between text-left gap-2"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                          <Icon name="sliders" className="size-4" />
+                        </span>
+                        <div>
+                          <h4 className="font-mono text-sm font-bold text-on-surface">
+                            Bank Details &amp; PayID (Redistribution Payouts)
+                          </h4>
+                          <p className="text-[11px] text-on-surface-variant font-mono">
+                            Account info for Superadmin commission payouts
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-white/5 border border-white/10 px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
+                          {bankOrPayIdDetails ? "Configured" : "Unset"}
+                        </span>
+                        <Icon
+                          name="chevronDown"
+                          className={`size-4 text-on-surface-variant transition-transform duration-200 ${
+                            isSectionExpanded("reg_bank_payouts") ? "rotate-180" : ""
+                          }`}
+                        />
+                      </div>
+                    </button>
+                  </div>
+                  {isSectionExpanded("reg_bank_payouts") && (
+                    <div className="border-t border-white/10 p-4 sm:p-5 space-y-3 bg-surface-container-low/50">
+                      <label className={label} htmlFor="ad-agent-bank-payid-input">
+                        Bank Details or PayID Details (For Redistribution Payouts)
+                      </label>
+                      <textarea
+                        id="ad-agent-bank-payid-input"
+                        rows={2}
+                        maxLength={500}
+                        placeholder="e.g. PayID: agent@agency.com (or +61 400 000 000) | Bank: Commonwealth Bank, BSB: 062-000, Account: 1234 5678, Account Name: Sarah Jenkins"
+                        value={bankOrPayIdDetails}
+                        onChange={(e) => setBankOrPayIdDetails(e.target.value)}
+                        className={`${field} font-mono text-xs`}
+                        data-agent-id="ad-agent-bank-payid-input"
+                        data-testid="ad-agent-bank-payid-input"
+                      />
+                      <p className="text-[11px] font-mono text-outline">
+                        Automatically populates in the Super Admin Ad Agent Distribution Ledger for redistribution payouts.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex items-center justify-end gap-3 pt-1">
+                <div className="flex items-center justify-end gap-3 pt-2">
                   <button
                     type="button"
                     onClick={onClose}
@@ -1230,775 +1511,1059 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
           )}
 
           {tab === "ORDERS" && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-body font-bold text-on-surface">
-                    Customize Orders Assigned to You ({assignedRequests.length})
-                  </h3>
-                  <p className="text-compact text-on-surface-variant">
-                    Review customer briefs matched to your geolocation, generate AI strategy drafts, and deliver completed packages to the customer&apos;s Message Panel.
+            <div className="space-y-4" data-agent-id="ad-agent-orders-section" data-testid="ad-agent-orders-section">
+              {/* Category Header & Controls */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-white/10 bg-surface-container-high/60 p-4">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                      <Icon name="sparkles" className="size-4" />
+                    </span>
+                    <h3 className="font-mono text-sm font-bold text-on-surface">
+                      Customize Brand Orders &amp; AI Dispatch
+                    </h3>
+                  </div>
+                  <p className="text-xs text-on-surface-variant font-mono">
+                    {assignedRequests.length} {assignedRequests.length === 1 ? "order assigned" : "orders assigned"} to your geolocation
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => loadAgentData()}
-                  className={btnSecondary}
-                  data-agent-id="ad-agent-refresh-orders-btn"
-                  data-testid="ad-agent-refresh-orders-btn"
-                >
-                  <Icon name="refresh" className="size-3.5" />
-                  <span>Refresh</span>
-                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allOpen = isSectionExpanded("orders_guide") && isSectionExpanded("orders_list");
+                      const next = !allOpen;
+                      setSectionExpanded("orders_guide", next);
+                      setSectionExpanded("orders_list", next);
+                    }}
+                    className={`${btnSecondary} text-xs py-1.5 px-3 flex items-center gap-1.5`}
+                    data-agent-id="orders-expand-all-btn"
+                    data-testid="orders-expand-all-btn"
+                    aria-label="Expand or collapse all order sections"
+                  >
+                    <Icon
+                      name="chevronDown"
+                      className={`size-3.5 transition-transform ${
+                        isSectionExpanded("orders_guide") && isSectionExpanded("orders_list") ? "rotate-180" : ""
+                      }`}
+                    />
+                    <span>
+                      {isSectionExpanded("orders_guide") && isSectionExpanded("orders_list")
+                        ? "Collapse All"
+                        : "Expand All"}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => loadAgentData()}
+                    className={`${btnSecondary} text-xs py-1.5 px-3 flex items-center gap-1.5`}
+                    data-agent-id="ad-agent-refresh-orders-btn"
+                    data-testid="ad-agent-refresh-orders-btn"
+                  >
+                    <Icon name="refresh" className="size-3.5" />
+                    <span>Refresh</span>
+                  </button>
+                </div>
               </div>
 
-              {assignedRequests.length === 0 ? (
-                <div className={`${card} p-8 text-center text-on-surface-variant`}>
-                  <p className="text-body font-medium">No Customize orders assigned yet.</p>
-                  <p className="text-compact mt-1 text-outline">
-                    When a customer submits a Customize Brand Strategy brief and you are the closest active Ad Agent to their geolocation, their order will appear here automatically.
-                  </p>
+              {/* Section 1: Orders Dispatch Guide */}
+              <div className={`${card} border border-white/10 bg-surface-container-high/60 overflow-hidden`}>
+                <div className="p-3.5 sm:p-4">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionExpanded("orders_guide")}
+                    aria-expanded={isSectionExpanded("orders_guide")}
+                    data-agent-id="toggle-section-orders_guide"
+                    data-testid="toggle-section-orders_guide"
+                    className="w-full flex items-center justify-between text-left gap-2"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                        <Icon name="sparkles" className="size-4" />
+                      </span>
+                      <div>
+                        <h4 className="font-mono text-sm font-bold text-on-surface">
+                          Customize Orders Dispatch Guide &amp; SLA
+                        </h4>
+                        <p className="text-[11px] text-on-surface-variant font-mono">
+                          Geolocation matching criteria, token revenue distribution, and customer delivery standards
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold border bg-primary/10 border-primary/25 text-primary">
+                        Haversine Matching · 24-48h SLA
+                      </span>
+                      <Icon
+                        name="chevronDown"
+                        className={`size-4 text-on-surface-variant transition-transform duration-200 ${
+                          isSectionExpanded("orders_guide") ? "rotate-180" : ""
+                        }`}
+                      />
+                    </div>
+                  </button>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {assignedRequests.map((reqDoc) => {
-                    const isReplying = activeReplyRequestId === reqDoc.requestId;
-                    return (
-                      <div
-                        key={reqDoc.requestId}
-                        className={`${card} p-4 space-y-3 border border-white/10`}
-                        data-testid={`ad-agent-order-${reqDoc.requestId}`}
+                {isSectionExpanded("orders_guide") && (
+                  <div className="border-t border-white/10 p-4 sm:p-5 space-y-3 bg-surface-container-low/50 text-xs text-on-surface-variant leading-relaxed">
+                    <p>
+                      When a customer submits a <strong className="text-on-surface">Customize Brand Strategy</strong> brief, AdRadarHQ calculates the closest active Ad Agent using spherical Haversine geolocation. If you are the nearest active agent, the request is automatically routed to this tab.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                      <div className="p-3 rounded-xl bg-surface-container border border-white/5 space-y-1">
+                        <span className="font-mono text-[10px] font-bold text-primary uppercase">1. Review Brief</span>
+                        <p className="text-[11px] text-on-surface-variant">Examine product details, target avatars, unique mechanisms, and client location.</p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-surface-container border border-white/5 space-y-1">
+                        <span className="font-mono text-[10px] font-bold text-primary uppercase">2. AI Strategy Draft</span>
+                        <p className="text-[11px] text-on-surface-variant">Use the built-in Gemini AI generator with custom agent notes to draft an actionable strategy package.</p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-surface-container border border-white/5 space-y-1">
+                        <span className="font-mono text-[10px] font-bold text-primary uppercase">3. Pick Contractors &amp; Deliver</span>
+                        <p className="text-[11px] text-on-surface-variant">Select recommended creative contractors from your directory and dispatch straight to customer&apos;s Message Panel.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 2: Assigned Customize Orders List */}
+              <div className={`${card} border border-white/10 bg-surface-container-high/60 overflow-hidden`}>
+                <div className="p-3.5 sm:p-4">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionExpanded("orders_list")}
+                    aria-expanded={isSectionExpanded("orders_list")}
+                    data-agent-id="toggle-section-orders_list"
+                    data-testid="toggle-section-orders_list"
+                    className="w-full flex items-center justify-between text-left gap-2"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300">
+                        <Icon name="checkCircle" className="size-4" />
+                      </span>
+                      <div>
+                        <h4 className="font-mono text-sm font-bold text-on-surface">
+                          Assigned Customize Orders Catalog
+                        </h4>
+                        <p className="text-[11px] text-on-surface-variant font-mono">
+                          Review customer briefs matched to your geolocation, generate AI strategy drafts, and deliver completed packages
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold border ${
+                          assignedRequests.length > 0
+                            ? "bg-primary/15 border-primary/30 text-primary"
+                            : "bg-white/5 border-white/10 text-on-surface-variant"
+                        }`}
                       >
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-on-surface text-body">
-                                {reqDoc.brandName}
-                              </span>
-                              <span className="rounded bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
-                                ⚡ {reqDoc.tokensCharged} Tokens
-                              </span>
-                              <span
-                                className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${reqDoc.status === "completed"
-                                    ? "bg-emerald-500/20 text-emerald-300"
-                                    : "bg-amber-500/20 text-amber-300"
-                                  }`}
-                              >
-                                {reqDoc.status}
-                              </span>
-                            </div>
-                            <p className="font-mono text-xs text-on-surface-variant mt-0.5">
-                              Customer: <strong className="text-on-surface">{reqDoc.userEmail}</strong>
-                              {reqDoc.customerLocation && (
-                                <>
-                                  {" "}· Customer Location:{" "}
-                                  <strong className="text-primary">
-                                    {reqDoc.customerLocation.suburb}, {reqDoc.customerLocation.state} ({reqDoc.customerLocation.country})
-                                  </strong>
-                                </>
-                              )}
-                              {typeof reqDoc.assignedDistanceKm === "number" && (
-                                <> · Distance: {reqDoc.assignedDistanceKm} km</>
-                              )}
-                            </p>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (isReplying) {
-                                setActiveReplyRequestId(null);
-                              } else {
-                                setActiveReplyRequestId(reqDoc.requestId);
-                                setReplySubject(`Customized Brand & Ad Strategy Package: ${reqDoc.brandName}`);
-                                setReplyBody("");
-                              }
-                            }}
-                            data-agent-id={`ad-agent-open-reply-${reqDoc.requestId}`}
-                            data-testid={`ad-agent-open-reply-${reqDoc.requestId}`}
-                            className={btnPrimary}
-                          >
-                            <Icon name="sparkles" className="size-3.5" />
-                            <span>{isReplying ? "Close Strategy Composer" : "Craft & Deliver Strategy"}</span>
-                          </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 text-xs text-on-surface-variant rounded-xl bg-surface-container p-3 border border-white/[0.06]">
-                          <div>
-                            <strong className="text-on-surface">Product / Service:</strong>{" "}
-                            {reqDoc.productServiceDescription}
-                          </div>
-                          <div>
-                            <strong className="text-on-surface">Target Avatar:</strong>{" "}
-                            {reqDoc.targetAudienceAvatar}
-                          </div>
-                          <div>
-                            <strong className="text-on-surface">Unique Mechanism / Offer:</strong>{" "}
-                            {reqDoc.uniqueMechanismOrOffer}
-                          </div>
-                          <div>
-                            <strong className="text-on-surface">Extra Details:</strong>{" "}
-                            {reqDoc.extraDetailsAndNotes}
-                          </div>
-                        </div>
-
-                        {isReplying && (
-                          <div className="rounded-xl border border-primary/30 bg-primary/[0.04] p-4 space-y-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <span className="font-mono text-xs font-bold text-primary">
-                                Deliver Customized Strategy to {reqDoc.userEmail}
-                              </span>
-                              <button
-                                type="button"
-                                disabled={aiDrafting}
-                                onClick={() => handleGenerateAiDraft(reqDoc)}
-                                data-agent-id={`ad-agent-ai-draft-${reqDoc.requestId}`}
-                                data-testid={`ad-agent-ai-draft-${reqDoc.requestId}`}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/20 px-3 py-1 font-mono text-xs font-bold text-primary hover:bg-primary/30 disabled:opacity-50"
-                              >
-                                <Icon name="sparkles" className="size-3.5" />
-                                <span>{aiDrafting ? "Generating AI Strategy..." : "Generate AI Work Reply ✨"}</span>
-                              </button>
-                            </div>
-
-                            <div>
-                              <label className={label}>Optional Ad Agent Direction for AI</label>
-                              <input
-                                type="text"
-                                placeholder="e.g. Emphasize local Australian market proof and TikTok UGC hooks"
-                                value={replyStaffNotes}
-                                onChange={(e) => setReplyStaffNotes(e.target.value)}
-                                className={field}
-                              />
-                            </div>
-
-                            <div>
-                              <label className={label}>Subject *</label>
-                              <input
-                                type="text"
-                                value={replySubject}
-                                onChange={(e) => setReplySubject(e.target.value)}
-                                className={field}
-                              />
-                            </div>
-
-                            <div>
-                              <label className={label}>Strategy Package Body (Plain Text) *</label>
-                              <textarea
-                                rows={8}
-                                value={replyBody}
-                                onChange={(e) => setReplyBody(e.target.value)}
-                                data-agent-id={`ad-agent-strategy-body-${reqDoc.requestId}`}
-                                data-testid={`ad-agent-strategy-body-${reqDoc.requestId}`}
-                                className={`${field} font-mono text-xs`}
-                                placeholder="Click 'Generate AI Work Reply ✨' above or write your customized brand strategy..."
-                              />
-                            </div>
-
-                            {/* RECOMMENDED SERVICES SECTION (Underneath Strategy Package Body) */}
+                        {assignedRequests.length} {assignedRequests.length === 1 ? "Order Assigned" : "Orders Assigned"}
+                      </span>
+                      <Icon
+                        name="chevronDown"
+                        className={`size-4 text-on-surface-variant transition-transform duration-200 ${
+                          isSectionExpanded("orders_list") ? "rotate-180" : ""
+                        }`}
+                      />
+                    </div>
+                  </button>
+                </div>
+                {isSectionExpanded("orders_list") && (
+                  <div className="border-t border-white/10 p-4 sm:p-5 space-y-4 bg-surface-container-low/50">
+                    {assignedRequests.length === 0 ? (
+                      <div className="p-8 text-center text-on-surface-variant">
+                        <p className="text-body font-medium">No Customize orders assigned yet.</p>
+                        <p className="text-compact mt-1 text-outline">
+                          When a customer submits a Customize Brand Strategy brief and you are the closest active Ad Agent to their geolocation, their order will appear here automatically.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {assignedRequests.map((reqDoc) => {
+                          const isReplying = activeReplyRequestId === reqDoc.requestId;
+                          const isBriefOpen = isOrderBriefExpanded(reqDoc.requestId);
+                          return (
                             <div
-                              className="rounded-xl border border-tertiary/35 bg-surface-container-highest/50 p-3.5 space-y-3"
-                              data-agent-id={`ad-agent-recommended-services-${reqDoc.requestId}`}
-                              data-testid={`ad-agent-recommended-services-${reqDoc.requestId}`}
+                              key={reqDoc.requestId}
+                              className={`${card} p-4 space-y-3 border border-white/10`}
+                              data-testid={`ad-agent-order-${reqDoc.requestId}`}
                             >
-                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div>
-                                  <h5 className="font-mono text-xs font-bold uppercase tracking-wider text-tertiary flex items-center gap-1.5">
-                                    <Icon name="sparkles" className="size-3.5 text-tertiary" />
-                                    <span>Recommended Services</span>
-                                  </h5>
-                                  <p className="text-[11px] text-on-surface-variant mt-0.5">
-                                    Select recommended creative or production services below. Checked services and notes are automatically included with your Strategy Package.
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-on-surface text-body">
+                                      {reqDoc.brandName}
+                                    </span>
+                                    <span className="rounded bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
+                                      ⚡ {reqDoc.tokensCharged} Tokens
+                                    </span>
+                                    <span
+                                      className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
+                                        reqDoc.status === "completed"
+                                          ? "bg-emerald-500/20 text-emerald-300"
+                                          : "bg-amber-500/20 text-amber-300"
+                                      }`}
+                                    >
+                                      {reqDoc.status}
+                                    </span>
+                                  </div>
+                                  <p className="font-mono text-xs text-on-surface-variant mt-0.5">
+                                    Customer: <strong className="text-on-surface">{reqDoc.userEmail}</strong>
+                                    {reqDoc.customerLocation && (
+                                      <>
+                                        {" "}· Customer Location:{" "}
+                                        <strong className="text-primary">
+                                          {reqDoc.customerLocation.suburb}, {reqDoc.customerLocation.state} ({reqDoc.customerLocation.country})
+                                        </strong>
+                                      </>
+                                    )}
+                                    {typeof reqDoc.assignedDistanceKm === "number" && (
+                                      <> · Distance: {reqDoc.assignedDistanceKm} km</>
+                                    )}
                                   </p>
                                 </div>
-                              </div>
 
-                              {/* 1. Custom Ad Graphic Art */}
-                              <div className="rounded-lg border border-white/10 bg-surface-container-low p-3 space-y-2.5">
-                                <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-                                  <input
-                                    type="checkbox"
-                                    checked={recGraphicArtEnabled}
-                                    onChange={(e) => setRecGraphicArtEnabled(e.target.checked)}
-                                    data-agent-id={`rec-graphic-art-checkbox-${reqDoc.requestId}`}
-                                    data-testid={`rec-graphic-art-checkbox-${reqDoc.requestId}`}
-                                    className="size-4 rounded border-white/20 bg-surface-container-lowest text-primary focus:ring-primary"
-                                  />
-                                  <span className="font-mono text-xs font-bold text-on-surface">
-                                    Custom Ad Graphic Art
-                                  </span>
-                                </label>
-
-                                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
-                                  <div className="sm:col-span-6">
-                                    <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
-                                      What May Be Needed
-                                    </label>
-                                    <input
-                                      type="text"
-                                      placeholder="e.g. 3x 4:5 static hero graphics + carousel cards"
-                                      value={recGraphicArtNeeded}
-                                      onChange={(e) => {
-                                        setRecGraphicArtNeeded(e.target.value);
-                                        if (e.target.value.trim() && !recGraphicArtEnabled) {
-                                          setRecGraphicArtEnabled(true);
-                                        }
-                                      }}
-                                      data-agent-id={`rec-graphic-art-needed-${reqDoc.requestId}`}
-                                      data-testid={`rec-graphic-art-needed-${reqDoc.requestId}`}
-                                      className={`${field} py-1.5 text-xs`}
-                                    />
-                                  </div>
-                                  <div className="sm:col-span-3">
-                                    <div className="flex items-center justify-between gap-1 mb-1">
-                                      <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
-                                        Service Provider
-                                      </label>
-                                      {contractors.length > 0 && (
-                                        <select
-                                          className="bg-surface-container border border-white/15 rounded px-1.5 py-0.5 text-[10px] font-mono text-primary cursor-pointer max-w-[140px] truncate"
-                                          defaultValue=""
-                                          onChange={(e) => {
-                                            const selected = contractors.find((c) => c.contractorId === e.target.value);
-                                            if (selected) {
-                                              setRecGraphicArtProvider(`${selected.name} (${selected.location})`);
-                                              if (selected.averageRates && !recGraphicArtPrice) {
-                                                setRecGraphicArtPrice(selected.averageRates);
-                                              }
-                                              setRecGraphicArtEnabled(true);
-                                            }
-                                            e.target.value = "";
-                                          }}
-                                          data-agent-id={`select-contractor-graphic-${reqDoc.requestId}`}
-                                          data-testid={`select-contractor-graphic-${reqDoc.requestId}`}
-                                          aria-label="Pick contractor for Graphic Art"
-                                        >
-                                          <option value="">⚡ Pick Contractor</option>
-                                          {contractors.map((c) => (
-                                            <option key={c.contractorId} value={c.contractorId}>
-                                              {c.name} ({c.expertise})
-                                            </option>
-                                          ))}
-                                        </select>
-                                      )}
-                                    </div>
-                                    <input
-                                      type="text"
-                                      placeholder="e.g. Studio Name / Agent"
-                                      value={recGraphicArtProvider}
-                                      onChange={(e) => {
-                                        setRecGraphicArtProvider(e.target.value);
-                                        if (e.target.value.trim() && !recGraphicArtEnabled) {
-                                          setRecGraphicArtEnabled(true);
-                                        }
-                                      }}
-                                      data-agent-id={`rec-graphic-art-provider-${reqDoc.requestId}`}
-                                      data-testid={`rec-graphic-art-provider-${reqDoc.requestId}`}
-                                      className={`${field} py-1.5 text-xs`}
-                                    />
-                                  </div>
-                                  <div className="sm:col-span-3">
-                                    <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
-                                      Price (Optional)
-                                    </label>
-                                    <input
-                                      type="text"
-                                      placeholder="e.g. $250 AUD (optional)"
-                                      value={recGraphicArtPrice}
-                                      onChange={(e) => {
-                                        setRecGraphicArtPrice(e.target.value);
-                                        if (e.target.value.trim() && !recGraphicArtEnabled) {
-                                          setRecGraphicArtEnabled(true);
-                                        }
-                                      }}
-                                      data-agent-id={`rec-graphic-art-price-${reqDoc.requestId}`}
-                                      data-testid={`rec-graphic-art-price-${reqDoc.requestId}`}
-                                      className={`${field} py-1.5 text-xs font-mono`}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* 2. Custom Video Work */}
-                              <div className="rounded-lg border border-white/10 bg-surface-container-low p-3 space-y-2.5">
-                                <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-                                  <input
-                                    type="checkbox"
-                                    checked={recVideoWorkEnabled}
-                                    onChange={(e) => setRecVideoWorkEnabled(e.target.checked)}
-                                    data-agent-id={`rec-video-work-checkbox-${reqDoc.requestId}`}
-                                    data-testid={`rec-video-work-checkbox-${reqDoc.requestId}`}
-                                    className="size-4 rounded border-white/20 bg-surface-container-lowest text-primary focus:ring-primary"
-                                  />
-                                  <span className="font-mono text-xs font-bold text-on-surface">
-                                    Custom Video Work
-                                  </span>
-                                </label>
-
-                                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
-                                  <div className="sm:col-span-6">
-                                    <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
-                                      What May Be Needed
-                                    </label>
-                                    <input
-                                      type="text"
-                                      placeholder="e.g. 3x 15s vertical UGC reels with captions & hooks"
-                                      value={recVideoWorkNeeded}
-                                      onChange={(e) => {
-                                        setRecVideoWorkNeeded(e.target.value);
-                                        if (e.target.value.trim() && !recVideoWorkEnabled) {
-                                          setRecVideoWorkEnabled(true);
-                                        }
-                                      }}
-                                      data-agent-id={`rec-video-work-needed-${reqDoc.requestId}`}
-                                      data-testid={`rec-video-work-needed-${reqDoc.requestId}`}
-                                      className={`${field} py-1.5 text-xs`}
-                                    />
-                                  </div>
-                                  <div className="sm:col-span-3">
-                                    <div className="flex items-center justify-between gap-1 mb-1">
-                                      <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
-                                        Service Provider
-                                      </label>
-                                      {contractors.length > 0 && (
-                                        <select
-                                          className="bg-surface-container border border-white/15 rounded px-1.5 py-0.5 text-[10px] font-mono text-primary cursor-pointer max-w-[140px] truncate"
-                                          defaultValue=""
-                                          onChange={(e) => {
-                                            const selected = contractors.find((c) => c.contractorId === e.target.value);
-                                            if (selected) {
-                                              setRecVideoWorkProvider(`${selected.name} (${selected.location})`);
-                                              if (selected.averageRates && !recVideoWorkPrice) {
-                                                setRecVideoWorkPrice(selected.averageRates);
-                                              }
-                                              setRecVideoWorkEnabled(true);
-                                            }
-                                            e.target.value = "";
-                                          }}
-                                          data-agent-id={`select-contractor-video-${reqDoc.requestId}`}
-                                          data-testid={`select-contractor-video-${reqDoc.requestId}`}
-                                          aria-label="Pick contractor for Video Work"
-                                        >
-                                          <option value="">⚡ Pick Contractor</option>
-                                          {contractors.map((c) => (
-                                            <option key={c.contractorId} value={c.contractorId}>
-                                              {c.name} ({c.expertise})
-                                            </option>
-                                          ))}
-                                        </select>
-                                      )}
-                                    </div>
-                                    <input
-                                      type="text"
-                                      placeholder="e.g. Video Creator / Agency"
-                                      value={recVideoWorkProvider}
-                                      onChange={(e) => {
-                                        setRecVideoWorkProvider(e.target.value);
-                                        if (e.target.value.trim() && !recVideoWorkEnabled) {
-                                          setRecVideoWorkEnabled(true);
-                                        }
-                                      }}
-                                      data-agent-id={`rec-video-work-provider-${reqDoc.requestId}`}
-                                      data-testid={`rec-video-work-provider-${reqDoc.requestId}`}
-                                      className={`${field} py-1.5 text-xs`}
-                                    />
-                                  </div>
-                                  <div className="sm:col-span-3">
-                                    <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
-                                      Price (Optional)
-                                    </label>
-                                    <input
-                                      type="text"
-                                      placeholder="e.g. $450 AUD (optional)"
-                                      value={recVideoWorkPrice}
-                                      onChange={(e) => {
-                                        setRecVideoWorkPrice(e.target.value);
-                                        if (e.target.value.trim() && !recVideoWorkEnabled) {
-                                          setRecVideoWorkEnabled(true);
-                                        }
-                                      }}
-                                      data-agent-id={`rec-video-work-price-${reqDoc.requestId}`}
-                                      data-testid={`rec-video-work-price-${reqDoc.requestId}`}
-                                      className={`${field} py-1.5 text-xs font-mono`}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* 3. Other Recommended Services (Short Paragraph Box) */}
-                              <div className="rounded-lg border border-white/10 bg-surface-container-low p-3 space-y-1.5">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                                  <label
-                                    htmlFor={`rec-other-services-notes-${reqDoc.requestId}`}
-                                    className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface"
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleOrderBriefExpanded(reqDoc.requestId)}
+                                    aria-expanded={isBriefOpen}
+                                    data-agent-id={`toggle-order-brief-${reqDoc.requestId}`}
+                                    data-testid={`toggle-order-brief-${reqDoc.requestId}`}
+                                    className={`${btnSecondary} text-xs py-1 px-2.5 flex items-center gap-1`}
                                   >
-                                    Other Recommended Services, Who Provides Them &amp; Estimate Pricing (Optional)
-                                  </label>
-                                  {contractors.length > 0 && (
-                                    <select
-                                      className="bg-surface-container border border-white/15 rounded px-2 py-0.5 text-[10px] font-mono text-primary cursor-pointer max-w-[170px] truncate"
-                                      defaultValue=""
-                                      onChange={(e) => {
-                                        const selected = contractors.find((c) => c.contractorId === e.target.value);
-                                        if (selected) {
-                                          const line = `Service: ${selected.expertise}\nProvider: ${selected.name} (${selected.location} · ${selected.email} · ${selected.phone})\nRates: ${selected.averageRates || "Contact for quote"}`;
-                                          setRecOtherServicesNotes((prev) => (prev ? `${prev}\n\n${line}` : line));
-                                        }
-                                        e.target.value = "";
-                                      }}
-                                      data-agent-id={`insert-contractor-other-${reqDoc.requestId}`}
-                                      data-testid={`insert-contractor-other-${reqDoc.requestId}`}
-                                      aria-label="Insert contractor into other recommended services"
-                                    >
-                                      <option value="">+ Insert Contractor</option>
-                                      {contractors.map((c) => (
-                                        <option key={c.contractorId} value={c.contractorId}>
-                                          {c.name} ({c.expertise})
-                                        </option>
-                                      ))}
-                                    </select>
-                                  )}
-                                </div>
-                                <textarea
-                                  id={`rec-other-services-notes-${reqDoc.requestId}`}
-                                  rows={3}
-                                  maxLength={1500}
-                                  placeholder="Write a short paragraph on any other recommended services (e.g. landing page CRO, copywriting, media buying), who provides them, and estimate pricing (optional)..."
-                                  value={recOtherServicesNotes}
-                                  onChange={(e) => setRecOtherServicesNotes(e.target.value)}
-                                  data-agent-id={`rec-other-services-notes-${reqDoc.requestId}`}
-                                  data-testid={`rec-other-services-notes-${reqDoc.requestId}`}
-                                  className={`${field} text-xs leading-relaxed`}
-                                />
-                              </div>
-                            </div>
+                                    <Icon
+                                      name="chevronDown"
+                                      className={`size-3 transition-transform ${isBriefOpen ? "rotate-180" : ""}`}
+                                    />
+                                    <span>{isBriefOpen ? "Hide Brief" : "View Brief"}</span>
+                                  </button>
 
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setActiveReplyRequestId(null)}
-                                className={btnSecondary}
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="button"
-                                disabled={sendingReply || !replyBody.trim()}
-                                onClick={() => handleSendCustomizeReply(reqDoc)}
-                                data-agent-id={`ad-agent-send-reply-${reqDoc.requestId}`}
-                                data-testid={`ad-agent-send-reply-${reqDoc.requestId}`}
-                                className={btnPrimary}
-                              >
-                                {sendingReply ? "Sending Strategy..." : "Send Completed Strategy to Customer"}
-                              </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (isReplying) {
+                                        setActiveReplyRequestId(null);
+                                      } else {
+                                        setActiveReplyRequestId(reqDoc.requestId);
+                                        setReplySubject(`Customized Brand & Ad Strategy Package: ${reqDoc.brandName}`);
+                                        setReplyBody("");
+                                      }
+                                    }}
+                                    data-agent-id={`ad-agent-open-reply-${reqDoc.requestId}`}
+                                    data-testid={`ad-agent-open-reply-${reqDoc.requestId}`}
+                                    className={btnPrimary}
+                                  >
+                                    <Icon name="sparkles" className="size-3.5" />
+                                    <span>{isReplying ? "Close Strategy Composer" : "Craft & Deliver Strategy"}</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {isBriefOpen && (
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 text-xs text-on-surface-variant rounded-xl bg-surface-container p-3 border border-white/[0.06]">
+                                  <div>
+                                    <strong className="text-on-surface">Product / Service:</strong>{" "}
+                                    {reqDoc.productServiceDescription}
+                                  </div>
+                                  <div>
+                                    <strong className="text-on-surface">Target Avatar:</strong>{" "}
+                                    {reqDoc.targetAudienceAvatar}
+                                  </div>
+                                  <div>
+                                    <strong className="text-on-surface">Unique Mechanism / Offer:</strong>{" "}
+                                    {reqDoc.uniqueMechanismOrOffer}
+                                  </div>
+                                  <div>
+                                    <strong className="text-on-surface">Extra Details:</strong>{" "}
+                                    {reqDoc.extraDetailsAndNotes}
+                                  </div>
+                                </div>
+                              )}
+
+                              {isReplying && (
+                                <div className="rounded-xl border border-primary/30 bg-primary/[0.04] p-4 space-y-3">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="font-mono text-xs font-bold text-primary">
+                                      Deliver Customized Strategy to {reqDoc.userEmail}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      disabled={aiDrafting}
+                                      onClick={() => handleGenerateAiDraft(reqDoc)}
+                                      data-agent-id={`ad-agent-ai-draft-${reqDoc.requestId}`}
+                                      data-testid={`ad-agent-ai-draft-${reqDoc.requestId}`}
+                                      className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/20 px-3 py-1 font-mono text-xs font-bold text-primary hover:bg-primary/30 disabled:opacity-50"
+                                    >
+                                      <Icon name="sparkles" className="size-3.5" />
+                                      <span>{aiDrafting ? "Generating AI Strategy..." : "Generate AI Work Reply ✨"}</span>
+                                    </button>
+                                  </div>
+
+                                  <div>
+                                    <label className={label}>Optional Ad Agent Direction for AI</label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. Emphasize local Australian market proof and TikTok UGC hooks"
+                                      value={replyStaffNotes}
+                                      onChange={(e) => setReplyStaffNotes(e.target.value)}
+                                      className={field}
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className={label}>Subject *</label>
+                                    <input
+                                      type="text"
+                                      value={replySubject}
+                                      onChange={(e) => setReplySubject(e.target.value)}
+                                      className={field}
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className={label}>Strategy Package Body (Plain Text) *</label>
+                                    <textarea
+                                      rows={8}
+                                      value={replyBody}
+                                      onChange={(e) => setReplyBody(e.target.value)}
+                                      data-agent-id={`ad-agent-strategy-body-${reqDoc.requestId}`}
+                                      data-testid={`ad-agent-strategy-body-${reqDoc.requestId}`}
+                                      className={`${field} font-mono text-xs`}
+                                      placeholder="Click 'Generate AI Work Reply ✨' above or write your customized brand strategy..."
+                                    />
+                                  </div>
+
+                                  {/* RECOMMENDED SERVICES SECTION (Underneath Strategy Package Body) */}
+                                  <div
+                                    className="rounded-xl border border-tertiary/35 bg-surface-container-highest/50 p-3.5 space-y-3"
+                                    data-agent-id={`ad-agent-recommended-services-${reqDoc.requestId}`}
+                                    data-testid={`ad-agent-recommended-services-${reqDoc.requestId}`}
+                                  >
+                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                                      <div>
+                                        <h5 className="font-mono text-xs font-bold uppercase tracking-wider text-tertiary flex items-center gap-1.5">
+                                          <Icon name="sparkles" className="size-3.5 text-tertiary" />
+                                          <span>Recommended Services</span>
+                                        </h5>
+                                        <p className="text-[11px] text-on-surface-variant mt-0.5">
+                                          Select recommended creative or production services below. Checked services and notes are automatically included with your Strategy Package.
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {/* 1. Custom Ad Graphic Art */}
+                                    <div className="rounded-lg border border-white/10 bg-surface-container-low p-3 space-y-2.5">
+                                      <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                        <input
+                                          type="checkbox"
+                                          checked={recGraphicArtEnabled}
+                                          onChange={(e) => setRecGraphicArtEnabled(e.target.checked)}
+                                          data-agent-id={`rec-graphic-art-checkbox-${reqDoc.requestId}`}
+                                          data-testid={`rec-graphic-art-checkbox-${reqDoc.requestId}`}
+                                          className="size-4 rounded border-white/20 bg-surface-container-lowest text-primary focus:ring-primary"
+                                        />
+                                        <span className="font-mono text-xs font-bold text-on-surface">
+                                          Custom Ad Graphic Art
+                                        </span>
+                                      </label>
+
+                                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
+                                        <div className="sm:col-span-6">
+                                          <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
+                                            What May Be Needed
+                                          </label>
+                                          <input
+                                            type="text"
+                                            placeholder="e.g. 3x 4:5 static hero graphics + carousel cards"
+                                            value={recGraphicArtNeeded}
+                                            onChange={(e) => {
+                                              setRecGraphicArtNeeded(e.target.value);
+                                              if (e.target.value.trim() && !recGraphicArtEnabled) {
+                                                setRecGraphicArtEnabled(true);
+                                              }
+                                            }}
+                                            data-agent-id={`rec-graphic-art-needed-${reqDoc.requestId}`}
+                                            data-testid={`rec-graphic-art-needed-${reqDoc.requestId}`}
+                                            className={`${field} py-1.5 text-xs`}
+                                          />
+                                        </div>
+                                        <div className="sm:col-span-3">
+                                          <div className="flex items-center justify-between gap-1 mb-1">
+                                            <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
+                                              Service Provider
+                                            </label>
+                                            {contractors.length > 0 && (
+                                              <select
+                                                className="bg-surface-container border border-white/15 rounded px-1.5 py-0.5 text-[10px] font-mono text-primary cursor-pointer max-w-[140px] truncate"
+                                                defaultValue=""
+                                                onChange={(e) => {
+                                                  const selected = contractors.find((c) => c.contractorId === e.target.value);
+                                                  if (selected) {
+                                                    setRecGraphicArtProvider(`${selected.name} (${selected.location})`);
+                                                    if (selected.averageRates && !recGraphicArtPrice) {
+                                                      setRecGraphicArtPrice(selected.averageRates);
+                                                    }
+                                                    setRecGraphicArtEnabled(true);
+                                                  }
+                                                  e.target.value = "";
+                                                }}
+                                                data-agent-id={`select-contractor-graphic-${reqDoc.requestId}`}
+                                                data-testid={`select-contractor-graphic-${reqDoc.requestId}`}
+                                                aria-label="Pick contractor for Graphic Art"
+                                              >
+                                                <option value="">⚡ Pick Contractor</option>
+                                                {contractors.map((c) => (
+                                                  <option key={c.contractorId} value={c.contractorId}>
+                                                    {c.name} ({c.expertise})
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            )}
+                                          </div>
+                                          <input
+                                            type="text"
+                                            placeholder="e.g. Studio Name / Agent"
+                                            value={recGraphicArtProvider}
+                                            onChange={(e) => {
+                                              setRecGraphicArtProvider(e.target.value);
+                                              if (e.target.value.trim() && !recGraphicArtEnabled) {
+                                                setRecGraphicArtEnabled(true);
+                                              }
+                                            }}
+                                            data-agent-id={`rec-graphic-art-provider-${reqDoc.requestId}`}
+                                            data-testid={`rec-graphic-art-provider-${reqDoc.requestId}`}
+                                            className={`${field} py-1.5 text-xs`}
+                                          />
+                                        </div>
+                                        <div className="sm:col-span-3">
+                                          <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
+                                            Price (Optional)
+                                          </label>
+                                          <input
+                                            type="text"
+                                            placeholder="e.g. $250 AUD (optional)"
+                                            value={recGraphicArtPrice}
+                                            onChange={(e) => {
+                                              setRecGraphicArtPrice(e.target.value);
+                                              if (e.target.value.trim() && !recGraphicArtEnabled) {
+                                                setRecGraphicArtEnabled(true);
+                                              }
+                                            }}
+                                            data-agent-id={`rec-graphic-art-price-${reqDoc.requestId}`}
+                                            data-testid={`rec-graphic-art-price-${reqDoc.requestId}`}
+                                            className={`${field} py-1.5 text-xs font-mono`}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* 2. Custom Video Work */}
+                                    <div className="rounded-lg border border-white/10 bg-surface-container-low p-3 space-y-2.5">
+                                      <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                        <input
+                                          type="checkbox"
+                                          checked={recVideoWorkEnabled}
+                                          onChange={(e) => setRecVideoWorkEnabled(e.target.checked)}
+                                          data-agent-id={`rec-video-work-checkbox-${reqDoc.requestId}`}
+                                          data-testid={`rec-video-work-checkbox-${reqDoc.requestId}`}
+                                          className="size-4 rounded border-white/20 bg-surface-container-lowest text-primary focus:ring-primary"
+                                        />
+                                        <span className="font-mono text-xs font-bold text-on-surface">
+                                          Custom Video Work
+                                        </span>
+                                      </label>
+
+                                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
+                                        <div className="sm:col-span-6">
+                                          <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
+                                            What May Be Needed
+                                          </label>
+                                          <input
+                                            type="text"
+                                            placeholder="e.g. 3x 15s vertical UGC reels with captions & hooks"
+                                            value={recVideoWorkNeeded}
+                                            onChange={(e) => {
+                                              setRecVideoWorkNeeded(e.target.value);
+                                              if (e.target.value.trim() && !recVideoWorkEnabled) {
+                                                setRecVideoWorkEnabled(true);
+                                              }
+                                            }}
+                                            data-agent-id={`rec-video-work-needed-${reqDoc.requestId}`}
+                                            data-testid={`rec-video-work-needed-${reqDoc.requestId}`}
+                                            className={`${field} py-1.5 text-xs`}
+                                          />
+                                        </div>
+                                        <div className="sm:col-span-3">
+                                          <div className="flex items-center justify-between gap-1 mb-1">
+                                            <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
+                                              Service Provider
+                                            </label>
+                                            {contractors.length > 0 && (
+                                              <select
+                                                className="bg-surface-container border border-white/15 rounded px-1.5 py-0.5 text-[10px] font-mono text-primary cursor-pointer max-w-[140px] truncate"
+                                                defaultValue=""
+                                                onChange={(e) => {
+                                                  const selected = contractors.find((c) => c.contractorId === e.target.value);
+                                                  if (selected) {
+                                                    setRecVideoWorkProvider(`${selected.name} (${selected.location})`);
+                                                    if (selected.averageRates && !recVideoWorkPrice) {
+                                                      setRecVideoWorkPrice(selected.averageRates);
+                                                    }
+                                                    setRecVideoWorkEnabled(true);
+                                                  }
+                                                  e.target.value = "";
+                                                }}
+                                                data-agent-id={`select-contractor-video-${reqDoc.requestId}`}
+                                                data-testid={`select-contractor-video-${reqDoc.requestId}`}
+                                                aria-label="Pick contractor for Video Work"
+                                              >
+                                                <option value="">⚡ Pick Contractor</option>
+                                                {contractors.map((c) => (
+                                                  <option key={c.contractorId} value={c.contractorId}>
+                                                    {c.name} ({c.expertise})
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            )}
+                                          </div>
+                                          <input
+                                            type="text"
+                                            placeholder="e.g. Video Creator / Agency"
+                                            value={recVideoWorkProvider}
+                                            onChange={(e) => {
+                                              setRecVideoWorkProvider(e.target.value);
+                                              if (e.target.value.trim() && !recVideoWorkEnabled) {
+                                                setRecVideoWorkEnabled(true);
+                                              }
+                                            }}
+                                            data-agent-id={`rec-video-work-provider-${reqDoc.requestId}`}
+                                            data-testid={`rec-video-work-provider-${reqDoc.requestId}`}
+                                            className={`${field} py-1.5 text-xs`}
+                                          />
+                                        </div>
+                                        <div className="sm:col-span-3">
+                                          <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
+                                            Price (Optional)
+                                          </label>
+                                          <input
+                                            type="text"
+                                            placeholder="e.g. $450 AUD (optional)"
+                                            value={recVideoWorkPrice}
+                                            onChange={(e) => {
+                                              setRecVideoWorkPrice(e.target.value);
+                                              if (e.target.value.trim() && !recVideoWorkEnabled) {
+                                                setRecVideoWorkEnabled(true);
+                                              }
+                                            }}
+                                            data-agent-id={`rec-video-work-price-${reqDoc.requestId}`}
+                                            data-testid={`rec-video-work-price-${reqDoc.requestId}`}
+                                            className={`${field} py-1.5 text-xs font-mono`}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* 3. Other Recommended Services (Short Paragraph Box) */}
+                                    <div className="rounded-lg border border-white/10 bg-surface-container-low p-3 space-y-1.5">
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                                        <label
+                                          htmlFor={`rec-other-services-notes-${reqDoc.requestId}`}
+                                          className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface"
+                                        >
+                                          Other Recommended Services, Who Provides Them &amp; Estimate Pricing (Optional)
+                                        </label>
+                                        {contractors.length > 0 && (
+                                          <select
+                                            className="bg-surface-container border border-white/15 rounded px-2 py-0.5 text-[10px] font-mono text-primary cursor-pointer max-w-[170px] truncate"
+                                            defaultValue=""
+                                            onChange={(e) => {
+                                              const selected = contractors.find((c) => c.contractorId === e.target.value);
+                                              if (selected) {
+                                                const line = `Service: ${selected.expertise}\nProvider: ${selected.name} (${selected.location} · ${selected.email} · ${selected.phone})\nRates: ${selected.averageRates || "Contact for quote"}`;
+                                                setRecOtherServicesNotes((prev) => (prev ? `${prev}\n\n${line}` : line));
+                                              }
+                                              e.target.value = "";
+                                            }}
+                                            data-agent-id={`insert-contractor-other-${reqDoc.requestId}`}
+                                            data-testid={`insert-contractor-other-${reqDoc.requestId}`}
+                                            aria-label="Insert contractor into other recommended services"
+                                          >
+                                            <option value="">+ Insert Contractor</option>
+                                            {contractors.map((c) => (
+                                              <option key={c.contractorId} value={c.contractorId}>
+                                                {c.name} ({c.expertise})
+                                              </option>
+                                            ))}
+                                          </select>
+                                        )}
+                                      </div>
+                                      <textarea
+                                        id={`rec-other-services-notes-${reqDoc.requestId}`}
+                                        rows={3}
+                                        maxLength={1500}
+                                        placeholder="Write a short paragraph on any other recommended services (e.g. landing page CRO, copywriting, media buying), who provides them, and estimate pricing (optional)..."
+                                        value={recOtherServicesNotes}
+                                        onChange={(e) => setRecOtherServicesNotes(e.target.value)}
+                                        data-agent-id={`rec-other-services-notes-${reqDoc.requestId}`}
+                                        data-testid={`rec-other-services-notes-${reqDoc.requestId}`}
+                                        className={`${field} text-xs leading-relaxed`}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setActiveReplyRequestId(null)}
+                                      className={btnSecondary}
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={sendingReply || !replyBody.trim()}
+                                      onClick={() => handleSendCustomizeReply(reqDoc)}
+                                      data-agent-id={`ad-agent-send-reply-${reqDoc.requestId}`}
+                                      data-testid={`ad-agent-send-reply-${reqDoc.requestId}`}
+                                      className={btnPrimary}
+                                    >
+                                      {sendingReply ? "Sending Strategy..." : "Send Completed Strategy to Customer"}
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        )}
+                          );
+                        })}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           {tab === "CONTRACTORS" && (
-            <div className="space-y-5" data-agent-id="ad-agent-contractors-section" data-testid="ad-agent-contractors-section">
-              {/* Contractors Header Banner */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/10 p-4 sm:p-5">
-                <div className="space-y-1">
+            <div className="space-y-4" data-agent-id="ad-agent-contractors-section" data-testid="ad-agent-contractors-section">
+              {/* Category Header & Controls */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-white/10 bg-surface-container-high/60 p-4">
+                <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <span className="flex size-7 items-center justify-center rounded-lg bg-primary/25 text-primary">
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
                       <Icon name="users" className="size-4" />
                     </span>
                     <h3 className="font-mono text-sm font-bold text-on-surface">
                       Ad Agent Contractors Directory
                     </h3>
-                    <span className="rounded-full bg-primary/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
-                      {contractors.length} {contractors.length === 1 ? "Contractor" : "Contractors"}
-                    </span>
                   </div>
-                  <p className="text-xs text-on-surface-variant leading-relaxed">
-                    List your creative contractors, videographers, graphic artists, and AI specialists. These contractors appear directly in the <strong className="text-on-surface font-semibold">&quot;⚡ Pick Contractor&quot;</strong> selector when customizing client orders.
+                  <p className="text-xs text-on-surface-variant font-mono">
+                    {contractors.length} {contractors.length === 1 ? "Contractor" : "Contractors"} listed in your private directory
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleStartAddContractor}
-                  data-agent-id="add-contractor-top-btn"
-                  data-testid="add-contractor-top-btn"
-                  aria-label="Add new contractor"
-                  className={`${btnPrimary} shrink-0 text-xs py-2 px-3.5 flex items-center gap-1.5`}
-                >
-                  <Icon name="plus" className="size-3.5" />
-                  <span>+ Add Contractor</span>
-                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allOpen =
+                        isSectionExpanded("contractors_guide") &&
+                        isSectionExpanded("contractors_form") &&
+                        isSectionExpanded("contractors_list");
+                      const next = !allOpen;
+                      setSectionExpanded("contractors_guide", next);
+                      setSectionExpanded("contractors_form", next);
+                      setSectionExpanded("contractors_list", next);
+                    }}
+                    className={`${btnSecondary} text-xs py-1.5 px-3 flex items-center gap-1.5`}
+                    data-agent-id="contractors-expand-all-btn"
+                    data-testid="contractors-expand-all-btn"
+                    aria-label="Expand or collapse all contractor sections"
+                  >
+                    <Icon
+                      name="chevronDown"
+                      className={`size-3.5 transition-transform ${
+                        isSectionExpanded("contractors_guide") &&
+                        isSectionExpanded("contractors_form") &&
+                        isSectionExpanded("contractors_list")
+                          ? "rotate-180"
+                          : ""
+                      }`}
+                    />
+                    <span>
+                      {isSectionExpanded("contractors_guide") &&
+                      isSectionExpanded("contractors_form") &&
+                      isSectionExpanded("contractors_list")
+                        ? "Collapse All"
+                        : "Expand All"}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStartAddContractor}
+                    data-agent-id="add-contractor-top-btn"
+                    data-testid="add-contractor-top-btn"
+                    aria-label="Add new contractor"
+                    className={`${btnPrimary} shrink-0 text-xs py-1.5 px-3.5 flex items-center gap-1.5`}
+                  >
+                    <Icon name="plus" className="size-3.5" />
+                    <span>+ Add Contractor</span>
+                  </button>
+                </div>
               </div>
 
               {contractorStatusMsg && <p className={alertInfo}>{contractorStatusMsg}</p>}
               {contractorFormError && <p className={alertError}>{contractorFormError}</p>}
 
-              {/* Add / Edit Contractor Drawer */}
-              {showAddContractor && (
-                <form
-                  onSubmit={handleSaveContractor}
-                  className={`${card} border border-primary/30 bg-surface-container-high/90 p-4 sm:p-5 space-y-4`}
-                  data-agent-id="contractor-form-container"
-                  data-testid="contractor-form-container"
-                >
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                    <div className="flex items-center gap-2">
-                      <Icon name={editingContractorId ? "pencil" : "plus"} className="size-4 text-primary" />
-                      <h4 className="font-mono text-xs font-bold text-on-surface uppercase tracking-wide">
-                        {editingContractorId ? "Edit Contractor Details" : "Add New Contractor to Directory"}
-                      </h4>
+              {/* Section 1: Contractors Overview & Guide */}
+              <div className={`${card} border border-white/10 bg-surface-container-high/60 overflow-hidden`}>
+                <div className="p-3.5 sm:p-4">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionExpanded("contractors_guide")}
+                    aria-expanded={isSectionExpanded("contractors_guide")}
+                    data-agent-id="toggle-section-contractors_guide"
+                    data-testid="toggle-section-contractors_guide"
+                    className="w-full flex items-center justify-between text-left gap-2"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                        <Icon name="users" className="size-4" />
+                      </span>
+                      <div>
+                        <h4 className="font-mono text-sm font-bold text-on-surface">
+                          Contractors Directory Overview &amp; Guide
+                        </h4>
+                        <p className="text-[11px] text-on-surface-variant font-mono">
+                          How contractors integrate into Customize Orders and client strategy packages
+                        </p>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAddContractor(false);
-                        setEditingContractorId(null);
-                        setContractorFormError(null);
-                      }}
-                      className="text-on-surface-variant hover:text-on-surface transition"
-                      aria-label="Close contractor form"
-                    >
-                      <Icon name="x" className="size-4" />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    <div>
-                      <label htmlFor="contractor-name" className={label}>
-                        Contractor Name *
-                      </label>
-                      <input
-                        id="contractor-name"
-                        type="text"
-                        required
-                        value={contractorForm.name}
-                        onChange={(e) => setContractorForm({ ...contractorForm, name: e.target.value })}
-                        placeholder="e.g. Alex Morgan / PixelPeak Media"
-                        className={field}
-                        data-agent-id="contractor-name-input"
-                        data-testid="contractor-name-input"
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold border bg-primary/10 border-primary/25 text-primary">
+                        {contractors.length} Listed · Quick-Pick Enabled
+                      </span>
+                      <Icon
+                        name="chevronDown"
+                        className={`size-4 text-on-surface-variant transition-transform duration-200 ${
+                          isSectionExpanded("contractors_guide") ? "rotate-180" : ""
+                        }`}
                       />
                     </div>
-
-                    <div>
-                      <label htmlFor="contractor-location" className={label}>
-                        Location *
-                      </label>
-                      <input
-                        id="contractor-location"
-                        type="text"
-                        required
-                        value={contractorForm.location}
-                        onChange={(e) => setContractorForm({ ...contractorForm, location: e.target.value })}
-                        placeholder="e.g. Sydney, NSW (AU) or Remote"
-                        className={field}
-                        data-agent-id="contractor-location-input"
-                        data-testid="contractor-location-input"
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="contractor-email" className={label}>
-                        Email Address *
-                      </label>
-                      <input
-                        id="contractor-email"
-                        type="email"
-                        required
-                        value={contractorForm.email}
-                        onChange={(e) => setContractorForm({ ...contractorForm, email: e.target.value })}
-                        placeholder="e.g. alex@pixelpeak.com.au"
-                        className={field}
-                        data-agent-id="contractor-email-input"
-                        data-testid="contractor-email-input"
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="contractor-phone" className={label}>
-                        Phone Number *
-                      </label>
-                      <input
-                        id="contractor-phone"
-                        type="tel"
-                        required
-                        value={contractorForm.phone}
-                        onChange={(e) => setContractorForm({ ...contractorForm, phone: e.target.value })}
-                        placeholder="e.g. +61 412 345 678"
-                        className={field}
-                        data-agent-id="contractor-phone-input"
-                        data-testid="contractor-phone-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label htmlFor="contractor-expertise" className={label}>
-                      Expertise / Primary Domain *
-                    </label>
-                    <select
-                      id="contractor-expertise"
-                      value={contractorForm.expertise}
-                      onChange={(e) => setContractorForm({ ...contractorForm, expertise: e.target.value })}
-                      className={field}
-                      data-agent-id="contractor-expertise-select"
-                      data-testid="contractor-expertise-select"
-                    >
-                      <option value="Graphic Design">Graphic Design &amp; Ad Creatives</option>
-                      <option value="Video Production">Video Production &amp; Reel Editing</option>
-                      <option value="AI Visuals & VFX">AI Visuals, VFX &amp; Motion Graphics</option>
-                      <option value="Copywriting & Scripts">Copywriting &amp; Video Scripts</option>
-                      <option value="Media Buying & Strategy">Media Buying &amp; Ad Account Strategy</option>
-                      <option value="Landing Pages & CRO">Landing Pages &amp; Conversion Optimization</option>
-                      <option value="Voiceover & Audio">Voiceover &amp; Audio Production</option>
-                      <option value="Full Campaign Management">Full Campaign Management</option>
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    <div>
-                      <label htmlFor="contractor-rates" className={label}>
-                        Average Rates Box (Hourly, per job, etc.)
-                      </label>
-                      <textarea
-                        id="contractor-rates"
-                        rows={2}
-                        value={contractorForm.averageRates}
-                        onChange={(e) => setContractorForm({ ...contractorForm, averageRates: e.target.value })}
-                        placeholder="e.g. $95/hr · $350 per static ad set · $600 per edited 30s TikTok reel"
-                        className={`${field} text-xs`}
-                        data-agent-id="contractor-rates-input"
-                        data-testid="contractor-rates-input"
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="contractor-payid" className={label}>
-                        PayID and Payment Details
-                      </label>
-                      <textarea
-                        id="contractor-payid"
-                        rows={2}
-                        value={contractorForm.payIdPaymentDetails}
-                        onChange={(e) => setContractorForm({ ...contractorForm, payIdPaymentDetails: e.target.value })}
-                        placeholder="e.g. PayID: payments@pixelpeak.com.au or BSB: 062-000 Acc: 12345678"
-                        className={`${field} text-xs font-mono`}
-                        data-agent-id="contractor-payid-input"
-                        data-testid="contractor-payid-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label htmlFor="contractor-notes" className={label}>
-                      Specialty Notes &amp; Availability (Optional)
-                    </label>
-                    <textarea
-                      id="contractor-notes"
-                      rows={2}
-                      value={contractorForm.notes}
-                      onChange={(e) => setContractorForm({ ...contractorForm, notes: e.target.value })}
-                      placeholder="e.g. Fast 24-48h turnaround on Meta/TikTok reels. Available weekdays."
-                      className={`${field} text-xs`}
-                      data-agent-id="contractor-notes-input"
-                      data-testid="contractor-notes-input"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAddContractor(false);
-                        setEditingContractorId(null);
-                        setContractorFormError(null);
-                      }}
-                      className={btnSecondary}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={savingContractor}
-                      className={btnPrimary}
-                      data-agent-id="save-contractor-btn"
-                      data-testid="save-contractor-btn"
-                    >
-                      {savingContractor ? "Saving..." : editingContractorId ? "Update Contractor" : "Save Contractor"}
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* Contractors Search & Directory Listing */}
-              <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                  <div className="relative flex-1">
-                    <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-outline" />
-                    <input
-                      type="text"
-                      value={contractorSearch}
-                      onChange={(e) => setContractorSearch(e.target.value)}
-                      placeholder="Search contractors by name, expertise, location, rates, PayID..."
-                      className={`${field} pl-9 text-xs`}
-                      data-agent-id="search-contractors-input"
-                      data-testid="search-contractors-input"
-                    />
-                  </div>
-                  {contractorSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setContractorSearch("")}
-                      className="font-mono text-xs text-outline hover:text-on-surface self-end sm:self-center"
-                    >
-                      Clear Search
-                    </button>
-                  )}
+                  </button>
                 </div>
-
-                {loadingContractors && contractors.length === 0 ? (
-                  <div className={`${card} p-8 text-center font-mono text-xs text-on-surface-variant`}>
-                    Loading contractors directory...
-                  </div>
-                ) : contractors.filter((c) => {
-                    const query = contractorSearch.trim().toLowerCase();
-                    if (!query) return true;
-                    return (
-                      c.name.toLowerCase().includes(query) ||
-                      c.expertise.toLowerCase().includes(query) ||
-                      c.location.toLowerCase().includes(query) ||
-                      c.email.toLowerCase().includes(query) ||
-                      c.phone.toLowerCase().includes(query) ||
-                      (c.averageRates && c.averageRates.toLowerCase().includes(query)) ||
-                      (c.payIdPaymentDetails && c.payIdPaymentDetails.toLowerCase().includes(query))
-                    );
-                  }).length === 0 ? (
-                  <div className={`${card} p-8 text-center space-y-3 border-dashed border-white/10`}>
-                    <Icon name="users" className="size-8 mx-auto text-outline" />
-                    <p className="font-mono text-xs text-on-surface-variant">
-                      {contractorSearch ? "No contractors match your search." : "No contractors added yet."}
+                {isSectionExpanded("contractors_guide") && (
+                  <div className="border-t border-white/10 p-4 sm:p-5 space-y-2 bg-surface-container-low/50 text-xs text-on-surface-variant leading-relaxed">
+                    <p>
+                      List your trusted creative contractors, videographers, graphic artists, copywriters, and AI specialists. These contractors appear directly in the <strong className="text-on-surface font-semibold">&quot;⚡ Pick Contractor&quot;</strong> selector when customizing client orders in the Customize Orders tab.
                     </p>
-                    {!showAddContractor && (
-                      <button
-                        type="button"
-                        onClick={handleStartAddContractor}
-                        className={`${btnPrimary} text-xs py-1.5 px-3 mx-auto`}
-                        data-agent-id="add-first-contractor-btn"
-                        data-testid="add-first-contractor-btn"
-                      >
-                        + Add Your First Contractor
-                      </button>
-                    )}
+                    <p>
+                      Average rates and PayID payment details can be stored securely here for rapid reference when quoting and dispatching client work.
+                    </p>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    {contractors
-                      .filter((c) => {
+                )}
+              </div>
+
+              {/* Section 2: Add / Edit Contractor Form */}
+              <div className={`${card} border border-white/10 bg-surface-container-high/60 overflow-hidden`}>
+                <div className="p-3.5 sm:p-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!showAddContractor && !isSectionExpanded("contractors_form")) {
+                        handleStartAddContractor();
+                      } else {
+                        toggleSectionExpanded("contractors_form");
+                      }
+                    }}
+                    aria-expanded={isSectionExpanded("contractors_form")}
+                    data-agent-id="toggle-section-contractors_form"
+                    data-testid="toggle-section-contractors_form"
+                    className="w-full flex items-center justify-between text-left gap-2"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                        <Icon name={editingContractorId ? "pencil" : "plus"} className="size-4" />
+                      </span>
+                      <div>
+                        <h4 className="font-mono text-sm font-bold text-on-surface">
+                          {editingContractorId ? "Edit Contractor Details" : "Add / Edit Contractor Details"}
+                        </h4>
+                        <p className="text-[11px] text-on-surface-variant font-mono">
+                          {editingContractorId
+                            ? `Currently editing ${contractorForm.name || "contractor"}`
+                            : "Create or update contractor profiles"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold border ${
+                          showAddContractor
+                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                            : "bg-white/5 border-white/10 text-on-surface-variant"
+                        }`}
+                      >
+                        {showAddContractor ? "Active Form" : "Collapsed"}
+                      </span>
+                      <Icon
+                        name="chevronDown"
+                        className={`size-4 text-on-surface-variant transition-transform duration-200 ${
+                          isSectionExpanded("contractors_form") ? "rotate-180" : ""
+                        }`}
+                      />
+                    </div>
+                  </button>
+                </div>
+                {isSectionExpanded("contractors_form") && (
+                  <div className="border-t border-white/10 p-4 sm:p-5 bg-surface-container-low/50">
+                    <form
+                      onSubmit={handleSaveContractor}
+                      className="space-y-4"
+                      data-agent-id="contractor-form-container"
+                      data-testid="contractor-form-container"
+                    >
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                          <label htmlFor="contractor-name" className={label}>
+                            Contractor Name *
+                          </label>
+                          <input
+                            id="contractor-name"
+                            type="text"
+                            required
+                            value={contractorForm.name}
+                            onChange={(e) => setContractorForm({ ...contractorForm, name: e.target.value })}
+                            placeholder="e.g. Alex Morgan / PixelPeak Media"
+                            className={field}
+                            data-agent-id="contractor-name-input"
+                            data-testid="contractor-name-input"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="contractor-location" className={label}>
+                            Location *
+                          </label>
+                          <input
+                            id="contractor-location"
+                            type="text"
+                            required
+                            value={contractorForm.location}
+                            onChange={(e) => setContractorForm({ ...contractorForm, location: e.target.value })}
+                            placeholder="e.g. Sydney, NSW (AU) or Remote"
+                            className={field}
+                            data-agent-id="contractor-location-input"
+                            data-testid="contractor-location-input"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="contractor-email" className={label}>
+                            Email Address *
+                          </label>
+                          <input
+                            id="contractor-email"
+                            type="email"
+                            required
+                            value={contractorForm.email}
+                            onChange={(e) => setContractorForm({ ...contractorForm, email: e.target.value })}
+                            placeholder="e.g. alex@pixelpeak.com.au"
+                            className={field}
+                            data-agent-id="contractor-email-input"
+                            data-testid="contractor-email-input"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="contractor-phone" className={label}>
+                            Phone Number *
+                          </label>
+                          <input
+                            id="contractor-phone"
+                            type="tel"
+                            required
+                            value={contractorForm.phone}
+                            onChange={(e) => setContractorForm({ ...contractorForm, phone: e.target.value })}
+                            placeholder="e.g. +61 412 345 678"
+                            className={field}
+                            data-agent-id="contractor-phone-input"
+                            data-testid="contractor-phone-input"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label htmlFor="contractor-expertise" className={label}>
+                          Expertise / Primary Domain *
+                        </label>
+                        <select
+                          id="contractor-expertise"
+                          value={contractorForm.expertise}
+                          onChange={(e) => setContractorForm({ ...contractorForm, expertise: e.target.value })}
+                          className={field}
+                          data-agent-id="contractor-expertise-select"
+                          data-testid="contractor-expertise-select"
+                        >
+                          <option value="Graphic Design">Graphic Design &amp; Ad Creatives</option>
+                          <option value="Video Production">Video Production &amp; Reel Editing</option>
+                          <option value="AI Visuals & VFX">AI Visuals, VFX &amp; Motion Graphics</option>
+                          <option value="Copywriting & Scripts">Copywriting &amp; Video Scripts</option>
+                          <option value="Media Buying & Strategy">Media Buying &amp; Ad Account Strategy</option>
+                          <option value="Landing Pages & CRO">Landing Pages &amp; Conversion Optimization</option>
+                          <option value="Voiceover & Audio">Voiceover &amp; Audio Production</option>
+                          <option value="Full Campaign Management">Full Campaign Management</option>
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                          <label htmlFor="contractor-rates" className={label}>
+                            Average Rates Box (Hourly, per job, etc.)
+                          </label>
+                          <textarea
+                            id="contractor-rates"
+                            rows={2}
+                            value={contractorForm.averageRates}
+                            onChange={(e) => setContractorForm({ ...contractorForm, averageRates: e.target.value })}
+                            placeholder="e.g. $95/hr · $350 per static ad set · $600 per edited 30s TikTok reel"
+                            className={`${field} text-xs`}
+                            data-agent-id="contractor-rates-input"
+                            data-testid="contractor-rates-input"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="contractor-payid" className={label}>
+                            PayID and Payment Details
+                          </label>
+                          <textarea
+                            id="contractor-payid"
+                            rows={2}
+                            value={contractorForm.payIdPaymentDetails}
+                            onChange={(e) => setContractorForm({ ...contractorForm, payIdPaymentDetails: e.target.value })}
+                            placeholder="e.g. PayID: payments@pixelpeak.com.au or BSB: 062-000 Acc: 12345678"
+                            className={`${field} text-xs font-mono`}
+                            data-agent-id="contractor-payid-input"
+                            data-testid="contractor-payid-input"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label htmlFor="contractor-notes" className={label}>
+                          Specialty Notes &amp; Availability (Optional)
+                        </label>
+                        <textarea
+                          id="contractor-notes"
+                          rows={2}
+                          value={contractorForm.notes}
+                          onChange={(e) => setContractorForm({ ...contractorForm, notes: e.target.value })}
+                          placeholder="e.g. Fast 24-48h turnaround on Meta/TikTok reels. Available weekdays."
+                          className={`${field} text-xs`}
+                          data-agent-id="contractor-notes-input"
+                          data-testid="contractor-notes-input"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddContractor(false);
+                            setEditingContractorId(null);
+                            setContractorFormError(null);
+                            setSectionExpanded("contractors_form", false);
+                          }}
+                          className={btnSecondary}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={savingContractor}
+                          className={btnPrimary}
+                          data-agent-id="save-contractor-btn"
+                          data-testid="save-contractor-btn"
+                        >
+                          {savingContractor ? "Saving..." : editingContractorId ? "Update Contractor" : "Save Contractor"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 3: Contractors Search & Directory Listing */}
+              <div className={`${card} border border-white/10 bg-surface-container-high/60 overflow-hidden`}>
+                <div className="p-3.5 sm:p-4">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionExpanded("contractors_list")}
+                    aria-expanded={isSectionExpanded("contractors_list")}
+                    data-agent-id="toggle-section-contractors_list"
+                    data-testid="toggle-section-contractors_list"
+                    className="w-full flex items-center justify-between text-left gap-2"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300">
+                        <Icon name="users" className="size-4" />
+                      </span>
+                      <div>
+                        <h4 className="font-mono text-sm font-bold text-on-surface">
+                          Contractors Directory &amp; Search ({contractors.length})
+                        </h4>
+                        <p className="text-[11px] text-on-surface-variant font-mono">
+                          Search by name, expertise, location, rates, or PayID
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold border bg-primary/10 border-primary/25 text-primary">
+                        {contractors.length} {contractors.length === 1 ? "Contractor" : "Contractors"}
+                      </span>
+                      <Icon
+                        name="chevronDown"
+                        className={`size-4 text-on-surface-variant transition-transform duration-200 ${
+                          isSectionExpanded("contractors_list") ? "rotate-180" : ""
+                        }`}
+                      />
+                    </div>
+                  </button>
+                </div>
+                {isSectionExpanded("contractors_list") && (
+                  <div className="border-t border-white/10 p-4 sm:p-5 space-y-4 bg-surface-container-low/50">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="relative flex-1">
+                        <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-outline" />
+                        <input
+                          type="text"
+                          value={contractorSearch}
+                          onChange={(e) => setContractorSearch(e.target.value)}
+                          placeholder="Search contractors by name, expertise, location, rates, PayID..."
+                          className={`${field} pl-9 text-xs`}
+                          data-agent-id="search-contractors-input"
+                          data-testid="search-contractors-input"
+                        />
+                      </div>
+                      {contractorSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setContractorSearch("")}
+                          className="font-mono text-xs text-outline hover:text-on-surface self-end sm:self-center"
+                        >
+                          Clear Search
+                        </button>
+                      )}
+                    </div>
+
+                    {loadingContractors && contractors.length === 0 ? (
+                      <div className={`${card} p-8 text-center font-mono text-xs text-on-surface-variant`}>
+                        Loading contractors directory...
+                      </div>
+                    ) : contractors.filter((c) => {
                         const query = contractorSearch.trim().toLowerCase();
                         if (!query) return true;
                         return (
@@ -2010,129 +2575,164 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                           (c.averageRates && c.averageRates.toLowerCase().includes(query)) ||
                           (c.payIdPaymentDetails && c.payIdPaymentDetails.toLowerCase().includes(query))
                         );
-                      })
-                      .map((c) => (
-                        <div
-                          key={c.contractorId}
-                          className={`${card} border border-white/[0.08] bg-surface-container-high/60 p-4 space-y-3 hover:border-primary/30 transition`}
-                          data-agent-id={`contractor-card-${c.contractorId}`}
-                          data-testid={`contractor-card-${c.contractorId}`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <h4 className="font-mono text-sm font-bold text-on-surface truncate">
-                                {c.name}
-                              </h4>
-                              <span className="inline-block mt-0.5 rounded-full bg-primary/15 border border-primary/25 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
-                                {c.expertise}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleStartEditContractor(c)}
-                                className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-white/[0.06] transition"
-                                data-agent-id={`edit-contractor-btn-${c.contractorId}`}
-                                data-testid={`edit-contractor-btn-${c.contractorId}`}
-                                aria-label={`Edit ${c.name}`}
-                                title="Edit Contractor"
-                              >
-                                <Icon name="pencil" className="size-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setConfirmDeleteContractorId(c.contractorId)}
-                                className="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition"
-                                data-agent-id={`delete-contractor-btn-${c.contractorId}`}
-                                data-testid={`delete-contractor-btn-${c.contractorId}`}
-                                aria-label={`Delete ${c.name}`}
-                                title="Delete Contractor"
-                              >
-                                <Icon name="trash" className="size-3.5" />
-                              </button>
-                            </div>
-                          </div>
+                      }).length === 0 ? (
+                      <div className={`${card} p-8 text-center space-y-3 border-dashed border-white/10`}>
+                        <Icon name="users" className="size-8 mx-auto text-outline" />
+                        <p className="font-mono text-xs text-on-surface-variant">
+                          {contractorSearch ? "No contractors match your search." : "No contractors added yet."}
+                        </p>
+                        {!showAddContractor && (
+                          <button
+                            type="button"
+                            onClick={handleStartAddContractor}
+                            className={`${btnPrimary} text-xs py-1.5 px-3 mx-auto`}
+                            data-agent-id="add-first-contractor-btn"
+                            data-testid="add-first-contractor-btn"
+                          >
+                            + Add Your First Contractor
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        {contractors
+                          .filter((c) => {
+                            const query = contractorSearch.trim().toLowerCase();
+                            if (!query) return true;
+                            return (
+                              c.name.toLowerCase().includes(query) ||
+                              c.expertise.toLowerCase().includes(query) ||
+                              c.location.toLowerCase().includes(query) ||
+                              c.email.toLowerCase().includes(query) ||
+                              c.phone.toLowerCase().includes(query) ||
+                              (c.averageRates && c.averageRates.toLowerCase().includes(query)) ||
+                              (c.payIdPaymentDetails && c.payIdPaymentDetails.toLowerCase().includes(query))
+                            );
+                          })
+                          .map((c) => (
+                            <div
+                              key={c.contractorId}
+                              className={`${card} border border-white/[0.08] bg-surface-container-high/60 p-4 space-y-3 hover:border-primary/30 transition`}
+                              data-agent-id={`contractor-card-${c.contractorId}`}
+                              data-testid={`contractor-card-${c.contractorId}`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <h4 className="font-mono text-sm font-bold text-on-surface truncate">
+                                    {c.name}
+                                  </h4>
+                                  <span className="inline-block mt-0.5 rounded-full bg-primary/15 border border-primary/25 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
+                                    {c.expertise}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartEditContractor(c)}
+                                    className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-white/[0.06] transition"
+                                    data-agent-id={`edit-contractor-btn-${c.contractorId}`}
+                                    data-testid={`edit-contractor-btn-${c.contractorId}`}
+                                    aria-label={`Edit ${c.name}`}
+                                    title="Edit Contractor"
+                                  >
+                                    <Icon name="pencil" className="size-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteContractorId(c.contractorId)}
+                                    className="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition"
+                                    data-agent-id={`delete-contractor-btn-${c.contractorId}`}
+                                    data-testid={`delete-contractor-btn-${c.contractorId}`}
+                                    aria-label={`Delete ${c.name}`}
+                                    title="Delete Contractor"
+                                  >
+                                    <Icon name="trash" className="size-3.5" />
+                                  </button>
+                                </div>
+                              </div>
 
-                          {/* Confirm Delete Banner */}
-                          {confirmDeleteContractorId === c.contractorId && (
-                            <div className="rounded-lg border border-rose-500/50 bg-rose-500/15 p-2.5 space-y-2">
-                              <p className="font-mono text-xs text-rose-200">
-                                Delete <strong>{c.name}</strong> from your contractors?
-                              </p>
-                              <div className="flex items-center gap-2">
+                              {/* Confirm Delete Banner */}
+                              {confirmDeleteContractorId === c.contractorId && (
+                                <div className="rounded-lg border border-rose-500/50 bg-rose-500/15 p-2.5 space-y-2">
+                                  <p className="font-mono text-xs text-rose-200">
+                                    Delete <strong>{c.name}</strong> from your contractors?
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={deletingContractor}
+                                      onClick={() => handleDeleteContractor(c.contractorId)}
+                                      className="rounded-md bg-rose-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white hover:bg-rose-700 transition"
+                                      data-agent-id={`confirm-delete-contractor-btn-${c.contractorId}`}
+                                      data-testid={`confirm-delete-contractor-btn-${c.contractorId}`}
+                                    >
+                                      {deletingContractor ? "Deleting..." : "Confirm Delete"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmDeleteContractorId(null)}
+                                      className="rounded-md bg-white/10 px-2.5 py-1 font-mono text-[11px] text-on-surface hover:bg-white/20 transition"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="space-y-1.5 text-xs text-on-surface-variant font-mono">
+                                <div className="flex items-center gap-1.5">
+                                  <Icon name="mapPin" className="size-3.5 text-primary shrink-0" />
+                                  <span className="truncate">{c.location}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Icon name="mail" className="size-3.5 text-outline shrink-0" />
+                                  <a href={`mailto:${c.email}`} className="truncate hover:text-primary transition underline decoration-dotted">
+                                    {c.email}
+                                  </a>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Icon name="phone" className="size-3.5 text-outline shrink-0" />
+                                  <span>{c.phone}</span>
+                                </div>
+                              </div>
+
+                              {/* Average Rates Box */}
+                              {c.averageRates && (
+                                <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 p-2 font-mono text-[11px] text-on-surface">
+                                  <span className="font-bold text-amber-300 block mb-0.5">Average Rates Box:</span>
+                                  <span className="whitespace-pre-line">{c.averageRates}</span>
+                                </div>
+                              )}
+
+                              {/* PayID and Payment Details */}
+                              {c.payIdPaymentDetails && (
+                                <div className="rounded-lg border border-white/10 bg-surface-container-lowest/60 p-2 font-mono text-[11px] text-on-surface-variant">
+                                  <span className="font-semibold text-outline block mb-0.5">PayID &amp; Payment Details:</span>
+                                  <span className="whitespace-pre-line">{c.payIdPaymentDetails}</span>
+                                </div>
+                              )}
+
+                              {c.notes && (
+                                <p className="text-[11px] text-on-surface-variant italic">
+                                  &quot;{c.notes}&quot;
+                                </p>
+                              )}
+
+                              <div className="pt-1 flex items-center justify-end">
                                 <button
                                   type="button"
-                                  disabled={deletingContractor}
-                                  onClick={() => handleDeleteContractor(c.contractorId)}
-                                  className="rounded-md bg-rose-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white hover:bg-rose-700 transition"
-                                  data-agent-id={`confirm-delete-contractor-btn-${c.contractorId}`}
-                                  data-testid={`confirm-delete-contractor-btn-${c.contractorId}`}
+                                  onClick={() => setTab("ORDERS")}
+                                  className="font-mono text-[10px] text-primary hover:underline flex items-center gap-1"
+                                  title="Switch to Customize Orders tab"
                                 >
-                                  {deletingContractor ? "Deleting..." : "Confirm Delete"}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setConfirmDeleteContractorId(null)}
-                                  className="rounded-md bg-white/10 px-2.5 py-1 font-mono text-[11px] text-on-surface hover:bg-white/20 transition"
-                                >
-                                  Cancel
+                                  <span>Use in Customize Orders</span>
+                                  <Icon name="chevronRight" className="size-3" />
                                 </button>
                               </div>
                             </div>
-                          )}
-
-                          <div className="space-y-1.5 text-xs text-on-surface-variant font-mono">
-                            <div className="flex items-center gap-1.5">
-                              <Icon name="mapPin" className="size-3.5 text-primary shrink-0" />
-                              <span className="truncate">{c.location}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <Icon name="mail" className="size-3.5 text-outline shrink-0" />
-                              <a href={`mailto:${c.email}`} className="truncate hover:text-primary transition underline decoration-dotted">
-                                {c.email}
-                              </a>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <Icon name="phone" className="size-3.5 text-outline shrink-0" />
-                              <span>{c.phone}</span>
-                            </div>
-                          </div>
-
-                          {/* Average Rates Box */}
-                          {c.averageRates && (
-                            <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 p-2 font-mono text-[11px] text-on-surface">
-                              <span className="font-bold text-amber-300 block mb-0.5">Average Rates Box:</span>
-                              <span className="whitespace-pre-line">{c.averageRates}</span>
-                            </div>
-                          )}
-
-                          {/* PayID and Payment Details */}
-                          {c.payIdPaymentDetails && (
-                            <div className="rounded-lg border border-white/10 bg-surface-container-lowest/60 p-2 font-mono text-[11px] text-on-surface-variant">
-                              <span className="font-semibold text-outline block mb-0.5">PayID &amp; Payment Details:</span>
-                              <span className="whitespace-pre-line">{c.payIdPaymentDetails}</span>
-                            </div>
-                          )}
-
-                          {c.notes && (
-                            <p className="text-[11px] text-on-surface-variant italic">
-                              &quot;{c.notes}&quot;
-                            </p>
-                          )}
-
-                          <div className="pt-1 flex items-center justify-end">
-                            <button
-                              type="button"
-                              onClick={() => setTab("ORDERS")}
-                              className="font-mono text-[10px] text-primary hover:underline flex items-center gap-1"
-                              title="Switch to Customize Orders tab"
-                            >
-                              <span>Use in Customize Orders</span>
-                              <Icon name="chevronRight" className="size-3" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                          ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

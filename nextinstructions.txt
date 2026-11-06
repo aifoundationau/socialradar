@@ -270,6 +270,12 @@
     - Upon receiving the `ad_agent` role, an amber notification banner appears across the top of the web app (`new-ad-agent-banner`) and an "Action Required" indicator appears on the account avatar button and menu item (`account-menu-ad-agent-button`), prompting them to complete registration.
     - In [`AdAgentModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/ad-agent/AdAgentModal.tsx), an onboarding banner guides the new Ad Agent through filling out Name, Location, Phone Number, and Bank/PayID details for payouts. The `ORDERS` and `CONTRACTORS` tabs require registration to be completed first before unlocking.
     - Once submitted, the profile becomes active in the Ad Agent Directory, geolocation matching is enabled for customer customize orders, and all tabs unlock.
+57. **Ad Agent Registration & Customize Orders Panel Collapsible Conversion (All Sections Collapsed on Start):**
+    - Transformed all three tabs of [`src/components/ad-agent/AdAgentModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/ad-agent/AdAgentModal.tsx) (`REGISTRATION`, `ORDERS`, and `CONTRACTORS`) so every section is fully collapsed on modal open/start (`expandedSections = {}`).
+    - Added accessible accordion header toggles with icon, section title, status/preview badge, chevron indicator (`rotate-180`), and `aria-expanded` attributes.
+    - Included an **Expand All / Collapse All** button at the top of each tab (`reg-expand-all-btn`, `orders-expand-all-btn`, `contractors-expand-all-btn`).
+    - Wired auto-expansion of `contractors_form` whenever the Ad Agent clicks `+ Add Contractor` or edits a contractor.
+    - Fully verified with zero TypeScript errors (`npx tsc --noEmit`) and all 71/71 Firestore security rules passing (`npm run test:rules`).
 
 ## What to Do When Reopened Next Startup
 1. **Read `nextinstructions.txt` First:** Start here and review the latest completed milestones above.
