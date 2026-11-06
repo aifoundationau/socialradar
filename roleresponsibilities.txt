@@ -1,0 +1,168 @@
+================================================================================
+                  ADRADARHQ — RBAC ROLE RESPONSIBILITIES GUIDE
+================================================================================
+
+This document explains what each Role-Based Access Control (RBAC) role does in
+AdRadarHQ, which permissions it receives by default in `system_config/rbac`,
+which workspace panels it unlocks, and how Multi-Role Assignment combines
+capabilities when a user holds multiple roles simultaneously.
+
+--------------------------------------------------------------------------------
+1. SUPPORTER (`supporter`)
+--------------------------------------------------------------------------------
+Default Role for All Registered Customers & Platform Members.
+
+Default RBAC Permissions:
+  - `search_radar`   : Run live ad radar searches across Meta, TikTok, and Google
+                       (including Proven Winners 28+d, Extended 60+d, and 90%+
+                       Top Winners filters).
+  - `ai_remix`       : Use the AI Creative Remix Studio to deconstruct ads,
+                       generate 3 hook variants, storyboards, and regenerate
+                       fresh script variations.
+  - `manage_brands`  : Create, edit, and manage personal Brand Profiles, clone
+                       community cards from the Global Brand Library, and submit
+                       "Customize Your Brand Strategy with Professional Experts"
+                       requests.
+
+Key Responsibilities & Capabilities:
+  - Access the **Supporter Panel** (Account Details, Personal Token Balance,
+    Order History, and Direct Message to Super Admin / Ad Agents).
+  - Purchase Token Packs (AUD with 10% GST in Australia, AUD in NZ, USD
+    internationally) and spend tokens on Radar Searches, AI Remix, Global Brand
+    Clones, and Professional Customize Service orders.
+  - Select or get matched with the closest registered **Ad Agent** by geolocation
+    when ordering a Professional Customize Service.
+
+--------------------------------------------------------------------------------
+2. AD AGENT (`ad_agent`)
+--------------------------------------------------------------------------------
+Professional Advertising & Brand Strategy Specialist Who Handles Customer
+Customization Orders and Earns Redistribution Payouts.
+
+Default RBAC Permissions:
+  - `manage_messages`: View, reply to, and manage customer customization briefs
+                       and direct messages assigned to the Ad Agent.
+  - `search_radar`   : Full access to Ad Radar intelligence searches.
+  - `ai_remix`       : Full access to AI Creative Remix Studio for client work.
+  - `manage_brands`  : Full access to Brand Profiles and Global Brand Library.
+
+Key Responsibilities & Capabilities:
+  - Access the dedicated **Ad Agent Panel** in the top navigation bar.
+  - Register and update their **Ad Agent Profile** (Name, Phone, Suburb, State,
+    Geolocation coordinates, and Specialties) so customers are matched to the
+    closest Ad Agent via Haversine distance calculation.
+  - Receive and fulfill **Professional Customize Service** orders submitted by
+    customers (delivering tailored brand strategy replies and ad variations).
+  - Appear in the **Ad Agent Distribution Ledger** (`LEDGER` tab), where:
+      * Every completed customization order adds the live **Professional
+        Customize Service** token/currency value to their **Customizations Total**.
+      * They earn a configurable **Redistribution Percentage** (`10%`, `20%`,
+        `30%`, `40%`, `50%`, `60%`, or `70%`) displayed in **Redist. Amount**.
+      * Their **Bank Details / PayID Details** are stored for Super Admin payout
+        invoices (`.txt` download) and balance resets.
+
+--------------------------------------------------------------------------------
+3. AGENCY (`agency`)
+--------------------------------------------------------------------------------
+Commercial / Multi-Brand Agency Tier Account for High-Volume Teams & Clients.
+
+Default RBAC Permissions:
+  - `search_radar`   : Run high-volume competitive ad intelligence searches.
+  - `ai_remix`       : Generate multi-angle creative deconstructions and scripts
+                       across multiple client brands.
+  - `manage_brands`  : Manage multiple client Brand Profiles, copy Global Brand
+                       Library cards, and commission Professional Customizations.
+
+Key Responsibilities & Capabilities:
+  - Sets the user's account tier to `agency` (`tier: "agency"`).
+  - Designed for marketing agencies, media buyers, and creative teams managing
+    multiple brand portfolios, competitive research, and ad remix workflows.
+  - Can be combined with `Supporter` and `Ad Agent` so an agency account can
+    simultaneously manage client brands, fulfill customization requests as a
+    registered Ad Agent, and use Supporter wallet features.
+
+--------------------------------------------------------------------------------
+4. MODERATOR (`moderator`)
+--------------------------------------------------------------------------------
+Platform Trust, Safety, Analytics & Communications Moderator.
+
+Default RBAC Permissions:
+  - `view_analytics` : View platform telemetry, search volume metrics, and
+                       operational performance summaries.
+  - `manage_messages`: Monitor, review, and respond to user inquiries and
+                       support messages while respecting 7-year statutory
+                       retention rules.
+  - `search_radar`   : Run Radar searches to verify ad feed quality.
+  - `ai_remix`       : Test and review AI Creative Remix outputs.
+
+Key Responsibilities & Capabilities:
+  - Assist with customer support communications, FAQ/knowledge accuracy, and
+    community Global Brand Library quality review.
+  - Cannot modify Token Economy rates, Stripe Token Packs, Equity Partner splits,
+    or RBAC role assignments.
+
+--------------------------------------------------------------------------------
+5. MAIN ADMIN (`admin`)
+--------------------------------------------------------------------------------
+Senior Platform Administrator with Access to the Admin Control Panel.
+
+Default RBAC Permissions:
+  - `view_analytics` : Full access to platform analytics and ledger summaries.
+  - `manage_config`  : Configure Currency & Token Economy toggles, Service
+                       Pricing (including the **Professional Customize Service**
+                       token price and **Monthly Search Subscription** fee),
+                       Token Packs CRUD, and Help/FAQ items.
+  - `manage_messages`: Read, compose, copy, and manage all user and Ad Agent
+                       communications in the Admin Messages inbox.
+  - `search_radar`   : Full Radar search access + eligible for the privileged
+                       1,000 searches/month subscription tier.
+  - `ai_remix`       : Full AI Creative Remix Studio access.
+  - `manage_brands`  : Full Brand Profile and Global Brand Library management.
+
+Key Responsibilities & Capabilities:
+  - Access the **Admin Control Panel** (`Currency Controls`, `Service Pricing`,
+    `Token Packs`, `Token Controls & Ledger`, `User Messages`, and `Help & FAQs`).
+  - Adjust the **Professional Customize Service** price in **Service Pricing**,
+    which automatically updates the **Customizations Total** and **Redist. Amount**
+    in the **Ad Agent Distribution Ledger**.
+  - Note: Certain destructive or sovereign controls (such as assigning RBAC
+    roles, resetting Ad Agent / Equity Partner ledgers to 0, or gifting/removing
+    user tokens) are reserved exclusively for **Super Admin**.
+
+--------------------------------------------------------------------------------
+6. SUPER ADMIN (`superadmin` — Permanent Sovereign Account)
+--------------------------------------------------------------------------------
+Highest-Assurance Sovereign Owner (`david@aifoundation.com.au` / `SUPERADMIN_EMAIL`).
+
+Default RBAC Permissions (Permanently Locked — All 9 Permissions):
+  - `manage_rbac`    : Assign single or multiple RBAC roles to any user and
+                       configure the live RBAC permission matrix.
+  - `manage_equity`  : Add/remove Equity Partners, update equity splits, and
+                       manage the **Ad Agent Distribution Ledger** (auto-fill
+                       registered Ad Agents, save/copy/hover Bank & PayID
+                       details, set 10%–70% redistribution, download `.txt`
+                       payout invoices, and confirm-reset balances to `0`).
+  - `gift_tokens`    : Add, minus, reset, or refund tokens for any user account.
+  - Plus all other permissions (`view_analytics`, `manage_config`,
+    `manage_messages`, `search_radar`, `ai_remix`, `manage_brands`).
+
+--------------------------------------------------------------------------------
+7. MULTI-ROLE STACKING EXAMPLE
+--------------------------------------------------------------------------------
+When a user is assigned:
+  [☑ Supporter]  [☑ Ad Agent]  [☑ Agency]  [☐ Moderator]  [☐ Main Admin]
+
+How AdRadarHQ Evaluates Their Combined Roles:
+  1. **Stored Roles Array (`roles`)**: `["ad_agent", "agency", "supporter"]`
+  2. **Primary Display Role (`role`)**: `"ad_agent"` (determined by priority
+     order: `superadmin > admin > ad_agent > moderator > agency > supporter`)
+  3. **Account Tier (`tier`)**: `"agency"` (unlocked by the `Agency` role)
+  4. **Effective Permissions**: Union of all permissions granted to `Supporter`,
+     `Ad Agent`, and `Agency` (`manage_messages`, `search_radar`, `ai_remix`,
+     and `manage_brands`).
+  5. **Unlocked Workspace Panels**:
+     - Can open both the **Ad Agent Panel** (to manage their geolocation,
+       customization orders, and Bank/PayID payout details) AND the **Supporter
+       Panel** (to view their personal wallet, agency brand profiles, and order
+       history).
+================================================================================
