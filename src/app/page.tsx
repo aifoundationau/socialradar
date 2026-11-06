@@ -29,7 +29,7 @@ export default function Home() {
       <PublicStartNavbar />
 
       <main className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center gap-12 px-4 py-14 sm:gap-16 sm:px-6 sm:py-20">
-        <section className="max-w-2xl space-y-6">
+        <section className="w-full max-w-4xl lg:max-w-5xl space-y-6">
           <p className="flex items-center gap-2 font-mono text-mono-label tracking-widest text-secondary uppercase">
             <span className="relative flex size-2">
               <span className="absolute inline-flex size-full rounded-full bg-secondary opacity-75 motion-safe:animate-ping" />
@@ -37,15 +37,15 @@ export default function Home() {
             </span>
             Ad intelligence, pay as you go
           </p>
-          <h1 className="text-[2rem] leading-10 font-semibold tracking-tight text-on-surface sm:text-display">
+          <h1 className="text-[1.85rem] leading-tight font-semibold tracking-tight text-on-surface sm:text-display sm:whitespace-nowrap">
             Model the ads that are already winning.
           </h1>
-          <div className="space-y-1.5 text-base text-on-surface-variant sm:text-title-sm leading-relaxed">
-            <p>
-              Pay as you go or buy with tokens or buy an agency subscription: Search Proven Ads, Top Performers, Long Term winners
+          <div className="space-y-3 text-sm text-on-surface-variant sm:text-base lg:text-[1.05rem] leading-relaxed">
+            <p className="whitespace-normal lg:whitespace-nowrap">
+              Pay as you go or buy with tokens or buy an agency subscription: Search Proven Ads, Top Performers, Long Term winners.
             </p>
-            <p className="text-on-surface-variant/90">
-              Get assistance from top Social Media Agencies, Videographers, and Visual AI Experts
+            <p className="whitespace-normal md:whitespace-nowrap text-on-surface-variant/90">
+              Get assistance from top Social Media Agencies, Videographers, and Visual AI Experts.
             </p>
           </div>
           <HomeCta />
