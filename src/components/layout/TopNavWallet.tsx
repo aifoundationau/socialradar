@@ -170,6 +170,7 @@ function AccountMenu({
   const { user, isAdmin, role, isSuperAdmin, actingAsRole, setActingRole, resetRole } = useSession();
   const menu = useRef<HTMLDivElement>(null);
   const initial = user?.email?.[0]?.toUpperCase();
+  const [confirmMenuResetRole, setConfirmMenuResetRole] = useState(false);
 
   return (
     <>
@@ -221,16 +222,43 @@ function AccountMenu({
             <div className="flex items-center justify-between">
               <p className={monoLabel}>Act As Role View</p>
               {actingAsRole && actingAsRole !== "superadmin" && (
-                <button
-                  type="button"
-                  onClick={() => resetRole()}
-                  data-agent-id="account-menu-reset-role"
-                  data-testid="account-menu-reset-role"
-                  aria-label="Reset role view to Super Admin"
-                  className="font-mono text-[10px] text-primary hover:underline"
-                >
-                  Reset
-                </button>
+                confirmMenuResetRole ? (
+                  <div className="inline-flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmMenuResetRole(false);
+                        resetRole();
+                      }}
+                      data-agent-id="confirm-account-menu-reset-role"
+                      data-testid="confirm-account-menu-reset-role"
+                      aria-label="Confirm reset role view to Super Admin"
+                      className="rounded bg-primary px-2 py-0.5 font-mono text-[10px] font-bold text-on-primary hover:bg-primary-fixed transition"
+                    >
+                      Confirm Reset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmMenuResetRole(false)}
+                      data-agent-id="cancel-account-menu-reset-role"
+                      data-testid="cancel-account-menu-reset-role"
+                      className="rounded border border-white/15 px-1.5 py-0.5 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmMenuResetRole(true)}
+                    data-agent-id="account-menu-reset-role"
+                    data-testid="account-menu-reset-role"
+                    aria-label="Reset role view to Super Admin"
+                    className="font-mono text-[10px] text-primary hover:underline"
+                  >
+                    Reset
+                  </button>
+                )
               )}
             </div>
             <div className="grid grid-cols-2 gap-1">

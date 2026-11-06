@@ -260,8 +260,13 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [quickAssignEmail, setQuickAssignEmail] = useState("");
   const [quickAssignRoles, setQuickAssignRoles] = useState<AssignableRbacRole[]>(["supporter"]);
   const [confirmQuickAssignOpen, setConfirmQuickAssignOpen] = useState(false);
+  const [confirmQuickResetRoleOpen, setConfirmQuickResetRoleOpen] = useState(false);
   const [pendingUserRoles, setPendingUserRoles] = useState<Record<string, AssignableRbacRole[]>>({});
   const [confirmingRoleUid, setConfirmingRoleUid] = useState<string | null>(null);
+  const [confirmResetRoleUid, setConfirmResetRoleUid] = useState<string | null>(null);
+  const [confirmClearAdAgentFormOpen, setConfirmClearAdAgentFormOpen] = useState(false);
+  const [confirmResetFaqsOpen, setConfirmResetFaqsOpen] = useState(false);
+  const [confirmPresetPricingMode, setConfirmPresetPricingMode] = useState<"FREE" | "PAID" | null>(null);
 
   // FAQ Management state
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
@@ -794,6 +799,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       );
       setQuickAssignEmail("");
       setConfirmQuickAssignOpen(false);
+      setConfirmQuickResetRoleOpen(false);
+      if (uid) setConfirmResetRoleUid(null);
     } catch (err) {
       setErrorMsg(errorMessage(err));
     } finally {
@@ -1959,50 +1966,83 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        data-testid="preset-free-services"
-                        disabled={saving}
-                        onClick={() =>
-                          saveConfig({
-                            serviceCosts: {
-                              searchStandard: 0,
-                              searchProvenWinners: 0,
-                              searchExtendedDays: 0,
-                              searchEliteScore: 0,
-                              aiRemix: 0,
-                              regenerateVariations: 0,
-                              brandClone: 0,
-                              customizeService: 0,
-                            },
-                          })
-                        }
-                        className={btnSecondary}
-                      >
-                        Set All Free (0)
-                      </button>
-                      <button
-                        type="button"
-                        data-testid="preset-paid-services"
-                        disabled={saving}
-                        onClick={() =>
-                          saveConfig({
-                            serviceCosts: {
-                              searchStandard: 1,
-                              searchProvenWinners: 1,
-                              searchExtendedDays: 1,
-                              searchEliteScore: 1,
-                              aiRemix: 1,
-                              regenerateVariations: 1,
-                              brandClone: 1,
-                              customizeService: 55,
-                            },
-                          })
-                        }
-                        className={btnPrimary}
-                      >
-                        Standard Paid Rates (1 tok each)
-                      </button>
+                      {confirmPresetPricingMode ? (
+                        <div className="flex items-center gap-1.5 rounded-xl border border-amber-400/50 bg-amber-500/15 px-2.5 py-1">
+                          <span className="font-mono text-xs font-semibold text-amber-200">
+                            {confirmPresetPricingMode === "FREE"
+                              ? "Reset all services to Free (0)?"
+                              : "Reset to Standard Paid Rates?"}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => {
+                              const isFree = confirmPresetPricingMode === "FREE";
+                              setConfirmPresetPricingMode(null);
+                              saveConfig({
+                                serviceCosts: isFree
+                                  ? {
+                                      searchStandard: 0,
+                                      searchProvenWinners: 0,
+                                      searchExtendedDays: 0,
+                                      searchEliteScore: 0,
+                                      aiRemix: 0,
+                                      regenerateVariations: 0,
+                                      brandClone: 0,
+                                      customizeService: 0,
+                                    }
+                                  : {
+                                      searchStandard: 1,
+                                      searchProvenWinners: 1,
+                                      searchExtendedDays: 1,
+                                      searchEliteScore: 1,
+                                      aiRemix: 1,
+                                      regenerateVariations: 1,
+                                      brandClone: 1,
+                                      customizeService: 55,
+                                    },
+                              });
+                            }}
+                            data-agent-id="confirm-preset-pricing-btn"
+                            data-testid="confirm-preset-pricing-btn"
+                            className="rounded-lg bg-amber-400 px-2.5 py-1 font-mono text-xs font-bold text-black hover:bg-amber-300 transition"
+                          >
+                            Confirm Reset
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmPresetPricingMode(null)}
+                            data-agent-id="cancel-preset-pricing-btn"
+                            data-testid="cancel-preset-pricing-btn"
+                            className={`${btnSecondary} py-1 px-2 text-xs`}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            data-testid="preset-free-services"
+                            data-agent-id="preset-free-services"
+                            disabled={saving}
+                            onClick={() => setConfirmPresetPricingMode("FREE")}
+                            className={btnSecondary}
+                          >
+                            Set All Free (0)
+                          </button>
+                          <button
+                            type="button"
+                            data-testid="preset-paid-services"
+                            data-agent-id="preset-paid-services"
+                            disabled={saving}
+                            onClick={() => setConfirmPresetPricingMode("PAID")}
+                            className={btnPrimary}
+                          >
+                            Standard Paid Rates (1 tok each)
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -3201,15 +3241,41 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 </div>
 
                                 <div className="flex items-center justify-end gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => selectAndAutofillAdAgent("__NEW__")}
-                                    data-agent-id="clear-ad-agent-form-btn"
-                                    data-testid="clear-ad-agent-form-btn"
-                                    className={`${btnSecondary} px-2 py-1 text-[10px]`}
-                                  >
-                                    Clear / New
-                                  </button>
+                                  {confirmClearAdAgentFormOpen ? (
+                                    <div className="inline-flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          selectAndAutofillAdAgent("__NEW__");
+                                          setConfirmClearAdAgentFormOpen(false);
+                                        }}
+                                        data-agent-id="confirm-clear-ad-agent-form-btn"
+                                        data-testid="confirm-clear-ad-agent-form-btn"
+                                        className="rounded border border-amber-500/60 bg-amber-500/25 px-2 py-1 font-mono text-[10px] font-bold text-amber-200 hover:bg-amber-500/35 transition"
+                                      >
+                                        Confirm Reset
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmClearAdAgentFormOpen(false)}
+                                        data-agent-id="cancel-clear-ad-agent-form-btn"
+                                        data-testid="cancel-clear-ad-agent-form-btn"
+                                        className={`${btnSecondary} px-1.5 py-1 text-[10px]`}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmClearAdAgentFormOpen(true)}
+                                      data-agent-id="clear-ad-agent-form-btn"
+                                      data-testid="clear-ad-agent-form-btn"
+                                      className={`${btnSecondary} px-2 py-1 text-[10px]`}
+                                    >
+                                      Clear / Reset
+                                    </button>
+                                  )}
                                   <button
                                     type="submit"
                                     disabled={adAgentSaving || !newAdAgent.name.trim() || !newAdAgent.email.trim()}
@@ -3541,7 +3607,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                                   className={`size-2.5 ${resettingAdAgentId === agent.agentId ? "animate-spin" : ""}`}
                                                 />
                                                 <span>
-                                                  {resettingAdAgentId === agent.agentId ? "…" : "Confirm 0 ⚡"}
+                                                  {resettingAdAgentId === agent.agentId ? "…" : "Confirm Reset 0 ⚡"}
                                                 </span>
                                               </button>
                                               <button
@@ -5574,6 +5640,45 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                           />
                                           <span>{isRowSaving ? "Saving…" : "Confirm"}</span>
                                         </button>
+                                        {confirmResetRoleUid === user.uid ? (
+                                          <div className="inline-flex items-center gap-1">
+                                            <button
+                                              type="button"
+                                              disabled={rbacSaving}
+                                              onClick={() =>
+                                                handleAssignUserRole(user.email, ["supporter"], user.uid)
+                                              }
+                                              data-agent-id={`confirm-reset-user-role-btn-${user.uid}`}
+                                              data-testid={`confirm-reset-user-role-btn-${user.uid}`}
+                                              aria-label={`Confirm reset ${user.email} role to Supporter`}
+                                              className="inline-flex items-center gap-1 rounded-lg border border-amber-500/60 bg-amber-500/25 px-2 py-1 font-mono text-[10px] font-bold text-amber-200 hover:bg-amber-500/35 disabled:opacity-50 transition"
+                                            >
+                                              <Icon name="refresh" className="size-2.5" />
+                                              <span>Confirm Reset</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setConfirmResetRoleUid(null)}
+                                              data-agent-id={`cancel-reset-user-role-btn-${user.uid}`}
+                                              data-testid={`cancel-reset-user-role-btn-${user.uid}`}
+                                              className="rounded-lg border border-white/10 bg-surface-container-highest px-1.5 py-1 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            disabled={rbacSaving}
+                                            onClick={() => setConfirmResetRoleUid(user.uid)}
+                                            data-agent-id={`reset-user-role-btn-${user.uid}`}
+                                            data-testid={`reset-user-role-btn-${user.uid}`}
+                                            aria-label={`Reset ${user.email} role to Supporter`}
+                                            className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-mono text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20 transition"
+                                          >
+                                            Reset
+                                          </button>
+                                        )}
                                       </div>
                                     ) : (
                                       <span className="font-mono text-[11px] text-on-surface-variant">
@@ -5955,6 +6060,45 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                             />
                                             <span>{isRowSaving ? "Saving…" : "Confirm"}</span>
                                           </button>
+                                          {confirmResetRoleUid === user.uid ? (
+                                            <div className="inline-flex items-center gap-1">
+                                              <button
+                                                type="button"
+                                                disabled={rbacSaving}
+                                                onClick={() =>
+                                                  handleAssignUserRole(user.email, ["supporter"], user.uid)
+                                                }
+                                                data-agent-id={`rbac-confirm-reset-user-role-btn-${user.uid}`}
+                                                data-testid={`rbac-confirm-reset-user-role-btn-${user.uid}`}
+                                                aria-label={`Confirm reset ${user.email} role to Supporter`}
+                                                className="inline-flex items-center gap-1 rounded border border-amber-500/60 bg-amber-500/25 px-2 py-1 font-mono text-[10px] font-bold text-amber-200 hover:bg-amber-500/35 disabled:opacity-50 transition"
+                                              >
+                                                <Icon name="refresh" className="size-2.5" />
+                                                <span>Confirm Reset</span>
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setConfirmResetRoleUid(null)}
+                                                data-agent-id={`rbac-cancel-reset-user-role-btn-${user.uid}`}
+                                                data-testid={`rbac-cancel-reset-user-role-btn-${user.uid}`}
+                                                className="rounded border border-white/10 bg-surface-container-highest px-1.5 py-1 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              disabled={rbacSaving}
+                                              onClick={() => setConfirmResetRoleUid(user.uid)}
+                                              data-agent-id={`rbac-reset-user-role-btn-${user.uid}`}
+                                              data-testid={`rbac-reset-user-role-btn-${user.uid}`}
+                                              aria-label={`Reset ${user.email} role to Supporter`}
+                                              className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-mono text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20 transition"
+                                            >
+                                              Reset
+                                            </button>
+                                          )}
                                         </div>
                                       )}
                                     </div>
@@ -5996,16 +6140,43 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       >
                         {expandedAdminFaqIds.size > 0 ? "Collapse All" : "Expand All"}
                       </button>
-                      <button
-                        type="button"
-                        onClick={handleResetDefaultFaqs}
-                        disabled={faqsSaving}
-                        data-testid="reset-default-faqs-btn"
-                        data-agent-id="reset-default-faqs-btn"
-                        className="rounded-lg border border-white/10 px-3 py-1.5 text-compact text-on-surface-variant hover:bg-white/[0.04] hover:text-on-surface transition"
-                      >
-                        Reset Defaults
-                      </button>
+                      {confirmResetFaqsOpen ? (
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfirmResetFaqsOpen(false);
+                              handleResetDefaultFaqs();
+                            }}
+                            disabled={faqsSaving}
+                            data-testid="confirm-reset-default-faqs-btn"
+                            data-agent-id="confirm-reset-default-faqs-btn"
+                            className="rounded-lg border border-amber-500/60 bg-amber-500/25 px-3 py-1.5 font-mono text-xs font-bold text-amber-200 hover:bg-amber-500/35 transition"
+                          >
+                            {faqsSaving ? "Resetting…" : "Confirm Reset Defaults"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmResetFaqsOpen(false)}
+                            data-testid="cancel-reset-default-faqs-btn"
+                            data-agent-id="cancel-reset-default-faqs-btn"
+                            className="rounded-lg border border-white/10 bg-surface-container-highest px-2.5 py-1.5 font-mono text-xs text-on-surface-variant hover:text-on-surface transition"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmResetFaqsOpen(true)}
+                          disabled={faqsSaving}
+                          data-testid="reset-default-faqs-btn"
+                          data-agent-id="reset-default-faqs-btn"
+                          className="rounded-lg border border-white/10 px-3 py-1.5 text-compact text-on-surface-variant hover:bg-white/[0.04] hover:text-on-surface transition"
+                        >
+                          Reset Defaults
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setShowAddFaq((v) => !v)}

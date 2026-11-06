@@ -24,6 +24,7 @@ export function TokenPacks() {
   const [error, setError] = useState<string | null>(null);
   const [geo, setGeo] = useState<GeoConfig>(DEFAULT_AU_GEO);
   const [customTokens, setCustomTokens] = useState<number>(25);
+  const [confirmCustomReset, setConfirmCustomReset] = useState(false);
   const [audCentsPerToken, setAudCentsPerToken] = useState<number>(DEFAULT_AUD_CENTS_PER_TOKEN);
   const [serviceCosts, setServiceCosts] = useState<ServiceCosts>({
     searchStandard: ACTION_COSTS.RADAR_SEARCH,
@@ -307,16 +308,43 @@ export function TokenPacks() {
                   +{n}
                 </button>
               ))}
-              <button
-                type="button"
-                data-agent-id="custom-token-reset"
-                data-testid="custom-token-reset"
-                aria-label="Reset custom token quantity to 10"
-                onClick={() => setCustomTokens(10)}
-                className="rounded bg-white/5 border border-white/10 px-1.5 py-0.5 text-[10px] font-mono text-outline hover:text-on-surface transition"
-              >
-                Reset
-              </button>
+              {confirmCustomReset ? (
+                <div className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    data-agent-id="confirm-custom-token-reset"
+                    data-testid="confirm-custom-token-reset"
+                    aria-label="Confirm reset custom token quantity to 10"
+                    onClick={() => {
+                      setCustomTokens(10);
+                      setConfirmCustomReset(false);
+                    }}
+                    className="rounded bg-amber-400 px-1.5 py-0.5 text-[10px] font-mono font-bold text-black hover:bg-amber-300 transition"
+                  >
+                    Confirm Reset
+                  </button>
+                  <button
+                    type="button"
+                    data-agent-id="cancel-custom-token-reset"
+                    data-testid="cancel-custom-token-reset"
+                    onClick={() => setConfirmCustomReset(false)}
+                    className="rounded bg-white/5 border border-white/10 px-1.5 py-0.5 text-[10px] font-mono text-outline hover:text-on-surface transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  data-agent-id="custom-token-reset"
+                  data-testid="custom-token-reset"
+                  aria-label="Reset custom token quantity to 10"
+                  onClick={() => setConfirmCustomReset(true)}
+                  className="rounded bg-white/5 border border-white/10 px-1.5 py-0.5 text-[10px] font-mono text-outline hover:text-on-surface transition"
+                >
+                  Reset
+                </button>
+              )}
             </div>
           </div>
 
