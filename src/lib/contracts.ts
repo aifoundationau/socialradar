@@ -614,12 +614,22 @@ export const AssignableRbacRoleSchema = z.enum([
 ]);
 export type AssignableRbacRole = z.infer<typeof AssignableRbacRoleSchema>;
 
+export const MAIN_ADMIN_APPROVABLE_ROLES_LIST = [
+  "supporter",
+  "ad_agent",
+  "agency",
+  "moderator",
+] as const;
+export const MainAdminApprovableRoleSchema = z.enum(MAIN_ADMIN_APPROVABLE_ROLES_LIST);
+export type MainAdminApprovableRole = z.infer<typeof MainAdminApprovableRoleSchema>;
+
 export const AssignUserRoleRequestSchema = z
   .object({
     action: z.literal("ASSIGN_USER_ROLE"),
     email: z.string().trim().toLowerCase().email().max(254),
     role: AssignableRbacRoleSchema.optional(),
     roles: z.array(AssignableRbacRoleSchema).min(1).max(6).optional(),
+    actingRole: z.enum(["superadmin", "admin"]).optional(),
   })
   .strict()
   .refine((d) => Boolean(d.role || (d.roles && d.roles.length > 0)), {

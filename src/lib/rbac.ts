@@ -177,6 +177,7 @@ export async function assignUserRole(
   email: string,
   targetRoleOrRoles: Exclude<RbacRole, "superadmin"> | Exclude<RbacRole, "superadmin">[],
   updatedBy: string,
+  options?: { allowMainAdmin?: boolean },
 ): Promise<{ uid: string; email: string; role: RbacRole; roles: RbacRole[]; tier: string }> {
   const normEmail = email.trim().toLowerCase();
 
@@ -184,8 +185,17 @@ export async function assignUserRole(
     throw new Error("Cannot modify permanent database superadmin account");
   }
 
+  const allowMainAdmin = options?.allowMainAdmin !== false;
   const inputArray = Array.isArray(targetRoleOrRoles) ? targetRoleOrRoles : [targetRoleOrRoles];
-  const roles = normalizeUserRoles(inputArray, inputArray[0], false);
+  if (!allowMainAdmin && inputArray.includes("admin")) {
+    throw new Error(
+      "Main Admin cannot make people Main Admin. Main Admin can only approve: Supporter, Ad Agent, Agency, Moderator."
+    );
+  }
+  const filteredInputs = allowMainAdmin
+    ? inputArray
+    : inputArray.filter((r) => r !== "admin");
+  const roles = normalizeUserRoles(filteredInputs, filteredInputs[0] ?? "supporter", false);
   const primaryRole = roles[0] || "supporter";
   const tier = roles.includes("agency") || roles.includes("admin") ? "agency" : "supporter";
 

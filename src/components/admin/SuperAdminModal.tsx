@@ -54,12 +54,19 @@ interface RbacUserItem {
 
 type AssignableRbacRole = Exclude<RbacRole, "superadmin">;
 
-const ASSIGNABLE_ROLE_OPTIONS: { value: AssignableRbacRole; label: string }[] = [
+const SUPER_ADMIN_ASSIGNABLE_ROLE_OPTIONS: { value: AssignableRbacRole; label: string }[] = [
   { value: "supporter", label: "Supporter" },
   { value: "ad_agent", label: "Ad Agent" },
   { value: "agency", label: "Agency" },
   { value: "moderator", label: "Moderator" },
   { value: "admin", label: "Main Admin" },
+];
+
+const MAIN_ADMIN_ASSIGNABLE_ROLE_OPTIONS: { value: AssignableRbacRole; label: string }[] = [
+  { value: "supporter", label: "Supporter" },
+  { value: "ad_agent", label: "Ad Agent" },
+  { value: "agency", label: "Agency" },
+  { value: "moderator", label: "Moderator" },
 ];
 
 function formatRbacRoleLabel(r: RbacRole): string {
@@ -78,18 +85,30 @@ function getUserRolesList(u: RbacUserItem): RbacRole[] {
   return [u.role];
 }
 
-function getUserAssignableRoles(u: RbacUserItem): AssignableRbacRole[] {
-  const raw = getUserRolesList(u).filter((r): r is AssignableRbacRole => r !== "superadmin");
+function getUserAssignableRoles(u: RbacUserItem, allowMainAdmin = true): AssignableRbacRole[] {
+  const raw = getUserRolesList(u).filter(
+    (r): r is AssignableRbacRole =>
+      r !== "superadmin" && (allowMainAdmin || r !== "admin")
+  );
   if (raw.length > 0) return raw;
+  if (!allowMainAdmin) return ["supporter"];
   return [u.role === "superadmin" ? "admin" : u.role];
 }
 
 function toggleRoleSelection(
   current: AssignableRbacRole[],
   target: AssignableRbacRole,
+  allowMainAdmin = true,
 ): AssignableRbacRole[] {
-  const order: AssignableRbacRole[] = ["admin", "ad_agent", "moderator", "agency", "supporter"];
-  const set = new Set<AssignableRbacRole>(current);
+  const order: AssignableRbacRole[] = allowMainAdmin
+    ? ["admin", "ad_agent", "moderator", "agency", "supporter"]
+    : ["ad_agent", "moderator", "agency", "supporter"];
+  const set = new Set<AssignableRbacRole>(
+    allowMainAdmin ? current : current.filter((r) => r !== "admin")
+  );
+  if (!allowMainAdmin && target === "admin") {
+    return order.filter((r) => set.has(r));
+  }
   if (set.has(target)) {
     if (set.size > 1) {
       set.delete(target);
@@ -157,6 +176,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const isClient = useIsClient();
   const { role, isSuperAdmin, setActingRole } = useSession();
   const isSuper = role === "superadmin";
+  const isMainAdmin = role === "admin";
+  const canApproveRoles = isSuper || isMainAdmin;
+  const assignableRoleOptions = isSuper
+    ? SUPER_ADMIN_ASSIGNABLE_ROLE_OPTIONS
+    : MAIN_ADMIN_ASSIGNABLE_ROLE_OPTIONS;
 
   const allowedTabs = useMemo<TabKey[]>(() => {
     return isSuper
@@ -296,6 +320,23 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [pendingUserRoles, setPendingUserRoles] = useState<Record<string, AssignableRbacRole[]>>({});
   const [confirmingRoleUid, setConfirmingRoleUid] = useState<string | null>(null);
   const [confirmResetRoleUid, setConfirmResetRoleUid] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isSuper) {
+      setQuickAssignRoles((prev) => {
+        const filtered = prev.filter((r) => r !== "admin");
+        return filtered.length > 0 ? filtered : ["supporter"];
+      });
+      setPendingUserRoles((prev) => {
+        const next: Record<string, AssignableRbacRole[]> = {};
+        for (const [uid, roles] of Object.entries(prev)) {
+          const filtered = roles.filter((r) => r !== "admin");
+          next[uid] = filtered.length > 0 ? filtered : ["supporter"];
+        }
+        return next;
+      });
+    }
+  }, [isSuper]);
   const [confirmClearAdAgentFormOpen, setConfirmClearAdAgentFormOpen] = useState(false);
   const [confirmResetFaqsOpen, setConfirmResetFaqsOpen] = useState(false);
   const [confirmPresetPricingMode, setConfirmPresetPricingMode] = useState<"FREE" | "PAID" | null>(null);
@@ -852,11 +893,20 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     targetRoleOrRoles: AssignableRbacRole | AssignableRbacRole[],
     uid?: string
   ) {
-    const rolesArray: AssignableRbacRole[] = Array.isArray(targetRoleOrRoles)
+    const rawArray: AssignableRbacRole[] = Array.isArray(targetRoleOrRoles)
       ? targetRoleOrRoles.length > 0
         ? targetRoleOrRoles
         : ["supporter"]
       : [targetRoleOrRoles];
+    if (!isSuper && rawArray.includes("admin")) {
+      setErrorMsg(
+        "Main Admin cannot make people Main Admin. Main Admin can only approve: Supporter, Ad Agent, Agency, Moderator."
+      );
+      return;
+    }
+    const filteredArray = isSuper ? rawArray : rawArray.filter((r) => r !== "admin");
+    const rolesArray: AssignableRbacRole[] =
+      filteredArray.length > 0 ? filteredArray : ["supporter"];
     setRbacSaving(true);
     if (uid) setConfirmingRoleUid(uid);
     setErrorMsg(null);
@@ -869,6 +919,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           email,
           role: rolesArray[0],
           roles: rolesArray,
+          actingRole: isSuper ? "superadmin" : "admin",
         },
       });
       if (data.users) setRbacUsers(data.users);
@@ -5564,7 +5615,17 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         </span>
                       </div>
                       <p className="mt-1 text-compact text-on-surface-variant">
-                        View all registered users across AdRadarHQ. Super Admin can toggle <strong>multiple RBAC roles</strong> for any user and click <strong>Confirm</strong> to update their roles.
+                        {isSuper ? (
+                          <>
+                            View all registered users across AdRadarHQ. Super Admin can toggle{" "}
+                            <strong>multiple RBAC roles</strong> (Supporter, Ad Agent, Agency, Moderator, Main Admin) for any user and click <strong>Confirm</strong> to update their roles.
+                          </>
+                        ) : (
+                          <>
+                            View all registered users across AdRadarHQ. Main Admin can only approve{" "}
+                            <strong>Supporter, Ad Agent, Agency, and Moderator</strong> roles (Main Admin cannot make people Main Admin).
+                          </>
+                        )}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -5642,8 +5703,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     })}
                   </div>
 
-                  {/* Quick Assign Multiple Roles by Email with Confirm Button (Super Admin) */}
-                  {isSuperAdmin && (
+                  {/* Quick Assign Multiple Roles by Email with Confirm Button (Super Admin & Main Admin) */}
+                  {canApproveRoles && (
                     <div
                       className={`${card} p-3.5 border border-primary/30 bg-primary/[0.04]`}
                       data-agent-id="users-tab-quick-assign-card"
@@ -5651,10 +5712,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     >
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <span className="font-mono text-xs font-bold uppercase tracking-wider text-primary">
-                          Super Admin Quick Assign Multiple Roles by Email
+                          {isSuper
+                            ? "Super Admin Quick Assign Multiple Roles by Email"
+                            : "Main Admin Quick Approve Roles by Email (Supporter, Ad Agent, Agency, Moderator)"}
                         </span>
                         <span className="font-mono text-[10px] text-on-surface-variant">
-                          Select user email &amp; toggle one or multiple RBAC roles, then click Confirm
+                          {isSuper
+                            ? "Select user email & toggle one or multiple RBAC roles, then click Confirm"
+                            : "Main Admin can only approve Supporter, Ad Agent, Agency, and Moderator (cannot make people Main Admin)"}
                         </span>
                       </div>
                       <div className="mt-2.5 flex flex-col gap-2.5 lg:flex-row lg:items-center">
@@ -5671,7 +5736,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               (u) => u.email.toLowerCase() === val.trim().toLowerCase()
                             );
                             if (matched && !matched.isPermanentSuperAdmin) {
-                              setQuickAssignRoles(getUserAssignableRoles(matched));
+                              setQuickAssignRoles(getUserAssignableRoles(matched, isSuper));
                             }
                           }}
                           data-agent-id="users-quick-assign-email-input"
@@ -5697,14 +5762,16 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           data-agent-id="users-quick-assign-roles-group"
                           data-testid="users-quick-assign-roles-group"
                         >
-                          {ASSIGNABLE_ROLE_OPTIONS.map((opt) => {
+                          {assignableRoleOptions.map((opt) => {
                             const isSelected = quickAssignRoles.includes(opt.value);
                             return (
                               <button
                                 key={opt.value}
                                 type="button"
                                 onClick={() => {
-                                  setQuickAssignRoles((prev) => toggleRoleSelection(prev, opt.value));
+                                  setQuickAssignRoles((prev) =>
+                                    toggleRoleSelection(prev, opt.value, isSuper)
+                                  );
                                   setConfirmQuickAssignOpen(false);
                                 }}
                                 aria-pressed={isSelected}
@@ -5782,7 +5849,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           <th className="px-3 py-2.5">Current RBAC Roles</th>
                           <th className="px-3 py-2.5 hidden xl:table-cell">Tier</th>
                           <th className="px-3.5 py-2.5 text-right">
-                            {isSuperAdmin ? "Toggle Multiple Roles & Confirm" : "Actions"}
+                            {canApproveRoles ? "Toggle Multiple Roles & Confirm" : "Actions"}
                           </th>
                         </tr>
                       </thead>
@@ -5801,7 +5868,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             );
                           })
                           .map((user) => {
-                            const currentRoles = getUserAssignableRoles(user);
+                            const currentRoles = getUserAssignableRoles(user, isSuper);
                             const selectedRoles = pendingUserRoles[user.uid] ?? currentRoles;
                             const isRoleChanged =
                               selectedRoles.length !== currentRoles.length ||
@@ -5887,9 +5954,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                       <span className="inline-flex items-center gap-1 rounded-lg bg-primary/20 px-2.5 py-1 text-xs font-mono font-semibold text-primary">
                                         Permanent Super Admin 🔒
                                       </span>
-                                    ) : isSuperAdmin ? (
+                                    ) : canApproveRoles ? (
                                       <div className="inline-flex flex-wrap items-center justify-end gap-1">
-                                        {ASSIGNABLE_ROLE_OPTIONS.map((opt) => {
+                                        {assignableRoleOptions.map((opt) => {
                                           const isChecked = selectedRoles.includes(opt.value);
                                           return (
                                             <button
@@ -5901,7 +5968,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                                   ...prev,
                                                   [user.uid]: toggleRoleSelection(
                                                     prev[user.uid] ?? currentRoles,
-                                                    opt.value
+                                                    opt.value,
+                                                    isSuper
                                                   ),
                                                 }))
                                               }
@@ -6148,7 +6216,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               (u) => u.email.toLowerCase() === val.trim().toLowerCase()
                             );
                             if (matched && !matched.isPermanentSuperAdmin) {
-                              setQuickAssignRoles(getUserAssignableRoles(matched));
+                              setQuickAssignRoles(getUserAssignableRoles(matched, isSuper));
                             }
                           }}
                           className={`w-full lg:w-72 ${field}`}
@@ -6160,14 +6228,16 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           data-agent-id="rbac-quick-assign-roles-group"
                           data-testid="rbac-quick-assign-roles-group"
                         >
-                          {ASSIGNABLE_ROLE_OPTIONS.map((opt) => {
+                          {assignableRoleOptions.map((opt) => {
                             const isSelected = quickAssignRoles.includes(opt.value);
                             return (
                               <button
                                 key={opt.value}
                                 type="button"
                                 onClick={() => {
-                                  setQuickAssignRoles((prev) => toggleRoleSelection(prev, opt.value));
+                                  setQuickAssignRoles((prev) =>
+                                    toggleRoleSelection(prev, opt.value, isSuper)
+                                  );
                                   setConfirmQuickAssignOpen(false);
                                 }}
                                 aria-pressed={isSelected}
@@ -6244,7 +6314,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               (u.displayName || "").toLowerCase().includes(userSearchQuery.toLowerCase())
                             )
                             .map((user) => {
-                              const currentRoles = getUserAssignableRoles(user);
+                              const currentRoles = getUserAssignableRoles(user, isSuper);
                               const selectedRoles = pendingUserRoles[user.uid] ?? currentRoles;
                               const isRoleChanged =
                                 selectedRoles.length !== currentRoles.length ||
@@ -6309,7 +6379,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                         </span>
                                       ) : (
                                         <div className="inline-flex flex-wrap items-center justify-end gap-1">
-                                          {ASSIGNABLE_ROLE_OPTIONS.map((opt) => {
+                                          {assignableRoleOptions.map((opt) => {
                                             const isChecked = selectedRoles.includes(opt.value);
                                             return (
                                               <button
@@ -6321,7 +6391,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                                     ...prev,
                                                     [user.uid]: toggleRoleSelection(
                                                       prev[user.uid] ?? currentRoles,
-                                                      opt.value
+                                                      opt.value,
+                                                      isSuper
                                                     ),
                                                   }))
                                                 }

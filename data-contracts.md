@@ -425,10 +425,10 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 - **Superadmin FAQ Development Suite:** Accessible directly from the Super Admin Panel (`SuperAdminModal` tab `FAQS`) and via the highlighted "FAQ Development Suite" action in `FaqModal` for superadmins. Supports real-time Q&A authoring, live inline editing, priority ordering, draft visibility toggling, and confirmation-protected deletion.
 
 ### API Endpoints
-- `GET /api/admin/rbac`: Requires `superadmin` role. Returns matrix, all permissions, roles, and user list.
-- `PUT /api/admin/rbac`: Requires `superadmin` role.
-  - Action `UPDATE_ROLE_PERMISSIONS`: `{ "action": "UPDATE_ROLE_PERMISSIONS", "role": "admin"|"moderator"|"agency"|"supporter", "permissions": RbacPermission[] }`
-  - Action `ASSIGN_USER_ROLE`: `{ "action": "ASSIGN_USER_ROLE", "email": "valid-email", "role": "admin"|"moderator"|"agency"|"supporter" }`
+- `GET /api/admin/rbac`: Requires `admin` or `superadmin` role. Returns matrix, all permissions, roles, and user list.
+- `PUT /api/admin/rbac`:
+  - Action `UPDATE_ROLE_PERMISSIONS` (requires `superadmin`): `{ "action": "UPDATE_ROLE_PERMISSIONS", "role": "admin"|"ad_agent"|"moderator"|"agency"|"supporter", "permissions": RbacPermission[] }`
+  - Action `ASSIGN_USER_ROLE` (requires `admin` or `superadmin`): `{ "action": "ASSIGN_USER_ROLE", "email": "valid-email", "role"?: AssignableRbacRole, "roles"?: AssignableRbacRole[], "actingRole"?: "superadmin"|"admin" }`. Main Admin (`admin`) can only approve `"supporter"`, `"ad_agent"`, `"agency"`, and `"moderator"` and cannot make people `"admin"` (Main Admin).
 
 ## 9. Frequently Asked Questions (FAQs) (`system_config/faqs`)
 

@@ -39,10 +39,10 @@ export async function GET(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const caller = await verifyRequest(req, { requireRole: "superadmin" });
     const body = (await readJson(req)) as Record<string, unknown>;
 
     if (body.action === "UPDATE_ROLE_PERMISSIONS") {
+      const caller = await verifyRequest(req, { requireRole: "superadmin" });
       const parsed = UpdateRolePermissionsRequestSchema.parse(body);
       const updatedMatrix = await updateRolePermissions(
         parsed.role,
@@ -57,15 +57,35 @@ export async function PUT(req: Request) {
     }
 
     if (body.action === "ASSIGN_USER_ROLE") {
+      const caller = await verifyRequest(req, { requireRole: "admin" });
       const parsed = AssignUserRoleRequestSchema.parse(body);
-      const targetRoles =
+      const rawTargetRoles =
         parsed.roles && parsed.roles.length > 0
           ? parsed.roles
-          : parsed.role!;
+          : [parsed.role!];
+
+      const isEffectiveSuperAdmin =
+        (caller.claims.role === "superadmin" || caller.claims.isSuperAdmin === true) &&
+        parsed.actingRole !== "admin";
+
+      if (!isEffectiveSuperAdmin && rawTargetRoles.includes("admin")) {
+        return NextResponse.json(
+          {
+            error: {
+              code: "FORBIDDEN",
+              message:
+                "Main Admin cannot make people Main Admin. Main Admin can only approve: Supporter, Ad Agent, Agency, Moderator.",
+            },
+          },
+          { status: 403 },
+        );
+      }
+
       const assigned = await assignUserRole(
         parsed.email,
-        targetRoles,
+        rawTargetRoles,
         caller.email,
+        { allowMainAdmin: isEffectiveSuperAdmin },
       );
       const users = await getRbacUsersList(100);
       return NextResponse.json({

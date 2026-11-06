@@ -121,13 +121,17 @@ Default RBAC Permissions:
 
 Key Responsibilities & Capabilities:
   - Access the **Admin Control Panel** (`Currency Controls`, `Service Pricing`,
-    `Token Packs`, `Token Controls & Ledger`, `User Messages`, and `Help & FAQs`).
+    `Token Packs`, `Token Controls & Ledger`, `All Users`, `User Messages`, and
+    `Help & FAQs`).
   - Adjust the **Professional Customize Service** price in **Service Pricing**,
     which automatically updates the **Customizations Total** and **Redist. Amount**
     in the **Ad Agent Distribution Ledger**.
-  - Note: Certain destructive or sovereign controls (such as assigning RBAC
-    roles, resetting Ad Agent / Equity Partner ledgers to 0, or gifting/removing
-    user tokens) are reserved exclusively for **Super Admin**.
+  - Approve and assign non-admin RBAC roles (`Supporter`, `Ad Agent`, `Agency`,
+    and `Moderator`) in the **All Users** directory.
+  - **Restriction:** Main Admin **cannot** make people `Main Admin` (`admin`) or
+    `Super Admin` (`superadmin`). Only `Super Admin` can assign the `Main Admin`
+    role, modify the RBAC permission matrix, reset Ad Agent / Equity Partner
+    ledgers to 0, or gift/remove user tokens.
 
 --------------------------------------------------------------------------------
 6. SUPER ADMIN (`superadmin` — Permanent Sovereign Account)
