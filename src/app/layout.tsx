@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { SessionProvider } from "@/components/auth/SessionProvider";
 import { AgentDomBridge } from "@/components/agent/AgentDomBridge";
+import { FreeAccessTopBanner } from "@/components/layout/FreeAccessTopBanner";
 import "./globals.css";
 
 const inter = Inter({
@@ -90,6 +91,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} h-full max-w-full overflow-x-clip antialiased`}>
       <body className="flex min-h-dvh w-full max-w-full overflow-x-clip flex-col bg-background font-sans text-on-surface">
         <SessionProvider>
+          <FreeAccessTopBanner />
           {children}
           <AgentDomBridge />
         </SessionProvider>

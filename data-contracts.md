@@ -969,6 +969,10 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   - Strictly enforces `{ requireRole: "superadmin" }` (`role === "superadmin"`). Main Admin (`admin`) and all other roles are rejected with `403 FORBIDDEN`.
   - Top panel under **Service Pricing** in `SuperAdminModal.tsx` (`feature-card-pricing-free-access`) provides three toggle buttons: **Free 15 Minutes** (`15`), **Free 30 Minutes** (`30`), and **Free Hour** (`60`), plus **Turn Off Free Access Now** (`null`).
   - While `enabled === true` and `Date.parse(expiresAt) > Date.now()`, `isChargingEnabled(config)` returns `false` and `withTokenGate` forces `effectiveCost = 0` across all endpoints (`RADAR_SEARCH`, `AI_REMIX`, `REGENERATE_VARIATIONS`, `BRAND_CLONE`, `CUSTOMIZE_SERVICE`), making the entire web app free to use for all registered users until the timer expires or Super Admin turns it off.
+- **Global Top Red Banner (`src/components/layout/FreeAccessTopBanner.tsx` & `src/app/layout.tsx`):**
+  - Mounted at the root of `<body>` in `src/app/layout.tsx` (`data-agent-id="free-access-red-top-banner"`).
+  - Queries public `GET /api/wallet/checkout` (`no-store`) and listens to `"adradar:config-updated"` so whenever the web app is Free to use (`isChargingEnabled(config) === false`), a full-width Red Banner (`bg-gradient-to-r from-red-700 via-red-600 to-red-700`) is displayed across the top of the entire web app — including the front start page (`/`) and before logging in — with a live countdown timer (`mm:ss`).
+
 
 
 
