@@ -679,8 +679,11 @@ export async function submitCustomizeRequest(params: {
   const requestId = `cust_${Date.now()}_${randomBytes(4).toString("hex")}`;
   const cleanEmail = params.userEmail.toLowerCase().trim();
 
-  // Select the closest Ad Agent to the customer's geolocation
-  const closest = await findClosestAdAgent(params.input.customerLocation);
+  // Select the closest Ad Agent to the customer's geolocation (or customer's chosen Ad Agent)
+  const closest = await findClosestAdAgent(
+    params.input.customerLocation,
+    params.input.selectedAgentId,
+  );
   const assignedAgent = closest.agent;
   const assignedAgentLocation = formatAgentLocationLabel(assignedAgent.location);
   const customerLocationLabel = params.input.customerLocation

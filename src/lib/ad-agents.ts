@@ -511,10 +511,12 @@ export async function resetAdAgentRedistributionToZero(
 }
 
 /**
- * Finds the closest active Ad Agent to the customer's geolocation using Haversine great-circle distance.
+ * Finds the closest active Ad Agent to the customer's geolocation using Haversine great-circle distance,
+ * or honors the customer's explicitly chosen `selectedAgentId` when multiple Ad Agents are available.
  */
 export async function findClosestAdAgent(
   customerLocation?: Partial<AdAgentLocation> | null,
+  selectedAgentId?: string | null,
 ): Promise<{ agent: AdAgentProfile; distanceKm: number }> {
   const agents = await getAdAgents();
   const activeAgents = agents.filter((a) => a.status === "active");
@@ -526,6 +528,19 @@ export async function findClosestAdAgent(
   const custLon = Number.isFinite(Number(customerLocation?.longitude))
     ? Number(customerLocation!.longitude)
     : DEFAULT_SUPERADMIN_LOCATION.longitude;
+
+  if (selectedAgentId) {
+    const chosen = pool.find((a) => a.agentId === selectedAgentId);
+    if (chosen) {
+      const chosenDist = haversineDistanceKm(
+        custLat,
+        custLon,
+        chosen.location.latitude,
+        chosen.location.longitude,
+      );
+      return { agent: chosen, distanceKm: chosenDist };
+    }
+  }
 
   let bestAgent = pool[0];
   let bestDist = haversineDistanceKm(

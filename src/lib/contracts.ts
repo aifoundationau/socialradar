@@ -812,6 +812,7 @@ export const CustomizeRequestInputSchema = z
     extraDetailsAndNotes: safeText(1, 2000),
     sourceBrandId: z.string().max(128).optional(),
     customerLocation: AdAgentLocationSchema.optional(),
+    selectedAgentId: z.string().max(128).optional(),
   })
   .strict();
 export type CustomizeRequestInput = z.infer<typeof CustomizeRequestInputSchema>;

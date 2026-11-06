@@ -78,6 +78,7 @@ export function CustomizeView() {
   const [detectingGeo, setDetectingGeo] = useState(false);
 
   const [agents, setAgents] = useState<PublicAdAgent[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [lastAssignedRequest, setLastAssignedRequest] = useState<CustomizeRequestDoc | null>(null);
   const [isAdAgentModalOpen, setIsAdAgentModalOpen] = useState(false);
 
@@ -94,20 +95,40 @@ export function CustomizeView() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const submitKey = useRef<string | null>(null);
 
-  const closestAgentPreview = useMemo(() => {
-    if (!agents || agents.length === 0) return null;
-    let best = agents[0];
-    let bestDist = haversineKmClient(custLat, custLon, best.latitude, best.longitude);
-    for (let i = 1; i < agents.length; i++) {
-      const candidate = agents[i];
-      const d = haversineKmClient(custLat, custLon, candidate.latitude, candidate.longitude);
-      if (d < bestDist) {
-        bestDist = d;
-        best = candidate;
-      }
-    }
-    return { agent: best, distanceKm: bestDist };
+  const agentsWithDistance = useMemo(() => {
+    if (!agents || agents.length === 0) return [];
+    const mapped = agents.map((agent) => ({
+      agent,
+      distanceKm: haversineKmClient(custLat, custLon, agent.latitude, agent.longitude),
+    }));
+    mapped.sort((a, b) => a.distanceKm - b.distanceKm || a.agent.name.localeCompare(b.agent.name));
+    const minDist = mapped[0]?.distanceKm ?? 0;
+    return mapped.map((item) => ({
+      ...item,
+      isClosest: Math.abs(item.distanceKm - minDist) <= 1,
+    }));
   }, [agents, custLat, custLon]);
+
+  const closestTiedAgentsCount = useMemo(
+    () => agentsWithDistance.filter((a) => a.isClosest).length,
+    [agentsWithDistance],
+  );
+
+  const closestAgentPreview = useMemo(() => {
+    if (agentsWithDistance.length === 0) return null;
+    if (selectedAgentId) {
+      const chosen = agentsWithDistance.find((a) => a.agent.agentId === selectedAgentId);
+      if (chosen) return chosen;
+    }
+    return agentsWithDistance[0];
+  }, [agentsWithDistance, selectedAgentId]);
+
+  useEffect(() => {
+    if (agentsWithDistance.length === 0) return;
+    if (!selectedAgentId || !agentsWithDistance.some((a) => a.agent.agentId === selectedAgentId)) {
+      setSelectedAgentId(agentsWithDistance[0].agent.agentId);
+    }
+  }, [agentsWithDistance, selectedAgentId]);
 
   async function handleCopyText(text: string, id: string) {
     if (!text) return;
@@ -159,6 +180,14 @@ export function CustomizeView() {
     setCustLat(typeof savedGeo.latitude === "number" ? savedGeo.latitude : -33.8688);
     setCustLon(typeof savedGeo.longitude === "number" ? savedGeo.longitude : 151.2093);
     loadCustomizeState();
+
+    const onAgentsUpdated = () => {
+      loadCustomizeState();
+    };
+    window.addEventListener("ad-agent-ledger-updated", onAgentsUpdated);
+    return () => {
+      window.removeEventListener("ad-agent-ledger-updated", onAgentsUpdated);
+    };
   }, []);
 
   async function handleDetectCustomerGeo() {
@@ -236,6 +265,7 @@ export function CustomizeView() {
       version: version.trim() || undefined,
       extraDetailsAndNotes,
       sourceBrandId: selectedBrandId || undefined,
+      selectedAgentId: closestAgentPreview?.agent.agentId || selectedAgentId || undefined,
       customerLocation: {
         suburb: custSuburb.trim() || "Sydney",
         state: custState.trim() || "NSW",
@@ -716,17 +746,90 @@ export function CustomizeView() {
 
               {closestAgentPreview && (
                 <div
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/35 bg-primary/10 px-3 py-2 font-mono text-xs"
+                  className="rounded-lg border border-primary/35 bg-primary/10 p-3 font-mono text-xs space-y-2.5"
                   data-agent-id="customize-closest-agent-preview"
                   data-testid="customize-closest-agent-preview"
                 >
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-primary font-bold">Closest Ad Agent to Handle Your Customization:</span>
-                    <span className="font-semibold text-on-surface">{closestAgentPreview.agent.name}</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-primary font-bold">
+                        Closest Ad Agent to Handle Your Customization:
+                      </span>
+                      <span className="font-semibold text-on-surface">
+                        {closestAgentPreview.agent.name}
+                      </span>
+                    </div>
+                    <span className="rounded bg-primary/20 px-2 py-0.5 text-[11px] font-bold text-primary">
+                      📍 {closestAgentPreview.agent.locationLabel} · {closestAgentPreview.distanceKm} km away
+                    </span>
                   </div>
-                  <span className="rounded bg-primary/20 px-2 py-0.5 text-[11px] font-bold text-primary">
-                    📍 {closestAgentPreview.agent.locationLabel} · {closestAgentPreview.distanceKm} km away
-                  </span>
+
+                  {agentsWithDistance.length > 1 && (
+                    <div
+                      className="border-t border-primary/25 pt-2.5 space-y-2"
+                      data-agent-id="customize-all-agents-selector"
+                      data-testid="customize-all-agents-selector"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                        <span className="font-semibold text-on-surface">
+                          {closestTiedAgentsCount > 1
+                            ? `Multiple closest Ad Agents found (${closestTiedAgentsCount} closest) — All ${agentsWithDistance.length} Ad Agents shown below. Choose your preferred Ad Agent:`
+                            : `All Available Ad Agents (${agentsWithDistance.length}) — Choose your preferred Ad Agent:`}
+                        </span>
+                        <span className="text-[10px] text-on-surface-variant">
+                          Click any Ad Agent below to select
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {agentsWithDistance.map(({ agent, distanceKm, isClosest }) => {
+                          const isSelected =
+                            closestAgentPreview.agent.agentId === agent.agentId;
+                          return (
+                            <button
+                              key={agent.agentId}
+                              type="button"
+                              onClick={() => setSelectedAgentId(agent.agentId)}
+                              aria-pressed={isSelected}
+                              data-agent-id={`customize-select-agent-btn-${agent.agentId}`}
+                              data-testid={`customize-select-agent-btn-${agent.agentId}`}
+                              className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left transition ${
+                                isSelected
+                                  ? "border-primary bg-primary/20 text-on-surface shadow-sm ring-1 ring-primary/40"
+                                  : "border-white/15 bg-surface-container-high/80 text-on-surface-variant hover:border-primary/40 hover:text-on-surface"
+                              }`}
+                            >
+                              <div className="min-w-0 space-y-0.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-xs text-on-surface truncate">
+                                    {agent.name}
+                                  </span>
+                                  {isClosest && (
+                                    <span className="rounded bg-secondary/20 border border-secondary/40 px-1.5 py-0.2 text-[9px] font-bold uppercase text-secondary">
+                                      ★ Closest
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-on-surface-variant truncate">
+                                  📍 {agent.locationLabel} · {distanceKm} km away
+                                </div>
+                              </div>
+
+                              <span
+                                className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-bold ${
+                                  isSelected
+                                    ? "bg-primary text-on-primary"
+                                    : "border border-white/15 bg-surface-container text-on-surface-variant"
+                                }`}
+                              >
+                                {isSelected ? "✓ Chosen" : "Choose"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
