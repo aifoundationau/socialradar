@@ -823,6 +823,27 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"
+                                onClick={() => {
+                                  const rawSub = (m.subject || "Message").trim();
+                                  const cleanSub = rawSub.toLowerCase().startsWith("re:")
+                                    ? rawSub.slice(0, 100)
+                                    : `Re: ${rawSub}`.slice(0, 100);
+                                  setComposeSubject(cleanSub);
+                                  setComposeBody("");
+                                  setMessageErrorMsg(null);
+                                  setMessageStatusMsg(null);
+                                  setMessageTab("COMPOSE");
+                                }}
+                                data-testid={`reply-supporter-msg-btn-${m.messageId}`}
+                                data-agent-id={`reply-supporter-msg-btn-${m.messageId}`}
+                                aria-label={`Reply to message ${m.subject}`}
+                                className="inline-flex items-center gap-1 rounded-lg border border-secondary/40 bg-secondary/15 px-2.5 py-0.5 font-mono text-[10px] font-bold text-secondary hover:bg-secondary/25 transition"
+                              >
+                                <Icon name="sparkles" className="size-3" />
+                                <span>Reply</span>
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => handleCopyText(m.body, m.messageId)}
                                 data-testid={`copy-supporter-msg-btn-${m.messageId}`}
                                 data-agent-id={`copy-supporter-msg-btn-${m.messageId}`}

@@ -197,6 +197,8 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
         success: boolean;
         agent: AdAgentProfile;
         assignedRole: string;
+        ledger?: unknown[];
+        adAgentLedger?: unknown[];
       }>("/api/ad-agent", {
         method: "POST",
         body: {
@@ -211,9 +213,19 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
 
       setMyAgentProfile(res.agent);
       setAgentStatus(res.agent.status === "inactive" ? "inactive" : "active");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("ad-agent-ledger-updated", {
+            detail: {
+              agent: res.agent,
+              ledger: res.ledger || res.adAgentLedger,
+            },
+          }),
+        );
+      }
       setStatusMsg(
         res.agent.status === "active"
-          ? `Ad Agent profile saved and status is ON (Active) for ${res.agent.name} (${res.agent.email}) at ${res.agent.location.label}. You will automatically be matched with Customize customers closest to your geolocation.`
+          ? `Ad Agent profile saved and status is ON (Active) for ${res.agent.name} (${res.agent.email}) at ${res.agent.location.label}. Your details are now updated in the Ad Agent Distribution Ledger.`
           : `Ad Agent profile saved for ${res.agent.name} (${res.agent.email}). Your Ad Agent status is currently OFF (Paused) — turn it ON anytime to receive Customize orders.`,
       );
     } catch (err) {
@@ -241,6 +253,8 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
       const res = await apiFetch<{
         success: boolean;
         agent: AdAgentProfile;
+        ledger?: unknown[];
+        adAgentLedger?: unknown[];
       }>("/api/ad-agent", {
         method: "POST",
         body: {
@@ -251,6 +265,16 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
       if (res.agent) {
         setMyAgentProfile(res.agent);
         setAgentStatus(res.agent.status);
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("ad-agent-ledger-updated", {
+            detail: {
+              agent: res.agent,
+              ledger: res.ledger || res.adAgentLedger,
+            },
+          }),
+        );
       }
       setStatusMsg(
         targetStatus === "active"

@@ -236,6 +236,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
   // Superadmin Messaging Anyone state
   const [showComposeMessage, setShowComposeMessage] = useState(false);
+  const [showInlineReplyBox, setShowInlineReplyBox] = useState(false);
   const [composeRecipientEmail, setComposeRecipientEmail] = useState("");
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
@@ -245,6 +246,37 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [aiDrafting, setAiDrafting] = useState(false);
 
   const composeHasLinks = LINK_URL_PATTERN.test(composeSubject) || LINK_URL_PATTERN.test(composeBody);
+
+  function openReplyToMessage(msg: AdminMessage) {
+    const targetEmail = (
+      msg.direction === "admin_to_user" && msg.recipientEmail
+        ? msg.recipientEmail
+        : msg.senderEmail
+    ).trim();
+    const rawSub = (msg.subject || "Message").trim();
+    const cleanSub = rawSub.toLowerCase().startsWith("re:")
+      ? rawSub.slice(0, 150)
+      : `Re: ${rawSub}`.slice(0, 150);
+
+    setErrorMsg(null);
+    setStatusMsg(null);
+    setComposeRecipientEmail(targetEmail);
+    setComposeSubject(cleanSub);
+    setComposeBody("");
+    setComposeCustomizeRequestId(msg.customizeRequestId);
+    setShowInlineReplyBox(true);
+    setShowComposeMessage(true);
+
+    setTimeout(() => {
+      const el =
+        (document.getElementById("inline-reply-body-textarea") as HTMLTextAreaElement | null) ||
+        (document.getElementById("top-compose-body-textarea") as HTMLTextAreaElement | null);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.focus();
+      }
+    }, 60);
+  }
 
   // RBAC Matrix & Role Assignment state
   const [rbacMatrix, setRbacMatrix] = useState<RbacMatrix | null>(null);
@@ -1685,6 +1717,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       );
       if (data.messages) setAdminMessages(data.messages);
       setShowComposeMessage(false);
+      setShowInlineReplyBox(false);
       setComposeRecipientEmail("");
       setComposeSubject("");
       setComposeBody("");
@@ -1700,7 +1733,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
   async function handleGenerateAiWorkReply(targetMsg?: AdminMessage) {
     const msg = targetMsg || selectedMessage;
-    const targetEmail = (msg?.senderEmail || composeRecipientEmail).trim();
+    const resolvedMsgEmail = msg
+      ? msg.direction === "admin_to_user" && msg.recipientEmail
+        ? msg.recipientEmail
+        : msg.senderEmail
+      : "";
+    const targetEmail = (resolvedMsgEmail || composeRecipientEmail).trim();
     if (!targetEmail) {
       setErrorMsg("Select a customer message or enter a recipient email before running the AI reply designer.");
       return;
@@ -1732,6 +1770,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         setComposeCustomizeRequestId(msg.customizeRequestId);
       }
       setShowComposeMessage(true);
+      if (selectedMessage) {
+        setShowInlineReplyBox(true);
+      }
       setStatusMsg("AI Customized Reply Work Message generated! Review or edit below, then click Send Message.");
     } catch (err) {
       setErrorMsg(errorMessage(err));
@@ -5099,6 +5140,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           </div>
                         </div>
                         <textarea
+                          id="top-compose-body-textarea"
                           required
                           rows={6}
                           maxLength={10000}
@@ -5274,6 +5316,128 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               <p>Statutory Retention Until: {new Date(selectedMessage.retentionUntil).toLocaleString("en-AU")}</p>
                             </div>
 
+                            {showInlineReplyBox && (
+                              <form
+                                onSubmit={handleSendSuperadminMessage}
+                                data-testid="inline-reply-to-sender-form"
+                                data-agent-id="inline-reply-to-sender-form"
+                                className="rounded-xl border border-primary/40 bg-primary/10 p-3.5 space-y-3 animate-fadeIn"
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <Icon name="sparkles" className="size-3.5 text-primary" />
+                                    <span className="font-mono text-xs font-bold text-primary">
+                                      Reply to Sender ({composeRecipientEmail || selectedMessage.senderEmail})
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowInlineReplyBox(false)}
+                                    data-testid="close-inline-reply-btn"
+                                    data-agent-id="close-inline-reply-btn"
+                                    className="font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
+                                  >
+                                    Close Reply ✕
+                                  </button>
+                                </div>
+
+                                {composeHasLinks && (
+                                  <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2.5 text-[11px] text-red-300">
+                                    Please remove clickable URLs (`http://`, `https://`, `www.`). Plain text communication only.
+                                  </div>
+                                )}
+
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                  <div>
+                                    <label className="block font-mono text-[10px] uppercase text-on-surface-variant mb-1">
+                                      To (Recipient Email)
+                                    </label>
+                                    <input
+                                      type="email"
+                                      required
+                                      value={composeRecipientEmail}
+                                      onChange={(e) => setComposeRecipientEmail(e.target.value)}
+                                      data-testid="inline-reply-recipient-input"
+                                      data-agent-id="inline-reply-recipient-input"
+                                      className={`${field} py-1.5 text-xs font-mono`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block font-mono text-[10px] uppercase text-on-surface-variant mb-1">
+                                      Reply Subject
+                                    </label>
+                                    <input
+                                      type="text"
+                                      required
+                                      maxLength={150}
+                                      value={composeSubject}
+                                      onChange={(e) => setComposeSubject(e.target.value)}
+                                      data-testid="inline-reply-subject-input"
+                                      data-agent-id="inline-reply-subject-input"
+                                      className={`${field} py-1.5 text-xs`}
+                                    />
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <label
+                                      htmlFor="inline-reply-body-textarea"
+                                      className="font-mono text-[10px] uppercase text-on-surface-variant"
+                                    >
+                                      Reply Message Body (Plain Text) *
+                                    </label>
+                                    <span className="font-mono text-[10px] text-on-surface-variant">
+                                      {composeBody.length} / 10000
+                                    </span>
+                                  </div>
+                                  <textarea
+                                    id="inline-reply-body-textarea"
+                                    required
+                                    rows={5}
+                                    maxLength={10000}
+                                    placeholder={`Write your reply to ${composeRecipientEmail || selectedMessage.senderEmail}...`}
+                                    value={composeBody}
+                                    onChange={(e) => setComposeBody(e.target.value)}
+                                    data-testid="inline-reply-body-textarea"
+                                    data-agent-id="inline-reply-body-textarea"
+                                    className={`${field} font-sans text-xs leading-relaxed`}
+                                  />
+                                </div>
+
+                                <div className="flex flex-wrap items-center justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowInlineReplyBox(false)}
+                                    className={`${btnSecondary} !py-1.5 !text-xs`}
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="submit"
+                                    disabled={
+                                      composeSending ||
+                                      composeHasLinks ||
+                                      !composeRecipientEmail.trim() ||
+                                      !composeSubject.trim() ||
+                                      !composeBody.trim()
+                                    }
+                                    data-testid="inline-reply-send-btn"
+                                    data-agent-id="inline-reply-send-btn"
+                                    className={`${btnPrimary} !py-1.5 !text-xs`}
+                                  >
+                                    <Icon
+                                      name={composeSending ? "refresh" : "sparkles"}
+                                      className={`size-3.5 ${composeSending ? "animate-spin" : ""}`}
+                                    />
+                                    <span>
+                                      {composeSending ? "Sending Reply…" : "Send Reply"}
+                                    </span>
+                                  </button>
+                                </div>
+                              </form>
+                            )}
+
                             <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-white/[0.08]">
                               <button
                                 type="button"
@@ -5299,13 +5463,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setComposeRecipientEmail(selectedMessage.senderEmail);
-                                  setComposeSubject(`Re: ${selectedMessage.subject}`);
-                                  setComposeBody("");
-                                  setComposeCustomizeRequestId(selectedMessage.customizeRequestId);
-                                  setShowComposeMessage(true);
-                                }}
+                                onClick={() => openReplyToMessage(selectedMessage)}
+                                data-testid="viewer-reply-to-sender-btn"
+                                data-agent-id="viewer-reply-to-sender-btn"
+                                aria-label={`Reply to ${selectedMessage.senderEmail}`}
                                 className={btnPrimary}
                               >
                                 <Icon name="sparkles" className="size-3.5" />

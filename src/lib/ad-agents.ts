@@ -204,23 +204,65 @@ export async function registerOrUpdateAdAgent(params: {
 
   await db.collection(AD_AGENTS_COL).doc(agentId).set(nextAgent, { merge: true });
 
-  // Determine resulting RBAC role:
-  // Super Admin stays superadmin; Main Admin stays admin; everyone else becomes ad_agent
-  const assignedRole: RbacRole = isSuper ? "superadmin" : isMainAdmin ? "admin" : "ad_agent";
-  const mergedRoles: RbacRole[] = isSuper
-    ? ["superadmin", "admin", "ad_agent", "supporter"]
-    : isMainAdmin
-      ? ["admin", "ad_agent", "supporter"]
-      : ["ad_agent", "supporter"];
+  // Preserve any existing multi-roles assigned by Super Admin while ensuring "ad_agent" is included
+  let existingUserRoles: RbacRole[] = [];
+  let existingTier = "supporter";
+  try {
+    const userSnap = await db.collection("users").doc(params.uid).get();
+    if (userSnap.exists) {
+      const uData = userSnap.data() || {};
+      if (Array.isArray(uData.roles)) {
+        existingUserRoles = uData.roles as RbacRole[];
+      } else if (typeof uData.role === "string") {
+        existingUserRoles = [uData.role as RbacRole];
+      }
+      if (typeof uData.tier === "string") {
+        existingTier = uData.tier;
+      }
+    }
+  } catch {
+    // non-blocking
+  }
 
-  if (!isSuper && !isMainAdmin) {
+  const roleSet = new Set<RbacRole>(existingUserRoles);
+  if (isSuper) {
+    roleSet.add("superadmin");
+    roleSet.add("admin");
+    roleSet.add("ad_agent");
+    roleSet.add("supporter");
+  } else if (isMainAdmin || roleSet.has("admin")) {
+    roleSet.add("admin");
+    roleSet.add("ad_agent");
+    roleSet.add("supporter");
+  } else {
+    roleSet.add("ad_agent");
+    if (roleSet.size === 1) roleSet.add("supporter");
+  }
+
+  const priorityOrder: RbacRole[] = [
+    "superadmin",
+    "admin",
+    "ad_agent",
+    "moderator",
+    "agency",
+    "supporter",
+  ];
+  const mergedRoles: RbacRole[] = priorityOrder.filter((r) => roleSet.has(r));
+  const assignedRole: RbacRole = mergedRoles[0] || "ad_agent";
+  const resolvedTier =
+    mergedRoles.includes("agency") || mergedRoles.includes("admin") || existingTier === "agency"
+      ? "agency"
+      : "supporter";
+
+  if (!isSuper) {
     try {
       await adminAuth.setCustomUserClaims(params.uid, {
-        role: "ad_agent",
+        role: assignedRole,
         roles: mergedRoles,
-        tier: "supporter",
+        tier: resolvedTier,
         isSuperAdmin: false,
-        admin: false,
+        admin: mergedRoles.includes("admin"),
+        ad_agent: true,
         superadmin: false,
       });
     } catch (err) {
@@ -234,8 +276,11 @@ export async function registerOrUpdateAdAgent(params: {
       .doc(params.uid)
       .set(
         {
+          email: cleanEmail,
+          displayName: params.name.trim(),
           role: assignedRole,
           roles: mergedRoles,
+          tier: resolvedTier,
           isAdAgent: true,
           adAgentId: agentId,
           updatedAt: now,

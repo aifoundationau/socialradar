@@ -475,7 +475,7 @@ export const AdminResetRedistributiveLedgerRequestSchema = z
 export type AdminResetRedistributiveLedgerRequest = z.infer<typeof AdminResetRedistributiveLedgerRequestSchema>;
 
 // ---------- 8. Admin Messaging (7-Year Plain Text Retention) ----------
-export const LINK_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.|data:|[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?|\[.*?\]\(.*?\))/i;
+export const LINK_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.|data:|\[[^\]]+\]\(\s*(?:https?:\/\/|ftp:\/\/|www\.)[^)]+\))/i;
 
 export const AdminMessageSchema = z
   .object({

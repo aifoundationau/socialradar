@@ -448,7 +448,7 @@ export async function deleteEquityPartner(partnerId: string): Promise<EquityPart
 // ADMIN MESSAGING (7-YEAR PLAIN TEXT STATUTORY RETENTION)
 // ============================================================================
 
-const LINK_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.|data:|[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?|\[.*?\]\(.*?\))/i;
+const LINK_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.|data:|\[[^\]]+\]\(\s*(?:https?:\/\/|ftp:\/\/|www\.)[^)]+\))/i;
 
 export function assertPlainTextNoLinks(text: string, fieldName = "Text") {
   if (/<[^>]*>/i.test(text)) {
@@ -540,6 +540,11 @@ export async function sendSuperadminMessage(params: {
     const userQuery = await db.collection("users").where("email", "==", cleanEmail).limit(1).get();
     if (!userQuery.empty) {
       recipientUid = userQuery.docs[0].id;
+    } else {
+      const authUser = await adminAuth.getUserByEmail(cleanEmail);
+      if (authUser?.uid) {
+        recipientUid = authUser.uid;
+      }
     }
   } catch {
     // Proceed without recipientUid
@@ -554,7 +559,7 @@ export async function sendSuperadminMessage(params: {
     uid: params.superadminUid,
     senderEmail: params.superadminEmail.toLowerCase().trim(),
     recipientEmail: cleanEmail,
-    recipientUid,
+    ...(recipientUid ? { recipientUid } : {}),
     direction: "admin_to_user",
     subject: cleanSubject,
     body: cleanBody,
