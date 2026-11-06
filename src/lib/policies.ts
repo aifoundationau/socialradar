@@ -96,6 +96,17 @@ export const POLICIES: Record<string, PolicyDoc> = {
           "In compliance with statutory requirements, administrative communications are securely backed up for a statutory period of 7 years.",
         ],
       },
+      {
+        heading: "5. Promotional Timed Free Access & Eligible Countries (Monthly Subscribers)",
+        paragraphs: [
+          "From time to time, AdRadarHQ may activate promotional Timed Free Access campaigns (such as Free 15 Minutes, Free 30 Minutes, or Free 1 Hour windows) exclusively for active Monthly Subscribers based on the user's live geolocation.",
+          "The list of countries that receive free access changes from time to time at the sole discretion of AdRadarHQ, so it is best to message AdRadarHQ directly via the platform's messaging system for a list of currently eligible countries.",
+        ],
+        bullets: [
+          "Timed Free Access campaigns apply strictly to active Monthly Subscribers located within the campaign's selected countries as verified by user geolocation.",
+          "The list of countries receiving free access changes from time to time — message AdRadarHQ for a list of countries.",
+        ],
+      },
     ],
   },
 
