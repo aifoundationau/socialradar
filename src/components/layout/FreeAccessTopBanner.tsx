@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 import type { FreeAccessWindow } from "@/lib/contracts";
-import { isChargingEnabled, isFreeAccessWindowActive } from "@/lib/pricing";
+import { isFreeAccessWindowActive } from "@/lib/pricing";
 import { Icon } from "@/components/ui/Icon";
 
 /**
  * Global Red Banner displayed across the very top of the web app (including the front
- * start page `/` and before logging in) whenever the web app is Free to use — either via
- * Super Admin's Timed Free Access Window (Free 15 Minutes, Free 30 Minutes, Free Hour)
- * or global Free Mode (`isTokenSystemEnabled === false`).
+ * start page `/` and before logging in) whenever the Timed Free Access Window
+ * (Free 15 Minutes, Free 30 Minutes, Free Hour — for Monthly Subscribers only)
+ * or global Free Mode (`isTokenSystemEnabled === false`) is active.
  */
 export function FreeAccessTopBanner() {
   const [loaded, setLoaded] = useState(false);
@@ -55,10 +55,10 @@ export function FreeAccessTopBanner() {
 
   if (!loaded) return null;
 
-  const isFree = !isChargingEnabled({ isTokenSystemEnabled, freeAccessWindow }, nowMs);
-  if (!isFree) return null;
-
   const timedWindowActive = isFreeAccessWindowActive(freeAccessWindow, nowMs);
+  const showBanner = timedWindowActive || isTokenSystemEnabled === false;
+  if (!showBanner) return null;
+
   const durationMinutes = timedWindowActive ? (freeAccessWindow?.durationMinutes ?? null) : null;
   const remainingSec =
     timedWindowActive && freeAccessWindow?.expiresAt
@@ -91,7 +91,7 @@ export function FreeAccessTopBanner() {
           <span>{timedWindowActive ? durationLabel : "Free Mode Active"}</span>
         </span>
         <span className="font-semibold tracking-tight text-white">
-          AdRadarHQ is currently <span className="underline decoration-white/80 underline-offset-2 font-bold">FREE TO USE</span> for all registered users!
+          AdRadarHQ is currently <span className="underline decoration-white/80 underline-offset-2 font-bold">FREE TO USE</span> for Monthly Subscribers!
         </span>
         {timedWindowActive && (
           <span

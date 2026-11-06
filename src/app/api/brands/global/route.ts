@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { verifyRequest } from "@/lib/firebase-admin";
+import { db, verifyRequest } from "@/lib/firebase-admin";
 import { errorResponse } from "@/lib/api";
 import { searchGlobalBrands } from "@/lib/brands";
-import { GlobalBrandSearchQuerySchema } from "@/lib/contracts";
+import { GlobalBrandSearchQuerySchema, type UserDoc } from "@/lib/contracts";
 import { getSystemConfig } from "@/lib/admin";
 import { isChargingEnabled } from "@/lib/pricing";
 
 async function handleGlobalBrands(req: Request) {
   try {
-    await verifyRequest(req);
+    const caller = await verifyRequest(req);
     const { searchParams } = new URL(req.url);
     let bodyParams: Record<string, unknown> = {};
     if (req.method === "POST") {
@@ -29,16 +29,18 @@ async function handleGlobalBrands(req: Request) {
       limit: Number.isFinite(rawLimit) ? rawLimit : 50,
     });
 
-    const [brands, config] = await Promise.all([
+    const [brands, config, userSnap] = await Promise.all([
       searchGlobalBrands({
         query: parsed.q,
         tone: parsed.tone,
         limit: parsed.limit,
       }),
       getSystemConfig(),
+      db.collection("users").doc(caller.uid).get().catch(() => null),
     ]);
 
-    const brandCloneFee = isChargingEnabled(config)
+    const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
+    const brandCloneFee = isChargingEnabled(config, Date.now(), userData, caller.isSuperAdmin)
       ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 1))
       : 0;
 

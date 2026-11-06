@@ -1685,7 +1685,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       window.dispatchEvent(new CustomEvent("adradar:config-updated"));
       if (nextDuration) {
         const labelStr = nextDuration === 60 ? "Free 1 Hour" : `Free ${nextDuration} Minutes`;
-        setStatusMsg(`${labelStr} toggled ON! The web app is now FREE to use for all registered users.`);
+        setStatusMsg(`${labelStr} toggled ON! The web app is now FREE to use for Monthly Subscribers.`);
       } else {
         setStatusMsg("Timed Free Access turned OFF. Standard token pricing is now active.");
       }
@@ -2581,7 +2581,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               </span>
                             </div>
                             <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                              When one is toggled on, the web app is 100% free to use for all registered users. Can be turned on and off by Super Admin only.
+                              When one is toggled on, the web app is 100% free to use for Monthly Subscribers only. Can be turned on and off by Super Admin only.
                             </p>
                           </button>
                           <button
@@ -2607,9 +2607,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                               {(
                                 [
-                                  { minutes: 15 as const, title: "Free 15 Minutes", subtitle: "15-minute free window for all registered users" },
-                                  { minutes: 30 as const, title: "Free 30 Minutes", subtitle: "30-minute free window for all registered users" },
-                                  { minutes: 60 as const, title: "Free Hour", subtitle: "60-minute (1 hour) free window for all registered users" },
+                                  { minutes: 15 as const, title: "Free 15 Minutes", subtitle: "15-minute free window for Monthly Subscribers" },
+                                  { minutes: 30 as const, title: "Free 30 Minutes", subtitle: "30-minute free window for Monthly Subscribers" },
+                                  { minutes: 60 as const, title: "Free Hour", subtitle: "60-minute (1 hour) free window for Monthly Subscribers" },
                                 ] as const
                               ).map((opt) => {
                                 const isActiveOpt = isFreeWindowOn && activeDuration === opt.minutes;
@@ -2648,7 +2648,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     </div>
                                     <p className="text-[11px] text-on-surface-variant leading-snug">
                                       {isActiveOpt
-                                        ? `Active right now — ${countdownStr} remaining (0 tokens for all registered users)`
+                                        ? `Active right now — ${countdownStr} remaining (0 tokens for Monthly Subscribers)`
                                         : opt.subtitle}
                                     </p>
                                   </button>
@@ -2659,7 +2659,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             {isFreeWindowOn && (
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-winner/40 bg-winner/15 px-3.5 py-2.5 font-mono text-xs">
                                 <span className="text-winner-soft font-semibold">
-                                  ⚡ Web App is currently FREE for all registered users ({activeDuration === 60 ? "Free Hour" : `Free ${activeDuration} Minutes`} · {countdownStr} remaining).
+                                  ⚡ Web App is currently FREE for Monthly Subscribers ({activeDuration === 60 ? "Free Hour" : `Free ${activeDuration} Minutes`} · {countdownStr} remaining).
                                 </span>
                                 <button
                                   type="button"

@@ -294,8 +294,12 @@ export async function withTokenGate(
     let effectiveCost = Math.max(0, toInt(rawCost));
 
     if (effectiveCost > 0) {
-      const sysSnap = await sysConfigDoc().get().catch(() => null);
-      if (sysSnap?.exists && !isChargingEnabled(sysSnap.data())) {
+      const [sysSnap, userSnap] = await Promise.all([
+        sysConfigDoc().get().catch(() => null),
+        usersCol().doc(caller.uid).get().catch(() => null),
+      ]);
+      const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
+      if (sysSnap?.exists && !isChargingEnabled(sysSnap.data(), Date.now(), userData, caller.isSuperAdmin)) {
         effectiveCost = 0;
       }
     }

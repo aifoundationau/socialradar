@@ -5,7 +5,23 @@
  * Never uses decimals: only whole numbers, with all amounts rounded up (Math.ceil).
  * For all nations except Australia and New Zealand, an AUD to USD conversion is shown.
  */
-import type { FreeAccessWindow, TokenPackId } from "./contracts";
+import type { FreeAccessWindow, TokenPackId, UserDoc } from "./contracts";
+
+/**
+ * Returns true if the user has an active Monthly Search Subscription (`SUB_MONTHLY_1000`)
+ * or is a Super Admin.
+ */
+export function isMonthlySubscriber(
+  user?: Partial<Pick<UserDoc, "subscriptionStatus" | "subscriptionPackId">> | null,
+  isSuperAdmin = false
+): boolean {
+  if (isSuperAdmin) return true;
+  if (!user) return false;
+  return (
+    user.subscriptionStatus === "active" ||
+    (user.subscriptionPackId === "SUB_MONTHLY_1000" && user.subscriptionStatus !== "canceled")
+  );
+}
 
 /**
  * Returns true if the SuperAdmin-controlled Timed Free Access Window (15m, 30m, or 60m)
@@ -23,19 +39,24 @@ export function isFreeAccessWindowActive(
 }
 
 /**
- * Returns true if paid token charging is active (i.e., `isTokenSystemEnabled !== false` AND
- * no Timed Free Access Window is currently active).
+ * Returns true if paid token charging is active for the given user.
+ * - If `isTokenSystemEnabled === false`, charging is disabled for all users.
+ * - If a Timed Free Access Window (15m/30m/60m) is active, charging is disabled ONLY for Monthly Subscribers.
  */
 export function isChargingEnabled(
   config?: {
     isTokenSystemEnabled?: boolean;
     freeAccessWindow?: Partial<FreeAccessWindow> | null;
   } | null,
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
+  user?: Partial<Pick<UserDoc, "subscriptionStatus" | "subscriptionPackId">> | null,
+  isSuperAdmin = false
 ): boolean {
   if (!config) return true;
   if (config.isTokenSystemEnabled === false) return false;
-  if (isFreeAccessWindowActive(config.freeAccessWindow, nowMs)) return false;
+  if (isFreeAccessWindowActive(config.freeAccessWindow, nowMs) && isMonthlySubscriber(user, isSuperAdmin)) {
+    return false;
+  }
   return true;
 }
 

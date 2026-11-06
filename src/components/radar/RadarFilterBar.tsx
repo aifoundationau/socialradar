@@ -127,7 +127,7 @@ export function RadarFilterBar({
   summary: { total: number; winners: number } | null;
   brands?: BrandProfile[] | null;
 }) {
-  const { profile } = useSession();
+  const { profile, isSuperAdmin } = useSession();
   const input = useRef<HTMLInputElement>(null);
   const apple = useSyncExternalStore(noSubscribe, isApple, () => false);
   const [liveServiceCosts, setLiveServiceCosts] = useState<ServiceCosts | undefined>(undefined);
@@ -158,7 +158,12 @@ export function RadarFilterBar({
     };
   }, []);
 
-  const chargingActive = isChargingEnabled({ isTokenSystemEnabled, freeAccessWindow }, nowMs);
+  const chargingActive = isChargingEnabled(
+    { isTokenSystemEnabled, freeAccessWindow },
+    nowMs,
+    profile,
+    isSuperAdmin
+  );
   const totalCost = chargingActive ? calculateSearchCost(filters, liveServiceCosts) : 0;
   const currentBalance = Math.max(0, profile ? profile.tokenBalance : 0);
   const isZeroBalance = Boolean(profile && chargingActive && currentBalance <= 0);

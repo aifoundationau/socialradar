@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyRequest } from "@/lib/firebase-admin";
+import { db, verifyRequest } from "@/lib/firebase-admin";
 import { errorResponse, readJson } from "@/lib/api";
 import {
   getSystemConfig,
@@ -8,21 +8,23 @@ import {
   submitCustomizeRequest,
 } from "@/lib/admin";
 import { formatAgentLocationLabel, getAdAgents } from "@/lib/ad-agents";
-import { CustomizeRequestInputSchema } from "@/lib/contracts";
+import { CustomizeRequestInputSchema, type UserDoc } from "@/lib/contracts";
 import { withTokenGate } from "@/lib/token-ledger";
 import { isChargingEnabled } from "@/lib/pricing";
 
 export async function GET(req: Request) {
   try {
     const caller = await verifyRequest(req);
-    const [config, requests, messages, agents] = await Promise.all([
+    const [config, requests, messages, agents, userSnap] = await Promise.all([
       getSystemConfig(),
       getUserCustomizeRequests(caller.uid, 30),
       getUserMessages(caller.email, caller.uid, 50),
       getAdAgents(),
+      db.collection("users").doc(caller.uid).get().catch(() => null),
     ]);
 
-    const costTokens = isChargingEnabled(config)
+    const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
+    const costTokens = isChargingEnabled(config, Date.now(), userData, caller.isSuperAdmin)
       ? Math.max(0, Math.round(config.serviceCosts?.customizeService ?? 55))
       : 0;
 
