@@ -1,7 +1,6 @@
 import { HomeCta } from "@/components/auth/HomeCta";
 import { AmbientGlow } from "@/components/ui/AmbientGlow";
 import { Icon, type IconName } from "@/components/ui/Icon";
-import { ACTION_COSTS } from "@/lib/pricing";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { PublicStartNavbar } from "@/components/layout/PublicStartNavbar";
 
@@ -41,11 +40,14 @@ export default function Home() {
           <h1 className="text-[2rem] leading-10 font-semibold tracking-tight text-on-surface sm:text-display">
             Model the ads that are already winning.
           </h1>
-          <p className="text-base text-on-surface-variant sm:text-title-sm">
-            {ACTION_COSTS.RADAR_SEARCH || ACTION_COSTS.AI_REMIX
-              ? `Pay as you go with tokens: a search costs ${ACTION_COSTS.RADAR_SEARCH} token, a full remix costs ${ACTION_COSTS.AI_REMIX} token. No subscription.`
-              : "Search the ad libraries and remix winning ads for your brand. Free right now, no subscription."}
-          </p>
+          <div className="space-y-1.5 text-base text-on-surface-variant sm:text-title-sm leading-relaxed">
+            <p>
+              Pay as you go or buy with tokens or buy an agency subscription: Search Proven Ads, Top Performers, Long Term winners
+            </p>
+            <p className="text-on-surface-variant/90">
+              Get assistance from top Social Media Agencies, Videographers, and Visual AI Experts
+            </p>
+          </div>
           <HomeCta />
         </section>
 
