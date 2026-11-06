@@ -55,7 +55,7 @@ function haversineKmClient(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 export function CustomizeView() {
-  const { brands, profile, activeBrand } = useSession();
+  const { brands, profile, activeBrand, role, isSuperAdmin, isAdmin } = useSession();
 
   const [selectedBrandId, setSelectedBrandId] = useState<string>("");
   const [brandName, setBrandName] = useState("");
@@ -349,16 +349,19 @@ export function CustomizeView() {
                 <Icon name="sparkles" className="size-3.5" />
                 <span>Professional Strategist Concierge</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsAdAgentModalOpen(true)}
-                data-agent-id="open-ad-agent-modal-hero-btn"
-                data-testid="open-ad-agent-modal-hero-btn"
-                className="inline-flex items-center gap-1.5 rounded-full border border-secondary/40 bg-secondary/15 px-3 py-1 font-mono text-xs font-semibold text-secondary hover:bg-secondary/25 transition"
-              >
-                <Icon name="mapPin" className="size-3.5" />
-                <span>Ad Agent Registration &amp; Orders Panel</span>
-              </button>
+              {/* Ad Agent Panel shortcut: visible to Ad Agents, Super Admin, and Main Admin (never visible to Supporters) */}
+              {role !== "supporter" && (role === "ad_agent" || isSuperAdmin || isAdmin) && (
+                <button
+                  type="button"
+                  onClick={() => setIsAdAgentModalOpen(true)}
+                  data-agent-id="open-ad-agent-modal-hero-btn"
+                  data-testid="open-ad-agent-modal-hero-btn"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-secondary/40 bg-secondary/15 px-3 py-1 font-mono text-xs font-semibold text-secondary hover:bg-secondary/25 transition"
+                >
+                  <Icon name="mapPin" className="size-3.5" />
+                  <span>Ad Agent Registration &amp; Orders Panel</span>
+                </button>
+              )}
             </div>
             <h1 className="text-headline-md sm:text-headline-lg font-bold text-on-surface">
               Customize your Brand Strategy with Professional Experts

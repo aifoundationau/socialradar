@@ -701,6 +701,8 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
   }
 
   if (!isOpen || !isClient) return null;
+  // Supporters cannot view or access the Ad Agent panel
+  if (role === "supporter" && !isSuper && !isMainAdmin) return null;
 
   return createPortal(
     <div

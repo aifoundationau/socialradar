@@ -341,26 +341,27 @@ function AccountMenu({
             <Icon name="helpCircle" className="size-4 text-primary" />
             <span>Frequently Asked Questions</span>
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              menu.current?.hidePopover();
-              onOpenAdAgent();
-            }}
-            data-agent-id="account-menu-ad-agent-button"
-            data-testid="account-menu-ad-agent-button"
-            aria-label="Open Ad Agent Registration and Customize Orders Panel"
-            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-tertiary transition-colors hover:bg-tertiary/15 sm:min-h-10"
-          >
-            <Icon name="sparkles" className="size-4 text-tertiary" />
-            <span>
-              {role === "superadmin"
-                ? "Ad Agent Panel (No Reg Needed)"
-                : role === "ad_agent"
-                  ? "Ad Agent Orders & Profile"
-                  : "Ad Agent Registration & Orders"}
-            </span>
-          </button>
+          {/* Ad Agent Menu: Accessible to Ad Agents, Super Admin, and Main Admin — hidden for Supporters */}
+          {role !== "supporter" && (role === "ad_agent" || isSuperAdmin || isAdmin) && (
+            <button
+              type="button"
+              onClick={() => {
+                menu.current?.hidePopover();
+                onOpenAdAgent();
+              }}
+              data-agent-id="account-menu-ad-agent-button"
+              data-testid="account-menu-ad-agent-button"
+              aria-label="Open Ad Agent Registration and Customize Orders Panel"
+              className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-tertiary transition-colors hover:bg-tertiary/15 sm:min-h-10"
+            >
+              <Icon name="sparkles" className="size-4 text-tertiary" />
+              <span>
+                {role === "superadmin"
+                  ? "Ad Agent Panel (No Reg Needed)"
+                  : "Ad Agent Orders, Profile & Contractors"}
+              </span>
+            </button>
+          )}
           {isAdmin ? (
             <button
               type="button"
