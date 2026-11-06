@@ -53,7 +53,7 @@ export function PerFaqRagDrawer({
   ragEntriesForFaq: RagSentenceItem[];
   onRagUpdated: () => void;
 }) {
-  const [targetLang, setTargetLang] = useState<string>("es");
+  const [targetLang, setTargetLang] = useState<string>("id");
   const [translating, setTranslating] = useState(false);
   const [savingToRag, setSavingToRag] = useState(false);
   const [hasTranslatedDraft, setHasTranslatedDraft] = useState(false);
@@ -268,11 +268,20 @@ export function PerFaqRagDrawer({
               aria-label="Select target language for Google Translate"
               className="rounded-lg border border-white/15 bg-surface-container-lowest px-2.5 py-1.5 font-mono text-xs text-on-surface focus:border-primary focus:outline-none"
             >
-              {SUPPORTED_RAG_LANGUAGES.map((lang) => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.flag} {lang.name} ({lang.nativeName})
-                </option>
-              ))}
+              <optgroup label="ASEAN Languages (All Member States & Timor-Leste)">
+                {SUPPORTED_RAG_LANGUAGES.filter((l) => l.isAsean).map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.flag} {lang.name} ({lang.nativeName})
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Additional Global Languages">
+                {SUPPORTED_RAG_LANGUAGES.filter((l) => !l.isAsean).map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.flag} {lang.name} ({lang.nativeName})
+                  </option>
+                ))}
+              </optgroup>
             </select>
             <button
               type="button"
@@ -408,7 +417,7 @@ export function GlobalRagCorpusSection({
   const [sourceText, setSourceText] = useState("");
   const [sourceCategory, setSourceCategory] = useState("Radar Search");
   const [sourceType, setSourceType] = useState<RagSourceType>("FAQ");
-  const [targetLang, setTargetLang] = useState("es");
+  const [targetLang, setTargetLang] = useState("id");
   const [translating, setTranslating] = useState(false);
   const [humanEditedQuestion, setHumanEditedQuestion] = useState("");
   const [humanEditedText, setHumanEditedText] = useState("");
@@ -784,7 +793,7 @@ export function GlobalRagCorpusSection({
           </div>
 
           <div>
-            <label className={label}>2. Target Language (Google Translator)</label>
+            <label className={label}>2. Target Language (All ASEAN & Global Languages)</label>
             <select
               value={targetLang}
               onChange={(e) => setTargetLang(e.target.value)}
@@ -793,11 +802,20 @@ export function GlobalRagCorpusSection({
               aria-label="Select target language for Google Translator"
               className={field}
             >
-              {SUPPORTED_RAG_LANGUAGES.map((lang) => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.flag} {lang.name} — {lang.nativeName} ({lang.code})
-                </option>
-              ))}
+              <optgroup label="ASEAN Languages (All Member States & Timor-Leste)">
+                {SUPPORTED_RAG_LANGUAGES.filter((l) => l.isAsean).map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.flag} {lang.name} — {lang.nativeName} ({lang.code})
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Additional Global Languages">
+                {SUPPORTED_RAG_LANGUAGES.filter((l) => !l.isAsean).map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.flag} {lang.name} — {lang.nativeName} ({lang.code})
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </div>
 

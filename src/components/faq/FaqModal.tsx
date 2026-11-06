@@ -360,7 +360,7 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev, onOpenSubscription }: 
               />
             </div>
 
-            {/* Language Selector (Default: English) */}
+            {/* Language Selector (Default: English, All ASEAN Languages + Global Languages) */}
             <div className="flex items-center gap-2 shrink-0">
               <select
                 value={selectedLang}
@@ -370,11 +370,21 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev, onOpenSubscription }: 
                 aria-label="Select FAQ display language"
                 className="h-10 rounded-lg border border-white/15 bg-surface-container px-3 font-mono text-xs text-on-surface focus:border-primary focus:outline-none"
               >
-                {SUPPORTED_RAG_LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.flag} {lang.code === "en" ? "English (Default)" : `${lang.name} (${lang.nativeName})`}
-                  </option>
-                ))}
+                <option value="en">🇦🇺 English (Default)</option>
+                <optgroup label="ASEAN Languages (All Member States & Timor-Leste)">
+                  {SUPPORTED_RAG_LANGUAGES.filter((l) => l.code !== "en" && l.isAsean).map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.flag} {lang.name} ({lang.nativeName})
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Additional Global Languages">
+                  {SUPPORTED_RAG_LANGUAGES.filter((l) => !l.isAsean).map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.flag} {lang.name} ({lang.nativeName})
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </div>
           </div>

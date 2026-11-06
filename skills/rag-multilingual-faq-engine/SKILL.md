@@ -28,8 +28,8 @@ Every knowledge artifact is decomposed into atomic sentences and tagged with one
 - `CUSTOMIZE_AI`: Sentences harvested from Customize Brand Strategy AI works (`customize_requests` and `admin_messages`), including multi-angle strategy hooks, primary copy, and visual directions.
 
 ### Stage 2: Instant Google Translator Bridge (`POST /api/rag/translate`)
-1. Accepts `{ text, question?, sourceLang, targetLang }`.
-2. Queries Google Translate (`https://translate.googleapis.com/translate_a/single?client=gtx`) for instant low-latency translation into the target ISO language code (`es`, `zh-CN`, `zh-TW`, `ja`, `ko`, `fr`, `de`, `pt`, `it`, `ar`, `hi`, `ru`, `vi`, `th`, `id`, `tr`, `nl`, `pl`, `el`, `tl`).
+1. Accepts `{ text, question?, items?, sourceLang, targetLang }`.
+2. Queries Google Translate (`https://translate.googleapis.com/translate_a/single?client=gtx`) for instant low-latency translation into **all ASEAN official & regional languages** (`id` Indonesian, `ms` Malay MY/BN/SG, `vi` Vietnamese, `th` Thai, `tl` Filipino/Tagalog, `my` Burmese/Myanmar, `km` Khmer/Cambodia, `lo` Lao/Laos, `ta` Tamil SG/MY, `zh-CN` Mandarin SG/MY, `tet` Tetum Timor-Leste, `pt` Portuguese Timor-Leste, `ceb` Cebuano/Bisaya, `ilo` Ilocano, `jw` Javanese, `su` Sundanese) plus major global languages (`zh-TW`, `ja`, `ko`, `hi`, `ar`, `es`, `fr`, `de`, `it`, `ru`, `tr`, `nl`, `pl`, `el`).
 3. Preserves domain terminology (`AdRadarHQ`, `Proven (28+d)`, `Extended (60+d)`, `Top Winners (90%+)`, `Token`).
 4. Returns the draft translation to the client UI with `isHumanVerified: false` so it can be edited by a human prior to RAG ingestion.
 
@@ -41,3 +41,4 @@ Every knowledge artifact is decomposed into atomic sentences and tagged with one
 ### Stage 4: Hybrid Keyword & Semantic Token Retrieval (`GET /api/rag`)
 - Tokenizes every original and translated sentence into normalized lowercase keyword vectors (`keywords: string[]`).
 - Supports instant filtering by search query (`q`), `sourceType`, `faqId`, and `languageCode`.
+
