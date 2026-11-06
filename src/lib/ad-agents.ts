@@ -412,6 +412,7 @@ export async function resetAdAgentRedistributionToZero(
 
   await db.collection(AD_AGENTS_COL).doc(agentId).set(
     {
+      claimedCustomizationsTokens: item.totalCustomizationsTokens,
       claimedTokens: grossRedistTokens,
       claimedAudCents: grossRedistAudCents,
       claimedUsdCents: grossRedistUsdCents,
@@ -513,13 +514,21 @@ export async function getAdAgentDistributionLedger(
 
     const pct = normalizeRedistributionPercent(agent.redistributionPercentage);
 
-    const grossRedistTokens = Math.round(totalCustomizationsTokens * (pct / 100));
-    const grossRedistAudCents = Math.round(totalCustomizationsAudCents * (pct / 100));
-    const grossRedistUsdCents = Math.round(totalCustomizationsUsdCents * (pct / 100));
+    // If the Ad Agent's redistribution was reset at `lastResetAt`, only Customizations created after `lastResetAt`
+    // count toward the current unpaid Redist. Amount.
+    const unpaidRequests = agent.lastResetAt
+      ? matchedRequests.filter((r) => r.createdAt > agent.lastResetAt!)
+      : matchedRequests;
+    const unpaidCustomizationsTokens = unpaidRequests.reduce(
+      (sum, r) => sum + Math.max(0, Math.round(Number(r.tokensCharged ?? 0))),
+      0,
+    );
+    const unpaidCustomizationsAudCents = unpaidCustomizationsTokens * audCentsPerToken;
+    const unpaidCustomizationsUsdCents = Math.round(unpaidCustomizationsAudCents * 0.65);
 
-    const claimedTokens = Math.max(0, Math.round(Number(agent.claimedTokens || 0)));
-    const claimedAudCents = Math.max(0, Math.round(Number(agent.claimedAudCents || 0)));
-    const claimedUsdCents = Math.max(0, Math.round(Number(agent.claimedUsdCents || 0)));
+    const redistributionTokens = Math.max(0, Math.round(unpaidCustomizationsTokens * (pct / 100)));
+    const redistributionAudCents = Math.max(0, Math.round(unpaidCustomizationsAudCents * (pct / 100)));
+    const redistributionUsdCents = Math.max(0, Math.round(unpaidCustomizationsUsdCents * (pct / 100)));
 
     return {
       agentId: agent.agentId,
@@ -541,9 +550,9 @@ export async function getAdAgentDistributionLedger(
       totalCustomizationsAudCents,
       totalCustomizationsUsdCents,
       redistributionPercentage: pct,
-      redistributionTokens: Math.max(0, grossRedistTokens - claimedTokens),
-      redistributionAudCents: Math.max(0, grossRedistAudCents - claimedAudCents),
-      redistributionUsdCents: Math.max(0, grossRedistUsdCents - claimedUsdCents),
+      redistributionTokens,
+      redistributionAudCents,
+      redistributionUsdCents,
       lastResetAt: agent.lastResetAt,
     };
   });

@@ -533,6 +533,77 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     }
   }
 
+  function handleDownloadAdAgentInvoice(agent: AdAgentDistributionItem) {
+    const now = new Date();
+    const dateStamp = now.toISOString().slice(0, 10);
+    const invoiceId = `INV-ADAGENT-${now.getTime().toString(36).toUpperCase()}`;
+    const safeName = (agent.name || agent.email.split("@")[0] || "ad-agent")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+
+    const lines = [
+      "======================================================================",
+      "          ADRADARHQ — AD AGENT REDISTRIBUTION PAYOUT INVOICE          ",
+      "======================================================================",
+      `Invoice Reference : ${invoiceId}`,
+      `Issue Date (AEST) : ${now.toLocaleString("en-AU")}`,
+      "",
+      "----------------------------------------------------------------------",
+      "1. AD AGENT PAYEE & BANK / PAYID DETAILS",
+      "----------------------------------------------------------------------",
+      `Ad Agent Name     : ${agent.name}`,
+      `Registered Email  : ${agent.email}`,
+      `Phone Number      : ${agent.phone || "Not specified"}`,
+      `Location          : ${agent.locationLabel} (${agent.latitude.toFixed(2)}, ${agent.longitude.toFixed(2)})`,
+      `Bank / PayID      : ${
+        agent.bankOrPayIdDetails && agent.bankOrPayIdDetails.trim()
+          ? agent.bankOrPayIdDetails.trim()
+          : "Not provided — please verify Bank / PayID details with Ad Agent"
+      }`,
+      "",
+      "----------------------------------------------------------------------",
+      "2. CUSTOMIZATIONS & REDISTRIBUTION SUMMARY",
+      "----------------------------------------------------------------------",
+      `Customizations Completed     : ${agent.customizationsCount} Order(s)`,
+      `Total Customizations Value   : ${agent.totalCustomizationsTokens.toLocaleString("en-AU")} Tokens (${formatAud(
+        agent.totalCustomizationsAudCents
+      )} AUD / ${formatUsd(agent.totalCustomizationsUsdCents)} USD)`,
+      `Redistribution Percentage    : ${agent.redistributionPercentage}%`,
+      "",
+      "----------------------------------------------------------------------",
+      "3. AMOUNT TO PAY AD AGENT (REDIST. AMOUNT)",
+      "----------------------------------------------------------------------",
+      `AMOUNT TO PAY (AUD)          : ${formatAud(agent.redistributionAudCents)} AUD`,
+      `AMOUNT TO PAY (USD Equiv.)   : ${formatUsd(agent.redistributionUsdCents)} USD`,
+      `Redistribution Tokens        : ${agent.redistributionTokens.toLocaleString("en-AU")} Tokens`,
+      "",
+      "----------------------------------------------------------------------",
+      "Settlement Note: After paying this invoice amount to the Ad Agent,",
+      "reset the Ad Agent's Redist. Amount to 0 in the Ad Agent Distribution Ledger.",
+      "======================================================================",
+    ];
+
+    const blob = new Blob([lines.join("\r\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ad-agent-invoice-${safeName}-${dateStamp}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+    // Automatically open the 2-step "Confirm 0 ⚡" reset button so Super Admin can immediately reset Redist. Amount to 0
+    setConfirmResetAdAgentId(agent.agentId);
+    setConfirmDeleteAdAgentId(null);
+    setStatusMsg(
+      `Downloaded payout invoice (.txt) for ${agent.name} — Amount to pay: ${formatAud(
+        agent.redistributionAudCents
+      )} AUD. Click "Confirm 0 ⚡" to reset Redist. Amount to 0.`
+    );
+  }
+
   async function handleResetAdAgentZero(agentId: string, email: string) {
     setResettingAdAgentId(agentId);
     setErrorMsg(null);
@@ -3258,13 +3329,26 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                       </button>
                                     </td>
 
-                                    {/* 7. Actions (Reset 0 ⚡ & Confirm Delete) */}
+                                    {/* 7. Actions (Invoice .txt, Reset 0 ⚡ & Confirm Delete) */}
                                     <td
                                       className="px-2.5 py-2 text-right whitespace-nowrap"
                                       onClick={(e) => e.stopPropagation()}
                                     >
-                                      {isSuper && (
+                                      {(isSuper || isSuperAdmin) && (
                                         <div className="flex items-center justify-end gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDownloadAdAgentInvoice(agent)}
+                                            data-agent-id={`download-ad-agent-invoice-${agent.agentId}`}
+                                            data-testid={`download-ad-agent-invoice-${agent.agentId}`}
+                                            aria-label={`Download payout invoice text file for ${agent.name}`}
+                                            title={`Download payout invoice (.txt) for ${agent.name} (${formatAud(agent.redistributionAudCents)} AUD)`}
+                                            className="inline-flex items-center gap-1 rounded border border-primary/40 bg-primary/15 px-1.5 py-0.5 font-mono text-[9px] font-bold text-primary hover:bg-primary/25 transition"
+                                          >
+                                            <Icon name="download" className="size-2.5" />
+                                            <span>Invoice</span>
+                                          </button>
+
                                           {confirmResetAdAgentId === agent.agentId ? (
                                             <div className="flex items-center gap-1 animate-fadeIn">
                                               <button
