@@ -141,6 +141,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [confirmDeductOpen, setConfirmDeductOpen] = useState(false);
   const [selectedRefundTxId, setSelectedRefundTxId] = useState("");
   const [confirmTopRefundOpen, setConfirmTopRefundOpen] = useState(false);
+  const [isMasterLedgerExpanded, setIsMasterLedgerExpanded] = useState(false);
   const [confirmResetLedgerOpen, setConfirmResetLedgerOpen] = useState(false);
   const [adminMessages, setAdminMessages] = useState<AdminMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<AdminMessage | null>(null);
@@ -2832,9 +2833,22 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     data-testid="master-order-ledger-section"
                   >
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
-                      <div>
+                      <button
+                        type="button"
+                        onClick={() => setIsMasterLedgerExpanded((prev) => !prev)}
+                        aria-expanded={isMasterLedgerExpanded}
+                        data-agent-id="toggle-master-order-ledger-header-btn"
+                        data-testid="toggle-master-order-ledger-header-btn"
+                        className="flex-1 text-left group cursor-pointer"
+                      >
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="text-compact font-bold text-on-surface">
+                          <Icon
+                            name="chevronDown"
+                            className={`size-4 text-primary transition-transform duration-200 ${
+                              isMasterLedgerExpanded ? "rotate-180" : "-rotate-90"
+                            }`}
+                          />
+                          <h4 className="text-compact font-bold text-on-surface group-hover:text-primary transition-colors">
                             Master Order Ledger (All Transactions, Stripe Purchases &amp; Search Orders)
                           </h4>
                           <span className="rounded-full bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
@@ -2852,18 +2866,20 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             ? "Super Admin can Add Tokens, Remove Tokens, or click “Refund Tokens” on any deduction order to restore tokens to the customer wallet."
                             : "Token adjustments (Add, Remove, Refund) are restricted to Super Admin only."}
                         </p>
-                      </div>
+                      </button>
 
-                      <div className="flex flex-wrap items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder="Search email, brand, or tx ID..."
-                          value={orderSearch}
-                          onChange={(e) => setOrderSearch(e.target.value)}
-                          className={`${field} !py-1.5 !text-[12px] w-48 sm:w-56`}
-                          data-agent-id="master-order-ledger-search"
-                          data-testid="master-order-ledger-search"
-                        />
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {isMasterLedgerExpanded && (
+                          <input
+                            type="text"
+                            placeholder="Search email, brand, or tx ID..."
+                            value={orderSearch}
+                            onChange={(e) => setOrderSearch(e.target.value)}
+                            className={`${field} !py-1.5 !text-[12px] w-48 sm:w-56`}
+                            data-agent-id="master-order-ledger-search"
+                            data-testid="master-order-ledger-search"
+                          />
+                        )}
                         <button
                           type="button"
                           onClick={reloadOrders}
@@ -2874,35 +2890,53 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           <Icon name="refresh" className="size-3.5" />
                           Refresh
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsMasterLedgerExpanded((prev) => !prev)}
+                          aria-expanded={isMasterLedgerExpanded}
+                          data-agent-id="toggle-master-order-ledger-btn"
+                          data-testid="toggle-master-order-ledger-btn"
+                          className={`${btnSecondary} font-mono text-xs`}
+                        >
+                          <Icon
+                            name="chevronDown"
+                            className={`size-3.5 transition-transform duration-200 ${
+                              isMasterLedgerExpanded ? "rotate-180" : ""
+                            }`}
+                          />
+                          <span>{isMasterLedgerExpanded ? "Collapse Ledger" : "Expand Ledger"}</span>
+                        </button>
                       </div>
                     </div>
 
-                    {/* Filter Tabs */}
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {(
-                        [
-                          { id: "ALL", label: "All Orders" },
-                          { id: "SEARCH", label: "Search Orders" },
-                          { id: "STRIPE", label: "Stripe Purchases" },
-                          { id: "SERVICES", label: "Customize & AI" },
-                          { id: "GIFT_REFUND", label: "Gifts & Refunds" },
-                        ] as const
-                      ).map((f) => (
-                        <button
-                          key={f.id}
-                          type="button"
-                          onClick={() => setOrderFilter(f.id)}
-                          className={`rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
-                            orderFilter === f.id
-                              ? "bg-primary/20 text-primary border border-primary/40"
-                              : "bg-surface-container-highest text-on-surface-variant border border-white/[0.06] hover:text-on-surface"
-                          }`}
-                          data-testid={`order-filter-${f.id.toLowerCase()}`}
-                        >
-                          {f.label}
-                        </button>
-                      ))}
-                    </div>
+                    {isMasterLedgerExpanded && (
+                      <>
+                        {/* Filter Tabs */}
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-white/[0.06]">
+                          {(
+                            [
+                              { id: "ALL", label: "All Orders" },
+                              { id: "SEARCH", label: "Search Orders" },
+                              { id: "STRIPE", label: "Stripe Purchases" },
+                              { id: "SERVICES", label: "Customize & AI" },
+                              { id: "GIFT_REFUND", label: "Gifts & Refunds" },
+                            ] as const
+                          ).map((f) => (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() => setOrderFilter(f.id)}
+                              className={`rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                                orderFilter === f.id
+                                  ? "bg-primary/20 text-primary border border-primary/40"
+                                  : "bg-surface-container-highest text-on-surface-variant border border-white/[0.06] hover:text-on-surface"
+                              }`}
+                              data-testid={`order-filter-${f.id.toLowerCase()}`}
+                            >
+                              {f.label}
+                            </button>
+                          ))}
+                        </div>
 
                     {/* Orders Table */}
                     {(() => {
@@ -3123,6 +3157,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         </div>
                       );
                     })()}
+                      </>
+                    )}
                   </div>
                 </div>
               )}
