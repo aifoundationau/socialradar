@@ -70,6 +70,7 @@ export function BrandsManager() {
       await apiFetch("/api/brands", { method: "DELETE", body: { brandId: b.brandId } });
       setConfirmDeleteId(null);
       setSuccessMsg(`Brand "${b.brandName}" was deleted.`);
+      void fetchGlobalBrands(searchQuery, selectedTone);
     });
 
   async function handleToggleGlobal(b: BrandProfile) {
@@ -84,6 +85,7 @@ export function BrandsManager() {
           ? `"${b.brandName}" is now Global! Anyone in the community can search and copy it.`
           : `"${b.brandName}" is now Private to your account.`
       );
+      void fetchGlobalBrands(searchQuery, selectedTone);
     });
   }
 
@@ -118,11 +120,12 @@ export function BrandsManager() {
       const params = new URLSearchParams();
       if (q.trim()) params.set("q", q.trim());
       if (tone && tone !== "ALL") params.set("tone", tone);
+      const queryStr = params.toString();
       const res = await apiFetch<{
         brands: BrandProfile[];
         brandCloneFee?: number;
         audCentsPerToken?: number;
-      }>(`/api/brands/global?${params.toString()}`);
+      }>(`/api/brands/global${queryStr ? `?${queryStr}` : ""}`, { method: "GET" });
       setGlobalBrands(res.brands);
       if (typeof res.brandCloneFee === "number") setCloneFee(res.brandCloneFee);
       if (typeof res.audCentsPerToken === "number") setAudRate(res.audCentsPerToken);
@@ -165,10 +168,9 @@ export function BrandsManager() {
   }
 
   useEffect(() => {
-    if (activeTab === "global" && globalBrands === null) {
-      fetchGlobalBrands("", "ALL");
-    }
-  }, [activeTab, globalBrands]);
+    void fetchGlobalBrands(searchQuery, selectedTone);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   if (brands === null) {
     return <div className={`${card} h-40 animate-pulse`} aria-busy="true" />;
@@ -865,7 +867,10 @@ export function BrandsManager() {
       {/* Slide-over panel */}
       <BrandSlideOver
         isOpen={slideOver.isOpen}
-        onClose={() => setSlideOver({ isOpen: false })}
+        onClose={() => {
+          setSlideOver({ isOpen: false });
+          void fetchGlobalBrands(searchQuery, selectedTone);
+        }}
         brand={activeSlideOverBrand}
         isFirst={brands.length === 0}
       />

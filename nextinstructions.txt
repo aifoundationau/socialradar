@@ -231,6 +231,10 @@
     - Connected [`src/components/admin/SuperAdminModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/admin/SuperAdminModal.tsx) to fetch the live ECB reference exchange rate from the Frankfurter API endpoint (`/api/currency`).
     - Added a live ECB status badge with real-time exchange rate, ECB reference date, and a manual `Sync ECB` refresh button in the **Base Token Price (AUD — Default Currency)** card.
     - Connected all other international USD estimates in the Super Admin modal (Product & Service Pricing, Monthly Subscription, and Token Pack Catalog) and in [`src/components/wallet/TokenPacks.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/wallet/TokenPacks.tsx) to dynamically use the live Frankfurter ECB rate.
+47. **Global Brand Library 405 Fix & Full Global Brands Discovery (`src/app/api/brands/global/route.ts`, `src/lib/brands.ts`, `src/components/brands/BrandsManager.tsx`):**
+    - Fixed `Request failed (405)` in [`src/components/brands/BrandsManager.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/brands/BrandsManager.tsx) by passing `{ method: "GET" }` in `fetchGlobalBrands` and exporting both `GET` and `POST` handlers in [`src/app/api/brands/global/route.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/app/api/brands/global/route.ts).
+    - Enhanced `searchGlobalBrands` in [`src/lib/brands.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/brands.ts) to aggregate all documents in `global_brands` plus any `users/*/brands` with `isGlobal: true` (auto-syncing missing entries to `global_brands`), sort by newest first, and return all Global Brands.
+    - Updated [`src/components/brands/BrandsManager.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/brands/BrandsManager.tsx) to load all Global Brands on mount, on tab switch to `Global Brand Library`, and after toggling `Make Global` / `Make Private` or editing/deleting brands.
 
 ## What to Do When Reopened Next Startup
 1. **Read `nextinstructions.txt` First:** Start here and review the latest completed milestones above.

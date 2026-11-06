@@ -5,14 +5,27 @@ import { searchGlobalBrands } from "@/lib/brands";
 import { GlobalBrandSearchQuerySchema } from "@/lib/contracts";
 import { getSystemConfig } from "@/lib/admin";
 
-export async function GET(req: Request) {
+async function handleGlobalBrands(req: Request) {
   try {
     await verifyRequest(req);
     const { searchParams } = new URL(req.url);
+    let bodyParams: Record<string, unknown> = {};
+    if (req.method === "POST") {
+      bodyParams = (await req.json().catch(() => ({}))) ?? {};
+    }
+
+    const rawQ = searchParams.get("q") ?? (typeof bodyParams.q === "string" ? bodyParams.q : undefined);
+    const rawTone = searchParams.get("tone") ?? (typeof bodyParams.tone === "string" ? bodyParams.tone : undefined);
+    const rawLimit = searchParams.get("limit")
+      ? parseInt(searchParams.get("limit")!, 10)
+      : typeof bodyParams.limit === "number"
+        ? bodyParams.limit
+        : 50;
+
     const parsed = GlobalBrandSearchQuerySchema.parse({
-      q: searchParams.get("q") ?? undefined,
-      tone: searchParams.get("tone") ?? undefined,
-      limit: searchParams.get("limit") ? parseInt(searchParams.get("limit")!, 10) : 50,
+      q: rawQ || undefined,
+      tone: rawTone && rawTone !== "ALL" ? rawTone : undefined,
+      limit: Number.isFinite(rawLimit) ? rawLimit : 50,
     });
 
     const [brands, config] = await Promise.all([
@@ -36,4 +49,12 @@ export async function GET(req: Request) {
   } catch (err) {
     return errorResponse(err);
   }
+}
+
+export async function GET(req: Request) {
+  return handleGlobalBrands(req);
+}
+
+export async function POST(req: Request) {
+  return handleGlobalBrands(req);
 }

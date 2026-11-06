@@ -155,31 +155,74 @@ export async function duplicateBrand(
   return brand;
 }
 
-/** Searches and lists community brands published in `global_brands`. */
+/** Searches and lists community brands published in `global_brands` (and syncs any `isGlobal: true` user brands). */
 export async function searchGlobalBrands(options: {
   query?: string;
   tone?: string;
   limit?: number;
 }): Promise<BrandProfile[]> {
   const maxLimit = Math.min(options.limit ?? 50, 100);
-  let qRef: FirebaseFirestore.Query = globalBrandsCol;
-  if (options.tone) {
-    qRef = qRef.where("toneOfVoice", "==", options.tone);
+  const globalSnap = await globalBrandsCol.limit(maxLimit * 2).get();
+  const byId = new Map<string, BrandProfile>();
+
+  for (const docSnap of globalSnap.docs) {
+    const data = docSnap.data() as BrandProfile;
+    if (data && data.brandId) {
+      byId.set(data.brandId, { ...data, isGlobal: true });
+    }
   }
-  const snap = await qRef.limit(maxLimit * 2).get();
-  let list = snap.docs.map((d) => d.data() as BrandProfile);
+
+  // Also scan user brand subcollections for any brands marked `isGlobal: true` that haven't synced yet
+  try {
+    const usersSnap = await db.collection("users").get();
+    const missingSyncs: Promise<unknown>[] = [];
+    await Promise.all(
+      usersSnap.docs.map(async (uDoc) => {
+        const uData = uDoc.data();
+        const bSnap = await uDoc.ref.collection("brands").where("isGlobal", "==", true).get();
+        for (const bDoc of bSnap.docs) {
+          const bData = bDoc.data() as BrandProfile;
+          if (!bData) continue;
+          const normalized: BrandProfile = {
+            ...bData,
+            brandId: bData.brandId || bDoc.id,
+            isGlobal: true,
+            authorUid: bData.authorUid || uDoc.id,
+            authorEmail: bData.authorEmail || uData?.email,
+          };
+          if (!byId.has(normalized.brandId)) {
+            byId.set(normalized.brandId, normalized);
+            missingSyncs.push(globalBrandsCol.doc(normalized.brandId).set(normalized, { merge: true }));
+          }
+        }
+      }),
+    );
+    if (missingSyncs.length > 0) {
+      await Promise.allSettled(missingSyncs);
+    }
+  } catch {
+    // Non-fatal fallback if user scan fails
+  }
+
+  let list = Array.from(byId.values());
+
+  if (options.tone && options.tone !== "ALL") {
+    list = list.filter((b) => b.toneOfVoice === options.tone);
+  }
 
   if (options.query && options.query.trim()) {
     const term = options.query.trim().toLowerCase();
     list = list.filter(
       (b) =>
-        b.brandName.toLowerCase().includes(term) ||
-        b.productServiceDescription.toLowerCase().includes(term) ||
-        b.targetAudienceAvatar.toLowerCase().includes(term) ||
-        b.uniqueMechanismOrOffer.toLowerCase().includes(term) ||
-        b.corePainPoints.some((p) => p.toLowerCase().includes(term)),
+        (b.brandName ?? "").toLowerCase().includes(term) ||
+        (b.productServiceDescription ?? "").toLowerCase().includes(term) ||
+        (b.targetAudienceAvatar ?? "").toLowerCase().includes(term) ||
+        (b.uniqueMechanismOrOffer ?? "").toLowerCase().includes(term) ||
+        (b.corePainPoints ?? []).some((p) => p.toLowerCase().includes(term)),
     );
   }
+
+  list.sort((a, b) => (b.updatedAt ?? b.createdAt ?? "").localeCompare(a.updatedAt ?? a.createdAt ?? ""));
 
   return list.slice(0, maxLimit);
 }
