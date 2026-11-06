@@ -187,6 +187,15 @@
       1. **`Add Tokens` -> `Confirm Add (+X ⚡)`** (`GIFT_TOKENS`)
       2. **`- Minus Tokens` -> `Confirm Minus (-X ⚡)`** (`DEDUCT_TOKENS`, capped at the user's current balance so nobody can ever go negative)
       3. **`Reset to 0` -> `Confirm Reset to 0 ⚡`** (`RESET_TOKENS`)
+40. **Comprehensive Firestore Database Health Check (`scripts/verify-database.mjs` — 9/9 Passed):**
+    - Verified `system_config/global` (`isTokenSystemEnabled: true`, `audCentsPerToken: 100`, 4 equity partners).
+    - Verified `system_config/faqs` (27 FAQ items, `customer_v1`).
+    - Verified `system_config/rbac` (5 roles: `superadmin`, `admin`, `moderator`, `agency`, `supporter`).
+    - Verified `system_config/rag_corpus` (ready & auto-seeds 167+ sentences + ASEAN/global translations).
+    - Verified `token_transactions` (atomic write/read/delete probe + all 27 ledger records verified non-negative).
+    - Verified `users` collection (all 10 user documents verified `tokenBalance >= 0`).
+    - Verified `admin_messages`, `customize_requests`, and `stripe_purchases` collections.
+
 
 
 
