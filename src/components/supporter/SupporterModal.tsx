@@ -140,7 +140,15 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
         limit(150),
       ),
       (snap) => {
-        setRows(snap.docs.map((d) => d.data() as TokenTransactionDoc));
+        setRows(
+          snap.docs.map((d) => {
+            const raw = d.data() as TokenTransactionDoc;
+            return {
+              ...raw,
+              balanceAfter: Math.max(0, Math.round(Number(raw.balanceAfter ?? 0))),
+            };
+          }),
+        );
         setLedgerError(null);
       },
       (err) => {

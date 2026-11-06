@@ -816,10 +816,22 @@ export async function getMasterOrderLedger(limit = 150): Promise<TokenTransactio
     ]);
 
     const uidToEmail = new Map<string, string>();
+    const healPromises: Promise<unknown>[] = [];
     for (const uDoc of usersSnap.docs) {
       const uData = uDoc.data();
       if (typeof uData.email === "string" && uData.email) {
         uidToEmail.set(uDoc.id, uData.email.toLowerCase());
+      }
+      const rawBal = Number(uData.tokenBalance ?? 0);
+      if (!Number.isFinite(rawBal) || rawBal < 0) {
+        healPromises.push(
+          uDoc.ref
+            .update({
+              tokenBalance: 0,
+              updatedAt: new Date().toISOString(),
+            })
+            .catch(() => undefined),
+        );
       }
     }
 
@@ -831,11 +843,26 @@ export async function getMasterOrderLedger(limit = 150): Promise<TokenTransactio
       if (data.type === "REFUND" && data.referenceId) {
         refundedOrigIds.add(data.referenceId);
       }
+      const rawBalAfter = Number(data.balanceAfter ?? 0);
+      if (!Number.isFinite(rawBalAfter) || rawBalAfter < 0) {
+        healPromises.push(
+          doc.ref
+            .update({
+              balanceAfter: 0,
+            })
+            .catch(() => undefined),
+        );
+      }
       txMap.set(data.txId || doc.id, {
         ...data,
         txId: data.txId || doc.id,
         email: data.email || uidToEmail.get(data.uid) || undefined,
+        balanceAfter: Math.max(0, Math.round(Number.isFinite(rawBalAfter) ? rawBalAfter : 0)),
       });
+    }
+
+    if (healPromises.length > 0) {
+      await Promise.all(healPromises);
     }
 
     // Ensure any simulated or direct Stripe purchase records also appear in the Master Order Ledger

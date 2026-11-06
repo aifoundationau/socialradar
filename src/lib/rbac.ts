@@ -179,14 +179,27 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
     ]);
 
     const balanceMap = new Map<string, number>();
+    const healPromises: Promise<unknown>[] = [];
     usersSnap.forEach((doc) => {
       const data = doc.data();
-      const bal = Math.max(0, Math.round(Number(data.tokenBalance ?? 0)));
+      const rawBal = Number(data.tokenBalance ?? 0);
+      if (!Number.isFinite(rawBal) || rawBal < 0) {
+        healPromises.push(
+          doc.ref.update({
+            tokenBalance: 0,
+            updatedAt: new Date().toISOString(),
+          }).catch(() => undefined),
+        );
+      }
+      const bal = Math.max(0, Math.round(Number.isFinite(rawBal) ? rawBal : 0));
       balanceMap.set(doc.id, bal);
       if (data.email) {
         balanceMap.set(String(data.email).toLowerCase().trim(), bal);
       }
     });
+    if (healPromises.length > 0) {
+      await Promise.all(healPromises);
+    }
 
     return listResult.users.map((u) => {
       const email = (u.email || "").toLowerCase().trim();

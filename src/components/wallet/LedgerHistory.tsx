@@ -46,7 +46,15 @@ export function LedgerHistory({ uid }: { uid: string }) {
           limit(HISTORY_LIMIT),
         ),
         (snap) => {
-          setRows(snap.docs.map((d) => d.data() as TokenTransactionDoc));
+          setRows(
+            snap.docs.map((d) => {
+              const raw = d.data() as TokenTransactionDoc;
+              return {
+                ...raw,
+                balanceAfter: Math.max(0, Math.round(Number(raw.balanceAfter ?? 0))),
+              };
+            }),
+          );
           setError(null);
         },
         (err) => {
