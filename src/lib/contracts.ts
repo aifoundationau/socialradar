@@ -820,3 +820,11 @@ export const DeleteRagEntryRequestSchema = z
   })
   .strict();
 export type DeleteRagEntryRequest = z.infer<typeof DeleteRagEntryRequestSchema>;
+
+// ---------- 14. User Self-Service Token Refresh to 0 ----------
+export const WalletSelfResetRequestSchema = z
+  .object({
+    confirmForfeit: z.literal(true),
+  })
+  .strict();
+export type WalletSelfResetRequest = z.infer<typeof WalletSelfResetRequestSchema>;

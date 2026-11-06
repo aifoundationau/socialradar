@@ -167,6 +167,11 @@
       - Available to all visitors without logging in, including on the front start page Navbar (`src/app/page.tsx`) and signed-out views (`src/components/layout/DashboardShell.tsx`) via `PublicStartNavbar.tsx`.
       - Enforced strict role gating in `FaqModal.tsx`, `FaqRagWorkspace.tsx`, and `SuperAdminModal.tsx` so the `supporter` role never sees the individual sentence RAG index or individual sentence translation function—they strictly only see FAQs and the FAQ translate option.
     - Created AI Agent Skill `skills/rag-multilingual-faq-engine/SKILL.md` and documented Section 20 in `data-contracts.md`.
+36. **Self-Service Refresh Tokens to 0 with Permanent Forfeit Confirmation (`WalletView.tsx`, `SupporterModal.tsx`, `/api/wallet/reset`):**
+    - Added a two-step **"Refresh Tokens to 0"** -> **"Confirm Refresh to 0 (Cannot Retrieve Unused Tokens)"** button and warning dialog right next to the user's Token Balance in `src/components/wallet/WalletView.tsx` (`/wallet`) and `src/components/supporter/SupporterModal.tsx` (`TOKENS` tab).
+    - Built `POST /api/wallet/reset` (`src/app/api/wallet/reset/route.ts`) validated by `WalletSelfResetRequestSchema` (`confirmForfeit: true`) to atomically set `users/{uid}.tokenBalance = 0` and log an immutable `ADMIN_RESET` record in `token_transactions`.
+    - Documented Section 21 in `data-contracts.md`.
+
 
 
 

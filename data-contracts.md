@@ -834,3 +834,21 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 ```
 - **Human-in-the-Loop Gate:** `POST /api/rag/translate` translates via Google Translator and returns draft text for human review. Only after the user or admin edits/approves the text in the Human Edit fields does `POST /api/rag` persist the verified entry to Firestore `system_config/rag_corpus` (`isHumanVerified: true`).
 
+## 21. User Self-Service Token Refresh to 0 (`POST /api/wallet/reset`)
+
+### 21.1 Request Schema (`WalletSelfResetRequestSchema`)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WalletSelfResetRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["confirmForfeit"],
+  "properties": {
+    "confirmForfeit": { "type": "boolean", "const": true }
+  }
+}
+```
+- **Permanent Forfeit Confirmation:** Requires explicit two-step user confirmation (`confirmForfeit: true`) acknowledging that unused tokens cannot be retrieved once refreshed to 0. Atomically updates `users/{uid}.tokenBalance` to `0` and logs an immutable `ADMIN_RESET` transaction in `token_transactions`.
+
+

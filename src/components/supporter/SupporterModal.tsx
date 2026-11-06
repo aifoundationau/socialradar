@@ -48,6 +48,34 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
   const [searchFilter, setSearchFilter] = useState("");
   const [platformFilter, setPlatformFilter] = useState<"ALL" | "META" | "TIKTOK" | "GOOGLE">("ALL");
   const [typeFilter, setTypeFilter] = useState<"ALL" | "RADAR_SEARCH" | "AI_REMIX" | "CUSTOMIZE_SERVICE" | "TOPUP" | "REFUND_GIFT">("ALL");
+  const [confirmRefreshZeroOpen, setConfirmRefreshZeroOpen] = useState(false);
+  const [refreshingZero, setRefreshingZero] = useState(false);
+  const [refreshZeroMsg, setRefreshZeroMsg] = useState<string | null>(null);
+
+  async function handleConfirmSelfRefreshZero() {
+    setRefreshingZero(true);
+    setLedgerError(null);
+    setRefreshZeroMsg(null);
+    try {
+      const res = await apiFetch<{
+        success: boolean;
+        clearedTokens: number;
+        balanceAfter: number;
+      }>("/api/wallet/reset", {
+        method: "POST",
+        body: { confirmForfeit: true },
+      });
+      setConfirmRefreshZeroOpen(false);
+      setRefreshZeroMsg(
+        `Your token balance has been refreshed to 0 (${res.clearedTokens.toLocaleString("en-AU")} unused tokens permanently cleared).`
+      );
+      window.dispatchEvent(new CustomEvent("wallet-updated"));
+    } catch (err) {
+      setLedgerError(errorMessage(err));
+    } finally {
+      setRefreshingZero(false);
+    }
+  }
 
   // Messaging state
   const [messages, setMessages] = useState<AdminMessage[]>([]);
@@ -350,43 +378,123 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
           {tab === "TOKENS" && (
             <div className="space-y-6">
               {/* Token Wallet Card */}
-              <div className={`${card} p-5 bg-gradient-to-r from-surface-container-high to-surface-container flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-white/10 shadow-lg`}>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
-                      <Icon name="zap" className="size-4" />
-                    </span>
-                    <span className="text-body font-semibold text-on-surface">Your Token Balance</span>
+              <div className={`${card} p-5 bg-gradient-to-r from-surface-container-high to-surface-container space-y-4 border border-white/10 shadow-lg`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                        <Icon name="zap" className="size-4" />
+                      </span>
+                      <span className="text-body font-semibold text-on-surface">Your Token Balance</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 pt-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-mono text-3xl sm:text-4xl font-extrabold text-primary tabular-nums">
+                          {profile ? profile.tokenBalance.toLocaleString("en-AU") : "–"}
+                        </span>
+                        <span className="font-mono text-sm font-semibold text-on-surface-variant uppercase tracking-wider">
+                          Tokens
+                        </span>
+                      </div>
+                      {!confirmRefreshZeroOpen && (
+                        <button
+                          type="button"
+                          disabled={!profile || profile.tokenBalance <= 0 || refreshingZero}
+                          onClick={() => {
+                            setRefreshZeroMsg(null);
+                            setLedgerError(null);
+                            setConfirmRefreshZeroOpen(true);
+                          }}
+                          data-agent-id="supporter-refresh-tokens-zero-btn"
+                          data-testid="supporter-refresh-tokens-zero-btn"
+                          aria-label="Refresh token balance to 0"
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 font-mono text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Icon name="refresh" className="size-3.5" />
+                          <span>Refresh Tokens to 0</span>
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-compact text-on-surface-variant">
+                      Standard paid rate is 1 Token = $1.00 AUD. Tokens never expire and deductions are atomic.
+                    </p>
                   </div>
-                  <div className="flex items-baseline gap-2 pt-1">
-                    <span className="font-mono text-3xl sm:text-4xl font-extrabold text-primary tabular-nums">
-                      {profile ? profile.tokenBalance.toLocaleString("en-AU") : "–"}
-                    </span>
-                    <span className="font-mono text-sm font-semibold text-on-surface-variant uppercase tracking-wider">
-                      Tokens
+
+                  <div className="flex flex-col sm:items-end gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setTab("BUY_TOKENS")}
+                      data-agent-id="tokens-tab-buy-more-button"
+                      data-testid="tokens-tab-buy-more-button"
+                      aria-label="Buy More Tokens"
+                      className={`${btnPrimary} flex items-center gap-2`}
+                    >
+                      <Icon name="plus" className="size-4" />
+                      <span>Buy More Tokens</span>
+                    </button>
+                    <span className="font-mono text-[11px] text-outline">
+                      Instant Stripe checkout · No monthly lock-in
                     </span>
                   </div>
-                  <p className="text-compact text-on-surface-variant">
-                    Standard paid rate is 1 Token = $1.00 AUD. Tokens never expire and deductions are atomic.
-                  </p>
                 </div>
 
-                <div className="flex flex-col sm:items-end gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setTab("BUY_TOKENS")}
-                    data-agent-id="tokens-tab-buy-more-button"
-                    data-testid="tokens-tab-buy-more-button"
-                    aria-label="Buy More Tokens"
-                    className={`${btnPrimary} flex items-center gap-2`}
+                {confirmRefreshZeroOpen && (
+                  <div
+                    role="alertdialog"
+                    data-agent-id="supporter-confirm-refresh-zero-box"
+                    data-testid="supporter-confirm-refresh-zero-box"
+                    className="rounded-xl border border-rose-500/50 bg-rose-500/10 p-4 space-y-3"
                   >
-                    <Icon name="plus" className="size-4" />
-                    <span>Buy More Tokens</span>
-                  </button>
-                  <span className="font-mono text-[11px] text-outline">
-                    Instant Stripe checkout · No monthly lock-in
-                  </span>
-                </div>
+                    <div className="flex items-start gap-2.5">
+                      <Icon name="alert" className="mt-0.5 size-5 shrink-0 text-rose-300" />
+                      <div className="space-y-1">
+                        <p className="font-mono text-xs font-bold uppercase tracking-wider text-rose-200">
+                          Confirm Refresh Tokens to 0 — Permanent Action
+                        </p>
+                        <p className="text-body-sm text-on-surface">
+                          You are about to refresh your token balance (
+                          <strong className="font-mono text-rose-200">
+                            {(profile?.tokenBalance ?? 0).toLocaleString("en-AU")} tokens
+                          </strong>
+                          ) to <strong className="font-mono text-rose-200">0</strong>. Once confirmed,{" "}
+                          <strong>you cannot retrieve those unused tokens</strong>.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        disabled={refreshingZero}
+                        onClick={() => setConfirmRefreshZeroOpen(false)}
+                        data-agent-id="supporter-cancel-refresh-tokens-zero-btn"
+                        data-testid="supporter-cancel-refresh-tokens-zero-btn"
+                        className={btnSecondary}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={refreshingZero}
+                        onClick={handleConfirmSelfRefreshZero}
+                        data-agent-id="supporter-confirm-refresh-tokens-zero-btn"
+                        data-testid="supporter-confirm-refresh-tokens-zero-btn"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/70 bg-rose-500/25 px-3.5 py-2 font-mono text-xs font-bold text-rose-100 transition hover:bg-rose-500/35 disabled:opacity-50"
+                      >
+                        <Icon
+                          name="refresh"
+                          className={`size-3.5 ${refreshingZero ? "animate-spin" : ""}`}
+                        />
+                        <span>
+                          {refreshingZero
+                            ? "Refreshing to 0…"
+                            : "Confirm Refresh to 0 (Cannot Retrieve Unused Tokens)"}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {refreshZeroMsg && <p className={alertInfo}>{refreshZeroMsg}</p>}
               </div>
 
               {/* Token Activity & Search Records */}
