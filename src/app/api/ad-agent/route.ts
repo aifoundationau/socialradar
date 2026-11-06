@@ -19,6 +19,7 @@ import {
   SuperAdminAddAdAgentRequestSchema,
   SuperAdminUpdateAdAgentBankDetailsRequestSchema,
   SuperAdminUpdateAdAgentPercentRequestSchema,
+  ToggleOwnAdAgentStatusRequestSchema,
   type CustomizeRequestDoc,
 } from "@/lib/contracts";
 
@@ -102,6 +103,7 @@ export async function POST(req: Request) {
         phone: body.phone,
         location: body.location,
         bankOrPayIdDetails: body.bankOrPayIdDetails ? String(body.bankOrPayIdDetails) : undefined,
+        status: body.status === "inactive" || body.status === "active" ? body.status : undefined,
       });
 
       const { agent, assignedRole } = await registerOrUpdateAdAgent({
@@ -112,6 +114,7 @@ export async function POST(req: Request) {
         phone: parsed.phone,
         location: parsed.location,
         bankOrPayIdDetails: parsed.bankOrPayIdDetails,
+        status: parsed.status,
       });
 
       const config = await getSystemConfig();
@@ -124,6 +127,46 @@ export async function POST(req: Request) {
         success: true,
         agent,
         assignedRole,
+        adAgentLedger,
+        ledger: adAgentLedger,
+      });
+    }
+
+    // 1b. Ad Agent toggling their own availability status (ON = "active", OFF = "inactive")
+    if (action === "AGENT_TOGGLE_OWN_STATUS") {
+      const parsed = ToggleOwnAdAgentStatusRequestSchema.parse({
+        status: body.status,
+      });
+      const agents = await getAdAgents();
+      const myAgent = agents.find(
+        (a) =>
+          a.email.toLowerCase() === cleanEmail ||
+          (a.uid && a.uid === caller.uid) ||
+          (isSuper && a.isSuperAdminBuiltIn),
+      );
+      if (!myAgent) {
+        throw new ApiError(
+          "NOT_FOUND",
+          "Please save your Ad Agent profile first before toggling your Ad Agent status.",
+          404,
+        );
+      }
+
+      await toggleAdAgentStatus(myAgent.agentId, parsed.status);
+      const updatedAgent = {
+        ...myAgent,
+        status: parsed.status,
+        updatedAt: new Date().toISOString(),
+      };
+      const config = await getSystemConfig();
+      const adAgentLedger = await getAdAgentDistributionLedger(
+        config.audCentsPerToken || 100,
+        config.serviceCosts?.customizeService ?? 55,
+      );
+
+      return NextResponse.json({
+        success: true,
+        agent: updatedAgent,
         adAgentLedger,
         ledger: adAgentLedger,
       });

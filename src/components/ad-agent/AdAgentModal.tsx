@@ -80,6 +80,8 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [bankOrPayIdDetails, setBankOrPayIdDetails] = useState("");
+  const [agentStatus, setAgentStatus] = useState<"active" | "inactive">("active");
+  const [togglingStatus, setTogglingStatus] = useState(false);
   const [suburb, setSuburb] = useState("Sydney");
   const [stateRegion, setStateRegion] = useState("NSW");
   const [country, setCountry] = useState("AU");
@@ -128,6 +130,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
         setName(data.myAgentProfile.name || user?.displayName || "");
         setPhone(data.myAgentProfile.phone || "");
         setBankOrPayIdDetails(data.myAgentProfile.bankOrPayIdDetails || "");
+        setAgentStatus(data.myAgentProfile.status === "inactive" ? "inactive" : "active");
         if (data.myAgentProfile.location) {
           setSuburb(data.myAgentProfile.location.suburb || "Sydney");
           setStateRegion(data.myAgentProfile.location.state || "NSW");
@@ -201,18 +204,63 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
           name: name.trim(),
           phone: phone.trim(),
           bankOrPayIdDetails: bankOrPayIdDetails.trim(),
+          status: agentStatus,
           location: locationPayload,
         },
       });
 
       setMyAgentProfile(res.agent);
+      setAgentStatus(res.agent.status === "inactive" ? "inactive" : "active");
       setStatusMsg(
-        `Ad Agent profile active for ${res.agent.name} (${res.agent.email}) at ${res.agent.location.label}. You will automatically be matched with Customize customers closest to your geolocation.`,
+        res.agent.status === "active"
+          ? `Ad Agent profile saved and status is ON (Active) for ${res.agent.name} (${res.agent.email}) at ${res.agent.location.label}. You will automatically be matched with Customize customers closest to your geolocation.`
+          : `Ad Agent profile saved for ${res.agent.name} (${res.agent.email}). Your Ad Agent status is currently OFF (Paused) — turn it ON anytime to receive Customize orders.`,
       );
     } catch (err) {
       setErrorMsg(errorMessage(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleToggleOwnStatus(targetStatus: "active" | "inactive") {
+    setAgentStatus(targetStatus);
+    if (!myAgentProfile) {
+      setStatusMsg(
+        targetStatus === "active"
+          ? "Ad Agent status set to ON (Active). Click 'Register as Ad Agent' below to save."
+          : "Ad Agent status set to OFF (Paused). Click 'Register as Ad Agent' below to save.",
+      );
+      return;
+    }
+
+    setTogglingStatus(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const res = await apiFetch<{
+        success: boolean;
+        agent: AdAgentProfile;
+      }>("/api/ad-agent", {
+        method: "POST",
+        body: {
+          action: "AGENT_TOGGLE_OWN_STATUS",
+          status: targetStatus,
+        },
+      });
+      if (res.agent) {
+        setMyAgentProfile(res.agent);
+        setAgentStatus(res.agent.status);
+      }
+      setStatusMsg(
+        targetStatus === "active"
+          ? "Ad Agent status turned ON (Active). You are now visible and receiving geolocation-matched Customize orders."
+          : "Ad Agent status turned OFF (Paused). You will not receive new Customize orders until you turn your Ad Agent status back ON.",
+      );
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setTogglingStatus(false);
     }
   }
 
@@ -341,36 +389,81 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
           </button>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-white/[0.08] bg-surface-container px-5 py-2.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setTab("REGISTRATION")}
-            data-agent-id="ad-agent-tab-registration"
-            data-testid="ad-agent-tab-registration"
-            className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 font-mono text-xs font-semibold transition ${
-              tab === "REGISTRATION"
-                ? "border-primary/50 bg-primary/15 text-primary shadow-sm"
-                : "border-white/[0.06] bg-surface-container-high/60 text-on-surface-variant hover:text-on-surface"
-            }`}
+        {/* Navigation Tabs & Ad Agent ON/OFF Status Toggle */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.08] bg-surface-container px-5 py-2.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setTab("REGISTRATION")}
+              data-agent-id="ad-agent-tab-registration"
+              data-testid="ad-agent-tab-registration"
+              className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 font-mono text-xs font-semibold transition ${
+                tab === "REGISTRATION"
+                  ? "border-primary/50 bg-primary/15 text-primary shadow-sm"
+                  : "border-white/[0.06] bg-surface-container-high/60 text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              <Icon name="user" className="size-3.5" />
+              <span>Ad Agent Registration &amp; Geolocation</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("ORDERS")}
+              data-agent-id="ad-agent-tab-orders"
+              data-testid="ad-agent-tab-orders"
+              className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 font-mono text-xs font-semibold transition ${
+                tab === "ORDERS"
+                  ? "border-primary/50 bg-primary/15 text-primary shadow-sm"
+                  : "border-white/[0.06] bg-surface-container-high/60 text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              <Icon name="sparkles" className="size-3.5" />
+              <span>Assigned Customize Orders ({assignedRequests.length})</span>
+            </button>
+          </div>
+
+          {/* Ad Agent Self-Service Status Toggle (ON / OFF) */}
+          <div
+            className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-surface-container-highest/70 px-3 py-1.5"
+            data-agent-id="ad-agent-self-status-toggle-bar"
+            data-testid="ad-agent-self-status-toggle-bar"
           >
-            <Icon name="user" className="size-3.5" />
-            <span>Ad Agent Registration &amp; Geolocation</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("ORDERS")}
-            data-agent-id="ad-agent-tab-orders"
-            data-testid="ad-agent-tab-orders"
-            className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 font-mono text-xs font-semibold transition ${
-              tab === "ORDERS"
-                ? "border-primary/50 bg-primary/15 text-primary shadow-sm"
-                : "border-white/[0.06] bg-surface-container-high/60 text-on-surface-variant hover:text-on-surface"
-            }`}
-          >
-            <Icon name="sparkles" className="size-3.5" />
-            <span>Assigned Customize Orders ({assignedRequests.length})</span>
-          </button>
+            <span className="font-mono text-[11px] font-semibold text-on-surface-variant">
+              Ad Agent Status:
+            </span>
+            <div className="inline-flex items-center rounded-lg border border-white/10 bg-surface-container-lowest p-0.5 font-mono text-[11px]">
+              <button
+                type="button"
+                disabled={togglingStatus}
+                onClick={() => handleToggleOwnStatus("active")}
+                aria-pressed={agentStatus === "active"}
+                data-agent-id="ad-agent-status-on-btn"
+                data-testid="ad-agent-status-on-btn"
+                className={`rounded-md px-2.5 py-0.5 font-bold transition ${
+                  agentStatus === "active"
+                    ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                    : "text-on-surface-variant hover:text-on-surface"
+                } disabled:opacity-50`}
+              >
+                ● ON
+              </button>
+              <button
+                type="button"
+                disabled={togglingStatus}
+                onClick={() => handleToggleOwnStatus("inactive")}
+                aria-pressed={agentStatus === "inactive"}
+                data-agent-id="ad-agent-status-off-btn"
+                data-testid="ad-agent-status-off-btn"
+                className={`rounded-md px-2.5 py-0.5 font-bold transition ${
+                  agentStatus === "inactive"
+                    ? "bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm"
+                    : "text-on-surface-variant hover:text-on-surface"
+                } disabled:opacity-50`}
+              >
+                ○ OFF
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Body */}
@@ -381,9 +474,15 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
           {tab === "REGISTRATION" && (
             <div className="space-y-5">
               {/* Role & Status Banner */}
-              <div className={`${card} p-4 border border-primary/30 bg-primary/[0.04] space-y-2`}>
+              <div
+                className={`${card} p-4 border space-y-2.5 ${
+                  agentStatus === "active"
+                    ? "border-primary/30 bg-primary/[0.04]"
+                    : "border-amber-500/30 bg-amber-500/[0.04]"
+                }`}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Icon name="shield" className="size-4 text-primary" />
                     <span className="font-mono text-xs font-bold uppercase tracking-wider text-primary">
                       {isSuper
@@ -391,22 +490,61 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                         : isMainAdmin
                           ? "Main Admin — Ad Agent Registration Enabled"
                           : myAgentProfile
-                            ? "Registered Active Ad Agent"
+                            ? agentStatus === "active"
+                              ? "Registered Active Ad Agent (Status: ON)"
+                              : "Registered Ad Agent (Status: OFF — Paused)"
                             : "Register as an AdRadarHQ Ad Agent"}
                     </span>
-                  </div>
-                  {myAgentProfile && (
-                    <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-300">
-                      Active · {myAgentProfile.redistributionPercentage}% Redistribution Rate
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 font-mono text-[11px] font-semibold border ${
+                        agentStatus === "active"
+                          ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                          : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                      }`}
+                    >
+                      {agentStatus === "active"
+                        ? `ON (Active) · ${myAgentProfile?.redistributionPercentage ?? 30}% Redistribution Rate`
+                        : `OFF (Paused) · ${myAgentProfile?.redistributionPercentage ?? 30}% Redistribution Rate`}
                     </span>
-                  )}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={togglingStatus}
+                    onClick={() =>
+                      handleToggleOwnStatus(agentStatus === "active" ? "inactive" : "active")
+                    }
+                    data-agent-id="ad-agent-toggle-status-btn"
+                    data-testid="ad-agent-toggle-status-btn"
+                    aria-label={
+                      agentStatus === "active"
+                        ? "Turn Ad Agent status OFF"
+                        : "Turn Ad Agent status ON"
+                    }
+                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 font-mono text-xs font-bold transition ${
+                      agentStatus === "active"
+                        ? "border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
+                        : "border-emerald-500/40 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
+                    } disabled:opacity-50`}
+                  >
+                    <Icon name="refresh" className={`size-3.5 ${togglingStatus ? "animate-spin" : ""}`} />
+                    <span>
+                      {togglingStatus
+                        ? "Updating Status…"
+                        : agentStatus === "active"
+                          ? "Turn Ad Agent Status OFF"
+                          : "Turn Ad Agent Status ON"}
+                    </span>
+                  </button>
                 </div>
                 <p className="text-body-sm text-on-surface-variant">
-                  {isSuper
-                    ? "As Super Admin, you are automatically an active Ad Agent with no registration required. You can optionally update your geolocation coordinates or phone number below."
-                    : isMainAdmin
-                      ? "As Main Admin, you can register as an Ad Agent below while keeping your Main Admin privileges. Customers closest to your geolocation will be assigned to you when they submit a Customize order."
-                      : "Register your Name, Phone Number, Registered Email, and Geolocation below. When a customer submits a paid Customize Brand Strategy order, we match them to the closest Ad Agent and track your earnings in the Ad Agent Distribution Ledger."}
+                  {agentStatus === "inactive"
+                    ? "Your Ad Agent status is currently OFF (Paused). Customers will not be matched to you for new Customize orders until you click 'Turn Ad Agent Status ON' above."
+                    : isSuper
+                      ? "As Super Admin, you are automatically an active Ad Agent with no registration required. You can turn your Ad Agent status OFF or back ON anytime, or update your geolocation coordinates and phone number below."
+                      : isMainAdmin
+                        ? "As Main Admin, you can register as an Ad Agent below while keeping your Main Admin privileges, and turn your Ad Agent status OFF or back ON whenever you want."
+                        : "Register your Name, Phone Number, Registered Email, and Geolocation below. You can turn your Ad Agent status OFF anytime to pause new Customize orders, and turn it back ON whenever you are ready."}
                 </p>
               </div>
 

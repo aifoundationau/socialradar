@@ -930,10 +930,13 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   }
 }
 ```
-- **Role Rules:**
+- **Role Rules & Self-Service Status Toggle (`ON` / `OFF`):**
   - **Super Admin (`superadmin`):** Automatically provisioned as an active Ad Agent (`isSuperAdminBuiltIn: true`) — **no registration required**.
   - **Main Admin (`admin`):** Can register as an Ad Agent via `AdAgentModal.tsx` while retaining their `admin` role.
   - **Standard Users (`supporter`, etc.):** Registering via `AdAgentModal.tsx` (`Name`, `Phone Number`, locked `Registered Email`, `Geolocation`, and optional `Bank Details or PayID Details`) promotes their RBAC role to `"ad_agent"`.
+  - **Ad Agent Self-Service Status Toggle (`POST /api/ad-agent` with `action: "AGENT_TOGGLE_OWN_STATUS"` / `ToggleOwnAdAgentStatusRequestSchema`):**
+    - Any registered Ad Agent can turn their Ad Agent status **OFF** (`status: "inactive"`) or back **ON** (`status: "active"`) directly inside the **Ad Agent Registration & Customize Orders Panel** (`AdAgentModal.tsx`).
+    - When turned **OFF** (`"inactive"`), the Ad Agent is paused from `findClosestAdAgent` and `publicAgents` so no new Customize orders are routed to them until they turn their status back **ON** (`"active"`).
 - **Closest Ad Agent Matching on Customize Orders (`POST /api/customize`):**
   - Customers enter/auto-detect their geolocation (`customerLocation`) on the **Customize your Brand Strategy with Professional Experts** form and pay the Super Admin-configured `customizeService` token cost (`config.serviceCosts.customizeService`).
   - `findClosestAdAgent(customerLocation)` calculates the Haversine great-circle distance in kilometers to every active Ad Agent and assigns the closest Ad Agent (`assignedAgentId`, `assignedAgentUid`, `assignedAgentName`, `assignedAgentEmail`, `assignedAgentPhone`, `assignedAgentLocation`, `assignedDistanceKm`).

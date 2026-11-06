@@ -147,6 +147,7 @@ export async function registerOrUpdateAdAgent(params: {
   phone: string;
   location: AdAgentLocation;
   bankOrPayIdDetails?: string;
+  status?: "active" | "inactive";
 }): Promise<{ agent: AdAgentProfile; assignedRole: RbacRole }> {
   const cleanEmail = params.email.trim().toLowerCase();
   const now = new Date().toISOString();
@@ -174,6 +175,11 @@ export async function registerOrUpdateAdAgent(params: {
       ? params.bankOrPayIdDetails.trim()
       : existing?.bankOrPayIdDetails || "";
 
+  const resolvedStatus: "active" | "inactive" =
+    params.status === "inactive" || params.status === "active"
+      ? params.status
+      : existing?.status || "active";
+
   const nextAgent: AdAgentProfile = {
     agentId,
     uid: params.uid,
@@ -185,7 +191,7 @@ export async function registerOrUpdateAdAgent(params: {
     redistributionPercentage: existing
       ? normalizeRedistributionPercent(existing.redistributionPercentage)
       : 30,
-    status: "active",
+    status: resolvedStatus,
     isSuperAdminBuiltIn: isSuper || existing?.isSuperAdminBuiltIn || false,
     ...(typeof existing?.claimedTokens === "number" ? { claimedTokens: existing.claimedTokens } : {}),
     ...(typeof existing?.claimedAudCents === "number" ? { claimedAudCents: existing.claimedAudCents } : {}),

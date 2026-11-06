@@ -721,9 +721,17 @@ export const RegisterAdAgentRequestSchema = z
     phone: safeText(3, 40),
     location: AdAgentLocationSchema,
     bankOrPayIdDetails: z.string().trim().max(500).optional(),
+    status: z.enum(["active", "inactive"]).optional(),
   })
   .strict();
 export type RegisterAdAgentRequest = z.infer<typeof RegisterAdAgentRequestSchema>;
+
+export const ToggleOwnAdAgentStatusRequestSchema = z
+  .object({
+    status: z.enum(["active", "inactive"]),
+  })
+  .strict();
+export type ToggleOwnAdAgentStatusRequest = z.infer<typeof ToggleOwnAdAgentStatusRequestSchema>;
 
 export const SuperAdminAddAdAgentRequestSchema = z
   .object({
