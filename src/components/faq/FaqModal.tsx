@@ -6,7 +6,8 @@ import { apiFetch, errorMessage } from "@/lib/api-client";
 import { useSession } from "@/components/auth/SessionProvider";
 import { Icon } from "@/components/ui/Icon";
 import { btnPrimary, btnSecondary, card, field } from "@/components/ui/styles";
-import type { FaqItem } from "@/lib/contracts";
+import type { FaqItem, RagSentenceItem } from "@/lib/contracts";
+import { GlobalRagCorpusSection, PerFaqRagDrawer } from "@/components/faq/FaqRagWorkspace";
 
 const emptySubscribe = () => () => { };
 function useIsClient() {
@@ -29,11 +30,25 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev, onOpenSubscription }: 
   const { isAdmin, role } = useSession();
   const isSuperAdmin = Boolean(isAdmin && role === "superadmin");
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
+  const [ragEntries, setRagEntries] = useState<RagSentenceItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
-  const [expandedId, setExpandedId] = useState<string | null>("faq_how_to_search");
+  // All FAQs start collapsed; expand when needed
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  async function loadRagEntries() {
+    try {
+      const res = await fetch("/api/rag", { method: "GET", cache: "no-store" });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.entries)) {
+        setRagEntries(data.entries);
+      }
+    } catch {
+      // Non-blocking
+    }
+  }
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -44,7 +59,9 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev, onOpenSubscription }: 
     if (isOpen) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
+      setExpandedId(null);
       loadFaqs();
+      loadRagEntries();
     } else {
       document.body.style.overflow = "";
     }
@@ -66,10 +83,6 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev, onOpenSubscription }: 
       const data = (await res.json()) as { faqs: FaqItem[] };
       if (data?.faqs) {
         setFaqs(data.faqs);
-        // Expand the first FAQ by default if nothing selected
-        if (data.faqs.length > 0 && !expandedId) {
-          setExpandedId(data.faqs[0].faqId);
-        }
       }
     } catch (err) {
       setError(errorMessage(err));
@@ -307,15 +320,30 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev, onOpenSubscription }: 
                   {isExpanded && (
                     <div
                       id={`faq-answer-${faq.faqId}`}
-                      className="border-t border-white/[0.06] px-4 pt-3 pb-4 text-body leading-relaxed text-on-surface-variant font-normal"
+                      className="border-t border-white/[0.06] px-4 pt-3 pb-4 text-body leading-relaxed text-on-surface-variant font-normal space-y-3"
                     >
                       <p className="whitespace-pre-line">{faq.answer}</p>
+                      <PerFaqRagDrawer
+                        faq={faq}
+                        ragEntriesForFaq={ragEntries.filter((e) => e.sourceId === faq.faqId)}
+                        onRagUpdated={loadRagEntries}
+                      />
                     </div>
                   )}
                 </div>
               );
             })
           )}
+
+          {/* UNDER ALL FAQS: Global Website Sentences, AI Works & Multilingual FAQ RAG Corpus */}
+          <GlobalRagCorpusSection
+            faqs={faqs}
+            isAdmin={Boolean(isAdmin)}
+            onFaqPublished={() => {
+              loadFaqs();
+              loadRagEntries();
+            }}
+          />
         </div>
 
         {/* Footer */}

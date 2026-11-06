@@ -733,3 +733,81 @@ export const AdminRefundOrderRequestSchema = z
   })
   .strict();
 export type AdminRefundOrderRequest = z.infer<typeof AdminRefundOrderRequestSchema>;
+
+// ---------- 13. FAQ & Website Sentence RAG Corpus + Multilingual Translation ----------
+export const RagSourceTypeSchema = z.enum([
+  "FAQ",
+  "WEBSITE_UI",
+  "RADAR_SEARCH",
+  "AI_REMIX",
+  "CUSTOMIZE_AI",
+]);
+export type RagSourceType = z.infer<typeof RagSourceTypeSchema>;
+
+export const RagSentenceItemSchema = z
+  .object({
+    ragId: z.string().trim().min(1).max(128),
+    sourceType: RagSourceTypeSchema,
+    sourceId: z.string().trim().max(128).optional(),
+    section: z.string().trim().min(1).max(120),
+    originalText: z.string().trim().min(1).max(4000),
+    question: z.string().trim().max(500).optional(),
+    answer: z.string().trim().max(4000).optional(),
+    languageCode: z.string().trim().min(2).max(16).default("en"),
+    languageName: z.string().trim().min(1).max(64).default("English"),
+    translatedQuestion: z.string().trim().max(500).optional(),
+    translatedText: z.string().trim().min(1).max(4000),
+    keywords: z.array(z.string().trim().max(64)).max(40).default([]),
+    isHumanVerified: z.boolean().default(true),
+    contributorEmail: z.string().trim().max(254).default("system@adradarhq.com"),
+    createdAt: isoDate,
+    updatedAt: isoDate,
+  })
+  .strict();
+export type RagSentenceItem = z.infer<typeof RagSentenceItemSchema>;
+
+export const GoogleTranslateRequestSchema = z
+  .object({
+    text: z.string().trim().min(1, "Text to translate is required").max(4000),
+    question: z.string().trim().max(500).optional(),
+    sourceLang: z.string().trim().min(2).max(16).default("en"),
+    targetLang: z.string().trim().min(2).max(16),
+  })
+  .strict();
+export type GoogleTranslateRequest = z.infer<typeof GoogleTranslateRequestSchema>;
+
+export const CreateRagEntryRequestSchema = z
+  .object({
+    action: z.enum(["ADD_ENTRY", "SYNC_CORPUS"]).default("ADD_ENTRY"),
+    sourceType: RagSourceTypeSchema.optional(),
+    sourceId: z.string().trim().max(128).optional(),
+    section: z.string().trim().min(1).max(120).optional(),
+    originalText: z.string().trim().min(1).max(4000).optional(),
+    question: z.string().trim().max(500).optional(),
+    answer: z.string().trim().max(4000).optional(),
+    languageCode: z.string().trim().min(2).max(16).optional(),
+    languageName: z.string().trim().min(1).max(64).optional(),
+    translatedQuestion: z.string().trim().max(500).optional(),
+    translatedText: z.string().trim().min(1).max(4000).optional(),
+    category: z.string().trim().max(64).optional(),
+    publishAsFaq: z.boolean().optional(),
+  })
+  .strict();
+export type CreateRagEntryRequest = z.infer<typeof CreateRagEntryRequestSchema>;
+
+export const UpdateRagEntryRequestSchema = z
+  .object({
+    ragId: z.string().trim().min(1).max(128),
+    translatedQuestion: z.string().trim().max(500).optional(),
+    translatedText: z.string().trim().min(1).max(4000),
+    section: z.string().trim().min(1).max(120).optional(),
+  })
+  .strict();
+export type UpdateRagEntryRequest = z.infer<typeof UpdateRagEntryRequestSchema>;
+
+export const DeleteRagEntryRequestSchema = z
+  .object({
+    ragId: z.string().trim().min(1).max(128),
+  })
+  .strict();
+export type DeleteRagEntryRequest = z.infer<typeof DeleteRagEntryRequestSchema>;

@@ -765,9 +765,72 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 - **Universal Hook & UGC Evaluation:** Evaluates 9 direct-response and TikTok UGC pattern groups across both brand-scoped and unbranded searches.
 - **Skill Specification:** Documented in [`skills/tiktok-viral-ad-intelligence/SKILL.md`](skills/tiktok-viral-ad-intelligence/SKILL.md) with strict `additionalProperties: false` schemas compatible with Gemini 2.5 Flash-Lite, Claude Haiku 4.5, and gpt-6-luna.
 
+## 20. FAQ & Website Sentence RAG Corpus + Multilingual Google Translator with Human Edit (`/api/rag`, `/api/rag/translate`)
 
+### 20.1 RAG Sentence Item Schema (`RagSentenceItemSchema`)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RagSentenceItem",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ragId",
+    "sourceType",
+    "section",
+    "originalText",
+    "languageCode",
+    "languageName",
+    "translatedText",
+    "keywords",
+    "isHumanVerified",
+    "contributorEmail",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "ragId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "sourceType": {
+      "type": "string",
+      "enum": ["FAQ", "WEBSITE_UI", "RADAR_SEARCH", "AI_REMIX", "CUSTOMIZE_AI"]
+    },
+    "sourceId": { "type": "string", "maxLength": 128 },
+    "section": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "originalText": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "question": { "type": "string", "maxLength": 500 },
+    "answer": { "type": "string", "maxLength": 4000 },
+    "languageCode": { "type": "string", "minLength": 2, "maxLength": 16, "default": "en" },
+    "languageName": { "type": "string", "minLength": 1, "maxLength": 64, "default": "English" },
+    "translatedQuestion": { "type": "string", "maxLength": 500 },
+    "translatedText": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "keywords": {
+      "type": "array",
+      "maxItems": 40,
+      "items": { "type": "string", "maxLength": 64 }
+    },
+    "isHumanVerified": { "type": "boolean", "default": true },
+    "contributorEmail": { "type": "string", "maxLength": 254 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  }
+}
+```
 
-
-
-
+### 20.2 Instant Google Translate Request Schema (`POST /api/rag/translate`)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GoogleTranslateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["text", "targetLang"],
+  "properties": {
+    "text": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "question": { "type": "string", "maxLength": 500 },
+    "sourceLang": { "type": "string", "minLength": 2, "maxLength": 16, "default": "en" },
+    "targetLang": { "type": "string", "minLength": 2, "maxLength": 16 }
+  }
+}
+```
+- **Human-in-the-Loop Gate:** `POST /api/rag/translate` translates via Google Translator and returns draft text for human review. Only after the user or admin edits/approves the text in the Human Edit fields does `POST /api/rag` persist the verified entry to Firestore `system_config/rag_corpus` (`isHumanVerified: true`).
 

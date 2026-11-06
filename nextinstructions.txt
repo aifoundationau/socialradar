@@ -153,8 +153,16 @@
     - Tracks `claimedTokens`, `claimedAudCents`, `claimedUsdCents`, `lastResetAt`, and `lastResetBy` on `EquityPartner` so the partner's accumulated entitlement resets to `⚡ 0` tokens (and $0.00 AUD/USD) immediately, while allowing new earnings to accrue cleanly on future purchases.
     - Also clears the Owner's registered user wallet token balance to 0 (if an account exists with their email) and logs an immutable `ADMIN_RESET` entry in `token_transactions`.
     - Updated `data-contracts.md` Section 6.
-34. **Remix Studio Two-Line Header Layout on Laptop/Desktop (`VariationEditor.tsx`):**
+34. **Remix Studio Two-Line Header Layout on Laptop/Desktop (`VariationEditor.tsx`, `5686e3f`):**
     - Updated `src/components/radar/VariationEditor.tsx` so on laptop/desktop (`md:` and up):
       1. **Line 1:** All three variation tabs (`A: ...`, `B: ...`, `C: ...`) sit together cleanly on a single full-width line (`md:flex md:w-full md:flex-nowrap` with `md:flex-1 md:min-w-0` and `<span className="truncate">`).
       2. **Line 2:** The metadata badges (`For: ...`, `Tone: ...`, `Format: ...`) sit on the dedicated line directly underneath (`flex flex-wrap items-center gap-2 font-mono text-[11px] md:flex-nowrap`).
+35. **FAQ Development Search Bar, Collapsed-on-Start FAQs & Website/AI Works Sentence RAG + Multilingual Google Translator (`SuperAdminModal.tsx`, `FaqModal.tsx`, `FaqRagWorkspace.tsx`, `rag-engine.ts`):**
+    - Added Search Bar, Category Filter Pills, and Expand All / Collapse All controls to `Help & FAQ Management` in `SuperAdminModal.tsx`.
+    - Configured all FAQs in both `SuperAdminModal.tsx` and `FaqModal.tsx` to start **collapsed** on load and expand when clicked.
+    - Built `PerFaqRagDrawer` inside each expanded FAQ card and `GlobalRagCorpusSection` directly **under all FAQs**:
+      1. **Website & AI Works Sentence RAG Corpus (`GET /api/rag` & `POST /api/rag`):** Indexes every FAQ (full Q&A + atomic sentences), all Website UI sentences (`WEBSITE_UI_SENTENCES`), and live AI works across Radar Feed Searches (`RADAR_SEARCH`), AI Creative Remixes (`AI_REMIX`), and Customize AI Strategy works (`CUSTOMIZE_AI`).
+      2. **Multilingual FAQ & Sentence Authoring (`POST /api/rag/translate` & `POST /api/rag`):** Allows all users to translate or write FAQs/sentences into 22 languages using **Google Translate** for instant translation, followed by a mandatory **Human Edit & Review** step before adding to the RAG corpus.
+    - Created AI Agent Skill `skills/rag-multilingual-faq-engine/SKILL.md` and documented Section 20 in `data-contracts.md`.
+
 

@@ -12,6 +12,7 @@ import type {
   EquityPartner,
   FaqItem,
   MonthlySubscriptionConfig,
+  RagSentenceItem,
   RbacMatrix,
   RbacPermission,
   RbacRole,
@@ -20,6 +21,7 @@ import type {
   TokenTransactionDoc,
 } from "@/lib/contracts";
 import { LINK_URL_PATTERN, RBAC_PERMISSIONS_LIST, RBAC_ROLES_LIST } from "@/lib/contracts";
+import { GlobalRagCorpusSection, PerFaqRagDrawer } from "@/components/faq/FaqRagWorkspace";
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -196,6 +198,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [faqsSaving, setFaqsSaving] = useState(false);
   const [showAddFaq, setShowAddFaq] = useState(false);
   const [confirmDeleteFaqId, setConfirmDeleteFaqId] = useState<string | null>(null);
+  const [faqSearchQuery, setFaqSearchQuery] = useState("");
+  const [faqCategoryFilter, setFaqCategoryFilter] = useState<string>("ALL");
+  // All FAQs collapsed on start; expand when needed
+  const [expandedAdminFaqIds, setExpandedAdminFaqIds] = useState<Set<string>>(() => new Set());
+  const [adminRagEntries, setAdminRagEntries] = useState<RagSentenceItem[]>([]);
   const [newFaq, setNewFaq] = useState({
     question: "",
     answer: "",
@@ -205,6 +212,56 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   });
   const [editingFaqId, setEditingFaqId] = useState<string | null>(null);
   const [editFaqData, setEditFaqData] = useState<Partial<FaqItem>>({});
+
+  const faqCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const f of faqs) {
+      if (f.category) set.add(f.category);
+    }
+    return ["ALL", ...Array.from(set)];
+  }, [faqs]);
+
+  const filteredAdminFaqs = useMemo(() => {
+    const q = faqSearchQuery.trim().toLowerCase();
+    return faqs.filter((f) => {
+      if (
+        faqCategoryFilter !== "ALL" &&
+        f.category.toUpperCase() !== faqCategoryFilter.toUpperCase()
+      ) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        f.question.toLowerCase().includes(q) ||
+        f.answer.toLowerCase().includes(q) ||
+        f.category.toLowerCase().includes(q)
+      );
+    });
+  }, [faqs, faqCategoryFilter, faqSearchQuery]);
+
+  function toggleAdminFaqExpand(faqId: string) {
+    setExpandedAdminFaqIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(faqId)) {
+        next.delete(faqId);
+      } else {
+        next.add(faqId);
+      }
+      return next;
+    });
+  }
+
+  async function reloadRagEntries() {
+    try {
+      const res = await fetch("/api/rag", { method: "GET", cache: "no-store" });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.entries)) {
+        setAdminRagEntries(data.entries);
+      }
+    } catch {
+      // Non-blocking
+    }
+  }
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -320,7 +377,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   async function reloadFaqs() {
     setFaqsLoading(true);
     try {
-      const data = await apiFetch<{ faqs: FaqItem[] }>("/api/admin/faqs", { method: "GET" });
+      const [data] = await Promise.all([
+        apiFetch<{ faqs: FaqItem[] }>("/api/admin/faqs", { method: "GET" }),
+        reloadRagEntries(),
+      ]);
       if (data.faqs) setFaqs(data.faqs);
     } catch (err) {
       console.warn("[faqs] failed to load faqs", err);
@@ -642,6 +702,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     window.addEventListener("keydown", handleKeyDown);
 
     let active = true;
+    reloadRagEntries();
     Promise.all([
       apiFetch<{
         config: AdminConfigData;
@@ -3617,14 +3678,32 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     <div>
                       <h3 className="text-title-sm font-semibold text-on-surface">Help & FAQ Management</h3>
                       <p className="mt-1 text-compact text-on-surface-variant">
-                        Manage platform knowledge base FAQs explaining My Brands, Radar Feed, and Token Ledger mechanics.
+                        Manage platform knowledge base FAQs explaining My Brands, Radar Feed, and Token Ledger mechanics. All FAQs start collapsed; click any FAQ to expand its answer, RAG sentences, and Google Translator.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (expandedAdminFaqIds.size > 0) {
+                            setExpandedAdminFaqIds(new Set());
+                          } else {
+                            setExpandedAdminFaqIds(new Set(filteredAdminFaqs.map((f) => f.faqId)));
+                          }
+                        }}
+                        data-testid="toggle-expand-all-faqs-btn"
+                        data-agent-id="toggle-expand-all-faqs-btn"
+                        aria-label={expandedAdminFaqIds.size > 0 ? "Collapse all FAQs" : "Expand all FAQs"}
+                        className="rounded-lg border border-white/10 px-3 py-1.5 text-compact text-on-surface-variant hover:bg-white/[0.04] hover:text-on-surface transition"
+                      >
+                        {expandedAdminFaqIds.size > 0 ? "Collapse All" : "Expand All"}
+                      </button>
                       <button
                         type="button"
                         onClick={handleResetDefaultFaqs}
                         disabled={faqsSaving}
+                        data-testid="reset-default-faqs-btn"
+                        data-agent-id="reset-default-faqs-btn"
                         className="rounded-lg border border-white/10 px-3 py-1.5 text-compact text-on-surface-variant hover:bg-white/[0.04] hover:text-on-surface transition"
                       >
                         Reset Defaults
@@ -3633,11 +3712,58 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         type="button"
                         onClick={() => setShowAddFaq((v) => !v)}
                         data-testid="add-faq-button"
+                        data-agent-id="add-faq-button"
                         className={btnPrimary}
                       >
                         <Icon name="plus" className="size-4" />
                         {showAddFaq ? "Cancel" : "Add FAQ"}
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Help & FAQ Management Search Bar & Category Filters */}
+                  <div className={`${card} p-4 space-y-3`}>
+                    <div className="relative">
+                      <Icon
+                        name="search"
+                        className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-on-surface-variant"
+                      />
+                      <input
+                        type="search"
+                        placeholder="Search FAQs by question, answer, keyword, or category..."
+                        value={faqSearchQuery}
+                        onChange={(e) => setFaqSearchQuery(e.target.value)}
+                        data-testid="admin-faq-search-input"
+                        data-agent-id="admin-faq-search-input"
+                        aria-label="Search FAQs in Help and FAQ Management"
+                        className={`${field} pl-9`}
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {faqCategories.map((cat) => {
+                          const active = faqCategoryFilter.toUpperCase() === cat.toUpperCase();
+                          return (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => setFaqCategoryFilter(cat)}
+                              data-testid={`admin-faq-cat-${cat.toLowerCase()}`}
+                              data-agent-id={`admin-faq-cat-${cat.toLowerCase()}`}
+                              className={`rounded-full px-3 py-1 font-mono text-xs font-semibold transition ${
+                                active
+                                  ? "bg-primary text-on-primary shadow-sm"
+                                  : "border border-white/10 bg-surface-container text-on-surface-variant hover:border-white/20 hover:text-on-surface"
+                              }`}
+                            >
+                              {cat}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <span className="font-mono text-xs text-on-surface-variant">
+                        Showing {filteredAdminFaqs.length} of {faqs.length} FAQs
+                      </span>
                     </div>
                   </div>
 
@@ -3712,7 +3838,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     </form>
                   )}
 
-                  {/* FAQ Items List */}
+                  {/* FAQ Items List (Collapsed on start, expand when needed) */}
                   {faqsLoading ? (
                     <div className="flex h-32 items-center justify-center text-on-surface-variant">
                       <Icon name="refresh" className="size-5 animate-spin" />
@@ -3728,14 +3854,29 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         Load Seed FAQs (Brands & Radar Feed)
                       </button>
                     </div>
+                  ) : filteredAdminFaqs.length === 0 ? (
+                    <div className={`${card} p-8 text-center text-on-surface-variant space-y-2`}>
+                      <p className="font-medium text-on-surface">No matching FAQs found</p>
+                      <p className="text-xs">Try clearing or changing your search keyword or category filter.</p>
+                    </div>
                   ) : (
-                    <div className="space-y-3">
-                      {faqs.map((faq) => {
+                    <div className="space-y-2.5">
+                      {filteredAdminFaqs.map((faq) => {
                         const isEditing = editingFaqId === faq.faqId;
+                        const isExpanded = expandedAdminFaqIds.has(faq.faqId) || isEditing;
+                        const faqRagList = adminRagEntries.filter((e) => e.sourceId === faq.faqId);
+                        const multilingualCount = faqRagList.filter((e) => e.languageCode !== "en").length;
+
                         return (
                           <div
                             key={faq.faqId}
-                            className={`${card} p-4 space-y-2 border border-white/[0.08] transition`}
+                            data-testid={`admin-faq-card-${faq.faqId}`}
+                            data-agent-id={`admin-faq-card-${faq.faqId}`}
+                            className={`${card} p-3.5 transition ${
+                              isExpanded
+                                ? "border-primary/40 bg-surface-container-high/80 ring-1 ring-primary/20"
+                                : "border-white/[0.08] hover:border-white/15"
+                            }`}
                           >
                             {isEditing ? (
                               <div className="space-y-3">
@@ -3780,22 +3921,48 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             ) : (
                               <div>
                                 <div className="flex items-start justify-between gap-3">
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className="rounded bg-primary/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary uppercase">
-                                        {faq.category}
-                                      </span>
-                                      <span className="text-[11px] font-mono text-on-surface-variant">
-                                        Order #{faq.order}
-                                      </span>
-                                      {!faq.enabled && (
-                                        <span className="rounded bg-error/20 px-2 py-0.5 font-mono text-[10px] text-error">
-                                          Draft / Hidden
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleAdminFaqExpand(faq.faqId)}
+                                    data-testid={`admin-faq-toggle-${faq.faqId}`}
+                                    data-agent-id={`admin-faq-toggle-${faq.faqId}`}
+                                    aria-expanded={isExpanded}
+                                    aria-label={`Toggle FAQ: ${faq.question}`}
+                                    className="flex flex-1 items-start justify-between gap-3 text-left"
+                                  >
+                                    <div className="space-y-1">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="rounded bg-primary/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary uppercase">
+                                          {faq.category}
                                         </span>
-                                      )}
+                                        <span className="text-[11px] font-mono text-on-surface-variant">
+                                          Order #{faq.order}
+                                        </span>
+                                        <span className="rounded border border-white/10 bg-surface-container px-1.5 py-0.5 font-mono text-[10px] text-on-surface-variant">
+                                          RAG Indexed
+                                        </span>
+                                        {multilingualCount > 0 && (
+                                          <span className="rounded bg-secondary/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-secondary">
+                                            +{multilingualCount} Lang
+                                          </span>
+                                        )}
+                                        {!faq.enabled && (
+                                          <span className="rounded bg-error/20 px-2 py-0.5 font-mono text-[10px] text-error">
+                                            Draft / Hidden
+                                          </span>
+                                        )}
+                                      </div>
+                                      <h4 className="text-body font-semibold text-on-surface">{faq.question}</h4>
                                     </div>
-                                    <h4 className="text-body font-semibold text-on-surface">{faq.question}</h4>
-                                  </div>
+                                    <span
+                                      className={`mt-1 flex size-6 shrink-0 items-center justify-center rounded-md border border-white/10 bg-surface-container-highest transition-transform duration-200 ${
+                                        isExpanded ? "rotate-180 text-primary" : "text-on-surface-variant"
+                                      }`}
+                                    >
+                                      <Icon name="chevronDown" className="size-3.5" />
+                                    </span>
+                                  </button>
+
                                   <div className="flex items-center gap-1 shrink-0">
                                     <button
                                       type="button"
@@ -3848,9 +4015,19 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     )}
                                   </div>
                                 </div>
-                                <p className="mt-2 text-compact leading-relaxed text-on-surface-variant">
-                                  {faq.answer}
-                                </p>
+
+                                {isExpanded && (
+                                  <div className="mt-3 border-t border-white/[0.06] pt-3 space-y-3">
+                                    <p className="text-compact leading-relaxed text-on-surface-variant whitespace-pre-line">
+                                      {faq.answer}
+                                    </p>
+                                    <PerFaqRagDrawer
+                                      faq={faq}
+                                      ragEntriesForFaq={faqRagList}
+                                      onRagUpdated={reloadRagEntries}
+                                    />
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -3858,6 +4035,15 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       })}
                     </div>
                   )}
+
+                  {/* UNDER ALL FAQS: Global Website Sentences, AI Works & Multilingual FAQ RAG Corpus */}
+                  <GlobalRagCorpusSection
+                    faqs={faqs}
+                    isAdmin={true}
+                    onFaqPublished={() => {
+                      reloadFaqs();
+                    }}
+                  />
                 </div>
               )}
 
