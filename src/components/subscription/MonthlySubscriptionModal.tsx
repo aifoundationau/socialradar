@@ -39,7 +39,7 @@ export function MonthlySubscriptionModal({
     searchesPerMonth: 1000,
     name: "Monthly Search Subscription",
     description:
-      "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those.",
+      "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those. Get Access to 'Free to Use' Times.",
   });
   const [serviceCosts, setServiceCosts] = useState<ServiceCosts>({
     searchStandard: 1,
@@ -315,7 +315,7 @@ export function MonthlySubscriptionModal({
             {/* Explanation Quote from Specification */}
             <div className="mt-2.5 rounded-lg border border-primary/20 bg-surface-container-lowest/60 px-3 py-2 font-mono text-[11px] text-on-surface leading-snug">
               <span className="font-bold text-primary">Options for every search: </span>
-              Every option is one token. This gives you {searchesCount.toLocaleString()} of those.
+              Every option is one token. This gives you {searchesCount.toLocaleString()} of those. Get Access to &apos;Free to Use&apos; Times.
             </div>
           </div>
 

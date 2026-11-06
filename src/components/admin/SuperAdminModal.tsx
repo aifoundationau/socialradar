@@ -3328,7 +3328,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       <div className="space-y-4 pt-2 border-t border-white/[0.06]">
                         <div className="rounded-lg border border-primary/20 bg-surface-container-lowest/70 p-3 font-mono text-xs text-on-surface leading-relaxed">
                           <span className="font-bold text-primary">Value Proposition: </span>
-                          Options for every search: Every option is one token. This gives you 1,000 of those. Can also be used to pay for Customize your Brand Strategy with Professional Experts ({config.serviceCosts?.customizeService ?? 55} {(config.serviceCosts?.customizeService ?? 55) === 1 ? "token" : "tokens"}).
+                          Options for every search: Every option is one token. This gives you 1,000 of those. Get Access to &apos;Free to Use&apos; Times. Can also be used to pay for Customize your Brand Strategy with Professional Experts ({config.serviceCosts?.customizeService ?? 55} {(config.serviceCosts?.customizeService ?? 55) === 1 ? "token" : "tokens"}).
                         </div>
 
                         <div className="rounded-lg border border-secondary/30 bg-secondary/10 p-3 font-mono text-xs text-on-surface leading-relaxed">

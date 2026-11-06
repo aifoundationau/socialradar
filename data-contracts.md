@@ -681,7 +681,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 ### 17.1 Subscription Specification
 - **Allowance:** 1,000 monthly searches (1,000 tokens/month).
 - **Pricing:** AUD $500/month default (50,000 AUD cents). Zero decimal places for platform AUD pricing.
-- **Value Proposition:** Options for every search: Every option is one token. This gives you 1,000 of those (e.g. 1,000 base searches, or combinations of Proven winners, Extended days, Top winners, and AI remix tokens). Can also be used to pay for Customize your Brand Strategy with Professional Experts.
+- **Value Proposition:** Options for every search: Every option is one token. This gives you 1,000 of those. Get Access to 'Free to Use' Times (e.g. 1,000 base searches, or combinations of Proven winners, Extended days, Top winners, and AI remix tokens). Can also be used to pay for Customize your Brand Strategy with Professional Experts.
 - **SuperAdmin & MainAdmin Exclusive:**
   - Only visible and accessible when `role === "superadmin"` or `role === "admin"`.
   - Only advertised strictly next to "FAQs" in the top header (`TopNavWallet.tsx` desktop nav and mobile header) and inside the Admin FAQ panel.
@@ -695,7 +695,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
     "priceAud": 500,
     "searchesPerMonth": 1000,
     "name": "Monthly Search Subscription",
-    "description": "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those."
+    "description": "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those. Get Access to 'Free to Use' Times."
   }
 }
 ```

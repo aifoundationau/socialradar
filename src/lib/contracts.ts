@@ -393,7 +393,7 @@ export const MonthlySubscriptionConfigSchema = z
     searchesPerMonth: tokenInt.min(1).default(1000),
     name: z.string().default("Monthly Search Subscription"),
     description: z.string().default(
-      "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those."
+      "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those. Get Access to 'Free to Use' Times."
     ),
   })
   .strict();
