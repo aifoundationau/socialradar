@@ -253,6 +253,9 @@
     - Created [`src/lib/countries.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/countries.ts) with all 249 ISO 3166-1 alpha-2 world countries (`WORLD_COUNTRIES`) plus `"ALL"` (`All Countries (Worldwide)`).
     - Added the **All Countries Dropdown** (`free-access-country-dropdown`) and interactive **Active Countries Receiving Free Use** pills inside the **Free 15 Minutes · Free 30 Minutes · Free 1 Hour** panel under **Service Pricing** in [`src/components/admin/SuperAdminModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/admin/SuperAdminModal.tsx) so Super Admin can select which countries receive free use.
     - Enforced country eligibility (`isCountryEligibleForFreeAccess`) across [`isChargingEnabled`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/pricing.ts), [`withTokenGate`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/token-ledger.ts), [`RadarFilterBar.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/radar/RadarFilterBar.tsx), and [`FreeAccessTopBanner.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/layout/FreeAccessTopBanner.tsx).
+53. **Monthly Search Subscription Value Proposition & Hero Copy Updates (`MonthlySubscriptionModal.tsx`, `SuperAdminModal.tsx`, `page.tsx`):**
+    - Updated the Monthly Search Subscription description to: *"Options for every search: Every option is one token. This gives you 1,000 of those. Get Access to 'Free to Use' Times."* across contracts, admin configurations, and modal views.
+    - Replaced the homepage hero pricing copy with: *"Pay as you go or buy with tokens or buy an agency subscription: Search Proven Ads, Top Performers, Long Term winners / Get assistance from top Social Media Agencies, Videographers, and Visual AI Experts"*.
 
 ## What to Do When Reopened Next Startup
 1. **Read `nextinstructions.txt` First:** Start here and review the latest completed milestones above.
