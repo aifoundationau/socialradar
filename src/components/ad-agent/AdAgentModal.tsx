@@ -14,7 +14,7 @@ import {
   label,
 } from "@/components/ui/styles";
 import { apiFetch, errorMessage } from "@/lib/api-client";
-import { autofindUserLocation, loadGeoConfig } from "@/lib/geo";
+import { autofindUserLocation, loadGeoConfig, searchSuburbs, type SuburbSuggestion } from "@/lib/geo";
 import type {
   AdAgentContractor,
   AdAgentLocation,
@@ -300,6 +300,12 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
   const [confirmDeleteContractorId, setConfirmDeleteContractorId] = useState<string | null>(null);
   const [deletingContractor, setDeletingContractor] = useState(false);
 
+  // Contractor Location Suburb Autofind & Geolocate
+  const [detectingContractorGeo, setDetectingContractorGeo] = useState(false);
+  const [contractorSuburbSuggestions, setContractorSuburbSuggestions] = useState<SuburbSuggestion[]>([]);
+  const [showContractorSuburbDropdown, setShowContractorSuburbDropdown] = useState(false);
+  const [contractorGeoNotice, setContractorGeoNotice] = useState<string | null>(null);
+
   const [contractorForm, setContractorForm] = useState({
     name: "",
     location: "",
@@ -310,6 +316,49 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
     averageRates: "",
     notes: "",
   });
+
+  async function handleContractorLocationChange(val: string) {
+    setContractorForm((prev) => ({ ...prev, location: val }));
+    setContractorGeoNotice(null);
+    if (val.trim().length >= 2) {
+      try {
+        const results = await searchSuburbs(val);
+        setContractorSuburbSuggestions(results);
+        setShowContractorSuburbDropdown(results.length > 0);
+      } catch {
+        setShowContractorSuburbDropdown(false);
+      }
+    } else {
+      setContractorSuburbSuggestions([]);
+      setShowContractorSuburbDropdown(false);
+    }
+  }
+
+  function handleSelectContractorSuburb(suburb: SuburbSuggestion) {
+    setContractorForm((prev) => ({ ...prev, location: suburb.label }));
+    setContractorSuburbSuggestions([]);
+    setShowContractorSuburbDropdown(false);
+    setContractorGeoNotice(`✓ Autofound: ${suburb.label}`);
+  }
+
+  async function handleDetectContractorGeo() {
+    setDetectingContractorGeo(true);
+    setContractorGeoNotice(null);
+    try {
+      const detected = await autofindUserLocation();
+      const formatted = `${detected.suburb}, ${detected.state} (${detected.country})`;
+      setContractorForm((prev) => ({
+        ...prev,
+        location: formatted,
+      }));
+      setShowContractorSuburbDropdown(false);
+      setContractorGeoNotice(`✓ Geolocated: ${formatted}`);
+    } catch (err) {
+      setContractorGeoNotice(`Geolocation error: ${errorMessage(err)}`);
+    } finally {
+      setDetectingContractorGeo(false);
+    }
+  }
 
   async function loadContractors() {
     setLoadingContractors(true);
@@ -337,6 +386,9 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
       averageRates: "",
       notes: "",
     });
+    setContractorSuburbSuggestions([]);
+    setShowContractorSuburbDropdown(false);
+    setContractorGeoNotice(null);
     setContractorFormError(null);
     setShowAddContractor(true);
     setSectionExpanded("contractors_form", true);
@@ -354,6 +406,9 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
       averageRates: c.averageRates || "",
       notes: c.notes || "",
     });
+    setContractorSuburbSuggestions([]);
+    setShowContractorSuburbDropdown(false);
+    setContractorGeoNotice(null);
     setContractorFormError(null);
     setShowAddContractor(true);
     setSectionExpanded("contractors_form", true);
@@ -2343,21 +2398,113 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                           />
                         </div>
 
-                        <div>
-                          <label htmlFor="contractor-location" className={label}>
-                            Location *
-                          </label>
-                          <input
-                            id="contractor-location"
-                            type="text"
-                            required
-                            value={contractorForm.location}
-                            onChange={(e) => setContractorForm({ ...contractorForm, location: e.target.value })}
-                            placeholder="e.g. Sydney, NSW (AU) or Remote"
-                            className={field}
-                            data-agent-id="contractor-location-input"
-                            data-testid="contractor-location-input"
-                          />
+                        <div className="relative">
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <label htmlFor="contractor-location" className={label}>
+                              Location *
+                            </label>
+                            <button
+                              type="button"
+                              disabled={detectingContractorGeo}
+                              onClick={handleDetectContractorGeo}
+                              data-agent-id="contractor-geolocate-btn"
+                              data-testid="contractor-geolocate-btn"
+                              aria-label="Auto-detect suburb via GPS or IP geolocation"
+                              className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-primary hover:text-primary-container transition disabled:opacity-50"
+                              title="Auto-detect suburb via GPS or IP geolocation"
+                            >
+                              <Icon
+                                name="mapPin"
+                                className={`size-3 text-primary ${detectingContractorGeo ? "animate-pulse" : ""}`}
+                              />
+                              <span>{detectingContractorGeo ? "Detecting Suburb..." : "📍 Geolocate"}</span>
+                            </button>
+                          </div>
+
+                          <div className="relative">
+                            <input
+                              id="contractor-location"
+                              type="text"
+                              required
+                              value={contractorForm.location}
+                              onChange={(e) => handleContractorLocationChange(e.target.value)}
+                              onFocus={() => {
+                                if (contractorSuburbSuggestions.length > 0) {
+                                  setShowContractorSuburbDropdown(true);
+                                }
+                              }}
+                              placeholder="Type suburb e.g. Sydney, Bondi, Surry Hills, Brisbane, Gold Coast, Melbourne..."
+                              className={field}
+                              data-agent-id="contractor-location-input"
+                              data-testid="contractor-location-input"
+                              autoComplete="off"
+                            />
+
+                            {/* Floating Suburb Autofind Dropdown */}
+                            {showContractorSuburbDropdown && contractorSuburbSuggestions.length > 0 && (
+                              <div
+                                className="absolute left-0 right-0 top-full mt-1 z-30 max-h-56 overflow-y-auto rounded-xl border border-white/20 bg-surface-container-highest shadow-2xl p-1.5 space-y-1"
+                                data-agent-id="contractor-suburb-dropdown"
+                                data-testid="contractor-suburb-dropdown"
+                              >
+                                <div className="px-2 py-1 font-mono text-[10px] font-bold text-outline uppercase tracking-wider flex items-center justify-between border-b border-white/10 pb-1">
+                                  <span>Autofound Suburbs</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowContractorSuburbDropdown(false)}
+                                    className="text-outline hover:text-on-surface"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                                {contractorSuburbSuggestions.map((item) => (
+                                  <button
+                                    key={item.label}
+                                    type="button"
+                                    onClick={() => handleSelectContractorSuburb(item)}
+                                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-primary/20 hover:text-primary transition flex items-center justify-between text-xs font-mono"
+                                    data-agent-id={`suburb-option-${item.suburb.toLowerCase().replace(/\s+/g, "-")}`}
+                                  >
+                                    <span className="flex items-center gap-1.5 truncate">
+                                      <Icon name="mapPin" className="size-3 text-primary shrink-0" />
+                                      <strong className="text-on-surface">{item.suburb}</strong>
+                                      {item.state && (
+                                        <span className="text-on-surface-variant text-[11px]">({item.state})</span>
+                                      )}
+                                    </span>
+                                    <span className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-on-surface-variant shrink-0 ml-1">
+                                      {item.country}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Quick Location presets & Status notice */}
+                          <div className="flex flex-wrap items-center gap-1 pt-1">
+                            <span className="font-mono text-[10px] text-outline">Quick:</span>
+                            {["Sydney, NSW (AU)", "Melbourne, VIC (AU)", "Brisbane, QLD (AU)", "Gold Coast, QLD (AU)", "Perth, WA (AU)", "Remote"].map((city) => (
+                              <button
+                                key={city}
+                                type="button"
+                                onClick={() => {
+                                  setContractorForm((prev) => ({ ...prev, location: city }));
+                                  setShowContractorSuburbDropdown(false);
+                                  setContractorGeoNotice(`✓ Selected: ${city}`);
+                                }}
+                                className="rounded bg-white/5 border border-white/10 px-1.5 py-0.5 font-mono text-[10px] text-on-surface-variant hover:text-primary hover:border-primary/40 transition"
+                              >
+                                {city.split(",")[0]}
+                              </button>
+                            ))}
+                          </div>
+
+                          {contractorGeoNotice && (
+                            <p className="font-mono text-[11px] text-emerald-400 mt-1">
+                              {contractorGeoNotice}
+                            </p>
+                          )}
                         </div>
 
                         <div>
