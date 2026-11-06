@@ -37,16 +37,14 @@ export async function GET(req: Request) {
     ]);
 
     const cleanEmail = caller.email.toLowerCase().trim();
+    const url = new URL(req.url);
+    const lookupEmail = (url.searchParams.get("email") || cleanEmail).toLowerCase().trim();
     const isSuper = isDatabaseAdmin(caller.token, cleanEmail) || caller.claims.role === "superadmin";
     const isMainAdmin = caller.claims.role === "admin";
 
+    // Strictly match Ad Agent profile by email so every email has its own distinct personal details
     const myAgentProfile =
-      agents.find(
-        (a) =>
-          a.email.toLowerCase() === cleanEmail ||
-          (a.uid && a.uid === caller.uid) ||
-          (isSuper && a.isSuperAdminBuiltIn),
-      ) || null;
+      agents.find((a) => a.email.toLowerCase() === lookupEmail) || null;
 
     const allRequests = customizeSnap.docs
       .map((d) => d.data() as CustomizeRequestDoc)
@@ -57,6 +55,7 @@ export async function GET(req: Request) {
         ? allRequests
         : allRequests.filter(
             (r) =>
+              (r.assignedAgentEmail && r.assignedAgentEmail.toLowerCase() === lookupEmail) ||
               (r.assignedAgentEmail && r.assignedAgentEmail.toLowerCase() === cleanEmail) ||
               (r.assignedAgentUid && r.assignedAgentUid === caller.uid) ||
               (myAgentProfile && r.assignedAgentId === myAgentProfile.agentId),
@@ -77,6 +76,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       myAgentProfile,
+      allAgentProfiles: agents,
       assignedRequests,
       adAgentLedger,
       ledger: adAgentLedger,
@@ -99,16 +99,21 @@ export async function POST(req: Request) {
     // 1. User / Main Admin / Super Admin Registration or Geolocation Update
     if (action === "REGISTER_AD_AGENT") {
       const parsed = RegisterAdAgentRequestSchema.parse({
+        email: body.email ? String(body.email).trim().toLowerCase() : undefined,
         name: body.name,
         phone: body.phone,
         location: body.location,
-        bankOrPayIdDetails: body.bankOrPayIdDetails ? String(body.bankOrPayIdDetails) : undefined,
+        bankOrPayIdDetails:
+          body.bankOrPayIdDetails !== undefined ? String(body.bankOrPayIdDetails) : undefined,
         status: body.status === "inactive" || body.status === "active" ? body.status : undefined,
       });
 
-      const { agent, assignedRole } = await registerOrUpdateAdAgent({
+      const targetEmail = (parsed.email || cleanEmail).trim().toLowerCase();
+
+      const { agent, assignedRole, isNewRegistration } = await registerOrUpdateAdAgent({
         uid: caller.uid,
-        email: cleanEmail,
+        callerEmail: cleanEmail,
+        email: targetEmail,
         currentRole: caller.claims.role,
         name: parsed.name,
         phone: parsed.phone,
@@ -118,15 +123,20 @@ export async function POST(req: Request) {
       });
 
       const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(
-        config.audCentsPerToken || 100,
-        config.serviceCosts?.customizeService ?? 55,
-      );
+      const [allAgentProfiles, adAgentLedger] = await Promise.all([
+        getAdAgents(),
+        getAdAgentDistributionLedger(
+          config.audCentsPerToken || 100,
+          config.serviceCosts?.customizeService ?? 55,
+        ),
+      ]);
 
       return NextResponse.json({
         success: true,
         agent,
         assignedRole,
+        isNewRegistration,
+        allAgentProfiles,
         adAgentLedger,
         ledger: adAgentLedger,
       });
@@ -135,15 +145,12 @@ export async function POST(req: Request) {
     // 1b. Ad Agent toggling their own availability status (ON = "active", OFF = "inactive")
     if (action === "AGENT_TOGGLE_OWN_STATUS") {
       const parsed = ToggleOwnAdAgentStatusRequestSchema.parse({
+        email: body.email ? String(body.email).trim().toLowerCase() : undefined,
         status: body.status,
       });
+      const targetEmail = (parsed.email || cleanEmail).trim().toLowerCase();
       const agents = await getAdAgents();
-      const myAgent = agents.find(
-        (a) =>
-          a.email.toLowerCase() === cleanEmail ||
-          (a.uid && a.uid === caller.uid) ||
-          (isSuper && a.isSuperAdminBuiltIn),
-      );
+      const myAgent = agents.find((a) => a.email.toLowerCase() === targetEmail);
       if (!myAgent) {
         throw new ApiError(
           "NOT_FOUND",
@@ -159,14 +166,18 @@ export async function POST(req: Request) {
         updatedAt: new Date().toISOString(),
       };
       const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(
-        config.audCentsPerToken || 100,
-        config.serviceCosts?.customizeService ?? 55,
-      );
+      const [allAgentProfiles, adAgentLedger] = await Promise.all([
+        getAdAgents(),
+        getAdAgentDistributionLedger(
+          config.audCentsPerToken || 100,
+          config.serviceCosts?.customizeService ?? 55,
+        ),
+      ]);
 
       return NextResponse.json({
         success: true,
         agent: updatedAgent,
+        allAgentProfiles,
         adAgentLedger,
         ledger: adAgentLedger,
       });

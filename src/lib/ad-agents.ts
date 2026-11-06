@@ -141,6 +141,7 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
  */
 export async function registerOrUpdateAdAgent(params: {
   uid: string;
+  callerEmail?: string;
   email: string;
   currentRole: RbacRole | string;
   name: string;
@@ -148,19 +149,41 @@ export async function registerOrUpdateAdAgent(params: {
   location: AdAgentLocation;
   bankOrPayIdDetails?: string;
   status?: "active" | "inactive";
-}): Promise<{ agent: AdAgentProfile; assignedRole: RbacRole }> {
+}): Promise<{ agent: AdAgentProfile; assignedRole: RbacRole; isNewRegistration: boolean }> {
   const cleanEmail = params.email.trim().toLowerCase();
+  const cleanCallerEmail = (params.callerEmail || params.email).trim().toLowerCase();
   const now = new Date().toISOString();
-  const isSuper = isDatabaseAdmin(null, cleanEmail) || params.currentRole === "superadmin";
-  const isMainAdmin = params.currentRole === "admin";
+  const isSuper = isDatabaseAdmin(null, cleanEmail);
+  const isSameAsCaller = cleanEmail === cleanCallerEmail;
+  const isMainAdmin = isSameAsCaller && params.currentRole === "admin";
 
-  // Check if an Ad Agent record already exists for this email or uid
+  // Check if an Ad Agent record already exists STRICTLY by email
+  // Every email gets its own distinct Ad Agent profile and personal details.
   const existingAgents = await getAdAgents();
-  const existing = existingAgents.find(
-    (a) => a.email.toLowerCase() === cleanEmail || (a.uid && a.uid === params.uid),
-  );
+  const existing = existingAgents.find((a) => a.email.toLowerCase() === cleanEmail);
+  const isNewRegistration = !existing;
 
-  const agentId = existing?.agentId || `agent_${params.uid.slice(0, 16)}_${randomBytes(3).toString("hex")}`;
+  // Resolve the uid belonging to cleanEmail so different Ad Agents never share/overwrite uids
+  let targetUid: string | undefined = isSameAsCaller ? params.uid : existing?.uid;
+  if (!isSameAsCaller && !targetUid) {
+    try {
+      const userRecord = await adminAuth.getUserByEmail(cleanEmail);
+      targetUid = userRecord.uid;
+    } catch {
+      try {
+        const snap = await db.collection("users").where("email", "==", cleanEmail).limit(1).get();
+        if (!snap.empty) {
+          targetUid = snap.docs[0].id;
+        }
+      } catch {
+        // non-blocking
+      }
+    }
+  }
+
+  const agentId =
+    existing?.agentId ||
+    `agent_${(targetUid || randomBytes(4).toString("hex")).slice(0, 12)}_${randomBytes(3).toString("hex")}`;
   const cleanLocation: AdAgentLocation = {
     suburb: params.location.suburb.trim() || "Sydney",
     state: params.location.state.trim() || "NSW",
@@ -182,7 +205,7 @@ export async function registerOrUpdateAdAgent(params: {
 
   const nextAgent: AdAgentProfile = {
     agentId,
-    uid: params.uid,
+    ...(targetUid ? { uid: targetUid } : {}),
     name: params.name.trim(),
     phone: params.phone.trim(),
     email: cleanEmail,
@@ -207,21 +230,23 @@ export async function registerOrUpdateAdAgent(params: {
   // Preserve any existing multi-roles assigned by Super Admin while ensuring "ad_agent" is included
   let existingUserRoles: RbacRole[] = [];
   let existingTier = "supporter";
-  try {
-    const userSnap = await db.collection("users").doc(params.uid).get();
-    if (userSnap.exists) {
-      const uData = userSnap.data() || {};
-      if (Array.isArray(uData.roles)) {
-        existingUserRoles = uData.roles as RbacRole[];
-      } else if (typeof uData.role === "string") {
-        existingUserRoles = [uData.role as RbacRole];
+  if (targetUid) {
+    try {
+      const userSnap = await db.collection("users").doc(targetUid).get();
+      if (userSnap.exists) {
+        const uData = userSnap.data() || {};
+        if (Array.isArray(uData.roles)) {
+          existingUserRoles = uData.roles as RbacRole[];
+        } else if (typeof uData.role === "string") {
+          existingUserRoles = [uData.role as RbacRole];
+        }
+        if (typeof uData.tier === "string") {
+          existingTier = uData.tier;
+        }
       }
-      if (typeof uData.tier === "string") {
-        existingTier = uData.tier;
-      }
+    } catch {
+      // non-blocking
     }
-  } catch {
-    // non-blocking
   }
 
   const roleSet = new Set<RbacRole>(existingUserRoles);
@@ -254,9 +279,9 @@ export async function registerOrUpdateAdAgent(params: {
       ? "agency"
       : "supporter";
 
-  if (!isSuper) {
+  if (!isSuper && targetUid) {
     try {
-      await adminAuth.setCustomUserClaims(params.uid, {
+      await adminAuth.setCustomUserClaims(targetUid, {
         role: assignedRole,
         roles: mergedRoles,
         tier: resolvedTier,
@@ -270,28 +295,30 @@ export async function registerOrUpdateAdAgent(params: {
     }
   }
 
-  try {
-    await db
-      .collection("users")
-      .doc(params.uid)
-      .set(
-        {
-          email: cleanEmail,
-          displayName: params.name.trim(),
-          role: assignedRole,
-          roles: mergedRoles,
-          tier: resolvedTier,
-          isAdAgent: true,
-          adAgentId: agentId,
-          updatedAt: now,
-        },
-        { merge: true },
-      );
-  } catch {
-    // ignore if user doc update fails
+  if (targetUid) {
+    try {
+      await db
+        .collection("users")
+        .doc(targetUid)
+        .set(
+          {
+            email: cleanEmail,
+            displayName: params.name.trim(),
+            role: assignedRole,
+            roles: mergedRoles,
+            tier: resolvedTier,
+            isAdAgent: true,
+            adAgentId: agentId,
+            updatedAt: now,
+          },
+          { merge: true },
+        );
+    } catch {
+      // ignore if user doc update fails
+    }
   }
 
-  return { agent: nextAgent, assignedRole };
+  return { agent: nextAgent, assignedRole, isNewRegistration };
 }
 
 /**

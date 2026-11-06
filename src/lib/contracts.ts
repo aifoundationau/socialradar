@@ -727,6 +727,7 @@ export type AdAgentProfile = z.infer<typeof AdAgentProfileSchema>;
 
 export const RegisterAdAgentRequestSchema = z
   .object({
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
     name: safeText(1, 100),
     phone: safeText(3, 40),
     location: AdAgentLocationSchema,
@@ -738,6 +739,7 @@ export type RegisterAdAgentRequest = z.infer<typeof RegisterAdAgentRequestSchema
 
 export const ToggleOwnAdAgentStatusRequestSchema = z
   .object({
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
     status: z.enum(["active", "inactive"]),
   })
   .strict();

@@ -74,16 +74,18 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   const [myAgentProfile, setMyAgentProfile] = useState<AdAgentProfile | null>(null);
+  const [allAgentProfiles, setAllAgentProfiles] = useState<AdAgentProfile[]>([]);
   const [assignedRequests, setAssignedRequests] = useState<CustomizeRequestDoc[]>([]);
 
-  // Registration Form State
+  // Registration Form State (unique personal details per Ad Agent email)
+  const [agentEmail, setAgentEmail] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [bankOrPayIdDetails, setBankOrPayIdDetails] = useState("");
   const [agentStatus, setAgentStatus] = useState<"active" | "inactive">("active");
   const [togglingStatus, setTogglingStatus] = useState(false);
-  const [suburb, setSuburb] = useState("Sydney");
-  const [stateRegion, setStateRegion] = useState("NSW");
+  const [suburb, setSuburb] = useState("");
+  const [stateRegion, setStateRegion] = useState("");
   const [country, setCountry] = useState("AU");
   const [latitude, setLatitude] = useState<number>(-33.8688);
   const [longitude, setLongitude] = useState<number>(151.2093);
@@ -179,6 +181,46 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
     ].join("\n");
   }
 
+  function applyEmailLookupToForm(
+    targetEmailRaw: string,
+    profilesList: AdAgentProfile[],
+  ): AdAgentProfile | null {
+    const cleanTarget = targetEmailRaw.trim().toLowerCase();
+    const matched = cleanTarget
+      ? profilesList.find((a) => a.email.toLowerCase() === cleanTarget) || null
+      : null;
+
+    if (matched) {
+      setMyAgentProfile(matched);
+      setName(matched.name || "");
+      setPhone(matched.phone || "");
+      setBankOrPayIdDetails(matched.bankOrPayIdDetails || "");
+      setAgentStatus(matched.status === "inactive" ? "inactive" : "active");
+      if (matched.location) {
+        setSuburb(matched.location.suburb || "");
+        setStateRegion(matched.location.state || "");
+        setCountry(matched.location.country || "AU");
+        setLatitude(matched.location.latitude);
+        setLongitude(matched.location.longitude);
+      }
+      return matched;
+    }
+
+    // Not registered as an Ad Agent before -> clear fields so they can enter their own new personal details
+    setMyAgentProfile(null);
+    setName("");
+    setPhone("");
+    setBankOrPayIdDetails("");
+    setAgentStatus("active");
+    setSuburb("");
+    setStateRegion("");
+    setCountry("AU");
+    const geo = loadGeoConfig();
+    setLatitude(typeof geo.latitude === "number" ? geo.latitude : -33.8688);
+    setLongitude(typeof geo.longitude === "number" ? geo.longitude : 151.2093);
+    return null;
+  }
+
   useEffect(() => {
     if (isOpen && initialTab) {
       setTab(initialTab);
@@ -187,41 +229,31 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
 
   useEffect(() => {
     if (!isOpen) return;
-    const geo = loadGeoConfig();
-    setSuburb(geo.suburb || "Sydney");
-    setStateRegion(geo.state || "NSW");
-    setCountry(geo.country || "AU");
-    setLatitude(typeof geo.latitude === "number" ? geo.latitude : -33.8688);
-    setLongitude(typeof geo.longitude === "number" ? geo.longitude : 151.2093);
-    if (user?.displayName && !name) {
-      setName(user.displayName);
-    }
-    loadAgentData();
-  }, [isOpen]);
+    const defaultEmail = registeredEmail;
+    setAgentEmail(defaultEmail);
+    loadAgentData(defaultEmail);
+  }, [isOpen, registeredEmail]);
 
-  async function loadAgentData() {
+  async function loadAgentData(emailOverride?: string) {
     setLoading(true);
     setErrorMsg(null);
     try {
+      const targetEmail = (emailOverride ?? agentEmail ?? registeredEmail).trim().toLowerCase();
+      const query = targetEmail ? `?email=${encodeURIComponent(targetEmail)}` : "";
       const data = await apiFetch<{
         myAgentProfile: AdAgentProfile | null;
+        allAgentProfiles?: AdAgentProfile[];
         assignedRequests: CustomizeRequestDoc[];
-      }>("/api/ad-agent", { method: "GET" });
+      }>(`/api/ad-agent${query}`, { method: "GET" });
 
-      if (data.myAgentProfile) {
-        setMyAgentProfile(data.myAgentProfile);
-        setName(data.myAgentProfile.name || user?.displayName || "");
-        setPhone(data.myAgentProfile.phone || "");
-        setBankOrPayIdDetails(data.myAgentProfile.bankOrPayIdDetails || "");
-        setAgentStatus(data.myAgentProfile.status === "inactive" ? "inactive" : "active");
-        if (data.myAgentProfile.location) {
-          setSuburb(data.myAgentProfile.location.suburb || "Sydney");
-          setStateRegion(data.myAgentProfile.location.state || "NSW");
-          setCountry(data.myAgentProfile.location.country || "AU");
-          setLatitude(data.myAgentProfile.location.latitude);
-          setLongitude(data.myAgentProfile.location.longitude);
-        }
-      }
+      const profiles = Array.isArray(data.allAgentProfiles)
+        ? data.allAgentProfiles
+        : data.myAgentProfile
+          ? [data.myAgentProfile]
+          : [];
+      setAllAgentProfiles(profiles);
+      applyEmailLookupToForm(targetEmail, profiles);
+
       if (Array.isArray(data.assignedRequests)) {
         setAssignedRequests(data.assignedRequests);
       }
@@ -230,6 +262,13 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleAgentEmailChange(nextEmailRaw: string) {
+    setAgentEmail(nextEmailRaw);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    applyEmailLookupToForm(nextEmailRaw, allAgentProfiles);
   }
 
   async function handleDetectGeolocation() {
@@ -254,6 +293,11 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
 
   async function handleRegisterSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const targetEmail = (agentEmail || registeredEmail).trim().toLowerCase();
+    if (!targetEmail || !targetEmail.includes("@")) {
+      setErrorMsg("Please enter a valid Ad Agent email address.");
+      return;
+    }
     if (!name.trim()) {
       setErrorMsg("Please enter your Ad Agent full name.");
       return;
@@ -262,30 +306,41 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
       setErrorMsg("Please enter a valid contact phone number.");
       return;
     }
+    if (!suburb.trim()) {
+      setErrorMsg("Please enter your Suburb / City or click 'Use My Current Geolocation'.");
+      return;
+    }
+    if (!stateRegion.trim()) {
+      setErrorMsg("Please enter your State / Region.");
+      return;
+    }
 
     setSaving(true);
     setErrorMsg(null);
     setStatusMsg(null);
     try {
       const locationPayload: AdAgentLocation = {
-        suburb: suburb.trim() || "Sydney",
-        state: stateRegion.trim() || "NSW",
+        suburb: suburb.trim(),
+        state: stateRegion.trim(),
         country: (country.trim() || "AU").toUpperCase(),
         latitude: Number.isFinite(Number(latitude)) ? Number(latitude) : -33.8688,
         longitude: Number.isFinite(Number(longitude)) ? Number(longitude) : 151.2093,
-        label: `${suburb.trim() || "Sydney"}, ${stateRegion.trim() || "NSW"}, ${(country.trim() || "AU").toUpperCase()}`,
+        label: `${suburb.trim()}, ${stateRegion.trim()}, ${(country.trim() || "AU").toUpperCase()}`,
       };
 
       const res = await apiFetch<{
         success: boolean;
         agent: AdAgentProfile;
         assignedRole: string;
+        isNewRegistration?: boolean;
+        allAgentProfiles?: AdAgentProfile[];
         ledger?: unknown[];
         adAgentLedger?: unknown[];
       }>("/api/ad-agent", {
         method: "POST",
         body: {
           action: "REGISTER_AD_AGENT",
+          email: targetEmail,
           name: name.trim(),
           phone: phone.trim(),
           bankOrPayIdDetails: bankOrPayIdDetails.trim(),
@@ -295,6 +350,9 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
       });
 
       setMyAgentProfile(res.agent);
+      if (Array.isArray(res.allAgentProfiles)) {
+        setAllAgentProfiles(res.allAgentProfiles);
+      }
       setAgentStatus(res.agent.status === "inactive" ? "inactive" : "active");
       if (typeof window !== "undefined") {
         window.dispatchEvent(
@@ -308,7 +366,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
       }
       setStatusMsg(
         res.agent.status === "active"
-          ? `Ad Agent profile saved and status is ON (Active) for ${res.agent.name} (${res.agent.email}) at ${res.agent.location.label}. Your details are now updated in the Ad Agent Distribution Ledger.`
+          ? `Ad Agent profile saved and status is ON (Active) for ${res.agent.name} (${res.agent.email}) at ${res.agent.location.label}. Your personal details are now updated in the Ad Agent Distribution Ledger.`
           : `Ad Agent profile saved for ${res.agent.name} (${res.agent.email}). Your Ad Agent status is currently OFF (Paused) — turn it ON anytime to receive Customize orders.`,
       );
     } catch (err) {
@@ -333,21 +391,27 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
     setErrorMsg(null);
     setStatusMsg(null);
     try {
+      const targetEmail = (agentEmail || registeredEmail).trim().toLowerCase();
       const res = await apiFetch<{
         success: boolean;
         agent: AdAgentProfile;
+        allAgentProfiles?: AdAgentProfile[];
         ledger?: unknown[];
         adAgentLedger?: unknown[];
       }>("/api/ad-agent", {
         method: "POST",
         body: {
           action: "AGENT_TOGGLE_OWN_STATUS",
+          email: targetEmail,
           status: targetStatus,
         },
       });
       if (res.agent) {
         setMyAgentProfile(res.agent);
         setAgentStatus(res.agent.status);
+      }
+      if (Array.isArray(res.allAgentProfiles)) {
+        setAllAgentProfiles(res.allAgentProfiles);
       }
       if (typeof window !== "undefined") {
         window.dispatchEvent(
@@ -658,7 +722,76 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
 
               {/* Registration Form */}
               <form onSubmit={handleRegisterSubmit} className={`${card} p-5 space-y-4`}>
+                {/* Email Check Header Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-surface-container px-3.5 py-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-primary">
+                      Ad Agent Email Verification:
+                    </span>
+                    {myAgentProfile ? (
+                      <span
+                        data-agent-id="ad-agent-email-check-status"
+                        data-testid="ad-agent-email-check-status"
+                        className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-300"
+                      >
+                        ✓ Registered Before ({myAgentProfile.email}) — Personal Details Loaded
+                      </span>
+                    ) : (
+                      <span
+                        data-agent-id="ad-agent-email-check-status"
+                        data-testid="ad-agent-email-check-status"
+                        className="rounded-full border border-sky-400/40 bg-sky-500/15 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-sky-300"
+                      >
+                        ✦ New Ad Agent ({agentEmail.trim() || "Enter Email"}) — Enter Your Own New Personal Details
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMyAgentProfile(null);
+                      setName("");
+                      setPhone("");
+                      setBankOrPayIdDetails("");
+                      setSuburb("");
+                      setStateRegion("");
+                      setCountry("AU");
+                      setStatusMsg(
+                        "Personal details cleared. Enter the new Ad Agent's email, full name, phone, geolocation, and bank/PayID details below.",
+                      );
+                    }}
+                    data-agent-id="ad-agent-clear-personal-details-btn"
+                    data-testid="ad-agent-clear-personal-details-btn"
+                    className="rounded-lg border border-white/15 bg-surface-container-highest px-2.5 py-1 font-mono text-[11px] font-semibold text-on-surface-variant hover:border-primary/40 hover:text-on-surface transition"
+                  >
+                    + Enter New Personal Details
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <label className={label} htmlFor="ad-agent-email-input">
+                      Ad Agent Email (Checked Automatically) *
+                    </label>
+                    <input
+                      id="ad-agent-email-input"
+                      type="email"
+                      required
+                      maxLength={254}
+                      placeholder="agent@example.com"
+                      value={agentEmail}
+                      onChange={(e) => handleAgentEmailChange(e.target.value)}
+                      className={`${field} font-mono text-xs`}
+                      data-agent-id="ad-agent-email-input"
+                      data-testid="ad-agent-email-input"
+                    />
+                    <p className="mt-1 text-[11px] font-mono text-outline">
+                      {myAgentProfile
+                        ? "Existing Ad Agent found for this email"
+                        : "Not registered before — enter your own new personal details"}
+                    </p>
+                  </div>
+
                   <div>
                     <label className={label} htmlFor="ad-agent-name-input">
                       Ad Agent Full Name *
@@ -668,7 +801,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                       type="text"
                       required
                       maxLength={100}
-                      placeholder="e.g. Sarah Jenkins"
+                      placeholder="Enter your own full name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       className={field}
@@ -686,31 +819,13 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                       type="tel"
                       required
                       maxLength={40}
-                      placeholder="+61 400 000 000"
+                      placeholder="Enter your own phone number"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       className={field}
                       data-agent-id="ad-agent-phone-input"
                       data-testid="ad-agent-phone-input"
                     />
-                  </div>
-
-                  <div>
-                    <label className={label} htmlFor="ad-agent-email-input">
-                      Registered Email *
-                    </label>
-                    <input
-                      id="ad-agent-email-input"
-                      type="email"
-                      readOnly
-                      value={registeredEmail}
-                      className={`${field} opacity-75 cursor-not-allowed font-mono text-xs`}
-                      data-agent-id="ad-agent-email-input"
-                      data-testid="ad-agent-email-input"
-                    />
-                    <p className="mt-1 text-[11px] font-mono text-outline">
-                      Locked to the email you registered with
-                    </p>
                   </div>
                 </div>
 
@@ -879,7 +994,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                 </div>
                 <button
                   type="button"
-                  onClick={loadAgentData}
+                  onClick={() => loadAgentData()}
                   className={btnSecondary}
                   data-agent-id="ad-agent-refresh-orders-btn"
                   data-testid="ad-agent-refresh-orders-btn"
