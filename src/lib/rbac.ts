@@ -143,9 +143,7 @@ export async function assignUserRole(
     throw new Error("Cannot modify permanent database superadmin account");
   }
 
-  const userRecord = await adminAuth.getUserByEmail(normEmail);
   const tier = targetRole === "agency" || targetRole === "admin" ? "agency" : "supporter";
-
   const newClaims = {
     role: targetRole,
     tier,
@@ -154,22 +152,42 @@ export async function assignUserRole(
     superadmin: false,
   };
 
-  await adminAuth.setCustomUserClaims(userRecord.uid, newClaims);
+  let uid = `email:${normEmail}`;
+  try {
+    const userRecord = await adminAuth.getUserByEmail(normEmail);
+    uid = userRecord.uid;
+    await adminAuth.setCustomUserClaims(userRecord.uid, newClaims);
+  } catch {
+    // User might exist in Firestore users collection before Firebase Auth sync
+    const snap = await db.collection("users").where("email", "==", normEmail).limit(1).get();
+    if (!snap.empty) {
+      uid = snap.docs[0].id;
+    } else {
+      throw new Error(`No registered user found with email ${normEmail}`);
+    }
+  }
 
   // Keep users/{uid} in sync
   try {
-    await db.collection("users").doc(userRecord.uid).update({
-      role: targetRole,
-      tier,
-      updatedAt: new Date().toISOString(),
-      roleUpdatedBy: updatedBy,
-    });
+    await db
+      .collection("users")
+      .doc(uid)
+      .set(
+        {
+          email: normEmail,
+          role: targetRole,
+          tier,
+          updatedAt: new Date().toISOString(),
+          roleUpdatedBy: updatedBy,
+        },
+        { merge: true },
+      );
   } catch {
-    // If doc does not exist yet, it will be initialized on their next login via /api/me
+    // Non-blocking fallback
   }
 
   return {
-    uid: userRecord.uid,
+    uid,
     email: normEmail,
     role: targetRole,
     tier,
@@ -185,6 +203,7 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
     ]);
 
     const balanceMap = new Map<string, number>();
+    const firestoreRoleMap = new Map<string, RbacRole>();
     const healPromises: Promise<unknown>[] = [];
     usersSnap.forEach((doc) => {
       const data = doc.data();
@@ -200,19 +219,32 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
       const bal = Math.max(0, Math.round(Number.isFinite(rawBal) ? rawBal : 0));
       balanceMap.set(doc.id, bal);
       if (data.email) {
-        balanceMap.set(String(data.email).toLowerCase().trim(), bal);
+        const cleanEmail = String(data.email).toLowerCase().trim();
+        balanceMap.set(cleanEmail, bal);
+        if (data.role && RBAC_ROLES_LIST.includes(data.role as RbacRole)) {
+          firestoreRoleMap.set(cleanEmail, data.role as RbacRole);
+        }
+      }
+      if (data.role && RBAC_ROLES_LIST.includes(data.role as RbacRole)) {
+        firestoreRoleMap.set(doc.id, data.role as RbacRole);
       }
     });
     if (healPromises.length > 0) {
       await Promise.all(healPromises);
     }
 
-    return listResult.users.map((u) => {
+    const seenEmails = new Set<string>();
+    const combined: RbacUserItem[] = listResult.users.map((u) => {
       const email = (u.email || "").toLowerCase().trim();
+      if (email) seenEmails.add(email);
       const isSuper = isDatabaseAdmin(u.customClaims, email);
-      const rawRole = (u.customClaims?.role as RbacRole) || (isSuper ? "superadmin" : "supporter");
+      const claimRole = u.customClaims?.role as RbacRole | undefined;
+      const docRole = firestoreRoleMap.get(u.uid) || firestoreRoleMap.get(email);
+      const rawRole = claimRole || docRole || (isSuper ? "superadmin" : "supporter");
       const role: RbacRole = isSuper ? "superadmin" : (RBAC_ROLES_LIST.includes(rawRole) ? rawRole : "supporter");
-      const tier = (u.customClaims?.tier as string) || (isSuper ? "agency" : "supporter");
+      const tier =
+        (u.customClaims?.tier as string) ||
+        (role === "agency" || role === "admin" || isSuper ? "agency" : "supporter");
       const tokenBalance = balanceMap.get(u.uid) ?? balanceMap.get(email) ?? 0;
 
       return {
@@ -227,6 +259,31 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
         tokenBalance,
       };
     });
+
+    // Also include any Firestore user documents not yet in listResult.users
+    usersSnap.forEach((doc) => {
+      const data = doc.data();
+      const email = String(data.email || "").toLowerCase().trim();
+      if (!email || seenEmails.has(email)) return;
+      seenEmails.add(email);
+      const isSuper = isDatabaseAdmin(null, email);
+      const rawRole = (data.role as RbacRole) || (isSuper ? "superadmin" : "supporter");
+      const role: RbacRole = isSuper ? "superadmin" : (RBAC_ROLES_LIST.includes(rawRole) ? rawRole : "supporter");
+      const tier = role === "agency" || role === "admin" || isSuper ? "agency" : "supporter";
+      const tokenBalance = balanceMap.get(doc.id) ?? balanceMap.get(email) ?? 0;
+      combined.push({
+        uid: doc.id,
+        email,
+        displayName: typeof data.displayName === "string" ? data.displayName : undefined,
+        role,
+        tier,
+        createdAt: typeof data.createdAt === "string" ? data.createdAt : new Date().toISOString(),
+        isPermanentSuperAdmin: isSuper,
+        tokenBalance,
+      });
+    });
+
+    return combined;
   } catch (err) {
     console.error("[rbac] failed to list users for rbac", err);
     return [];

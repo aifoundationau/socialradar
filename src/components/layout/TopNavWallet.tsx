@@ -162,7 +162,7 @@ function AccountMenu({
   onOpenFaq,
   onOpenAdAgent,
 }: {
-  onOpenAdmin: (tab?: "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV") => void;
+  onOpenAdmin: (tab?: "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "USERS" | "MESSAGES" | "RBAC" | "FAQS" | "DEV") => void;
   onOpenSupporter: () => void;
   onOpenFaq: () => void;
   onOpenAdAgent: () => void;
@@ -407,7 +407,7 @@ export function TopNavWallet() {
   const { isAdmin, isSuperAdmin, actingAsRole, resetRole } = useSession();
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<
-    "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV" | undefined
+    "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "USERS" | "MESSAGES" | "RBAC" | "FAQS" | "DEV" | undefined
   >(undefined);
   const [isSupporterOpen, setIsSupporterOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);

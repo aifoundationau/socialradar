@@ -16,7 +16,7 @@ import {
 
 export async function GET(req: Request) {
   try {
-    await verifyRequest(req, { requireRole: "superadmin" });
+    await verifyRequest(req, { requireRole: "admin" });
 
     const [rbacConfig, users] = await Promise.all([
       getRbacConfig(),
