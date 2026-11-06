@@ -208,16 +208,18 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
   const allowedTabs = useMemo<TabKey[]>(() => {
     return isSuper
-      ? ["CURRENCY", "PRICING", "PACKS", "LEDGER", "USERS", "MESSAGES", "RBAC", "FAQS", "DEV"]
-      : ["CURRENCY", "PRICING", "PACKS", "LEDGER", "USERS", "MESSAGES", "FAQS"];
+      ? ["CURRENCY", "PRICING", "LEDGER", "USERS", "MESSAGES", "RBAC", "FAQS", "DEV"]
+      : ["CURRENCY", "PRICING", "LEDGER", "USERS", "MESSAGES", "FAQS"];
   }, [isSuper]);
 
-  const [tab, setTab] = useState<TabKey>(initialTab ?? "CURRENCY");
+  const resolvedInitialTab: TabKey = initialTab === "PACKS" ? "PRICING" : (initialTab ?? "CURRENCY");
+  const [tab, setTab] = useState<TabKey>(resolvedInitialTab);
 
   useEffect(() => {
     if (initialTab && isOpen) {
-      if (allowedTabs.includes(initialTab)) {
-        setTab(initialTab);
+      const targetTab: TabKey = initialTab === "PACKS" ? "PRICING" : initialTab;
+      if (allowedTabs.includes(targetTab)) {
+        setTab(targetTab);
       } else {
         setTab("CURRENCY");
       }
@@ -2035,7 +2037,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                   }`}
                   data-testid="modal-view-superadmin"
                 >
-                  Super Admin (9 tabs)
+                  Super Admin (8 tabs)
                 </button>
                 <button
                   type="button"
@@ -2047,7 +2049,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                   }`}
                   data-testid="modal-view-mainadmin"
                 >
-                  Main Admin (7 tabs)
+                  Main Admin (6 tabs)
                 </button>
               </div>
             )}
@@ -2082,13 +2084,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         >
           <div
             className={`grid grid-cols-2 gap-1.5 ${
-              isSuper ? "sm:grid-cols-3 lg:grid-cols-9" : "sm:grid-cols-4 lg:grid-cols-7"
+              isSuper ? "sm:grid-cols-4 lg:grid-cols-8" : "sm:grid-cols-3 lg:grid-cols-6"
             } sm:gap-2 lg:gap-1.5`}
           >
             {[
               { id: "CURRENCY" as const, label: "Currency Controls", icon: "sliders" as IconName },
               { id: "PRICING" as const, label: "Service Pricing", icon: "zap" as IconName },
-              { id: "PACKS" as const, label: "Token Packs (CRUD)", icon: "plus" as IconName },
               { id: "LEDGER" as const, label: "Token Controls & Ledger", icon: "wallet" as IconName },
               { id: "USERS" as const, label: `All Users (${rbacUsers.length})`, icon: "user" as IconName },
               {
@@ -2403,23 +2404,28 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                 </div>
               )}
 
-              {/* TAB 2: SERVICE PRICING */}
+              {/* TAB 2: SERVICE PRICING & TOKEN PACKS (CRUD) */}
               {tab === "PRICING" && (
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <h3 className="text-title-sm font-semibold text-on-surface">Service Pricing</h3>
+                      <h3 className="text-title-sm font-semibold text-on-surface">Service Pricing &amp; Token Packs (CRUD)</h3>
                       <p className="mt-0.5 text-compact text-on-surface-variant">
-                        All features start collapsed. Click any feature below to expand and configure service token amounts or monthly subscription pricing.
+                        All features start collapsed. Click any feature below to expand and configure service token amounts, monthly subscription pricing, or Stripe checkout token packs.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => {
                         const allOpen =
-                          isFeatureExpanded("pricing_services") && isFeatureExpanded("pricing_subscription");
+                          isFeatureExpanded("pricing_services") &&
+                          isFeatureExpanded("pricing_subscription") &&
+                          showAddPack &&
+                          isFeatureExpanded("packs_catalog");
                         setFeatureExpanded("pricing_services", !allOpen);
                         setFeatureExpanded("pricing_subscription", !allOpen);
+                        setShowAddPack(!allOpen);
+                        setFeatureExpanded("packs_catalog", !allOpen);
                       }}
                       data-agent-id="pricing-expand-all-btn"
                       data-testid="pricing-expand-all-btn"
@@ -2428,13 +2434,19 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       <Icon
                         name="chevronDown"
                         className={`size-3.5 transition-transform duration-200 ${
-                          isFeatureExpanded("pricing_services") && isFeatureExpanded("pricing_subscription")
+                          isFeatureExpanded("pricing_services") &&
+                          isFeatureExpanded("pricing_subscription") &&
+                          showAddPack &&
+                          isFeatureExpanded("packs_catalog")
                             ? "rotate-180"
                             : ""
                         }`}
                       />
                       <span>
-                        {isFeatureExpanded("pricing_services") && isFeatureExpanded("pricing_subscription")
+                        {isFeatureExpanded("pricing_services") &&
+                        isFeatureExpanded("pricing_subscription") &&
+                        showAddPack &&
+                        isFeatureExpanded("packs_catalog")
                           ? "Collapse All"
                           : "Expand All"}
                       </span>
@@ -2950,41 +2962,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       </div>
                     )}
                   </div>
-                </div>
-              )}
 
-              {/* TAB 3: TOKEN PACKS CRUD */}
-              {tab === "PACKS" && (
-                <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <h3 className="text-title-sm font-semibold text-on-surface">Token Packs (CRUD)</h3>
-                      <p className="mt-0.5 text-compact text-on-surface-variant">
-                        All features start collapsed. Click any feature below to create or manage Stripe checkout token packs.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const allOpen = showAddPack && isFeatureExpanded("packs_catalog");
-                        setShowAddPack(!allOpen);
-                        setFeatureExpanded("packs_catalog", !allOpen);
-                      }}
-                      data-agent-id="packs-expand-all-btn"
-                      data-testid="packs-expand-all-btn"
-                      className={`${btnSecondary} font-mono text-xs shrink-0`}
-                    >
-                      <Icon
-                        name="chevronDown"
-                        className={`size-3.5 transition-transform duration-200 ${
-                          showAddPack && isFeatureExpanded("packs_catalog") ? "rotate-180" : ""
-                        }`}
-                      />
-                      <span>{showAddPack && isFeatureExpanded("packs_catalog") ? "Collapse All" : "Expand All"}</span>
-                    </button>
-                  </div>
-
-                  {/* Feature 1: Create New Token Pack */}
+                  {/* Feature 3: Create New Token Pack (Token Packs CRUD) */}
                   <div
                     className={`${card} p-4 space-y-4 border border-primary/25`}
                     data-agent-id="feature-card-packs-create"
@@ -3088,7 +3067,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     )}
                   </div>
 
-                  {/* Feature 2: Token Pack Catalog List */}
+                  {/* Feature 4: Token Packs (CRUD) — Token Pack Catalog List */}
                   <div
                     className={`${card} p-4 space-y-4`}
                     data-agent-id="feature-card-packs-catalog"
@@ -3111,7 +3090,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             }`}
                           />
                           <h4 className="text-compact font-bold text-on-surface group-hover:text-primary transition-colors">
-                            Token Pack Catalog
+                            Token Packs (CRUD) — Token Pack Catalog
                           </h4>
                           <span className="rounded-full bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
                             {config.tokenPacks.length} Active {config.tokenPacks.length === 1 ? "Pack" : "Packs"}
