@@ -86,7 +86,7 @@ export async function getSystemConfig(): Promise<AdminSystemConfig> {
       equityPartners: Array.isArray(data.equityPartners) ? data.equityPartners : [],
       audCentsPerToken: typeof data.audCentsPerToken === "number" ? data.audCentsPerToken : DEFAULT_CONFIG.audCentsPerToken,
       tokenPacks:
-        Array.isArray(data.tokenPacks) && data.tokenPacks.some((p: { id?: string }) => p.id === "PACK_10")
+        Array.isArray(data.tokenPacks) && data.tokenPacks.length > 0
           ? data.tokenPacks
           : DEFAULT_CONFIG.tokenPacks,
       monthlySubscription: {

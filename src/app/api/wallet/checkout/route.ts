@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyRequest } from "@/lib/firebase-admin";
 import { ensureUserDoc, buildTxId } from "@/lib/token-ledger";
-import { errorResponse, readJson, requireIdempotencyKey } from "@/lib/api";
+import { ApiError, errorResponse, readJson, requireIdempotencyKey } from "@/lib/api";
 import { CheckoutRequestSchema } from "@/lib/contracts";
 import {
   DEFAULT_AUD_CENTS_PER_TOKEN,
@@ -19,15 +19,18 @@ export async function GET(req: Request) {
     // Touch request headers so Next.js treats this route as dynamic on-demand
     void req.headers.get("accept");
     const config = await getSystemConfig();
-    return NextResponse.json({
-      audCentsPerToken: config.audCentsPerToken ?? DEFAULT_AUD_CENTS_PER_TOKEN,
-      serviceCosts: config.serviceCosts,
-      tokenPacks: config.tokenPacks,
-      monthlySubscription: config.monthlySubscription,
-      isTokenSystemEnabled: config.isTokenSystemEnabled,
-      isAudEnabled: config.isAudEnabled,
-      isUsdEnabled: config.isUsdEnabled,
-    });
+    return NextResponse.json(
+      {
+        audCentsPerToken: config.audCentsPerToken ?? DEFAULT_AUD_CENTS_PER_TOKEN,
+        serviceCosts: config.serviceCosts,
+        tokenPacks: config.tokenPacks,
+        monthlySubscription: config.monthlySubscription,
+        isTokenSystemEnabled: config.isTokenSystemEnabled,
+        isAudEnabled: config.isAudEnabled,
+        isUsdEnabled: config.isUsdEnabled,
+      },
+      { headers: { "Cache-Control": "no-store, max-age=0" } }
+    );
   } catch (err) {
     return errorResponse(err);
   }
@@ -60,11 +63,16 @@ export async function POST(req: Request) {
 
     let pack: TokenPack;
     if (packId === "SUB_MONTHLY_1000") {
-      const sub = config.monthlySubscription ?? { priceAud: 500, searchesPerMonth: 1000 };
+      const sub = config.monthlySubscription ?? {
+        priceAud: 500,
+        searchesPerMonth: 1000,
+        name: "Monthly Search Subscription",
+      };
       const tokens = Math.max(1, Math.round(sub.searchesPerMonth ?? 1000));
       const priceCents = Math.max(100, Math.round((sub.priceAud ?? 500) * 100));
       pack = {
         id: "SUB_MONTHLY_1000",
+        name: sub.name || "Monthly Search Subscription",
         tokens,
         priceCents,
         priceUsdCents: audToUsdCents(priceCents),
@@ -73,24 +81,31 @@ export async function POST(req: Request) {
       const tokens = customTokens!;
       pack = buildTokenPack(packId, tokens, audCentsPerToken);
     } else {
-      // Check if SuperAdmin customized this specific pack in config.tokenPacks
-      const adminPack = config.tokenPacks?.find((p) => p.id === packId && p.enabled);
+      // Check if SuperAdmin configured or created this pack in config.tokenPacks
+      const adminPack = config.tokenPacks?.find((p) => p.id === packId && p.enabled !== false);
       if (adminPack) {
         const tokens = Math.max(1, Math.round(adminPack.tokens));
-        // If SuperAdmin customized audCentsPerToken or the pack's priceCents, compute AUD price
-        const priceCents =
-          audCentsPerToken !== DEFAULT_AUD_CENTS_PER_TOKEN
+        const hasCustomPackPrice =
+          typeof adminPack.priceCents === "number" &&
+          adminPack.priceCents >= 100 &&
+          adminPack.priceCents !== tokens * DEFAULT_AUD_CENTS_PER_TOKEN;
+        const priceCents = hasCustomPackPrice
+          ? Math.max(100, Math.round(adminPack.priceCents))
+          : audCentsPerToken !== DEFAULT_AUD_CENTS_PER_TOKEN
             ? Math.round(tokens * audCentsPerToken)
             : Math.max(100, Math.round(adminPack.priceCents));
         pack = {
           id: packId,
+          name: adminPack.name,
           tokens,
           priceCents,
           priceUsdCents: audToUsdCents(priceCents),
         };
+      } else if (packId in TOKEN_PACKS) {
+        const fallback = TOKEN_PACKS[packId as keyof typeof TOKEN_PACKS];
+        pack = buildTokenPack(packId, fallback.tokens, audCentsPerToken, undefined, undefined, fallback.name);
       } else {
-        const tokens = TOKEN_PACKS[packId].tokens;
-        pack = buildTokenPack(packId, tokens, audCentsPerToken);
+        throw new ApiError("NOT_FOUND", `Token pack ${packId} not found`, 404);
       }
     }
 

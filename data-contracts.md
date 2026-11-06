@@ -275,9 +275,9 @@ No body. Creates `users/{uid}` on first sign-in (balance 0) and returns `{ user,
 
 ### `POST /api/wallet/checkout`
 ```json
-{ "packId": "PACK_10|PACK_50|PACK_100|PACK_CUSTOM|SUB_MONTHLY_1000", "customTokens": 25, "buyerCountry": "AU" }
+{ "packId": "PACK_10|PACK_50|PACK_100|PACK_1000|PACK_CUSTOM|SUB_MONTHLY_1000|<custom-pack-id>", "customTokens": 25, "buyerCountry": "AU" }
 ```
-`customTokens` is required when `packId` is `"PACK_CUSTOM"` (integer $\ge 1$). `buyerCountry` (optional 2-letter ISO country code, fallback to IP geo headers) governs tax treatment:
+`packId` accepts any enabled pack ID configured in `system_config/global.tokenPacks` (e.g., `PACK_10`, `PACK_50`, `PACK_100`, `PACK_1000` / `Mega Pack (1000)`), `"PACK_CUSTOM"`, or `"SUB_MONTHLY_1000"`. `customTokens` is required when `packId` is `"PACK_CUSTOM"` (integer $\ge 1$). `buyerCountry` (optional 2-letter ISO country code, fallback to IP geo headers) governs tax treatment:
 - **Australia (`AU`):** 10% exclusive GST is added on top (`tax_behavior: "exclusive"` via native Stripe Tax `automatic_tax: { enabled: true }`).
 - **New Zealand (`NZ`) & International:** Strictly no GST / $0 tax added or deducted. All purchases outside Australia pay the exact base AUD price with no tax.
 Requires `x-idempotency-key` (reused as the Stripe idempotency key). Returns `{ "url": "https://checkout.stripe.com/..." }`.

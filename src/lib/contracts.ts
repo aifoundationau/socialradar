@@ -310,8 +310,20 @@ export const ActiveBrandRequestSchema = z
   .object({ activeBrandId: z.union([z.literal(""), BrandIdSchema]) })
   .strict();
 
-export const TokenPackIdSchema = z.enum(["PACK_10", "PACK_50", "PACK_100", "PACK_CUSTOM", "SUB_MONTHLY_1000"]);
-export type TokenPackId = z.infer<typeof TokenPackIdSchema>;
+export const TokenPackIdSchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/, "Must be a valid Token Pack ID");
+export type TokenPackId =
+  | "PACK_10"
+  | "PACK_50"
+  | "PACK_100"
+  | "PACK_1000"
+  | "PACK_CUSTOM"
+  | "SUB_MONTHLY_1000"
+  | (string & {});
 
 export const CheckoutRequestSchema = z
   .object({

@@ -96,6 +96,7 @@ export const costLabel = (action: ChargeableAction, overrideCost?: number) => {
 
 export interface TokenPack {
   id: TokenPackId;
+  name?: string;
   tokens: number;
   /** Minor units (cents) in AUD — all invoices & Stripe checkouts settle in AUD. Whole dollars. */
   priceCents: number;
@@ -108,13 +109,19 @@ export function buildTokenPack(
   id: TokenPackId,
   tokens: number,
   audCentsPerToken = DEFAULT_AUD_CENTS_PER_TOKEN,
-  fxRate?: number
+  fxRate?: number,
+  customPriceCents?: number,
+  name?: string
 ): TokenPack {
   const cleanTokens = Math.max(1, Math.ceil(tokens));
-  const priceCents = Math.ceil(cleanTokens * audCentsPerToken);
+  const priceCents =
+    typeof customPriceCents === "number" && customPriceCents >= 100
+      ? Math.round(customPriceCents)
+      : Math.ceil(cleanTokens * audCentsPerToken);
   const priceUsdCents = audToUsdCents(priceCents, fxRate);
   return {
     id,
+    ...(name ? { name } : {}),
     tokens: cleanTokens,
     priceCents,
     priceUsdCents,
@@ -124,18 +131,21 @@ export function buildTokenPack(
 export const TOKEN_PACKS: Record<"PACK_10" | "PACK_50" | "PACK_100", TokenPack> = {
   PACK_10: {
     id: "PACK_10",
+    name: "Quick Pack (10)",
     tokens: 10,
     priceCents: 10 * DEFAULT_AUD_CENTS_PER_TOKEN, // $10 AUD
     priceUsdCents: audToUsdCents(10 * DEFAULT_AUD_CENTS_PER_TOKEN), // $6.50 USD
   },
   PACK_50: {
     id: "PACK_50",
+    name: "Creator Pack (50)",
     tokens: 50,
     priceCents: 50 * DEFAULT_AUD_CENTS_PER_TOKEN, // $50 AUD
     priceUsdCents: audToUsdCents(50 * DEFAULT_AUD_CENTS_PER_TOKEN), // $32.50 USD
   },
   PACK_100: {
     id: "PACK_100",
+    name: "Pro Pack (100)",
     tokens: 100,
     priceCents: 100 * DEFAULT_AUD_CENTS_PER_TOKEN, // $100 AUD
     priceUsdCents: audToUsdCents(100 * DEFAULT_AUD_CENTS_PER_TOKEN), // $65 USD

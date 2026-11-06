@@ -19,6 +19,20 @@ import { alertError, btnPrimary, btnSecondary, card, field } from "@/components/
 
 const BEST_VALUE: TokenPackId = "PACK_100";
 
+interface ConfiguredPackItem {
+  id: TokenPackId;
+  name: string;
+  tokens: number;
+  priceCents: number;
+  enabled: boolean;
+}
+
+const DEFAULT_CONFIGURED_PACKS: ConfiguredPackItem[] = [
+  { id: "PACK_10", name: "Quick Pack (10)", tokens: TOKEN_PACKS.PACK_10.tokens, priceCents: TOKEN_PACKS.PACK_10.priceCents, enabled: true },
+  { id: "PACK_50", name: "Creator Pack (50)", tokens: TOKEN_PACKS.PACK_50.tokens, priceCents: TOKEN_PACKS.PACK_50.priceCents, enabled: true },
+  { id: "PACK_100", name: "Pro Pack (100)", tokens: TOKEN_PACKS.PACK_100.tokens, priceCents: TOKEN_PACKS.PACK_100.priceCents, enabled: true },
+];
+
 export function TokenPacks() {
   const [pending, setPending] = useState<TokenPackId | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +41,7 @@ export function TokenPacks() {
   const [confirmCustomReset, setConfirmCustomReset] = useState(false);
   const [audCentsPerToken, setAudCentsPerToken] = useState<number>(DEFAULT_AUD_CENTS_PER_TOKEN);
   const [ecbRate, setEcbRate] = useState<number | undefined>(undefined);
+  const [configuredPacks, setConfiguredPacks] = useState<ConfiguredPackItem[]>(DEFAULT_CONFIGURED_PACKS);
   const [serviceCosts, setServiceCosts] = useState<ServiceCosts>({
     searchStandard: ACTION_COSTS.RADAR_SEARCH,
     searchProvenWinners: SERVICE_SURCHARGES.PROVEN_WINNERS,
@@ -44,24 +59,44 @@ export function TokenPacks() {
     function handleGeoUpdated() {
       setGeo(loadGeoConfig());
     }
+
+    function fetchPricingAndPacks() {
+      fetch("/api/wallet/checkout", {
+        headers: { accept: "application/json" },
+        cache: "no-store",
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!data) return;
+          if (typeof data.audCentsPerToken === "number" && data.audCentsPerToken >= 1) {
+            setAudCentsPerToken(data.audCentsPerToken);
+          }
+          if (data.serviceCosts) {
+            setServiceCosts(data.serviceCosts);
+          }
+          if (Array.isArray(data.tokenPacks) && data.tokenPacks.length > 0) {
+            setConfiguredPacks(
+              data.tokenPacks.map((p: Partial<ConfiguredPackItem>) => ({
+                id: String(p.id || "PACK_100"),
+                name: String(p.name || p.id || "Token Pack"),
+                tokens: Math.max(1, Math.round(Number(p.tokens) || 10)),
+                priceCents: Math.max(100, Math.round(Number(p.priceCents) || 1000)),
+                enabled: p.enabled !== false,
+              }))
+            );
+          }
+        })
+        .catch(() => {
+          // retain defaults
+        });
+    }
+
     window.addEventListener("adradar:geo-updated", handleGeoUpdated);
     window.addEventListener("storage", handleGeoUpdated);
+    window.addEventListener("adradar:config-updated", fetchPricingAndPacks);
 
-    // Fetch live SuperAdmin-configured AUD base rate and service token amounts
-    fetch("/api/wallet/checkout", { headers: { accept: "application/json" } })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!data) return;
-        if (typeof data.audCentsPerToken === "number" && data.audCentsPerToken >= 1) {
-          setAudCentsPerToken(data.audCentsPerToken);
-        }
-        if (data.serviceCosts) {
-          setServiceCosts(data.serviceCosts);
-        }
-      })
-      .catch(() => {
-        // retain defaults
-      });
+    // Fetch live SuperAdmin-configured AUD base rate, service token amounts, and token packs
+    fetchPricingAndPacks();
 
     // Fetch live ECB exchange rate via Frankfurter API
     fetch("/api/currency")
@@ -76,6 +111,7 @@ export function TokenPacks() {
     return () => {
       window.removeEventListener("adradar:geo-updated", handleGeoUpdated);
       window.removeEventListener("storage", handleGeoUpdated);
+      window.removeEventListener("adradar:config-updated", fetchPricingAndPacks);
     };
   }, []);
 
@@ -107,13 +143,30 @@ export function TokenPacks() {
     ? `1 Token = ${formatAud(audCentsPerToken)} AUD`
     : `1 Token = ${formatAud(audCentsPerToken)} AUD (≈ ${formatUsd(usdPerTokenCents)} USD)`;
 
-  // Dynamic packs built with live SuperAdmin AUD rate and live ECB Frankfurter rate
-  const activePacks = (["PACK_10", "PACK_50", "PACK_100"] as const).map((id) =>
-    buildTokenPack(id, TOKEN_PACKS[id].tokens, audCentsPerToken, ecbRate)
-  );
+  // Dynamic packs built from SuperAdmin Token Pack Catalog + live AUD base rate + live ECB Frankfurter rate
+  const activePacks = configuredPacks
+    .filter((p) => p.enabled !== false)
+    .map((p) => {
+      const hasCustomPackPrice =
+        typeof p.priceCents === "number" &&
+        p.priceCents >= 100 &&
+        p.priceCents !== p.tokens * DEFAULT_AUD_CENTS_PER_TOKEN;
+      const effectivePriceCents = hasCustomPackPrice
+        ? p.priceCents
+        : audCentsPerToken !== DEFAULT_AUD_CENTS_PER_TOKEN
+          ? Math.round(p.tokens * audCentsPerToken)
+          : p.priceCents;
+      return buildTokenPack(p.id, p.tokens, audCentsPerToken, ecbRate, effectivePriceCents, p.name);
+    });
 
   // Live calculation for Custom Pack
   const customPack = buildTokenPack("PACK_CUSTOM", customTokens, audCentsPerToken, ecbRate);
+
+  const totalCards = activePacks.length + 1;
+  const gridColsClass =
+    totalCards === 5
+      ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+      : "grid gap-4 sm:grid-cols-2 lg:grid-cols-4";
 
   return (
     <section id="packs" className="scroll-mt-24 space-y-4" aria-labelledby="packs-heading">
@@ -204,19 +257,28 @@ export function TokenPacks() {
 
       {error && <p className={alertError}>{error}</p>}
 
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Standard Packs: 10, 50, 100 */}
+      <ul className={gridColsClass}>
+        {/* Configured Token Packs (e.g. PACK_10, PACK_50, PACK_100, PACK_1000, etc.) */}
         {activePacks.map((pack) => {
-          const best = pack.id === BEST_VALUE;
+          const isDiscounted = pack.priceCents < pack.tokens * audCentsPerToken;
+          const discountPct = isDiscounted
+            ? Math.max(1, Math.round((1 - pack.priceCents / (pack.tokens * audCentsPerToken)) * 100))
+            : 0;
+          const best = pack.id === BEST_VALUE || isDiscounted;
           const audPriceStr = `${formatAud(pack.priceCents)} AUD`;
           const usdPriceStr = `${formatUsd(pack.priceUsdCents)} USD`;
-          const perTokenAud = formatAud(Math.ceil(pack.priceCents / pack.tokens));
-          const perTokenUsd = formatUsd(Math.ceil(pack.priceUsdCents / pack.tokens));
+          const rawPerTokenCents = pack.priceCents / pack.tokens;
+          const perTokenAud =
+            rawPerTokenCents % 100 === 0
+              ? formatAud(rawPerTokenCents)
+              : `$${(rawPerTokenCents / 100).toFixed(2)}`;
+          const perTokenUsd = formatUsd(Math.round(pack.priceUsdCents / pack.tokens));
 
           return (
             <li
               key={pack.id}
               data-testid={`pack-${pack.id.toLowerCase()}`}
+              data-agent-id={`pack-${pack.id.toLowerCase()}`}
               className={`${card} relative flex flex-col gap-3 ${
                 best
                   ? "border-primary-container shadow-[0_0_24px_rgba(128,131,255,0.18)] ring-1 ring-primary-container"
@@ -228,27 +290,37 @@ export function TokenPacks() {
                   <Icon name="zap" className="size-4 text-secondary" />
                   {pack.tokens.toLocaleString("en-AU")}
                 </p>
-                {best && (
+                {isDiscounted ? (
+                  <span className="rounded-full border border-winner/40 bg-winner/15 px-2 py-0.5 font-mono text-mono-label text-winner-soft uppercase">
+                    Save {discountPct}%
+                  </span>
+                ) : best ? (
                   <span className="rounded-full border border-primary-container/40 bg-primary-container/20 px-2 py-0.5 font-mono text-mono-label text-primary uppercase">
                     Best value
                   </span>
-                )}
+                ) : null}
               </div>
-              <p className="text-compact text-outline">tokens</p>
-              <p className="text-title-sm font-semibold text-on-surface">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-compact font-semibold text-on-surface-variant truncate">
+                  {pack.name || `${pack.tokens.toLocaleString("en-AU")} tokens`}
+                </p>
+                <span className="font-mono text-[10px] text-outline shrink-0">tokens</span>
+              </div>
+              <p
+                className="text-title-sm font-semibold text-on-surface"
+                title={`${audPriceStr} (≈ ${usdPriceStr})`}
+              >
                 {audPriceStr}{" "}
                 <span className="text-xs font-normal text-on-surface-variant">
                   {isAu ? "+ GST" : "(No Tax)"}
                 </span>
               </p>
-              {!geo.isAuNz && (
-                <p
-                  data-testid={`usd-conversion-${pack.id.toLowerCase()}`}
-                  className="rounded-lg border border-secondary/30 bg-secondary/10 px-2.5 py-1 font-mono text-[11px] font-medium text-secondary"
-                >
-                  ≈ {usdPriceStr} ({perTokenAud} AUD ≈ {perTokenUsd} USD)
-                </p>
-              )}
+              <p
+                data-testid={`usd-conversion-${pack.id.toLowerCase()}`}
+                className="rounded-lg border border-secondary/30 bg-secondary/10 px-2.5 py-1 font-mono text-[11px] font-medium text-secondary"
+              >
+                ≈ {usdPriceStr} ({perTokenAud} AUD ≈ {perTokenUsd} USD)
+              </p>
               <p className="font-mono text-[11px] text-outline">
                 {isAu
                   ? `${perTokenAud} AUD/tok · +10% GST (${formatAud(Math.round(pack.priceCents * 1.1))} AUD total)`
@@ -258,7 +330,7 @@ export function TokenPacks() {
                 type="button"
                 data-testid={`buy-${pack.id.toLowerCase()}`}
                 data-agent-id={`buy-${pack.id.toLowerCase()}`}
-                aria-label={`Buy ${pack.tokens} tokens for ${audPriceStr}`}
+                aria-label={`Buy ${pack.name || `${pack.tokens} tokens`} for ${audPriceStr}`}
                 className={`${best ? btnPrimary : btnSecondary} mt-auto w-full`}
                 onClick={() => buy(pack.id)}
                 disabled={pending !== null}

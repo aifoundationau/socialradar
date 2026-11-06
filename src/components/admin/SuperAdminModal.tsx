@@ -1584,6 +1584,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       if (patch.serviceCosts || patch.audCentsPerToken !== undefined) {
         reloadAdAgents();
       }
+      window.dispatchEvent(new CustomEvent("adradar:config-updated"));
       setStatusMsg("Configuration saved successfully.");
     } catch (err) {
       setErrorMsg(errorMessage(err));
