@@ -405,7 +405,48 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [confirmResetAdAgentId, setConfirmResetAdAgentId] = useState<string | null>(null);
   const [resettingAdAgentId, setResettingAdAgentId] = useState<string | null>(null);
 
-  function selectAndAutofillAdAgent(agentKey: string, ledgerList: AdAgentDistributionItem[] = adAgentLedger) {
+  const customizeServiceUnitTokens = Math.max(
+    0,
+    Math.round(Number(config?.serviceCosts?.customizeService ?? 55))
+  );
+  const audCentsPerTokenUnit = Math.max(
+    1,
+    Math.round(Number(config?.audCentsPerToken ?? 100))
+  );
+  const customizeServiceAudCents = Math.round(customizeServiceUnitTokens * audCentsPerTokenUnit);
+  const customizeServiceUsdCents = audToUsdCents(customizeServiceAudCents);
+
+  const liveAdAgentLedger = useMemo<AdAgentDistributionItem[]>(() => {
+    return adAgentLedger.map((agent) => {
+      const effectiveOrdersCount = Math.max(1, Math.round(Number(agent.customizationsCount || 1)));
+      const totalCustomizationsTokens = Math.round(effectiveOrdersCount * customizeServiceUnitTokens);
+      const totalCustomizationsAudCents = Math.round(totalCustomizationsTokens * audCentsPerTokenUnit);
+      const totalCustomizationsUsdCents = audToUsdCents(totalCustomizationsAudCents);
+
+      const isResetToZero = Boolean(agent.lastResetAt) && agent.redistributionTokens === 0;
+      const redistributionTokens = isResetToZero
+        ? 0
+        : Math.round((totalCustomizationsTokens * agent.redistributionPercentage) / 100);
+      const redistributionAudCents = isResetToZero
+        ? 0
+        : Math.round((totalCustomizationsAudCents * agent.redistributionPercentage) / 100);
+      const redistributionUsdCents = isResetToZero
+        ? 0
+        : audToUsdCents(redistributionAudCents);
+
+      return {
+        ...agent,
+        totalCustomizationsTokens,
+        totalCustomizationsAudCents,
+        totalCustomizationsUsdCents,
+        redistributionTokens,
+        redistributionAudCents,
+        redistributionUsdCents,
+      };
+    });
+  }, [adAgentLedger, customizeServiceUnitTokens, audCentsPerTokenUnit]);
+
+  function selectAndAutofillAdAgent(agentKey: string, ledgerList: AdAgentDistributionItem[] = liveAdAgentLedger) {
     setSelectedRegisteredAgentKey(agentKey);
     if (!agentKey || agentKey === "__NEW__") {
       setNewAdAgent({
@@ -619,6 +660,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       "----------------------------------------------------------------------",
       "2. CUSTOMIZATIONS & REDISTRIBUTION SUMMARY",
       "----------------------------------------------------------------------",
+      `Professional Customize Price : ${customizeServiceUnitTokens.toLocaleString("en-AU")} Tokens (${formatAud(
+        customizeServiceAudCents
+      )} AUD / ${formatUsd(customizeServiceUsdCents)} USD)`,
       `Customizations Completed     : ${agent.customizationsCount} Order(s)`,
       `Total Customizations Value   : ${agent.totalCustomizationsTokens.toLocaleString("en-AU")} Tokens (${formatAud(
         agent.totalCustomizationsAudCents
@@ -1289,6 +1333,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       });
       setConfig(data.config);
       if (data.ledger) setLedger(data.ledger);
+      if (patch.serviceCosts || patch.audCentsPerToken !== undefined) {
+        reloadAdAgents();
+      }
       setStatusMsg("Configuration saved successfully.");
     } catch (err) {
       setErrorMsg(errorMessage(err));
@@ -2086,7 +2133,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       {
                         key: "customizeService" as const,
                         label: "Professional Customize Service",
-                        desc: "Customer submits full brand brief + extra details for SuperAdmin & Main Admin strategy reply (Default: 45 tokens)",
+                        desc: "Customer submits full brand brief + extra details for SuperAdmin & Main Admin strategy reply (Default: 55 tokens — automatically updates Customizations Total & Redist. Amount in Ad Agent Distribution Ledger)",
                       },
                     ].map(({ key, label: serviceLabel, desc }) => {
                       const defaultTok = key === "customizeService" ? 55 : 0;
@@ -2968,11 +3015,25 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             Ad Agent Distribution Ledger
                           </h4>
                           <span className="rounded-full border border-tertiary/40 bg-tertiary/15 px-2 py-0.5 font-mono text-[10px] font-bold text-tertiary">
-                            {adAgentLedger.length} Ad Agent{adAgentLedger.length === 1 ? "" : "s"}
+                            {liveAdAgentLedger.length} Ad Agent{liveAdAgentLedger.length === 1 ? "" : "s"}
                           </span>
-                          <span className="hidden xl:inline text-[11px] text-on-surface-variant">
-                            — Select an Ad Agent to auto-fill details, set redistribution (10%–70%), and save Bank / PayID details.
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setTab("PRICING")}
+                            data-agent-id="ad-agent-ledger-customize-price-badge"
+                            data-testid="ad-agent-ledger-customize-price-badge"
+                            title="Live price from Service Pricing tab — click to edit Professional Customize Service price"
+                            className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/15 px-2.5 py-0.5 font-mono text-[10px] font-bold text-primary hover:bg-primary/25 transition"
+                          >
+                            <span>
+                              Professional Customize Service: ⚡{" "}
+                              {customizeServiceUnitTokens.toLocaleString("en-AU")} (
+                              {formatAud(customizeServiceAudCents)} · {formatUsd(customizeServiceUsdCents)})
+                            </span>
+                            <span className="underline text-[9px] text-secondary ml-0.5">
+                              Service Pricing ↗
+                            </span>
+                          </button>
                         </div>
                         {isSuper && (
                           <button
@@ -2994,7 +3055,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       </div>
 
                       {showAddAdAgent && isSuper && (() => {
-                        const selectedLedgerItem = adAgentLedger.find(
+                        const selectedLedgerItem = liveAdAgentLedger.find(
                           (a) =>
                             a.agentId === selectedRegisteredAgentKey ||
                             (newAdAgent.email && a.email.toLowerCase() === newAdAgent.email.trim().toLowerCase())
@@ -3002,7 +3063,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         const unlinkedRbacAgents = rbacUsers.filter(
                           (u) =>
                             (u.role === "ad_agent" || u.role === "admin" || u.role === "superadmin") &&
-                            !adAgentLedger.some((a) => a.email.toLowerCase() === u.email.toLowerCase())
+                            !liveAdAgentLedger.some((a) => a.email.toLowerCase() === u.email.toLowerCase())
                         );
                         const compactInput =
                           "w-full rounded-md border border-white/10 bg-surface-container-lowest px-2 py-1 text-[11px] text-on-surface placeholder:text-outline focus:border-primary focus:outline-none";
@@ -3039,8 +3100,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   className={`${compactInput} flex-1 font-mono text-[11px] border-tertiary/40`}
                                 >
                                   <option value="__NEW__">+ Enter / Register New Ad Agent Manually…</option>
-                                  <optgroup label={`Registered Ad Agents in Ledger (${adAgentLedger.length})`}>
-                                    {adAgentLedger.map((agent) => (
+                                  <optgroup label={`Registered Ad Agents in Ledger (${liveAdAgentLedger.length})`}>
+                                    {liveAdAgentLedger.map((agent) => (
                                       <option key={agent.agentId} value={agent.agentId}>
                                         {agent.name} — {agent.email} | 📍 {agent.locationLabel} | ⚡{" "}
                                         {agent.totalCustomizationsTokens} Tokens (
@@ -3064,14 +3125,16 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               {selectedLedgerItem && (
                                 <div className="inline-flex shrink-0 flex-wrap items-center gap-1.5 rounded border border-primary/40 bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
                                   <span>
-                                    Customizations: ⚡{" "}
+                                    Customizations Total: ⚡{" "}
                                     {selectedLedgerItem.totalCustomizationsTokens.toLocaleString("en-AU")} ·{" "}
                                     {formatAud(selectedLedgerItem.totalCustomizationsAudCents)} (
-                                    {selectedLedgerItem.customizationsCount})
+                                    {Math.max(1, selectedLedgerItem.customizationsCount)} × ⚡{" "}
+                                    {customizeServiceUnitTokens})
                                   </span>
                                   <span className="opacity-50">|</span>
                                   <span className="text-tertiary">
-                                    Redist ({selectedLedgerItem.redistributionPercentage}%):{" "}
+                                    Redist. Amount ({selectedLedgerItem.redistributionPercentage}%):{" "}
+                                    ⚡ {selectedLedgerItem.redistributionTokens.toLocaleString("en-AU")} ·{" "}
                                     {formatAud(selectedLedgerItem.redistributionAudCents)}
                                   </span>
                                 </div>
@@ -3296,7 +3359,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         );
                       })()}
 
-                      {adAgentLedger.length === 0 ? (
+                      {liveAdAgentLedger.length === 0 ? (
                         <div className={`${card} p-3.5 text-center text-on-surface-variant`}>
                           <p className="text-xs italic">No Ad Agents in the distribution ledger yet.</p>
                         </div>
@@ -3323,8 +3386,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-white/[0.04]">
-                              {adAgentLedger.map((agent) => {
+                              {liveAdAgentLedger.map((agent) => {
                                 const isSelectedRow = selectedRegisteredAgentKey === agent.agentId;
+                                const effectiveOrdersCount = Math.max(1, Math.round(Number(agent.customizationsCount || 1)));
                                 return (
                                   <tr
                                     key={agent.agentId}
@@ -3348,7 +3412,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                         </span>
                                         <span
                                           className="inline-flex items-center gap-1 rounded border border-primary/40 bg-primary/15 px-1.5 py-0.5 font-mono text-[9px] font-bold text-primary"
-                                          title="Total value of all Customizations done by this Ad Agent"
+                                          title={`Professional Customize Service: ⚡ ${customizeServiceUnitTokens} (${formatAud(customizeServiceAudCents)}) × ${effectiveOrdersCount}`}
                                         >
                                           <span>⚡ {agent.totalCustomizationsTokens.toLocaleString("en-AU")}</span>
                                           <span>·</span>
@@ -3488,13 +3552,19 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     </td>
 
                                     {/* 3. Total Customizations Value */}
-                                    <td className="px-2 py-2 font-mono text-[10px]">
+                                    <td
+                                      className="px-2 py-2 font-mono text-[10px]"
+                                      data-testid={`ad-agent-customizations-total-${agent.agentId}`}
+                                    >
                                       <div className="font-bold text-on-surface">
                                         ⚡ {agent.totalCustomizationsTokens.toLocaleString("en-AU")} ({agent.customizationsCount})
                                       </div>
                                       <div className="text-[9px] text-secondary font-semibold">
                                         {formatAud(agent.totalCustomizationsAudCents)} ·{" "}
                                         {formatUsd(agent.totalCustomizationsUsdCents)}
+                                      </div>
+                                      <div className="text-[8px] text-on-surface-variant">
+                                        {effectiveOrdersCount} × ⚡ {customizeServiceUnitTokens} ({formatAud(customizeServiceAudCents)})
                                       </div>
                                     </td>
 
@@ -3533,7 +3603,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     </td>
 
                                     {/* 5. Redistribution Amount */}
-                                    <td className="px-2 py-2 font-mono text-[10px]">
+                                    <td
+                                      className="px-2 py-2 font-mono text-[10px]"
+                                      data-testid={`ad-agent-redist-amount-${agent.agentId}`}
+                                    >
                                       <div className="font-bold text-primary">
                                         ⚡ {agent.redistributionTokens.toLocaleString("en-AU")}
                                       </div>
@@ -3541,11 +3614,16 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                         {formatAud(agent.redistributionAudCents)} ·{" "}
                                         {formatUsd(agent.redistributionUsdCents)}
                                       </div>
-                                      {agent.lastResetAt && (
+                                      {agent.lastResetAt ? (
                                         <div className="text-[8px] text-secondary">
                                           {agent.redistributionTokens === 0
                                             ? "Refreshed to 0"
                                             : `Reset ${new Date(agent.lastResetAt).toLocaleDateString("en-AU")}`}
+                                        </div>
+                                      ) : (
+                                        <div className="text-[8px] text-on-surface-variant">
+                                          {agent.redistributionPercentage}% of ⚡{" "}
+                                          {agent.totalCustomizationsTokens.toLocaleString("en-AU")}
                                         </div>
                                       )}
                                     </td>

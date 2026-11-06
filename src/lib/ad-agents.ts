@@ -356,6 +356,7 @@ export async function updateAdAgentRedistributionPercent(
   await db.collection(AD_AGENTS_COL).doc(agentId).set(
     {
       redistributionPercentage: pct,
+      lastResetAt: "",
       updatedAt: new Date().toISOString(),
     },
     { merge: true },
@@ -480,6 +481,7 @@ export async function findClosestAdAgent(
  */
 export async function getAdAgentDistributionLedger(
   audCentsPerToken = 100,
+  customizeServiceTokens = 55,
 ): Promise<AdAgentDistributionItem[]> {
   const [agents, customizeSnap] = await Promise.all([
     getAdAgents(),
@@ -491,6 +493,7 @@ export async function getAdAgentDistributionLedger(
   );
 
   const builtInSuper = agents.find((a) => a.isSuperAdminBuiltIn) || agents[0];
+  const unitTokens = Math.max(0, Math.round(Number(customizeServiceTokens ?? 55)));
 
   return agents.map((agent) => {
     const agentEmail = agent.email.toLowerCase().trim();
@@ -512,24 +515,21 @@ export async function getAdAgentDistributionLedger(
     });
 
     const customizationsCount = matchedRequests.length;
-    const totalCustomizationsTokens = matchedRequests.reduce(
-      (sum, r) => sum + Math.max(0, Math.round(Number(r.tokensCharged ?? 0))),
-      0,
-    );
+    const effectiveTotalUnits = Math.max(1, customizationsCount);
+    const totalCustomizationsTokens = effectiveTotalUnits * unitTokens;
     const totalCustomizationsAudCents = totalCustomizationsTokens * audCentsPerToken;
     const totalCustomizationsUsdCents = Math.round(totalCustomizationsAudCents * 0.65);
 
     const pct = normalizeRedistributionPercent(agent.redistributionPercentage);
 
     // If the Ad Agent's redistribution was reset at `lastResetAt`, only Customizations created after `lastResetAt`
-    // count toward the current unpaid Redist. Amount.
+    // count toward the current unpaid Redist. Amount. Otherwise use the live Professional Customize Service price.
     const unpaidRequests = agent.lastResetAt
       ? matchedRequests.filter((r) => r.createdAt > agent.lastResetAt!)
       : matchedRequests;
-    const unpaidCustomizationsTokens = unpaidRequests.reduce(
-      (sum, r) => sum + Math.max(0, Math.round(Number(r.tokensCharged ?? 0))),
-      0,
-    );
+    const isResetWithNoNewOrders = Boolean(agent.lastResetAt) && unpaidRequests.length === 0;
+    const unpaidUnits = isResetWithNoNewOrders ? 0 : Math.max(1, unpaidRequests.length);
+    const unpaidCustomizationsTokens = unpaidUnits * unitTokens;
     const unpaidCustomizationsAudCents = unpaidCustomizationsTokens * audCentsPerToken;
     const unpaidCustomizationsUsdCents = Math.round(unpaidCustomizationsAudCents * 0.65);
 

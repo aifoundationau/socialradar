@@ -28,7 +28,10 @@ export async function GET(req: Request) {
     const config = await getSystemConfig();
     const [agents, adAgentLedger, customizeSnap] = await Promise.all([
       getAdAgents(),
-      getAdAgentDistributionLedger(config.audCentsPerToken || 100),
+      getAdAgentDistributionLedger(
+        config.audCentsPerToken || 100,
+        config.serviceCosts?.customizeService ?? 55,
+      ),
       db.collection("customize_requests").get(),
     ]);
 
@@ -112,7 +115,10 @@ export async function POST(req: Request) {
       });
 
       const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(config.audCentsPerToken || 100);
+      const adAgentLedger = await getAdAgentDistributionLedger(
+        config.audCentsPerToken || 100,
+        config.serviceCosts?.customizeService ?? 55,
+      );
 
       return NextResponse.json({
         success: true,
@@ -177,7 +183,10 @@ export async function POST(req: Request) {
       });
       const agent = await superAdminUpsertAdAgent(parsed);
       const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(config.audCentsPerToken || 100);
+      const adAgentLedger = await getAdAgentDistributionLedger(
+        config.audCentsPerToken || 100,
+        config.serviceCosts?.customizeService ?? 55,
+      );
       return NextResponse.json({
         success: true,
         agent,
@@ -193,7 +202,10 @@ export async function POST(req: Request) {
       });
       await updateAdAgentBankDetails(parsed.agentId, parsed.bankOrPayIdDetails);
       const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(config.audCentsPerToken || 100);
+      const adAgentLedger = await getAdAgentDistributionLedger(
+        config.audCentsPerToken || 100,
+        config.serviceCosts?.customizeService ?? 55,
+      );
       return NextResponse.json({
         success: true,
         adAgentLedger,
@@ -210,7 +222,10 @@ export async function POST(req: Request) {
       });
       await updateAdAgentRedistributionPercent(parsed.agentId, parsed.redistributionPercentage);
       const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(config.audCentsPerToken || 100);
+      const adAgentLedger = await getAdAgentDistributionLedger(
+        config.audCentsPerToken || 100,
+        config.serviceCosts?.customizeService ?? 55,
+      );
       return NextResponse.json({
         success: true,
         adAgentLedger,
@@ -226,7 +241,10 @@ export async function POST(req: Request) {
       }
       await toggleAdAgentStatus(agentId, status);
       const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(config.audCentsPerToken || 100);
+      const adAgentLedger = await getAdAgentDistributionLedger(
+        config.audCentsPerToken || 100,
+        config.serviceCosts?.customizeService ?? 55,
+      );
       return NextResponse.json({
         success: true,
         adAgentLedger,
@@ -241,7 +259,10 @@ export async function POST(req: Request) {
       }
       await resetAdAgentRedistributionToZero(agentId, cleanEmail);
       const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(config.audCentsPerToken || 100);
+      const adAgentLedger = await getAdAgentDistributionLedger(
+        config.audCentsPerToken || 100,
+        config.serviceCosts?.customizeService ?? 55,
+      );
       return NextResponse.json({
         success: true,
         adAgentLedger,
@@ -256,7 +277,10 @@ export async function POST(req: Request) {
       }
       await deleteAdAgent(agentId);
       const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(config.audCentsPerToken || 100);
+      const adAgentLedger = await getAdAgentDistributionLedger(
+        config.audCentsPerToken || 100,
+        config.serviceCosts?.customizeService ?? 55,
+      );
       return NextResponse.json({
         success: true,
         adAgentLedger,
