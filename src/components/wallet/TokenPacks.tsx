@@ -26,6 +26,7 @@ export function TokenPacks() {
   const [customTokens, setCustomTokens] = useState<number>(25);
   const [confirmCustomReset, setConfirmCustomReset] = useState(false);
   const [audCentsPerToken, setAudCentsPerToken] = useState<number>(DEFAULT_AUD_CENTS_PER_TOKEN);
+  const [ecbRate, setEcbRate] = useState<number | undefined>(undefined);
   const [serviceCosts, setServiceCosts] = useState<ServiceCosts>({
     searchStandard: ACTION_COSTS.RADAR_SEARCH,
     searchProvenWinners: SERVICE_SURCHARGES.PROVEN_WINNERS,
@@ -62,6 +63,16 @@ export function TokenPacks() {
         // retain defaults
       });
 
+    // Fetch live ECB exchange rate via Frankfurter API
+    fetch("/api/currency")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data.rate === "number" && data.rate > 0) {
+          setEcbRate(data.rate);
+        }
+      })
+      .catch(() => {});
+
     return () => {
       window.removeEventListener("adradar:geo-updated", handleGeoUpdated);
       window.removeEventListener("storage", handleGeoUpdated);
@@ -90,19 +101,19 @@ export function TokenPacks() {
     }
   }
 
-  const usdPerTokenCents = audToUsdCents(audCentsPerToken);
+  const usdPerTokenCents = audToUsdCents(audCentsPerToken, ecbRate);
   const isAu = geo.country === "AU";
   const baseRateText = geo.isAuNz
     ? `1 Token = ${formatAud(audCentsPerToken)} AUD`
     : `1 Token = ${formatAud(audCentsPerToken)} AUD (≈ ${formatUsd(usdPerTokenCents)} USD)`;
 
-  // Dynamic packs built with live SuperAdmin AUD rate
+  // Dynamic packs built with live SuperAdmin AUD rate and live ECB Frankfurter rate
   const activePacks = (["PACK_10", "PACK_50", "PACK_100"] as const).map((id) =>
-    buildTokenPack(id, TOKEN_PACKS[id].tokens, audCentsPerToken)
+    buildTokenPack(id, TOKEN_PACKS[id].tokens, audCentsPerToken, ecbRate)
   );
 
   // Live calculation for Custom Pack
-  const customPack = buildTokenPack("PACK_CUSTOM", customTokens, audCentsPerToken);
+  const customPack = buildTokenPack("PACK_CUSTOM", customTokens, audCentsPerToken, ecbRate);
 
   return (
     <section id="packs" className="scroll-mt-24 space-y-4" aria-labelledby="packs-heading">

@@ -7,6 +7,7 @@ import { apiFetch, errorMessage } from "@/lib/api-client";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { alertError, alertInfo, btnDanger, btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
 import { audToUsdCents, formatAud, formatPrice, formatTokenEstimateHover, formatUsd, usdToAudCents } from "@/lib/pricing";
+import type { CurrencyRateResponse } from "@/app/api/currency/route";
 import type {
   AdAgentDistributionItem,
   AdAgentRedistributionPercent,
@@ -282,6 +283,25 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [confirmDeleteMessageId, setConfirmDeleteMessageId] = useState<string | null>(null);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
 
+  // Live ECB exchange rate via Frankfurter API
+  const [liveEcbRate, setLiveEcbRate] = useState<CurrencyRateResponse | null>(null);
+  const [isRateLoading, setIsRateLoading] = useState(false);
+
+  async function fetchLiveEcbRate() {
+    setIsRateLoading(true);
+    try {
+      const res = await fetch("/api/currency", { cache: "no-store" });
+      if (res.ok) {
+        const json = (await res.json()) as CurrencyRateResponse;
+        setLiveEcbRate(json);
+      }
+    } catch {
+      // Graceful fallback
+    } finally {
+      setIsRateLoading(false);
+    }
+  }
+
   async function handleCopyMessageText(text: string, id: string) {
     if (!text) return;
     try {
@@ -531,7 +551,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     Math.round(Number(config?.audCentsPerToken ?? 100))
   );
   const customizeServiceAudCents = Math.round(customizeServiceUnitTokens * audCentsPerTokenUnit);
-  const customizeServiceUsdCents = audToUsdCents(customizeServiceAudCents);
+  const customizeServiceUsdCents = audToUsdCents(customizeServiceAudCents, liveEcbRate?.rate);
 
   const liveAdAgentLedger = useMemo<AdAgentDistributionItem[]>(() => {
     const combinedLedger: AdAgentDistributionItem[] = [...adAgentLedger];
@@ -559,7 +579,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           redistributionPercentage: 30,
           redistributionTokens: Math.round((customizeServiceUnitTokens * 30) / 100),
           redistributionAudCents: Math.round((customizeServiceAudCents * 30) / 100),
-          redistributionUsdCents: audToUsdCents(Math.round((customizeServiceAudCents * 30) / 100)),
+          redistributionUsdCents: audToUsdCents(Math.round((customizeServiceAudCents * 30) / 100), liveEcbRate?.rate),
           status: "active",
           isSuperAdminBuiltIn: false,
         });
@@ -570,7 +590,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       const effectiveOrdersCount = Math.max(1, Math.round(Number(agent.customizationsCount || 1)));
       const totalCustomizationsTokens = Math.round(effectiveOrdersCount * customizeServiceUnitTokens);
       const totalCustomizationsAudCents = Math.round(totalCustomizationsTokens * audCentsPerTokenUnit);
-      const totalCustomizationsUsdCents = audToUsdCents(totalCustomizationsAudCents);
+      const totalCustomizationsUsdCents = audToUsdCents(totalCustomizationsAudCents, liveEcbRate?.rate);
 
       const isResetToZero = Boolean(agent.lastResetAt) && agent.redistributionTokens === 0;
       const redistributionTokens = isResetToZero
@@ -581,7 +601,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         : Math.round((totalCustomizationsAudCents * agent.redistributionPercentage) / 100);
       const redistributionUsdCents = isResetToZero
         ? 0
-        : audToUsdCents(redistributionAudCents);
+        : audToUsdCents(redistributionAudCents, liveEcbRate?.rate);
 
       return {
         ...agent,
@@ -600,6 +620,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     audCentsPerTokenUnit,
     customizeServiceAudCents,
     customizeServiceUsdCents,
+    liveEcbRate?.rate,
   ]);
 
   function selectAndAutofillAdAgent(agentKey: string, ledgerList: AdAgentDistributionItem[] = liveAdAgentLedger) {
@@ -1450,8 +1471,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       apiFetch<{ faqs: FaqItem[] }>("/api/admin/faqs", { method: "GET" }).catch(() => null),
       apiFetch<{ orders: TokenTransactionDoc[] }>("/api/admin/orders", { method: "GET" }).catch(() => null),
       apiFetch<{ ledger?: AdAgentDistributionItem[] }>("/api/ad-agent", { method: "GET" }).catch(() => null),
+      fetch("/api/currency", { cache: "no-store" })
+        .then((res) => (res.ok ? (res.json() as Promise<CurrencyRateResponse>) : null))
+        .catch(() => null),
     ])
-      .then(([adminData, msgData, rbacData, faqData, ordersData, adAgentData]) => {
+      .then(([adminData, msgData, rbacData, faqData, ordersData, adAgentData, currencyData]) => {
         if (active) {
           setConfig(adminData.config);
           if (adminData.ledger) setLedger(adminData.ledger);
@@ -1468,6 +1492,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
               selectAndAutofillAdAgent(adAgentData.ledger[0].agentId, adAgentData.ledger);
             }
           }
+          if (currencyData) setLiveEcbRate(currencyData);
           setLoading(false);
         }
       })
@@ -2330,7 +2355,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     </div>
 
                     {isFeatureExpanded("currency_base_price") && (
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-white/[0.06]">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-white/[0.06]">
                         <div className="relative max-w-xs flex-1">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-outline font-mono text-sm">A$</span>
                           <input
@@ -2346,9 +2371,31 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             className={`${field} pl-9 font-mono text-sm`}
                           />
                         </div>
-                        <p className="text-xs font-mono text-outline">
-                          International Conversion (Outside AU/NZ): {formatAud(config.audCentsPerToken ?? 100)} AUD ≈ {formatUsd(audToUsdCents(config.audCentsPerToken ?? 100))} USD
-                        </p>
+                        <div className="flex flex-col sm:items-end gap-1">
+                          <p className="text-xs font-mono text-outline">
+                            International Conversion (Outside AU/NZ): {formatAud(config.audCentsPerToken ?? 100)} AUD ≈ {formatUsd(audToUsdCents(config.audCentsPerToken ?? 100, liveEcbRate?.rate))} USD
+                          </p>
+                          <div className="flex items-center gap-1.5 font-mono text-[11px] text-secondary">
+                            <span className="size-1.5 rounded-full bg-secondary shrink-0 animate-pulse" />
+                            <span>
+                              Live ECB Rate via Frankfurter: 1 AUD = {liveEcbRate?.rate ? Number(liveEcbRate.rate).toFixed(4) : "0.6500"} USD
+                              {liveEcbRate?.date ? ` (${liveEcbRate.date})` : ""}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={fetchLiveEcbRate}
+                              disabled={isRateLoading}
+                              title="Refresh live ECB exchange rate from Frankfurter API"
+                              aria-label="Refresh live ECB exchange rate from Frankfurter API"
+                              data-agent-id="superadmin-refresh-ecb-rate-btn"
+                              data-testid="superadmin-refresh-ecb-rate-btn"
+                              className="ml-1 inline-flex items-center gap-1 rounded border border-white/10 bg-surface-container-high px-1.5 py-0.5 text-[10px] font-semibold text-on-surface hover:border-primary/40 hover:text-primary transition disabled:opacity-40"
+                            >
+                              <Icon name="refresh" className={`size-3 ${isRateLoading ? "animate-spin" : ""}`} />
+                              <span>{isRateLoading ? "Syncing…" : "Sync ECB"}</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2423,7 +2470,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           </span>
                         </div>
                         <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                          Customize the integer token amount required for each product and service. Default rate is 1 Token = {formatAud(config.audCentsPerToken ?? 100)} AUD (≈ {formatUsd(audToUsdCents(config.audCentsPerToken ?? 100))} USD for nations outside AU &amp; NZ).
+                          Customize the integer token amount required for each product and service. Default rate is 1 Token = {formatAud(config.audCentsPerToken ?? 100)} AUD (≈ {formatUsd(audToUsdCents(config.audCentsPerToken ?? 100, liveEcbRate?.rate))} USD for nations outside AU &amp; NZ).
                         </p>
                       </button>
                       <button
@@ -2573,7 +2620,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             const tok = config.serviceCosts[key] ?? defaultTok;
                             const displayVal = draftCostInputs[key] !== undefined ? draftCostInputs[key] : String(tok);
                             const audCents = Math.round(tok * (config.audCentsPerToken ?? 100));
-                            const usdCents = audToUsdCents(audCents);
+                            const usdCents = audToUsdCents(audCents, liveEcbRate?.rate);
 
                             return (
                               <div key={key} data-testid={`service-cost-card-${key}`} className={`${card} p-4 space-y-3`}>
@@ -2889,7 +2936,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               <div className="flex items-center justify-between text-on-surface-variant">
                                 <span>International (USD · No Tax):</span>
                                 <span>
-                                  ≈ {formatUsd(audToUsdCents(Math.round((config.monthlySubscription?.priceAud ?? 500) * 100)))} / mo
+                                  ≈ {formatUsd(audToUsdCents(Math.round((config.monthlySubscription?.priceAud ?? 500) * 100), liveEcbRate?.rate))} / mo
                                 </span>
                               </div>
                               <div className="flex items-center justify-between text-outline pt-1 border-t border-white/[0.06]">
@@ -3105,7 +3152,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               <div>
                                 <p className="text-body font-semibold text-on-surface">{pack.name}</p>
                                 <p className="text-[12px] text-on-surface-variant font-mono">
-                                  {pack.id} • {pack.tokens.toLocaleString("en-AU")} tokens • {formatAud(pack.priceCents)} AUD (≈ {formatUsd(audToUsdCents(pack.priceCents))} USD)
+                                  {pack.id} • {pack.tokens.toLocaleString("en-AU")} tokens • {formatAud(pack.priceCents)} AUD (≈ {formatUsd(audToUsdCents(pack.priceCents, liveEcbRate?.rate))} USD)
                                 </p>
                               </div>
                             </div>

@@ -226,6 +226,11 @@
       - **`FAQS` (`FAQ Development`):** `Create New FAQ Item` (`showAddFaq`), `Help & FAQ Knowledge Base Items` (`faqs_list`), and `Website Sentences, AI Works & Multilingual FAQ RAG Studio` (`faqs_rag`).
       - **`DEV` (`Dev Diagnostics`):** `Admin Custom Claim & Radar Query Cache` (`dev_claims_cache`) and `Environment Diagnostics` (`dev_env`).
     - Added an **`Expand All` / `Collapse All`** button at the top of every category tab to expand or collapse all features in that category at once, plus smart auto-expand when clicking cross-feature shortcuts (`Service Pricing ↗`, `+ Add` / `- Remove` in Master Order Ledger, `Message` on user rows, or typing in search inputs).
+46. **Live European Central Bank (ECB) Frankfurter API Rate Connected to Super Admin Panel & Token Packs (`SuperAdminModal.tsx`, `TokenPacks.tsx`, `pricing.ts`):**
+    - Updated [`src/lib/pricing.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/pricing.ts) so `audToUsdCents()`, `usdToAudCents()`, and `buildTokenPack()` accept an optional dynamic `fxRate` parameter (falling back seamlessly to `0.65` if offline).
+    - Connected [`src/components/admin/SuperAdminModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/admin/SuperAdminModal.tsx) to fetch the live ECB reference exchange rate from the Frankfurter API endpoint (`/api/currency`).
+    - Added a live ECB status badge with real-time exchange rate, ECB reference date, and a manual `Sync ECB` refresh button in the **Base Token Price (AUD — Default Currency)** card.
+    - Connected all other international USD estimates in the Super Admin modal (Product & Service Pricing, Monthly Subscription, and Token Pack Catalog) and in [`src/components/wallet/TokenPacks.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/wallet/TokenPacks.tsx) to dynamically use the live Frankfurter ECB rate.
 
 ## What to Do When Reopened Next Startup
 1. **Read `nextinstructions.txt` First:** Start here and review the latest completed milestones above.

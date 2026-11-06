@@ -61,14 +61,17 @@ export const DEFAULT_USD_CENTS_PER_TOKEN = 100;
 /**
  * Converts AUD cents to USD cents for nations outside Australia and New Zealand.
  * Currency conversion can show up to 2 decimal places (rounded to the nearest cent).
+ * Supports an optional dynamic live FX rate (defaults to FX_AUD_TO_USD = 0.65).
  */
-export function audToUsdCents(audCents: number): number {
-  return Math.round(audCents * FX_AUD_TO_USD);
+export function audToUsdCents(audCents: number, fxRate: number = FX_AUD_TO_USD): number {
+  const rate = typeof fxRate === "number" && fxRate > 0 ? fxRate : FX_AUD_TO_USD;
+  return Math.round(audCents * rate);
 }
 
-/** Converts USD cents to AUD cents. */
-export function usdToAudCents(usdCents: number): number {
-  return Math.round(usdCents / FX_AUD_TO_USD);
+/** Converts USD cents to AUD cents. Supports an optional dynamic live FX rate. */
+export function usdToAudCents(usdCents: number, fxRate: number = FX_AUD_TO_USD): number {
+  const rate = typeof fxRate === "number" && fxRate > 0 ? fxRate : FX_AUD_TO_USD;
+  return Math.round(usdCents / rate);
 }
 
 export function formatTokenEstimateHover(
@@ -100,15 +103,16 @@ export interface TokenPack {
   priceUsdCents: number;
 }
 
-/** Creates a TokenPack instance dynamically with the specified or system AUD base rate. */
+/** Creates a TokenPack instance dynamically with the specified or system AUD base rate and optional live FX rate. */
 export function buildTokenPack(
   id: TokenPackId,
   tokens: number,
-  audCentsPerToken = DEFAULT_AUD_CENTS_PER_TOKEN
+  audCentsPerToken = DEFAULT_AUD_CENTS_PER_TOKEN,
+  fxRate?: number
 ): TokenPack {
   const cleanTokens = Math.max(1, Math.ceil(tokens));
   const priceCents = Math.ceil(cleanTokens * audCentsPerToken);
-  const priceUsdCents = audToUsdCents(priceCents);
+  const priceUsdCents = audToUsdCents(priceCents, fxRate);
   return {
     id,
     tokens: cleanTokens,
