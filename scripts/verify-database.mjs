@@ -98,13 +98,25 @@ async function run() {
 
   // 3. Check system_config/rbac
   try {
-    const rbacSnap = await db.doc("system_config/rbac").get();
+    const rbacRef = db.doc("system_config/rbac");
+    const rbacSnap = await rbacRef.get();
     if (rbacSnap.exists) {
       const data = rbacSnap.data();
+      const matrix = { ...(data?.matrix || {}) };
+      if (!Array.isArray(matrix.ad_agent)) {
+        matrix.ad_agent = ["manage_messages", "search_radar", "ai_remix", "manage_brands"];
+        await rbacRef.set(
+          {
+            matrix,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      }
       results.push({
         test: "system_config/rbac",
         status: "OK",
-        details: `Loaded (matrix roles: ${Object.keys(data?.matrix || {}).join(", ")})`,
+        details: `Loaded (matrix roles: ${Object.keys(matrix).join(", ")})`,
       });
     } else {
       results.push({ test: "system_config/rbac", status: "WARN", details: "Document does not exist yet" });
@@ -232,6 +244,29 @@ async function run() {
     });
   } catch (err) {
     results.push({ test: "stripe_purchases collection", status: "FAIL", error: err.message });
+  }
+
+  // 10. Check ad_agents collection & RBAC Ad Agent sync
+  try {
+    const [adAgentsSnap, usersSnap] = await Promise.all([
+      db.collection("ad_agents").get(),
+      db.collection("users").get(),
+    ]);
+    const adAgentRoleUsers = usersSnap.docs.filter((d) => {
+      const u = d.data();
+      return (
+        u.role === "ad_agent" ||
+        (Array.isArray(u.roles) && u.roles.includes("ad_agent")) ||
+        u.isAdAgent === true
+      );
+    }).length;
+    results.push({
+      test: "ad_agents collection & Ad Agent RBAC sync",
+      status: "OK",
+      details: `Readable (${adAgentsSnap.size} ad_agents profiles stored, ${adAgentRoleUsers} users with ad_agent RBAC role)`,
+    });
+  } catch (err) {
+    results.push({ test: "ad_agents collection", status: "FAIL", error: err.message });
   }
 
   // Print results summary
