@@ -14,6 +14,7 @@ import { SupporterModal } from "@/components/supporter/SupporterModal";
 import { ContactAdminModal } from "@/components/contact/ContactAdminModal";
 import { FaqModal } from "@/components/faq/FaqModal";
 import { MonthlySubscriptionModal } from "@/components/subscription/MonthlySubscriptionModal";
+import { AdAgentModal } from "@/components/ad-agent/AdAgentModal";
 
 function NavItems({ pathname }: { pathname: string | null }) {
   return NAV.map(({ href, label, tooltipTitle, tooltipDesc }) => {
@@ -159,10 +160,12 @@ function AccountMenu({
   onOpenAdmin,
   onOpenSupporter,
   onOpenFaq,
+  onOpenAdAgent,
 }: {
   onOpenAdmin: (tab?: "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "MESSAGES" | "RBAC" | "FAQS" | "DEV") => void;
   onOpenSupporter: () => void;
   onOpenFaq: () => void;
+  onOpenAdAgent: () => void;
 }) {
   const { user, isAdmin, role, isSuperAdmin, actingAsRole, setActingRole, resetRole } = useSession();
   const menu = useRef<HTMLDivElement>(null);
@@ -195,10 +198,18 @@ function AccountMenu({
               className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${
                 isAdmin
                   ? "border border-primary/30 bg-primary-container/30 text-primary"
-                  : "border border-secondary/30 bg-secondary/15 text-secondary"
+                  : role === "ad_agent"
+                    ? "border border-tertiary/30 bg-tertiary/15 text-tertiary"
+                    : "border border-secondary/30 bg-secondary/15 text-secondary"
               }`}
             >
-              {role === "superadmin" ? "Super Admin" : role === "admin" ? "Main Admin" : "Supporter"}
+              {role === "superadmin"
+                ? "Super Admin"
+                : role === "admin"
+                  ? "Main Admin"
+                  : role === "ad_agent"
+                    ? "Ad Agent"
+                    : "Supporter"}
             </span>
           </div>
           <p className="mt-1 truncate text-body font-medium">{user?.email}</p>
@@ -222,7 +233,7 @@ function AccountMenu({
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-2 gap-1">
               <button
                 type="button"
                 onClick={() => setActingRole("superadmin")}
@@ -250,6 +261,20 @@ function AccountMenu({
                 aria-label="Act as Main Admin"
               >
                 Main Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => setActingRole("ad_agent")}
+                className={`rounded-lg py-1 px-1 text-center font-mono text-[10px] font-semibold transition ${
+                  role === "ad_agent"
+                    ? "bg-tertiary text-on-primary shadow-sm ring-1 ring-tertiary/40"
+                    : "border border-white/10 text-on-surface-variant hover:text-on-surface hover:bg-white/[0.04]"
+                }`}
+                data-agent-id="act-as-ad-agent-button"
+                data-testid="act-as-ad-agent-button"
+                aria-label="Act as Ad Agent"
+              >
+                Ad Agent
               </button>
               <button
                 type="button"
@@ -287,6 +312,26 @@ function AccountMenu({
           >
             <Icon name="helpCircle" className="size-4 text-primary" />
             <span>Frequently Asked Questions</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              menu.current?.hidePopover();
+              onOpenAdAgent();
+            }}
+            data-agent-id="account-menu-ad-agent-button"
+            data-testid="account-menu-ad-agent-button"
+            aria-label="Open Ad Agent Registration and Customize Orders Panel"
+            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-tertiary transition-colors hover:bg-tertiary/15 sm:min-h-10"
+          >
+            <Icon name="sparkles" className="size-4 text-tertiary" />
+            <span>
+              {role === "superadmin"
+                ? "Ad Agent Panel (No Reg Needed)"
+                : role === "ad_agent"
+                  ? "Ad Agent Orders & Profile"
+                  : "Ad Agent Registration & Orders"}
+            </span>
           </button>
           {isAdmin ? (
             <button
@@ -368,6 +413,7 @@ export function TopNavWallet() {
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [isFaqOpen, setIsFaqOpen] = useState(false);
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false);
+  const [isAdAgentOpen, setIsAdAgentOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-surface-container-lowest/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
@@ -381,10 +427,23 @@ export function TopNavWallet() {
           <div className="flex items-center gap-2 text-on-surface">
             <span className="flex size-2 rounded-full bg-primary animate-pulse" />
             <span>
-              Acting as <strong>{actingAsRole === "admin" ? "Main Admin" : "Supporter"}</strong>
+              Acting as{" "}
+              <strong>
+                {actingAsRole === "admin"
+                  ? "Main Admin"
+                  : actingAsRole === "ad_agent"
+                    ? "Ad Agent"
+                    : "Supporter"}
+              </strong>
             </span>
             <span className="text-on-surface-variant hidden md:inline">
-              ({actingAsRole === "admin" ? "Main Admin Panel view with 5 tabs" : "Supporter Admin Panel view with 3 tabs"})
+              (
+              {actingAsRole === "admin"
+                ? "Main Admin Panel view with 5 tabs"
+                : actingAsRole === "ad_agent"
+                  ? "Ad Agent role view — Customize orders & profile"
+                  : "Supporter Admin Panel view with 3 tabs"}
+              )
             </span>
           </div>
           <button
@@ -538,6 +597,7 @@ export function TopNavWallet() {
             }}
             onOpenSupporter={() => setIsSupporterOpen(true)}
             onOpenFaq={() => setIsFaqOpen(true)}
+            onOpenAdAgent={() => setIsAdAgentOpen(true)}
           />
         </div>
       </div>
@@ -575,6 +635,10 @@ export function TopNavWallet() {
       <SupporterModal
         isOpen={isSupporterOpen}
         onClose={() => setIsSupporterOpen(false)}
+      />
+      <AdAgentModal
+        isOpen={isAdAgentOpen}
+        onClose={() => setIsAdAgentOpen(false)}
       />
       <ContactAdminModal isOpen={isContactOpen} onClose={() => setIsContactOpen(false)} />
     </header>

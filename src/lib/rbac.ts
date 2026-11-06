@@ -20,6 +20,12 @@ export const DEFAULT_RBAC_MATRIX: RbacMatrix = {
     "ai_remix",
     "manage_brands",
   ],
+  ad_agent: [
+    "manage_messages",
+    "search_radar",
+    "ai_remix",
+    "manage_brands",
+  ],
   moderator: [
     "view_analytics",
     "manage_messages",

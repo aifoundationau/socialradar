@@ -195,6 +195,13 @@
     - Verified `token_transactions` (atomic write/read/delete probe + all 27 ledger records verified non-negative).
     - Verified `users` collection (all 10 user documents verified `tokenBalance >= 0`).
     - Verified `admin_messages`, `customize_requests`, and `stripe_purchases` collections.
+41. **Ad Agent RBAC Role (`ad_agent`), Geolocation Customize Matching & Ad Agent Distribution Ledger (`ad-agents.ts`, `/api/ad-agent`, `AdAgentModal.tsx`, `CustomizeView.tsx`, `SuperAdminModal.tsx`):**
+    - Added the `'Ad Agent'` (`ad_agent`) RBAC role across `contracts.ts`, `rbac.ts`, `SessionProvider.tsx`, `TopNavWallet.tsx` (Act As Role switcher & Account Menu), and `SuperAdminModal.tsx` (RBAC Matrix & Role Assignment).
+    - Built the **Ad Agent Registration & Customize Orders Panel** (`AdAgentModal.tsx`) with `Name`, `Phone Number`, locked `Registered Email`, and `Geolocation` (`Suburb`, `State`, `Country`, `Latitude`, `Longitude`, plus 1-click **"Use My Current Geolocation"** GPS/IP auto-detect and city presets), plus an **Assigned Customize Orders** tab with AI Strategy reply composer.
+    - Enforced that **Super Admin** is automatically an Ad Agent (`isSuperAdminBuiltIn: true`, **no registration required**) and **Main Admin** can also register as an Ad Agent while keeping their `admin` role.
+    - Updated `CustomizeView.tsx` and `POST /api/customize` to ask customers for their geolocation, charge the Super Admin-configured `customizeService` token cost, select the **closest Ad Agent** via Haversine distance (`findClosestAdAgent`), and display the assigned Ad Agent to the customer.
+    - Added the **Ad Agent Distribution Ledger** directly under **Owner Redistribution Breakdown** in `SuperAdminModal.tsx`, allowing Super Admin to add an Ad Agent's email and name, see the total value of all Customizations next to their name, and set their redistribution percentage from a dropdown (`10%`, `20%`, `30%`, `40%`, `50%`, `60%`, `70%`).
+
 
 
 

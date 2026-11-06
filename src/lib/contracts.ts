@@ -23,7 +23,7 @@ export const tokenInt = z.number().int();
 export const idempotencyKey = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/);
 
 // ---------- 1. UserAuth & Token Ledger ----------
-export const RoleSchema = z.enum(["admin", "superadmin", "moderator", "agency", "supporter", "user"]);
+export const RoleSchema = z.enum(["admin", "superadmin", "ad_agent", "moderator", "agency", "supporter", "user"]);
 export const TierSchema = z.enum(["supporter", "starter", "growth", "agency"]);
 export const CustomClaimsSchema = z
   .object({
@@ -567,6 +567,7 @@ export const RBAC_PERMISSIONS_LIST: RbacPermission[] = [
 export const RBAC_ROLES_LIST = [
   "superadmin",
   "admin",
+  "ad_agent",
   "moderator",
   "agency",
   "supporter",
@@ -591,7 +592,7 @@ export type RbacConfigDoc = z.infer<typeof RbacConfigDocSchema>;
 export const UpdateRolePermissionsRequestSchema = z
   .object({
     action: z.literal("UPDATE_ROLE_PERMISSIONS"),
-    role: z.enum(["admin", "moderator", "agency", "supporter"]),
+    role: z.enum(["admin", "ad_agent", "moderator", "agency", "supporter"]),
     permissions: z.array(RbacPermissionSchema),
   })
   .strict();
@@ -601,7 +602,7 @@ export const AssignUserRoleRequestSchema = z
   .object({
     action: z.literal("ASSIGN_USER_ROLE"),
     email: z.string().trim().toLowerCase().email().max(254),
-    role: z.enum(["admin", "moderator", "agency", "supporter"]),
+    role: z.enum(["admin", "ad_agent", "moderator", "agency", "supporter"]),
   })
   .strict();
 export type AssignUserRoleRequest = z.infer<typeof AssignUserRoleRequestSchema>;
@@ -648,6 +649,100 @@ export const UpdateFaqRequestSchema = z
   .strict();
 export type UpdateFaqRequest = z.infer<typeof UpdateFaqRequestSchema>;
 
+// ---------- 10.5 Ad Agent Registration, Geolocation & Distribution Ledger ----------
+export const AD_AGENT_REDISTRIBUTION_PERCENTS = [10, 20, 30, 40, 50, 60, 70] as const;
+export type AdAgentRedistributionPercent = (typeof AD_AGENT_REDISTRIBUTION_PERCENTS)[number];
+
+export const AdAgentRedistributionPercentSchema = z
+  .number()
+  .int()
+  .refine((v): v is AdAgentRedistributionPercent => [10, 20, 30, 40, 50, 60, 70].includes(v), {
+    message: "Redistribution percentage must be one of 10%, 20%, 30%, 40%, 50%, 60%, or 70%",
+  });
+
+export const AdAgentLocationSchema = z
+  .object({
+    suburb: safeText(1, 100),
+    state: safeText(1, 50),
+    country: z.string().trim().toUpperCase().min(2).max(8).default("AU"),
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+    label: z.string().trim().max(200).optional(),
+  })
+  .strict();
+export type AdAgentLocation = z.infer<typeof AdAgentLocationSchema>;
+
+export const AdAgentProfileSchema = z
+  .object({
+    agentId: z.string().min(1).max(128),
+    uid: z.string().max(128).optional(),
+    name: safeText(1, 100),
+    phone: safeText(1, 40),
+    email: z.string().trim().toLowerCase().email().max(254),
+    location: AdAgentLocationSchema,
+    redistributionPercentage: z.number().int().min(10).max(70).default(30),
+    status: z.enum(["active", "inactive"]).default("active"),
+    isSuperAdminBuiltIn: z.boolean().default(false).optional(),
+    claimedTokens: z.number().int().nonnegative().optional(),
+    claimedAudCents: z.number().int().nonnegative().optional(),
+    claimedUsdCents: z.number().int().nonnegative().optional(),
+    lastResetAt: z.string().optional(),
+    lastResetBy: z.string().optional(),
+    createdAt: isoDate,
+    updatedAt: isoDate,
+  })
+  .strict();
+export type AdAgentProfile = z.infer<typeof AdAgentProfileSchema>;
+
+export const RegisterAdAgentRequestSchema = z
+  .object({
+    name: safeText(1, 100),
+    phone: safeText(3, 40),
+    location: AdAgentLocationSchema,
+  })
+  .strict();
+export type RegisterAdAgentRequest = z.infer<typeof RegisterAdAgentRequestSchema>;
+
+export const SuperAdminAddAdAgentRequestSchema = z
+  .object({
+    name: safeText(1, 100),
+    email: z.string().trim().toLowerCase().email("Valid email address is required").max(254),
+    phone: safeText(0, 40).optional(),
+    redistributionPercentage: AdAgentRedistributionPercentSchema.default(30),
+    location: AdAgentLocationSchema.optional(),
+  })
+  .strict();
+export type SuperAdminAddAdAgentRequest = z.infer<typeof SuperAdminAddAdAgentRequestSchema>;
+
+export const SuperAdminUpdateAdAgentPercentRequestSchema = z
+  .object({
+    agentId: z.string().min(1).max(128),
+    redistributionPercentage: AdAgentRedistributionPercentSchema,
+  })
+  .strict();
+
+export interface AdAgentDistributionItem {
+  agentId: string;
+  uid?: string;
+  name: string;
+  phone: string;
+  email: string;
+  locationLabel: string;
+  latitude: number;
+  longitude: number;
+  status: "active" | "inactive";
+  isSuperAdminBuiltIn?: boolean;
+  customizationsCount: number;
+  totalCustomizationsTokens: number;
+  totalCustomizationsAudCents: number;
+  totalCustomizationsUsdCents: number;
+  redistributionPercentage: number;
+  redistributionTokens: number;
+  redistributionAudCents: number;
+  redistributionUsdCents: number;
+  lastResetAt?: string;
+}
+
 // ---------- 11. Professional Customize Service & Staff AI Reply ----------
 export const CustomizeRequestInputSchema = z
   .object({
@@ -662,6 +757,7 @@ export const CustomizeRequestInputSchema = z
     version: z.string().max(50).optional(),
     extraDetailsAndNotes: safeText(1, 2000),
     sourceBrandId: z.string().max(128).optional(),
+    customerLocation: AdAgentLocationSchema.optional(),
   })
   .strict();
 export type CustomizeRequestInput = z.infer<typeof CustomizeRequestInputSchema>;
@@ -675,6 +771,13 @@ export const CustomizeRequestDocSchema = CustomizeRequestInputSchema.extend({
   adminMessageId: z.string().min(1).max(128),
   customerReplyMessageId: z.string().min(1).max(128),
   staffCompletedMessageId: z.string().max(128).optional(),
+  assignedAgentId: z.string().max(128).optional(),
+  assignedAgentUid: z.string().max(128).optional(),
+  assignedAgentName: z.string().max(100).optional(),
+  assignedAgentEmail: z.string().max(254).optional(),
+  assignedAgentPhone: z.string().max(40).optional(),
+  assignedAgentLocation: z.string().max(200).optional(),
+  assignedDistanceKm: z.number().nonnegative().optional(),
   createdAt: isoDate,
   updatedAt: isoDate,
 }).strict();

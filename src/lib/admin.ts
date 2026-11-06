@@ -15,6 +15,7 @@ import {
 } from "./contracts";
 import { TOKEN_PACKS } from "./pricing";
 import { creditTokens } from "./token-ledger";
+import { findClosestAdAgent, formatAgentLocationLabel } from "./ad-agents";
 
 const CONFIG_DOC_PATH = "system_config/global";
 const PURCHASES_COL = "stripe_purchases";
@@ -673,6 +674,14 @@ export async function submitCustomizeRequest(params: {
   const requestId = `cust_${Date.now()}_${randomBytes(4).toString("hex")}`;
   const cleanEmail = params.userEmail.toLowerCase().trim();
 
+  // Select the closest Ad Agent to the customer's geolocation
+  const closest = await findClosestAdAgent(params.input.customerLocation);
+  const assignedAgent = closest.agent;
+  const assignedAgentLocation = formatAgentLocationLabel(assignedAgent.location);
+  const customerLocationLabel = params.input.customerLocation
+    ? formatAgentLocationLabel(params.input.customerLocation)
+    : "Default Geolocation";
+
   const landingSummary = (params.input.landingPageUrls?.length
     ? params.input.landingPageUrls
     : [params.input.destinationUrl]
@@ -687,6 +696,8 @@ export async function submitCustomizeRequest(params: {
   const staffBriefRaw = [
     `CUSTOMIZE SERVICE BRIEF (${requestId})`,
     `Customer: ${sanitizeForPlainTextArchive(cleanEmail)} | Fee Paid: ${params.tokensCharged} Tokens`,
+    `Customer Geolocation: ${sanitizeForPlainTextArchive(customerLocationLabel)}`,
+    `Assigned Closest Ad Agent: ${sanitizeForPlainTextArchive(assignedAgent.name)} (${sanitizeForPlainTextArchive(assignedAgent.email)} | Phone: ${sanitizeForPlainTextArchive(assignedAgent.phone)} | Location: ${sanitizeForPlainTextArchive(assignedAgentLocation)} | Distance: ${closest.distanceKm} km)`,
     `Brand Name: ${sanitizeForPlainTextArchive(params.input.brandName)}`,
     `Tone of Voice: ${params.input.toneOfVoice}${params.input.version ? ` | Version/Tag: ${sanitizeForPlainTextArchive(params.input.version)}` : ""}`,
     ``,
@@ -710,7 +721,7 @@ export async function submitCustomizeRequest(params: {
   ].join("\n");
 
   const staffSubject = sanitizeForPlainTextArchive(
-    `[CUSTOMIZE REQUEST] ${params.input.brandName} (${params.tokensCharged} Tokens)`
+    `[CUSTOMIZE REQUEST] ${params.input.brandName} (${params.tokensCharged} Tokens) - Agent: ${assignedAgent.name}`
   ).slice(0, 150);
 
   const staffBody = staffBriefRaw.slice(0, 9800);
@@ -724,15 +735,39 @@ export async function submitCustomizeRequest(params: {
     customizeRequestId: requestId,
   });
 
-  // Immediate customized reply message to the customer acknowledging their specific request
+  // Also notify the assigned Ad Agent in their Message Panel if they have a distinct email
+  if (assignedAgent.email && assignedAgent.email !== cleanEmail) {
+    try {
+      await sendSuperadminMessage({
+        superadminUid: "system_customize_concierge",
+        superadminEmail: "support@aifoundation.net.au",
+        recipientEmail: assignedAgent.email,
+        subject: staffSubject,
+        body: staffBody,
+        requestType: "customize_request",
+        customizeRequestId: requestId,
+      });
+    } catch {
+      // ignore if agent notification fails
+    }
+  }
+
+  // Immediate customized reply message to the customer telling them the closest Ad Agent assigned to handle their customization
   const customerSubject = sanitizeForPlainTextArchive(
-    `Customize Request Received: ${params.input.brandName} (Ref ${requestId.slice(-6)})`
+    `Customize Request Received: ${params.input.brandName} — Assigned Ad Agent: ${assignedAgent.name}`
   ).slice(0, 150);
 
   const customerReplyRaw = [
-    `Hello from the Social Radar Professional Strategy Team,`,
+    `Hello from the AdRadarHQ Professional Strategy Team,`,
     ``,
-    `We have received your Customize request for "${sanitizeForPlainTextArchive(params.input.brandName)}" (${params.tokensCharged} tokens) and routed your brief directly to our Super Admin and Main Admin creative strategists.`,
+    `We have received your Customize request for "${sanitizeForPlainTextArchive(params.input.brandName)}" (${params.tokensCharged} tokens).`,
+    ``,
+    `YOUR ASSIGNED CLOSEST AD AGENT:`,
+    `Based on your geolocation (${sanitizeForPlainTextArchive(customerLocationLabel)}), we have selected our closest Ad Agent to handle your customization:`,
+    `- Ad Agent Name: ${sanitizeForPlainTextArchive(assignedAgent.name)}`,
+    `- Ad Agent Email: ${sanitizeForPlainTextArchive(assignedAgent.email)}`,
+    `- Ad Agent Phone: ${sanitizeForPlainTextArchive(assignedAgent.phone)}`,
+    `- Ad Agent Location: ${sanitizeForPlainTextArchive(assignedAgentLocation)} (${closest.distanceKm} km from your location)`,
     ``,
     `SUMMARY OF YOUR BRIEF IN QUEUE:`,
     `- Brand & Tone: ${sanitizeForPlainTextArchive(params.input.brandName)} (${params.input.toneOfVoice})`,
@@ -740,7 +775,7 @@ export async function submitCustomizeRequest(params: {
     `- Extra Details Noted: "${sanitizeForPlainTextArchive(params.input.extraDetailsAndNotes.slice(0, 260))}"`,
     ``,
     `WHAT HAPPENS NEXT:`,
-    `Our strategists are reviewing your product positioning, buyer avatar, pain points, and extra notes to craft your customized brand & ad strategy package. As soon as your bespoke work is ready, we will deliver the full customized reply right here in your My Messages panel.`,
+    `Your assigned Ad Agent (${sanitizeForPlainTextArchive(assignedAgent.name)}) is reviewing your product positioning, buyer avatar, pain points, and extra notes to craft your customized brand & ad strategy package. As soon as your bespoke work is ready, it will be delivered right here in your Message Panel.`,
   ].join("\n");
 
   const customerConfirmationMessage = await sendSuperadminMessage({
@@ -761,6 +796,13 @@ export async function submitCustomizeRequest(params: {
     status: "pending",
     adminMessageId: adminMessage.messageId,
     customerReplyMessageId: customerConfirmationMessage.messageId,
+    assignedAgentId: assignedAgent.agentId,
+    ...(assignedAgent.uid ? { assignedAgentUid: assignedAgent.uid } : {}),
+    assignedAgentName: assignedAgent.name,
+    assignedAgentEmail: assignedAgent.email,
+    assignedAgentPhone: assignedAgent.phone,
+    assignedAgentLocation,
+    assignedDistanceKm: closest.distanceKm,
     createdAt: now,
     updatedAt: now,
   };

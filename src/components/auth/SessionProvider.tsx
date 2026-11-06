@@ -7,7 +7,7 @@ import { clientAuth, clientDb } from "@/lib/firebase-client";
 import { apiFetch } from "@/lib/api-client";
 import type { BrandProfile, UserDoc } from "@/lib/contracts";
 
-export type ActiveRole = "superadmin" | "admin" | "supporter";
+export type ActiveRole = "superadmin" | "admin" | "ad_agent" | "supporter";
 
 export interface Session {
   status: "loading" | "signed-out" | "signed-in";
@@ -72,14 +72,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // The superadmin should only be the firebase database admin email. Everyone else starts at supporter level.
   const isSuper = isSuperAdminEmail(user?.email);
   const isMainAdmin = !isSuper && (myClaims?.role === "admin" || myClaims?.admin === true);
-  const realRole: ActiveRole = isSuper ? "superadmin" : isMainAdmin ? "admin" : "supporter";
+  const isAdAgentRole = !isSuper && !isMainAdmin && myClaims?.role === "ad_agent";
+  const realRole: ActiveRole = isSuper ? "superadmin" : isMainAdmin ? "admin" : isAdAgentRole ? "ad_agent" : "supporter";
 
   const [actingAsRole, setActingAsRoleState] = useState<ActiveRole | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined" && isSuper) {
       const saved = localStorage.getItem("adradar_acting_role") as ActiveRole | null;
-      if (saved && (saved === "superadmin" || saved === "admin" || saved === "supporter")) {
+      if (saved && (saved === "superadmin" || saved === "admin" || saved === "ad_agent" || saved === "supporter")) {
         setActingAsRoleState(saved);
       }
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useSession } from "@/components/auth/SessionProvider";
 import {
@@ -12,7 +12,9 @@ import {
   type CustomizeRequestInput,
 } from "@/lib/contracts";
 import { TONE_LABELS } from "@/components/brands/BrandForm";
+import { AdAgentModal, QUICK_GEO_PRESETS } from "@/components/ad-agent/AdAgentModal";
 import { apiFetch, errorMessage, newIdempotencyKey } from "@/lib/api-client";
+import { autofindUserLocation, loadGeoConfig } from "@/lib/geo";
 import { formatTokenEstimateHover } from "@/lib/pricing";
 import { Icon } from "@/components/ui/Icon";
 import {
@@ -30,6 +32,29 @@ import {
 type FieldName = keyof CustomizeRequestInput;
 type FieldErrors = Partial<Record<FieldName, string>>;
 
+interface PublicAdAgent {
+  agentId: string;
+  name: string;
+  email: string;
+  phone: string;
+  locationLabel: string;
+  latitude: number;
+  longitude: number;
+  isSuperAdminBuiltIn?: boolean;
+}
+
+function haversineKmClient(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
 export function CustomizeView() {
   const { brands, profile, activeBrand } = useSession();
 
@@ -45,6 +70,18 @@ export function CustomizeView() {
   const [version, setVersion] = useState("");
   const [extraDetailsAndNotes, setExtraDetailsAndNotes] = useState("");
 
+  // Customer Geolocation State (used to match the closest Ad Agent)
+  const [custSuburb, setCustSuburb] = useState("Sydney");
+  const [custState, setCustState] = useState("NSW");
+  const [custCountry, setCustCountry] = useState("AU");
+  const [custLat, setCustLat] = useState<number>(-33.8688);
+  const [custLon, setCustLon] = useState<number>(151.2093);
+  const [detectingGeo, setDetectingGeo] = useState(false);
+
+  const [agents, setAgents] = useState<PublicAdAgent[]>([]);
+  const [lastAssignedRequest, setLastAssignedRequest] = useState<CustomizeRequestDoc | null>(null);
+  const [isAdAgentModalOpen, setIsAdAgentModalOpen] = useState(false);
+
   const [costTokens, setCostTokens] = useState<number>(55);
   const [audCentsPerToken, setAudCentsPerToken] = useState<number>(100);
   const [requests, setRequests] = useState<CustomizeRequestDoc[]>([]);
@@ -57,6 +94,21 @@ export function CustomizeView() {
   const [pending, setPending] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const submitKey = useRef<string | null>(null);
+
+  const closestAgentPreview = useMemo(() => {
+    if (!agents || agents.length === 0) return null;
+    let best = agents[0];
+    let bestDist = haversineKmClient(custLat, custLon, best.latitude, best.longitude);
+    for (let i = 1; i < agents.length; i++) {
+      const candidate = agents[i];
+      const d = haversineKmClient(custLat, custLon, candidate.latitude, candidate.longitude);
+      if (d < bestDist) {
+        bestDist = d;
+        best = candidate;
+      }
+    }
+    return { agent: best, distanceKm: bestDist };
+  }, [agents, custLat, custLon]);
 
   async function handleCopyText(text: string, id: string) {
     if (!text) return;
@@ -86,21 +138,43 @@ export function CustomizeView() {
         messages: AdminMessage[];
         costTokens: number;
         audCentsPerToken: number;
+        agents?: PublicAdAgent[];
       }>("/api/customize", { method: "GET" });
       if (typeof data.costTokens === "number") setCostTokens(Math.round(data.costTokens));
       if (typeof data.audCentsPerToken === "number") setAudCentsPerToken(Math.round(data.audCentsPerToken));
       if (Array.isArray(data.requests)) setRequests(data.requests);
       if (Array.isArray(data.messages)) setMessages(data.messages);
+      if (Array.isArray(data.agents)) setAgents(data.agents);
     } catch {
-      // Keep default 45 tokens if offline
+      // Keep default tokens if offline
     } finally {
       setLoadingData(false);
     }
   }
 
   useEffect(() => {
+    const savedGeo = loadGeoConfig();
+    setCustSuburb(savedGeo.suburb || "Sydney");
+    setCustState(savedGeo.state || "NSW");
+    setCustCountry(savedGeo.country || "AU");
+    setCustLat(typeof savedGeo.latitude === "number" ? savedGeo.latitude : -33.8688);
+    setCustLon(typeof savedGeo.longitude === "number" ? savedGeo.longitude : 151.2093);
     loadCustomizeState();
   }, []);
+
+  async function handleDetectCustomerGeo() {
+    setDetectingGeo(true);
+    try {
+      const detected = await autofindUserLocation();
+      setCustSuburb(detected.suburb || "Sydney");
+      setCustState(detected.state || "NSW");
+      setCustCountry(detected.country || "AU");
+      setCustLat(typeof detected.latitude === "number" ? detected.latitude : -33.8688);
+      setCustLon(typeof detected.longitude === "number" ? detected.longitude : 151.2093);
+    } finally {
+      setDetectingGeo(false);
+    }
+  }
 
   function applyBrandTemplate(brand: BrandProfile) {
     setSelectedBrandId(brand.brandId);
@@ -163,6 +237,14 @@ export function CustomizeView() {
       version: version.trim() || undefined,
       extraDetailsAndNotes,
       sourceBrandId: selectedBrandId || undefined,
+      customerLocation: {
+        suburb: custSuburb.trim() || "Sydney",
+        state: custState.trim() || "NSW",
+        country: (custCountry.trim() || "AU").toUpperCase(),
+        latitude: Number.isFinite(Number(custLat)) ? Number(custLat) : -33.8688,
+        longitude: Number.isFinite(Number(custLon)) ? Number(custLon) : 151.2093,
+        label: `${custSuburb.trim() || "Sydney"}, ${custState.trim() || "NSW"}, ${(custCountry.trim() || "AU").toUpperCase()}`,
+      },
     });
 
     if (!parsed.success) {
@@ -195,9 +277,17 @@ export function CustomizeView() {
       submitKey.current = null;
       if (Array.isArray(res.requests)) setRequests(res.requests);
       if (Array.isArray(res.messages)) setMessages(res.messages);
+      setLastAssignedRequest(res.request);
       setExtraDetailsAndNotes("");
+      const assignedName = res.request.assignedAgentName || "Super Admin Strategy Lead";
+      const assignedEmail = res.request.assignedAgentEmail || "support@aifoundation.net.au";
+      const assignedLoc = res.request.assignedAgentLocation || "Sydney, NSW, AU";
+      const assignedDist =
+        typeof res.request.assignedDistanceKm === "number"
+          ? ` (${res.request.assignedDistanceKm} km from your location)`
+          : "";
       setSubmitSuccess(
-        `Your Customize brief for "${res.request.brandName}" has been sent to our Super Admin and Main Admin strategy team! A customized confirmation message has been delivered to your Message Panel below.`
+        `Your Customize brief for "${res.request.brandName}" has been submitted! Based on your geolocation, we have selected your closest Ad Agent — ${assignedName} (${assignedEmail}, ${assignedLoc}${assignedDist}) — to handle your customization.`
       );
     } catch (err) {
       submitKey.current = null;
@@ -226,15 +316,27 @@ export function CustomizeView() {
       <section className={`${card} p-5 sm:p-6 border border-primary/25 bg-gradient-to-br from-surface-container-high to-surface-container`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2 max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/15 px-3 py-1 font-mono text-xs font-semibold text-primary">
-              <Icon name="sparkles" className="size-3.5" />
-              <span>Professional Strategist Concierge</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/15 px-3 py-1 font-mono text-xs font-semibold text-primary">
+                <Icon name="sparkles" className="size-3.5" />
+                <span>Professional Strategist Concierge</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAdAgentModalOpen(true)}
+                data-agent-id="open-ad-agent-modal-hero-btn"
+                data-testid="open-ad-agent-modal-hero-btn"
+                className="inline-flex items-center gap-1.5 rounded-full border border-secondary/40 bg-secondary/15 px-3 py-1 font-mono text-xs font-semibold text-secondary hover:bg-secondary/25 transition"
+              >
+                <Icon name="mapPin" className="size-3.5" />
+                <span>Ad Agent Registration &amp; Orders Panel</span>
+              </button>
             </div>
             <h1 className="text-headline-md sm:text-headline-lg font-bold text-on-surface">
               Customize your Brand Strategy with Professional Experts
             </h1>
             <p className="text-body text-on-surface-variant leading-relaxed">
-              Submit your brand details along with your extra thoughts, angles, and descriptions below. Your complete form is routed directly to our strategy team, who craft your customized positioning &amp; ad script package and deliver it back to your Message Panel.
+              Submit your brand details and geolocation below. When you submit your Customize order, we match you with the closest Ad Agent to handle your customization and deliver your bespoke positioning &amp; ad script package back to your Message Panel.
             </p>
           </div>
 
@@ -516,6 +618,122 @@ export function CustomizeView() {
               />
             </div>
 
+            {/* Customer Geolocation for Closest Ad Agent Selection */}
+            <div
+              className="rounded-xl border border-secondary/35 bg-secondary/[0.06] p-4 space-y-3"
+              data-agent-id="customize-customer-geolocation-box"
+              data-testid="customize-customer-geolocation-box"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-compact font-bold text-on-surface flex items-center gap-1.5">
+                    <Icon name="mapPin" className="size-4 text-secondary" />
+                    <span>Your Location (Geolocation for Closest Ad Agent Matching) *</span>
+                  </h3>
+                  <p className="text-[11px] text-on-surface-variant">
+                    We use your geolocation to automatically select and assign the closest Ad Agent to handle your customization.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDetectCustomerGeo}
+                  disabled={detectingGeo}
+                  data-agent-id="customize-detect-geo-btn"
+                  data-testid="customize-detect-geo-btn"
+                  className={`${btnSecondary} shrink-0 flex items-center gap-1.5 font-mono text-xs`}
+                >
+                  <Icon name="mapPin" className="size-3.5 text-secondary" />
+                  <span>{detectingGeo ? "Detecting GPS..." : "Use My Current Geolocation"}</span>
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-mono text-[10px] text-outline mr-1">Quick Locations:</span>
+                {QUICK_GEO_PRESETS.slice(0, 8).map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => {
+                      setCustSuburb(preset.suburb);
+                      setCustState(preset.state);
+                      setCustCountry(preset.country);
+                      setCustLat(preset.latitude);
+                      setCustLon(preset.longitude);
+                    }}
+                    className="rounded-lg border border-white/10 bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant hover:border-secondary/40 hover:text-on-surface transition"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                <div className="sm:col-span-2">
+                  <label htmlFor="customize-cust-suburb" className={label}>
+                    Your Suburb / City *
+                  </label>
+                  <input
+                    id="customize-cust-suburb"
+                    type="text"
+                    required
+                    value={custSuburb}
+                    onChange={(e) => setCustSuburb(e.target.value)}
+                    className={field}
+                    data-agent-id="customize-cust-suburb-input"
+                    data-testid="customize-cust-suburb-input"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="customize-cust-state" className={label}>
+                    State / Region *
+                  </label>
+                  <input
+                    id="customize-cust-state"
+                    type="text"
+                    required
+                    value={custState}
+                    onChange={(e) => setCustState(e.target.value)}
+                    className={field}
+                    data-agent-id="customize-cust-state-input"
+                    data-testid="customize-cust-state-input"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="customize-cust-country" className={label}>
+                    Country *
+                  </label>
+                  <input
+                    id="customize-cust-country"
+                    type="text"
+                    required
+                    maxLength={4}
+                    value={custCountry}
+                    onChange={(e) => setCustCountry(e.target.value.toUpperCase())}
+                    className={`${field} font-mono uppercase`}
+                    data-agent-id="customize-cust-country-input"
+                    data-testid="customize-cust-country-input"
+                  />
+                </div>
+              </div>
+
+              {closestAgentPreview && (
+                <div
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/35 bg-primary/10 px-3 py-2 font-mono text-xs"
+                  data-agent-id="customize-closest-agent-preview"
+                  data-testid="customize-closest-agent-preview"
+                >
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-primary font-bold">Closest Ad Agent to Handle Your Customization:</span>
+                    <span className="font-semibold text-on-surface">{closestAgentPreview.agent.name}</span>
+                    <span className="text-on-surface-variant">({closestAgentPreview.agent.email})</span>
+                  </div>
+                  <span className="rounded bg-primary/20 px-2 py-0.5 text-[11px] font-bold text-primary">
+                    📍 {closestAgentPreview.agent.locationLabel} · {closestAgentPreview.distanceKm} km away
+                  </span>
+                </div>
+              )}
+            </div>
+
             {/* Extra Details & Descriptions to Think About Box */}
             <div className="rounded-xl border border-primary/35 bg-primary/5 p-4 space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -558,9 +776,32 @@ export function CustomizeView() {
               {err("extraDetailsAndNotes")}
             </div>
 
+            {lastAssignedRequest && lastAssignedRequest.assignedAgentName && (
+              <div
+                className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 space-y-1.5"
+                data-agent-id="customize-assigned-agent-confirmation"
+                data-testid="customize-assigned-agent-confirmation"
+              >
+                <div className="flex items-center gap-2 font-mono text-xs font-bold text-emerald-300 uppercase">
+                  <Icon name="checkCircle" className="size-4" />
+                  <span>Assigned Closest Ad Agent Handling Your Customization</span>
+                </div>
+                <p className="text-body-sm text-on-surface">
+                  <strong>{lastAssignedRequest.assignedAgentName}</strong> (
+                  <span className="font-mono text-primary">{lastAssignedRequest.assignedAgentEmail}</span>
+                  {lastAssignedRequest.assignedAgentPhone ? ` · ${lastAssignedRequest.assignedAgentPhone}` : ""}) in{" "}
+                  <strong>{lastAssignedRequest.assignedAgentLocation}</strong>
+                  {typeof lastAssignedRequest.assignedDistanceKm === "number"
+                    ? ` (${lastAssignedRequest.assignedDistanceKm} km from your location)`
+                    : ""}{" "}
+                  has been assigned to handle your customization for <strong>{lastAssignedRequest.brandName}</strong>.
+                </p>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 border-t border-white/[0.08]">
               <div className="text-xs text-on-surface-variant">
-                Sent to <strong className="text-on-surface">Super Admin & Main Admin</strong> • Delivered to your <strong className="text-on-surface">Message Panel</strong>
+                Matched to <strong className="text-on-surface">Closest Ad Agent</strong> • Delivered to your <strong className="text-on-surface">Message Panel</strong>
               </div>
               <button
                 type="submit"
@@ -599,7 +840,7 @@ export function CustomizeView() {
                   2. Your Customize Requests
                 </h2>
                 <p className="text-[12px] text-on-surface-variant">
-                  Live status of briefs worked on by Super Admin & Main Admin.
+                  Live status of briefs &amp; your assigned closest Ad Agent.
                 </p>
               </div>
               <button
@@ -649,10 +890,17 @@ export function CustomizeView() {
                               : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
                           }`}
                         >
-                          {req.status === "completed" ? "Reply Delivered ✓" : "With Strategy Team"}
+                          {req.status === "completed" ? "Reply Delivered ✓" : "With Ad Agent"}
                         </span>
                       </div>
                     </div>
+                    {req.assignedAgentName && (
+                      <div className="rounded-lg border border-primary/25 bg-primary/10 px-2.5 py-1 font-mono text-[11px] text-primary">
+                        Assigned Ad Agent: <strong className="text-on-surface">{req.assignedAgentName}</strong> ({req.assignedAgentEmail})
+                        {req.assignedAgentLocation ? ` · ${req.assignedAgentLocation}` : ""}
+                        {typeof req.assignedDistanceKm === "number" ? ` (${req.assignedDistanceKm} km)` : ""}
+                      </div>
+                    )}
                     <p className="text-[12px] text-on-surface-variant line-clamp-2">
                       {req.extraDetailsAndNotes}
                     </p>
@@ -738,6 +986,14 @@ export function CustomizeView() {
           </div>
         </section>
       </div>
+
+      <AdAgentModal
+        isOpen={isAdAgentModalOpen}
+        onClose={() => {
+          setIsAdAgentModalOpen(false);
+          loadCustomizeState();
+        }}
+      />
     </div>
   );
 }

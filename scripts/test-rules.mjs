@@ -17,6 +17,7 @@ const AdminFlag = { uid: "adminFlagUser", token: { email: "adminflag@example.com
 const SuperAdminBool = { uid: "superBoolUser", token: { email: "superbool@example.com", superadmin: true } };
 const ownedByA = { data: { uid: "userA" } };
 const messageForB = { data: { uid: "userA", recipientUid: "userB" } };
+const reqAssignedToB = { data: { uid: "userA", assignedAgentUid: "userB" } };
 
 const cases = [
   ["own user doc: get", "ALLOW", { auth: U, path: P("users/userA"), method: "get" }],
@@ -57,13 +58,22 @@ const cases = [
   ["signed out: get stripe purchase", "DENY", { path: P("stripe_purchases/sp1"), method: "get" }, ownedByA],
   ["stripe purchase: create", "DENY", { auth: U, path: P("stripe_purchases/sp2"), method: "create" }],
   ["own customize request: get", "ALLOW", { auth: U, path: P("customize_requests/req1"), method: "get" }, ownedByA],
+  ["assigned agent: get customize request", "ALLOW", { auth: V, path: P("customize_requests/req_assigned_b"), method: "get" }, reqAssignedToB],
   ["other user customize request: get", "DENY", { auth: V, path: P("customize_requests/req1"), method: "get" }, ownedByA],
+  ["unassigned third party: get customize request", "DENY", { auth: W, path: P("customize_requests/req_assigned_b"), method: "get" }, reqAssignedToB],
   ["admin: get customize request", "ALLOW", { auth: Admin, path: P("customize_requests/req1"), method: "get" }, ownedByA],
   ["superadmin: get customize request", "ALLOW", { auth: SuperAdmin, path: P("customize_requests/req1"), method: "get" }, ownedByA],
   ["signed out: get customize request", "DENY", { path: P("customize_requests/req1"), method: "get" }, ownedByA],
   ["customize request: create", "DENY", { auth: U, path: P("customize_requests/req2"), method: "create" }],
   ["customize request: update", "DENY", { auth: U, path: P("customize_requests/req1"), method: "update" }, ownedByA],
   ["customize request: delete", "DENY", { auth: U, path: P("customize_requests/req1"), method: "delete" }, ownedByA],
+  ["signed in user: get ad agent", "ALLOW", { auth: U, path: P("ad_agents/agent1"), method: "get" }],
+  ["other user: get ad agent", "ALLOW", { auth: V, path: P("ad_agents/agent1"), method: "get" }],
+  ["signed out: get ad agent", "DENY", { path: P("ad_agents/agent1"), method: "get" }],
+  ["signed in user: create ad agent", "DENY", { auth: U, path: P("ad_agents/agent2"), method: "create" }],
+  ["signed in user: update ad agent", "DENY", { auth: U, path: P("ad_agents/agent1"), method: "update" }, { data: { name: "Fake" } }],
+  ["signed in user: delete ad agent", "DENY", { auth: U, path: P("ad_agents/agent1"), method: "delete" }],
+  ["signed out: create ad agent", "DENY", { path: P("ad_agents/agent1"), method: "create" }, { data: { name: "Fake" } }],
   ["signed in user: get global brand", "ALLOW", { auth: U, path: P("global_brands/gb1"), method: "get" }],
   ["other user: get global brand", "ALLOW", { auth: V, path: P("global_brands/gb1"), method: "get" }],
   ["signed out: get global brand", "DENY", { path: P("global_brands/gb1"), method: "get" }],

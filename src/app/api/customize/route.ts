@@ -7,27 +7,43 @@ import {
   getUserMessages,
   submitCustomizeRequest,
 } from "@/lib/admin";
+import { formatAgentLocationLabel, getAdAgents } from "@/lib/ad-agents";
 import { CustomizeRequestInputSchema } from "@/lib/contracts";
 import { withTokenGate } from "@/lib/token-ledger";
 
 export async function GET(req: Request) {
   try {
     const caller = await verifyRequest(req);
-    const [config, requests, messages] = await Promise.all([
+    const [config, requests, messages, agents] = await Promise.all([
       getSystemConfig(),
       getUserCustomizeRequests(caller.uid, 30),
       getUserMessages(caller.email, caller.uid, 50),
+      getAdAgents(),
     ]);
 
     const costTokens = config.isTokenSystemEnabled
       ? Math.max(0, Math.round(config.serviceCosts?.customizeService ?? 55))
       : 0;
 
+    const activeAgents = agents
+      .filter((a) => a.status === "active")
+      .map((a) => ({
+        agentId: a.agentId,
+        name: a.name,
+        email: a.email,
+        phone: a.phone,
+        locationLabel: formatAgentLocationLabel(a.location),
+        latitude: a.location.latitude,
+        longitude: a.location.longitude,
+        isSuperAdminBuiltIn: a.isSuperAdminBuiltIn || false,
+      }));
+
     return NextResponse.json({
       requests,
       messages,
       costTokens,
       audCentsPerToken: config.audCentsPerToken ?? 100,
+      agents: activeAgents,
     });
   } catch (err) {
     return errorResponse(err);
