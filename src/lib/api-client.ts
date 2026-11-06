@@ -1,6 +1,6 @@
 import { clientAuth } from "./firebase-client";
 import type { ErrorCode } from "./contracts";
-import { loadGeoConfig } from "./geo";
+import { loadDetectedGeoCountry } from "./geo";
 
 export class ApiClientError extends Error {
   constructor(
@@ -34,9 +34,9 @@ export async function apiFetch<T>(
     Authorization: `Bearer ${await user.getIdToken()}`,
   };
   try {
-    const geo = loadGeoConfig();
-    if (geo?.country) {
-      headers["x-user-country"] = geo.country.trim().toUpperCase();
+    const detectedCountry = loadDetectedGeoCountry();
+    if (detectedCountry) {
+      headers["x-user-country"] = detectedCountry.trim().toUpperCase();
     }
   } catch {
     // Non-blocking fallback

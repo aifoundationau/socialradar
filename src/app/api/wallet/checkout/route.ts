@@ -13,11 +13,20 @@ import {
 import { getSystemConfig } from "@/lib/admin";
 import { buildCheckoutParams, getStripe } from "@/lib/stripe";
 
-/** Returns the active public pricing configuration (AUD base rate, service token amounts, and packs). */
+/** Returns the active public pricing configuration (AUD base rate, service token amounts, packs, and detected geolocation country). */
 export async function GET(req: Request) {
   try {
     // Touch request headers so Next.js treats this route as dynamic on-demand
     void req.headers.get("accept");
+    const detectedCountry = (
+      req.headers.get("x-user-country") ||
+      req.headers.get("x-vercel-ip-country") ||
+      req.headers.get("cf-ipcountry") ||
+      req.headers.get("x-country-code") ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
     const config = await getSystemConfig();
     return NextResponse.json(
       {
@@ -29,6 +38,7 @@ export async function GET(req: Request) {
         isTokenSystemEnabled: config.isTokenSystemEnabled,
         isAudEnabled: config.isAudEnabled,
         isUsdEnabled: config.isUsdEnabled,
+        ...(detectedCountry ? { detectedCountry } : {}),
       },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     );

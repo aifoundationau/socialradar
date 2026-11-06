@@ -21,7 +21,7 @@ import { CostTag } from "@/components/ui/CostTag";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { btnPrimary } from "@/components/ui/styles";
 import { useSession } from "@/components/auth/SessionProvider";
-import { loadGeoConfig } from "@/lib/geo";
+import { ensureUserGeolocationCountry, loadDetectedGeoCountry } from "@/lib/geo";
 import { COUNTRIES, MEDIA_FILTERS, PLATFORMS, PLATFORM_ORDER, SORTS, type SortKey } from "./options";
 
 export type RadarFilters = RadarSearchRequest;
@@ -138,10 +138,12 @@ export function RadarFilterBar({
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
   useEffect(() => {
+    let active = true;
+
     function syncGeo() {
       try {
-        const geo = loadGeoConfig();
-        if (geo?.country) setUserCountry(geo.country.trim().toUpperCase());
+        const code = loadDetectedGeoCountry();
+        if (code) setUserCountry(code.trim().toUpperCase());
       } catch {
         // Fallback to AU
       }
@@ -151,7 +153,7 @@ export function RadarFilterBar({
       fetch("/api/wallet/checkout", { headers: { accept: "application/json" }, cache: "no-store" })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          if (!data) return;
+          if (!data || !active) return;
           if (data.serviceCosts) setLiveServiceCosts(data.serviceCosts);
           if (typeof data.isTokenSystemEnabled === "boolean") setIsTokenSystemEnabled(data.isTokenSystemEnabled);
           setFreeAccessWindow(data.freeAccessWindow ?? null);
@@ -161,11 +163,15 @@ export function RadarFilterBar({
     }
 
     syncGeo();
+    void ensureUserGeolocationCountry().then((detected) => {
+      if (active && detected) setUserCountry(detected);
+    });
     syncPricingConfig();
     window.addEventListener("adradar:config-updated", syncPricingConfig);
     window.addEventListener("adradar:geo-updated", syncGeo);
     const interval = setInterval(() => setNowMs(Date.now()), 5000);
     return () => {
+      active = false;
       window.removeEventListener("adradar:config-updated", syncPricingConfig);
       window.removeEventListener("adradar:geo-updated", syncGeo);
       clearInterval(interval);

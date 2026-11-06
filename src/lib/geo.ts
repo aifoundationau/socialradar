@@ -15,6 +15,32 @@ export interface GeoConfig {
 }
 
 const STORAGE_KEY = "adradar_geo_config_v1";
+const DETECTED_GEO_STORAGE_KEY = "adradar_detected_geo_country_v1";
+
+export function loadDetectedGeoCountry(): string {
+  if (typeof window === "undefined") return "AU";
+  try {
+    const detected = localStorage.getItem(DETECTED_GEO_STORAGE_KEY);
+    if (detected && detected.trim().length >= 2) {
+      return detected.trim().toUpperCase();
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return loadGeoConfig().country;
+}
+
+export function saveDetectedGeoCountry(countryCode: string): void {
+  if (typeof window === "undefined") return;
+  const clean = (countryCode || "").trim().toUpperCase();
+  if (clean.length < 2) return;
+  try {
+    localStorage.setItem(DETECTED_GEO_STORAGE_KEY, clean);
+    window.dispatchEvent(new CustomEvent("adradar:geo-updated", { detail: { detectedCountry: clean } }));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 export const DEFAULT_AU_GEO: GeoConfig = {
   country: "AU",
@@ -115,6 +141,9 @@ export function saveGeoConfig(config: GeoConfig): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    if (config.country) {
+      localStorage.setItem(DETECTED_GEO_STORAGE_KEY, config.country.trim().toUpperCase());
+    }
     window.dispatchEvent(new CustomEvent("adradar:geo-updated", { detail: config }));
   } catch {
     // localstorage unavailable
@@ -197,6 +226,7 @@ export async function autofindUserLocation(): Promise<GeoConfig> {
           weatherTemp,
           weatherCondition,
         };
+        saveDetectedGeoCountry(country);
         saveGeoConfig(newCfg);
         return newCfg;
       }
@@ -225,6 +255,7 @@ export async function autofindUserLocation(): Promise<GeoConfig> {
         weatherTemp: typeof data.weatherTemp === "number" ? data.weatherTemp : current.weatherTemp,
         weatherCondition: data.weatherCondition || current.weatherCondition,
       };
+      saveDetectedGeoCountry(country);
       saveGeoConfig(newCfg);
       return newCfg;
     }
@@ -233,4 +264,36 @@ export async function autofindUserLocation(): Promise<GeoConfig> {
   }
 
   return current;
+}
+
+let inflightGeoDetection: Promise<string> | null = null;
+
+/**
+ * Ensures the user's real geolocation country (via GPS reverse-geocode or IP geolocation `/api/geo`)
+ * is detected and cached for geolocation-gated features such as Timed Free Access Windows.
+ */
+export async function ensureUserGeolocationCountry(): Promise<string> {
+  if (typeof window === "undefined") return "AU";
+  try {
+    const existing = localStorage.getItem(DETECTED_GEO_STORAGE_KEY);
+    if (existing && existing.trim().length >= 2) {
+      return existing.trim().toUpperCase();
+    }
+  } catch {
+    // continue to detect
+  }
+
+  if (!inflightGeoDetection) {
+    inflightGeoDetection = autofindUserLocation()
+      .then((cfg) => {
+        const code = (cfg.country || "AU").trim().toUpperCase();
+        saveDetectedGeoCountry(code);
+        return code;
+      })
+      .catch(() => loadGeoConfig().country)
+      .finally(() => {
+        inflightGeoDetection = null;
+      });
+  }
+  return inflightGeoDetection;
 }

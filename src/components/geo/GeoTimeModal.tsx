@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/Icon";
 import { btnPrimary, btnSecondary, field, label } from "@/components/ui/styles";
 import { type GeoConfig, autofindUserLocation, saveGeoConfig } from "@/lib/geo";
+import { WORLD_COUNTRIES } from "@/lib/countries";
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -217,12 +218,19 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
                 }}
                 className={field}
               >
-                <option value="AU">Australia (AUD + GST)</option>
-                <option value="NZ">New Zealand (AUD Only · No GST)</option>
-                <option value="US">United States (AUD → USD Conversion)</option>
-                <option value="GB">United Kingdom (AUD → USD Conversion)</option>
-                <option value="CA">Canada (AUD → USD Conversion)</option>
-                <option value="SG">Singapore (AUD → USD Conversion)</option>
+                {WORLD_COUNTRIES.map((c) => {
+                  const taxNote =
+                    c.code === "AU"
+                      ? "AUD + GST"
+                      : c.code === "NZ"
+                        ? "AUD Only · No GST"
+                        : "AUD → USD Conversion";
+                  return (
+                    <option key={c.code} value={c.code}>
+                      {c.name} ({c.code} · {taxNote})
+                    </option>
+                  );
+                })}
               </select>
             </div>
             <div>

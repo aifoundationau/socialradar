@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import type { FreeAccessWindow } from "@/lib/contracts";
 import {
   formatAllowedCountriesSummary,
+  getCountryName,
   isCountryEligibleForFreeAccess,
   isFreeAccessWindowActive,
 } from "@/lib/pricing";
-import { loadGeoConfig } from "@/lib/geo";
+import { ensureUserGeolocationCountry, loadDetectedGeoCountry } from "@/lib/geo";
 import { Icon } from "@/components/ui/Icon";
 
 /**
@@ -28,8 +29,8 @@ export function FreeAccessTopBanner() {
 
     function syncUserCountry() {
       try {
-        const geo = loadGeoConfig();
-        if (geo?.country) setUserCountry(geo.country.trim().toUpperCase());
+        const code = loadDetectedGeoCountry();
+        if (code) setUserCountry(code.trim().toUpperCase());
       } catch {
         // Fallback to AU
       }
@@ -56,6 +57,9 @@ export function FreeAccessTopBanner() {
     }
 
     syncUserCountry();
+    void ensureUserGeolocationCountry().then((detected) => {
+      if (active && detected) setUserCountry(detected);
+    });
     void fetchFreeStatus();
     window.addEventListener("adradar:config-updated", fetchFreeStatus);
     window.addEventListener("adradar:geo-updated", syncUserCountry);

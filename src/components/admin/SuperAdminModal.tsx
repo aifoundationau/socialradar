@@ -45,6 +45,7 @@ import {
   RBAC_ROLES_LIST,
 } from "@/lib/contracts";
 import { GlobalRagCorpusSection, PerFaqRagDrawer } from "@/components/faq/FaqRagWorkspace";
+import { autofindUserLocation, loadDetectedGeoCountry, loadGeoConfig } from "@/lib/geo";
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -1646,6 +1647,47 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
   const [freeAccessNowMs, setFreeAccessNowMs] = useState<number>(() => Date.now());
   const [selectedCountryDropdown, setSelectedCountryDropdown] = useState<string>("");
+  const [detectedUserGeo, setDetectedUserGeo] = useState<{
+    country: string;
+    suburb: string;
+    state: string;
+  }>({ country: "AU", suburb: "Sydney", state: "NSW" });
+  const [detectingFreeAccessGeo, setDetectingFreeAccessGeo] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function syncGeoState() {
+      const cfg = loadGeoConfig();
+      const country = loadDetectedGeoCountry() || cfg.country || "AU";
+      setDetectedUserGeo({
+        country: country.trim().toUpperCase(),
+        suburb: cfg.suburb || "Sydney",
+        state: cfg.state || "NSW",
+      });
+    }
+    syncGeoState();
+    window.addEventListener("adradar:geo-updated", syncGeoState);
+    return () => window.removeEventListener("adradar:geo-updated", syncGeoState);
+  }, [isOpen]);
+
+  async function handleDetectFreeAccessGeo() {
+    setDetectingFreeAccessGeo(true);
+    try {
+      const detected = await autofindUserLocation();
+      setDetectedUserGeo({
+        country: (detected.country || "AU").trim().toUpperCase(),
+        suburb: detected.suburb || "Sydney",
+        state: detected.state || "NSW",
+      });
+      setStatusMsg(
+        `Geolocation detected: ${detected.suburb}, ${detected.state} — ${getCountryName(detected.country)} (${detected.country}).`
+      );
+    } catch {
+      // non-blocking
+    } finally {
+      setDetectingFreeAccessGeo(false);
+    }
+  }
 
   useEffect(() => {
     if (!isOpen || !config?.freeAccessWindow?.enabled) return;
@@ -2690,14 +2732,20 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             >
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <div>
-                                  <label
-                                    htmlFor="free-access-country-dropdown"
-                                    className="block font-mono text-xs font-bold text-on-surface"
-                                  >
-                                    Select Countries That Receive Free Use (Monthly Subscribers)
-                                  </label>
-                                  <p className="text-[11px] text-on-surface-variant">
-                                    Choose from all {WORLD_COUNTRIES.length} world countries in the dropdown below to add or remove countries receiving free access.
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <label
+                                      htmlFor="free-access-country-dropdown"
+                                      className="block font-mono text-xs font-bold text-on-surface"
+                                    >
+                                      Select Countries That Receive Free Use (Monthly Subscribers)
+                                    </label>
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
+                                      <Icon name="mapPin" className="size-3" />
+                                      <span>Based on User Geolocation</span>
+                                    </span>
+                                  </div>
+                                  <p className="mt-0.5 text-[11px] text-on-surface-variant">
+                                    Eligibility is determined automatically by the user&apos;s live geolocation (GPS &amp; IP Geolocation). Select any countries from all {WORLD_COUNTRIES.length} world countries below.
                                   </p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-1.5">
@@ -2714,6 +2762,42 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     }`}
                                   >
                                     All Countries (Worldwide)
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Live User Geolocation Status Bar */}
+                              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 font-mono text-[11px]">
+                                <div className="flex flex-wrap items-center gap-1.5 text-on-surface">
+                                  <Icon name="mapPin" className="size-3.5 text-primary shrink-0" />
+                                  <span className="text-on-surface-variant">Your Detected Geolocation:</span>
+                                  <span className="font-bold text-primary">
+                                    {detectedUserGeo.suburb}, {detectedUserGeo.state} · {getCountryName(detectedUserGeo.country)} ({detectedUserGeo.country})
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {!isAllCountriesSelected && !selectedCountries.includes(detectedUserGeo.country) && (
+                                    <button
+                                      type="button"
+                                      disabled={saving}
+                                      onClick={() => handleSelectCountryFromDropdown(detectedUserGeo.country)}
+                                      data-agent-id="free-access-add-detected-geo-country-btn"
+                                      data-testid="free-access-add-detected-geo-country-btn"
+                                      className="rounded-md border border-winner/40 bg-winner/20 px-2 py-0.5 font-mono text-[10px] font-bold text-winner-soft hover:bg-winner/30 transition cursor-pointer"
+                                    >
+                                      + Add {getCountryName(detectedUserGeo.country)} ({detectedUserGeo.country})
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    disabled={detectingFreeAccessGeo}
+                                    onClick={handleDetectFreeAccessGeo}
+                                    data-agent-id="free-access-detect-geo-btn"
+                                    data-testid="free-access-detect-geo-btn"
+                                    className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary hover:bg-primary hover:text-on-primary transition cursor-pointer disabled:opacity-50"
+                                  >
+                                    <Icon name="refresh" className="size-3" />
+                                    <span>{detectingFreeAccessGeo ? "Detecting..." : "Detect Geolocation"}</span>
                                   </button>
                                 </div>
                               </div>
