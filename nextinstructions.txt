@@ -180,6 +180,14 @@
     - **Hard Non-Negative Rule (`tokenBalance >= 0`):** Clamped all token balances across Firestore (`ensureUserDoc`, `deductTokens`, `refundTokens`, `creditTokens`), Admin operations (`deductTokensFromUser`, `giftTokensToUser`, `getMasterOrderLedger`), RBAC user lists (`getRbacUsersList`), and client state (`SessionProvider.tsx`, `WalletView.tsx`, `SupporterModal.tsx`) so no user can ever have a negative token balance. Super Admin "Remove Tokens" is blocked if a user's balance is `0` or less than the requested removal amount.
     - **All Users Must Buy More Tokens at 0 (`tokenBalance === 0`):** Removed the `"0 tokens (Admin)"` exemption from `withTokenGate`, `RadarFilterBar.tsx`, and `CostTag.tsx` so **all users** (including Super Admin, Admin, Moderator, Agency, and Supporter) must have sufficient tokens to execute paid actions or buy more tokens when their balance is `0`.
     - Added zero-balance **"Buy More Tokens"** alert banners/links in `RadarFilterBar.tsx`, `WalletView.tsx`, and `SupporterModal.tsx`, and documented Section 23 in `data-contracts.md`.
+39. **Collapsible Master Order Ledger & All Users Token Balances Directory (`SuperAdminModal.tsx`, `/api/admin/orders`):**
+    - Made **Master Order Ledger (All Transactions, Stripe Purchases & Search Orders)** collapsible (`f7858cd`).
+    - Added the **All Users Token Balances** directory (`data-agent-id="all-users-token-balances-section"`) directly underneath the Master Order Ledger in `SuperAdminModal.tsx` (`LEDGER` tab), showing every registered user's email, role, and live non-negative token balance (`⚡ X Tokens`).
+    - Added Super Admin row controls for every user with mandatory **Confirm** buttons:
+      1. **`Add Tokens` -> `Confirm Add (+X ⚡)`** (`GIFT_TOKENS`)
+      2. **`- Minus Tokens` -> `Confirm Minus (-X ⚡)`** (`DEDUCT_TOKENS`, capped at the user's current balance so nobody can ever go negative)
+      3. **`Reset to 0` -> `Confirm Reset to 0 ⚡`** (`RESET_TOKENS`)
+
 
 
 

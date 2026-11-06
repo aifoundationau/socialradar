@@ -142,6 +142,15 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [selectedRefundTxId, setSelectedRefundTxId] = useState("");
   const [confirmTopRefundOpen, setConfirmTopRefundOpen] = useState(false);
   const [isMasterLedgerExpanded, setIsMasterLedgerExpanded] = useState(false);
+  const [userBalanceSearch, setUserBalanceSearch] = useState("");
+  const [userRowAction, setUserRowAction] = useState<{
+    uid: string;
+    email: string;
+    mode: "ADD" | "MINUS" | "RESET";
+    amountInput: string;
+    confirmOpen: boolean;
+  } | null>(null);
+  const [userRowBusyUid, setUserRowBusyUid] = useState<string | null>(null);
   const [confirmResetLedgerOpen, setConfirmResetLedgerOpen] = useState(false);
   const [adminMessages, setAdminMessages] = useState<AdminMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<AdminMessage | null>(null);
@@ -618,6 +627,116 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       setErrorMsg(errorMessage(err));
     } finally {
       setRefundingTxId(null);
+    }
+  }
+
+  async function handleUserRowConfirmAction() {
+    if (!userRowAction) return;
+    const { uid, email, mode, amountInput } = userRowAction;
+    const cleanEmail = email.trim().toLowerCase();
+    const targetUser = rbacUsers.find((u) => u.uid === uid || u.email.toLowerCase() === cleanEmail);
+    const currentBal = Math.max(0, Math.round(Number(targetUser?.tokenBalance ?? 0)));
+
+    setUserRowBusyUid(uid);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      if (mode === "ADD") {
+        const tokens = Math.round(Number(amountInput) || 0);
+        if (tokens <= 0) {
+          setErrorMsg("Enter a positive integer of tokens to add (1 or more).");
+          return;
+        }
+        const data = await apiFetch<{
+          success: boolean;
+          tokens?: number;
+          newBalance?: number;
+          balanceAfter?: number;
+          orders?: TokenTransactionDoc[];
+        }>("/api/admin/orders", {
+          method: "POST",
+          body: {
+            action: "GIFT_TOKENS",
+            recipientEmail: cleanEmail,
+            tokens,
+            note: "Added by Super Admin in User Token Balances table",
+          },
+        });
+        const newBal = Math.max(0, Math.round(Number(data.newBalance ?? data.balanceAfter ?? currentBal + tokens)));
+        if (data.orders) setOrderLedger(data.orders);
+        setRbacUsers((prev) =>
+          prev.map((u) => (u.uid === uid || u.email.toLowerCase() === cleanEmail ? { ...u, tokenBalance: newBal } : u))
+        );
+        setStatusMsg(
+          `Added +${tokens.toLocaleString("en-AU")} tokens to ${cleanEmail} (new balance: ${newBal.toLocaleString("en-AU")} ⚡).`
+        );
+      } else if (mode === "MINUS") {
+        const tokens = Math.round(Number(amountInput) || 0);
+        if (tokens <= 0) {
+          setErrorMsg("Enter a positive integer of tokens to minus (1 or more).");
+          return;
+        }
+        if (currentBal <= 0) {
+          setErrorMsg(`Account "${cleanEmail}" has 0 tokens. Nobody can have negative tokens.`);
+          return;
+        }
+        if (tokens > currentBal) {
+          setErrorMsg(
+            `Cannot minus ${tokens.toLocaleString("en-AU")} tokens from "${cleanEmail}" (current balance: ${currentBal.toLocaleString("en-AU")} tokens). Nobody can have negative tokens.`
+          );
+          return;
+        }
+        const data = await apiFetch<{
+          success: boolean;
+          deductedTokens?: number;
+          balanceAfter?: number;
+          orders?: TokenTransactionDoc[];
+        }>("/api/admin/orders", {
+          method: "POST",
+          body: {
+            action: "DEDUCT_TOKENS",
+            recipientEmail: cleanEmail,
+            tokens,
+            note: "Minused by Super Admin in User Token Balances table",
+          },
+        });
+        const newBal = Math.max(0, Math.round(Number(data.balanceAfter ?? currentBal - tokens)));
+        if (data.orders) setOrderLedger(data.orders);
+        setRbacUsers((prev) =>
+          prev.map((u) => (u.uid === uid || u.email.toLowerCase() === cleanEmail ? { ...u, tokenBalance: newBal } : u))
+        );
+        setStatusMsg(
+          `Minused -${tokens.toLocaleString("en-AU")} tokens from ${cleanEmail} (new balance: ${newBal.toLocaleString("en-AU")} ⚡).`
+        );
+      } else if (mode === "RESET") {
+        const data = await apiFetch<{
+          success: boolean;
+          clearedTokens?: number;
+          balanceAfter?: number;
+          orders?: TokenTransactionDoc[];
+        }>("/api/admin/orders", {
+          method: "POST",
+          body: {
+            action: "RESET_TOKENS",
+            recipientEmail: cleanEmail,
+            note: "Reset to 0 by Super Admin in User Token Balances table",
+          },
+        });
+        if (data.orders) setOrderLedger(data.orders);
+        setRbacUsers((prev) =>
+          prev.map((u) => (u.uid === uid || u.email.toLowerCase() === cleanEmail ? { ...u, tokenBalance: 0 } : u))
+        );
+        const cleared = Math.max(0, Math.round(Number(data.clearedTokens ?? currentBal)));
+        setStatusMsg(
+          `Reset ${cleanEmail} token balance to 0 ⚡ (${cleared.toLocaleString("en-AU")} tokens cleared).`
+        );
+      }
+      setUserRowAction(null);
+      window.dispatchEvent(new CustomEvent("wallet-updated"));
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setUserRowBusyUid(null);
     }
   }
 
@@ -3159,6 +3278,361 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     })()}
                       </>
                     )}
+                  </div>
+
+                  {/* ALL USERS TOKEN BALANCES (UNDER MASTER ORDER LEDGER) */}
+                  <div
+                    className={`${card} p-4 space-y-3 border border-primary/25`}
+                    data-agent-id="all-users-token-balances-section"
+                    data-testid="all-users-token-balances-section"
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Icon name="wallet" className="size-4 text-primary" />
+                          <h4 className="text-compact font-bold text-on-surface">
+                            All Users Token Balances
+                          </h4>
+                          <span className="rounded-full bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
+                            {rbacUsers.filter((u) => Boolean(u.email)).length} Registered Users
+                          </span>
+                          {isSuper && (
+                            <span className="rounded-full bg-primary/15 border border-primary/30 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
+                              Super Admin: Add Tokens, Minus Tokens &amp; Reset Tokens to 0 (Confirm Required)
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-on-surface-variant">
+                          Live token balance directory for every registered user account. Hard rule: nobody can have negative tokens — accounts at 0 must buy more tokens.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <input
+                          type="text"
+                          placeholder="Search user email or role..."
+                          value={userBalanceSearch}
+                          onChange={(e) => setUserBalanceSearch(e.target.value)}
+                          className={`${field} !py-1.5 !text-[12px] w-48 sm:w-60`}
+                          data-agent-id="user-token-balances-search"
+                          data-testid="user-token-balances-search"
+                        />
+                        <button
+                          type="button"
+                          onClick={reloadRbac}
+                          disabled={rbacLoading}
+                          className={btnSecondary}
+                          data-agent-id="refresh-user-token-balances-btn"
+                          data-testid="refresh-user-token-balances-btn"
+                        >
+                          <Icon name="refresh" className={`size-3.5 ${rbacLoading ? "animate-spin" : ""}`} />
+                          Refresh Balances
+                        </button>
+                      </div>
+                    </div>
+
+                    {(() => {
+                      const q = userBalanceSearch.trim().toLowerCase();
+                      const registeredUsers = rbacUsers
+                        .filter((u) => Boolean(u.email))
+                        .filter((u) => {
+                          if (!q) return true;
+                          return (
+                            u.email.toLowerCase().includes(q) ||
+                            (u.displayName || "").toLowerCase().includes(q) ||
+                            u.role.toLowerCase().includes(q)
+                          );
+                        });
+
+                      if (registeredUsers.length === 0) {
+                        return (
+                          <div className="rounded-xl border border-white/[0.06] bg-surface-container-low p-6 text-center text-on-surface-variant">
+                            <p className="text-sm">No user accounts match the current search.</p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-surface-container-low max-h-[420px] overflow-y-auto">
+                          <table className="w-full text-left text-[11px]">
+                            <thead className="border-b border-white/[0.08] bg-surface-container-high/80 font-mono text-mono-label text-on-surface-variant sticky top-0 z-10 backdrop-blur-sm">
+                              <tr>
+                                <th className="px-3 py-2">User / Email</th>
+                                <th className="px-2.5 py-2">Role</th>
+                                <th className="px-3 py-2 text-right">Token Balance</th>
+                                <th className="px-3 py-2 text-right">
+                                  {isSuper
+                                    ? "Super Admin Controls (Add Tokens / Minus Tokens / Reset to 0)"
+                                    : "Status"}
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/[0.04] font-mono">
+                              {registeredUsers.map((u) => {
+                                const bal = Math.max(0, Math.round(Number(u.tokenBalance ?? 0)));
+                                const isActiveRow = userRowAction?.uid === u.uid;
+                                const isBusy = userRowBusyUid === u.uid;
+
+                                return (
+                                  <tr key={u.uid} className="hover:bg-white/[0.02] transition">
+                                    <td className="px-3 py-2.5">
+                                      <div className="font-semibold text-on-surface truncate max-w-[220px]" title={u.email}>
+                                        {u.email}
+                                      </div>
+                                      {u.displayName && u.displayName !== u.email && (
+                                        <div className="text-[10px] font-sans text-on-surface-variant truncate max-w-[220px]">
+                                          {u.displayName}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="px-2.5 py-2.5 whitespace-nowrap">
+                                      <span
+                                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                                          u.role === "superadmin"
+                                            ? "bg-primary/20 text-primary"
+                                            : u.role === "admin"
+                                              ? "bg-secondary/20 text-secondary"
+                                              : "bg-surface-container-highest text-on-surface-variant"
+                                        }`}
+                                      >
+                                        {u.role}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                                      <span
+                                        className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-extrabold ${
+                                          bal > 0
+                                            ? "bg-primary/15 text-primary"
+                                            : "bg-surface-container-highest text-on-surface-variant"
+                                        }`}
+                                        data-testid={`user-balance-value-${u.uid}`}
+                                      >
+                                        ⚡ {bal.toLocaleString("en-AU")} Tokens
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                                      {!isSuper ? (
+                                        <span className="text-[10px] text-outline">Super Admin Only</span>
+                                      ) : !isActiveRow ? (
+                                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setErrorMsg(null);
+                                              setUserRowAction({
+                                                uid: u.uid,
+                                                email: u.email,
+                                                mode: "ADD",
+                                                amountInput: "100",
+                                                confirmOpen: true,
+                                              });
+                                            }}
+                                            data-agent-id={`user-bal-add-btn-${u.uid}`}
+                                            data-testid={`user-bal-add-btn-${u.uid}`}
+                                            aria-label={`Add tokens to ${u.email}`}
+                                            className="inline-flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 font-mono text-[10px] font-semibold text-primary hover:bg-primary/20 transition"
+                                          >
+                                            <Icon name="plus" className="size-3" />
+                                            <span>Add Tokens</span>
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            disabled={bal <= 0}
+                                            onClick={() => {
+                                              setErrorMsg(null);
+                                              setUserRowAction({
+                                                uid: u.uid,
+                                                email: u.email,
+                                                mode: "MINUS",
+                                                amountInput: String(Math.min(10, Math.max(1, bal))),
+                                                confirmOpen: true,
+                                              });
+                                            }}
+                                            data-agent-id={`user-bal-minus-btn-${u.uid}`}
+                                            data-testid={`user-bal-minus-btn-${u.uid}`}
+                                            aria-label={`Minus tokens from ${u.email}`}
+                                            className="inline-flex items-center gap-1 rounded-lg border border-warning/40 bg-warning/10 px-2.5 py-1 font-mono text-[10px] font-semibold text-warning hover:bg-warning/20 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                                          >
+                                            <span>- Minus Tokens</span>
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            disabled={bal <= 0}
+                                            onClick={() => {
+                                              setErrorMsg(null);
+                                              setUserRowAction({
+                                                uid: u.uid,
+                                                email: u.email,
+                                                mode: "RESET",
+                                                amountInput: "0",
+                                                confirmOpen: true,
+                                              });
+                                            }}
+                                            data-agent-id={`user-bal-reset-btn-${u.uid}`}
+                                            data-testid={`user-bal-reset-btn-${u.uid}`}
+                                            aria-label={`Reset ${u.email} tokens to 0`}
+                                            className="inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 font-mono text-[10px] font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                                          >
+                                            <Icon name="refresh" className="size-2.5" />
+                                            <span>Reset to 0</span>
+                                          </button>
+                                        </div>
+                                      ) : userRowAction.mode === "ADD" ? (
+                                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-2.5 py-1.5">
+                                          <span className="text-[10px] font-bold text-primary">Add:</span>
+                                          {[10, 50, 100].map((p) => (
+                                            <button
+                                              key={p}
+                                              type="button"
+                                              onClick={() =>
+                                                setUserRowAction((prev) =>
+                                                  prev ? { ...prev, amountInput: String(p) } : null
+                                                )
+                                              }
+                                              className="rounded border border-primary/30 bg-surface-container-highest px-1.5 py-0.5 text-[10px] text-primary hover:bg-primary/20"
+                                            >
+                                              +{p}
+                                            </button>
+                                          ))}
+                                          <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            value={userRowAction.amountInput}
+                                            onChange={(e) =>
+                                              setUserRowAction((prev) =>
+                                                prev
+                                                  ? { ...prev, amountInput: e.target.value.replace(/[^0-9]/g, "") }
+                                                  : null
+                                              )
+                                            }
+                                            aria-label={`Tokens to add to ${u.email}`}
+                                            data-agent-id={`user-bal-add-input-${u.uid}`}
+                                            data-testid={`user-bal-add-input-${u.uid}`}
+                                            className="w-16 rounded border border-primary/40 bg-surface-container-highest px-2 py-0.5 text-center font-mono text-[11px] font-bold text-on-surface"
+                                          />
+                                          <button
+                                            type="button"
+                                            disabled={isBusy || (Number(userRowAction.amountInput) || 0) <= 0}
+                                            onClick={handleUserRowConfirmAction}
+                                            data-agent-id={`user-bal-confirm-add-btn-${u.uid}`}
+                                            data-testid={`user-bal-confirm-add-btn-${u.uid}`}
+                                            className="rounded-lg bg-primary px-2.5 py-1 font-mono text-[10px] font-bold text-on-primary hover:bg-primary/90 disabled:opacity-40 transition"
+                                          >
+                                            {isBusy
+                                              ? "Adding..."
+                                              : `Confirm Add (+${Math.round(Number(userRowAction.amountInput) || 0)} ⚡)`}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={isBusy}
+                                            onClick={() => setUserRowAction(null)}
+                                            data-agent-id={`user-bal-cancel-btn-${u.uid}`}
+                                            data-testid={`user-bal-cancel-btn-${u.uid}`}
+                                            className="rounded-lg border border-white/15 bg-surface-container-highest px-2 py-1 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      ) : userRowAction.mode === "MINUS" ? (
+                                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5 rounded-xl border border-warning/40 bg-warning/10 px-2.5 py-1.5">
+                                          <span className="text-[10px] font-bold text-warning">Minus (max {bal}):</span>
+                                          {[5, 10, 25]
+                                            .filter((p) => p <= bal)
+                                            .map((p) => (
+                                              <button
+                                                key={p}
+                                                type="button"
+                                                onClick={() =>
+                                                  setUserRowAction((prev) =>
+                                                    prev ? { ...prev, amountInput: String(p) } : null
+                                                  )
+                                                }
+                                                className="rounded border border-warning/30 bg-surface-container-highest px-1.5 py-0.5 text-[10px] text-warning hover:bg-warning/20"
+                                              >
+                                                -{p}
+                                              </button>
+                                            ))}
+                                          <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            value={userRowAction.amountInput}
+                                            onChange={(e) =>
+                                              setUserRowAction((prev) =>
+                                                prev
+                                                  ? { ...prev, amountInput: e.target.value.replace(/[^0-9]/g, "") }
+                                                  : null
+                                              )
+                                            }
+                                            aria-label={`Tokens to minus from ${u.email}`}
+                                            data-agent-id={`user-bal-minus-input-${u.uid}`}
+                                            data-testid={`user-bal-minus-input-${u.uid}`}
+                                            className="w-16 rounded border border-warning/40 bg-surface-container-highest px-2 py-0.5 text-center font-mono text-[11px] font-bold text-on-surface"
+                                          />
+                                          <button
+                                            type="button"
+                                            disabled={
+                                              isBusy ||
+                                              (Number(userRowAction.amountInput) || 0) <= 0 ||
+                                              (Number(userRowAction.amountInput) || 0) > bal
+                                            }
+                                            onClick={handleUserRowConfirmAction}
+                                            data-agent-id={`user-bal-confirm-minus-btn-${u.uid}`}
+                                            data-testid={`user-bal-confirm-minus-btn-${u.uid}`}
+                                            className="rounded-lg bg-warning px-2.5 py-1 font-mono text-[10px] font-bold text-black hover:bg-warning/90 disabled:opacity-40 transition"
+                                          >
+                                            {isBusy
+                                              ? "Minusing..."
+                                              : `Confirm Minus (-${Math.round(Number(userRowAction.amountInput) || 0)} ⚡)`}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={isBusy}
+                                            onClick={() => setUserRowAction(null)}
+                                            data-agent-id={`user-bal-cancel-btn-${u.uid}`}
+                                            data-testid={`user-bal-cancel-btn-${u.uid}`}
+                                            className="rounded-lg border border-white/15 bg-surface-container-highest px-2 py-1 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5">
+                                          <span className="text-[10px] font-semibold text-rose-200">
+                                            Reset {bal.toLocaleString("en-AU")} ⚡ to 0?
+                                          </span>
+                                          <button
+                                            type="button"
+                                            disabled={isBusy}
+                                            onClick={handleUserRowConfirmAction}
+                                            data-agent-id={`user-bal-confirm-reset-btn-${u.uid}`}
+                                            data-testid={`user-bal-confirm-reset-btn-${u.uid}`}
+                                            className="rounded-lg bg-rose-500 px-2.5 py-1 font-mono text-[10px] font-bold text-white hover:bg-rose-400 disabled:opacity-40 transition"
+                                          >
+                                            {isBusy ? "Resetting..." : "Confirm Reset to 0 ⚡"}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={isBusy}
+                                            onClick={() => setUserRowAction(null)}
+                                            data-agent-id={`user-bal-cancel-btn-${u.uid}`}
+                                            data-testid={`user-bal-cancel-btn-${u.uid}`}
+                                            className="rounded-lg border border-white/15 bg-surface-container-highest px-2 py-1 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}

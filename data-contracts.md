@@ -854,9 +854,13 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 ## 22. Super Admin Exclusive Token Controls (`POST /api/admin/orders`)
 - **Strict Super Admin Authorization (`requireRole: "superadmin"`):** Only `role === "superadmin"` is authorized to execute token ledger mutations via `POST /api/admin/orders`.
 - **Permitted Actions Only:**
-  1. **Add Tokens (`GIFT_TOKENS` / `ADD_TOKENS`)**: Validated via `AdminGiftTokensRequestSchema`.
-  2. **Remove Tokens (`DEDUCT_TOKENS` / `REMOVE_TOKENS`)**: Validated via `AdminDeductTokensRequestSchema` with mandatory confirmation.
-  3. **Refund Tokens (`REFUND_ORDER`)**: Validated via `AdminRefundOrderRequestSchema` with mandatory confirmation to restore deducted tokens to the customer wallet.
+  1. **Add Tokens (`GIFT_TOKENS` / `ADD_TOKENS`)**: Validated via `AdminGiftTokensRequestSchema` (with mandatory confirmation in the All Users Token Balances table).
+  2. **Minus / Remove Tokens (`DEDUCT_TOKENS` / `REMOVE_TOKENS`)**: Validated via `AdminDeductTokensRequestSchema` with mandatory confirmation and hard non-negative enforcement (`tokenBalance >= 0`).
+  3. **Reset Tokens to 0 (`RESET_TOKENS`)**: Validated via `AdminResetTokensRequestSchema` with mandatory confirmation to reset a user's token balance to `0`.
+  4. **Refund Tokens (`REFUND_ORDER`)**: Validated via `AdminRefundOrderRequestSchema` with mandatory confirmation to restore deducted tokens to the customer wallet.
+- **Collapsible Master Order Ledger & All Users Token Balances Directory (`SuperAdminModal.tsx`):**
+  - The **Master Order Ledger (All Transactions, Stripe Purchases & Search Orders)** is collapsible (`data-agent-id="toggle-master-order-ledger-btn"`).
+  - Directly underneath the Master Order Ledger, the **All Users Token Balances** directory (`data-agent-id="all-users-token-balances-section"`) displays every registered user's live non-negative token balance (`tokenBalance >= 0`) with Super Admin row actions: **`Add Tokens` -> `Confirm Add`**, **`- Minus Tokens` -> `Confirm Minus`**, and **`Reset to 0` -> `Confirm Reset to 0`**.
 
 ## 23. Hard Non-Negative Token Balance & Zero-Balance Purchase Requirement Contract (`tokenBalance >= 0`)
 - **Hard Non-Negative Rule (`tokenBalance >= 0`):**

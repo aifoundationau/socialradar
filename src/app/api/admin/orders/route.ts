@@ -5,11 +5,13 @@ import {
   deductTokensFromUser,
   getMasterOrderLedger,
   giftTokensToUser,
+  resetTokensForUser,
 } from "@/lib/admin";
 import {
   AdminDeductTokensRequestSchema,
   AdminGiftTokensRequestSchema,
   AdminRefundOrderRequestSchema,
+  AdminResetTokensRequestSchema,
 } from "@/lib/contracts";
 import { refundTokens } from "@/lib/token-ledger";
 
@@ -26,7 +28,8 @@ export async function GET(req: Request) {
 /**
  * Super Admin ONLY token ledger actions:
  * - ADD_TOKENS / GIFT_TOKENS: Add tokens to a customer wallet
- * - REMOVE_TOKENS / DEDUCT_TOKENS: Remove tokens from a customer wallet
+ * - REMOVE_TOKENS / DEDUCT_TOKENS: Remove (minus) tokens from a customer wallet
+ * - RESET_TOKENS: Reset a customer wallet token balance to 0
  * - REFUND_ORDER: Refund tokens on a deduction order back to the customer wallet
  */
 export async function POST(req: Request) {
@@ -101,11 +104,31 @@ export async function POST(req: Request) {
       });
     }
 
+    if (action === "RESET_TOKENS") {
+      const parsed = AdminResetTokensRequestSchema.parse({
+        recipientEmail: body.recipientEmail || body.targetEmail,
+        note: body.note ? String(body.note) : undefined,
+      });
+      const resetResult = await resetTokensForUser({
+        recipientEmail: parsed.recipientEmail,
+        note: parsed.note,
+        resetByEmail: caller.email,
+      });
+      const orders = await getMasterOrderLedger(150);
+      return NextResponse.json({
+        success: true,
+        clearedTokens: resetResult.clearedTokens,
+        balanceAfter: resetResult.balanceAfter,
+        resetResult,
+        orders,
+      });
+    }
+
     return NextResponse.json(
       {
         error: {
           code: "INVALID_INPUT",
-          message: "Super Admin can only add tokens, remove tokens, or refund tokens.",
+          message: "Super Admin can only add tokens, minus tokens, reset tokens to 0, or refund tokens.",
         },
       },
       { status: 400 }
