@@ -515,6 +515,16 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         setAdAgentLedger(data.ledger);
         if (!selectedRegisteredAgentKey && data.ledger.length > 0) {
           selectAndAutofillAdAgent(data.ledger[0].agentId, data.ledger);
+        } else if (selectedRegisteredAgentKey && selectedRegisteredAgentKey !== "__NEW__") {
+          const matchedInLedger = data.ledger.find(
+            (a) =>
+              a.agentId === selectedRegisteredAgentKey ||
+              a.email.toLowerCase() === selectedRegisteredAgentKey.toLowerCase() ||
+              (newAdAgent.email && a.email.toLowerCase() === newAdAgent.email.trim().toLowerCase())
+          );
+          if (matchedInLedger && selectedRegisteredAgentKey.includes("@")) {
+            selectAndAutofillAdAgent(matchedInLedger.agentId, data.ledger);
+          }
         }
       }
     } catch {
@@ -1307,6 +1317,52 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, onClose]);
+
+  // Live synchronization when an Ad Agent adds/updates their details in Ad Agent Registration & Customize Orders Panel
+  useEffect(() => {
+    function handleAdAgentLedgerUpdated(e: Event) {
+      const custom = e as CustomEvent<{
+        agent?: { agentId?: string; email?: string };
+        ledger?: AdAgentDistributionItem[];
+      }>;
+      if (Array.isArray(custom.detail?.ledger)) {
+        const nextLedger = custom.detail.ledger;
+        setAdAgentLedger(nextLedger);
+        const savedEmail = custom.detail?.agent?.email?.toLowerCase();
+        const savedId = custom.detail?.agent?.agentId;
+        if (savedId || savedEmail) {
+          const matched = nextLedger.find(
+            (a) => a.agentId === savedId || (savedEmail && a.email.toLowerCase() === savedEmail)
+          );
+          if (matched) {
+            selectAndAutofillAdAgent(matched.agentId, nextLedger);
+          }
+        }
+      }
+      reloadAdAgents();
+      reloadRbac();
+    }
+
+    window.addEventListener("ad-agent-ledger-updated", handleAdAgentLedgerUpdated);
+    return () => {
+      window.removeEventListener("ad-agent-ledger-updated", handleAdAgentLedgerUpdated);
+    };
+  }, []);
+
+  // Automatically refresh Ad Agent Distribution Ledger when viewing LEDGER tab or refocusing window
+  useEffect(() => {
+    if (!isOpen || tab !== "LEDGER") return;
+    reloadAdAgents();
+    const intervalId = setInterval(() => {
+      reloadAdAgents();
+    }, 6000);
+    const handleFocus = () => reloadAdAgents();
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [isOpen, tab]);
 
   async function saveConfig(patch: Partial<AdminConfigData>) {
     if (!config) return;
@@ -3060,11 +3116,17 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             a.agentId === selectedRegisteredAgentKey ||
                             (newAdAgent.email && a.email.toLowerCase() === newAdAgent.email.trim().toLowerCase())
                         );
-                        const unlinkedRbacAgents = rbacUsers.filter(
-                          (u) =>
-                            (u.role === "ad_agent" || u.role === "admin" || u.role === "superadmin") &&
+                        const unlinkedRbacAgents = rbacUsers.filter((u) => {
+                          const roles = getUserRolesList(u);
+                          const hasAgentRole =
+                            roles.includes("ad_agent") ||
+                            roles.includes("admin") ||
+                            roles.includes("superadmin");
+                          return (
+                            hasAgentRole &&
                             !liveAdAgentLedger.some((a) => a.email.toLowerCase() === u.email.toLowerCase())
-                        );
+                          );
+                        });
                         const compactInput =
                           "w-full rounded-md border border-white/10 bg-surface-container-lowest px-2 py-1 text-[11px] text-on-surface placeholder:text-outline focus:border-primary focus:outline-none";
                         const compactLabel =

@@ -22,7 +22,7 @@ import type {
   CustomizeRequestDoc,
 } from "@/lib/contracts";
 
-const emptySubscribe = () => () => {};
+const emptySubscribe = () => () => { };
 function useIsClient() {
   return useSyncExternalStore(
     emptySubscribe,
@@ -39,19 +39,19 @@ export const QUICK_GEO_PRESETS: Array<{
   latitude: number;
   longitude: number;
 }> = [
-  { label: "Sydney, NSW (AU)", suburb: "Sydney", state: "NSW", country: "AU", latitude: -33.8688, longitude: 151.2093 },
-  { label: "Melbourne, VIC (AU)", suburb: "Melbourne", state: "VIC", country: "AU", latitude: -37.8136, longitude: 144.9631 },
-  { label: "Brisbane, QLD (AU)", suburb: "Brisbane", state: "QLD", country: "AU", latitude: -27.4705, longitude: 153.026 },
-  { label: "Perth, WA (AU)", suburb: "Perth", state: "WA", country: "AU", latitude: -31.9505, longitude: 115.8605 },
-  { label: "Adelaide, SA (AU)", suburb: "Adelaide", state: "SA", country: "AU", latitude: -34.9285, longitude: 138.6007 },
-  { label: "Gold Coast, QLD (AU)", suburb: "Gold Coast", state: "QLD", country: "AU", latitude: -28.0167, longitude: 153.4 },
-  { label: "Canberra, ACT (AU)", suburb: "Canberra", state: "ACT", country: "AU", latitude: -35.2809, longitude: 149.13 },
-  { label: "Auckland (NZ)", suburb: "Auckland", state: "AUK", country: "NZ", latitude: -36.8485, longitude: 174.7633 },
-  { label: "Singapore (SG)", suburb: "Singapore", state: "SG", country: "SG", latitude: 1.3521, longitude: 103.8198 },
-  { label: "London (GB)", suburb: "London", state: "ENG", country: "GB", latitude: 51.5072, longitude: -0.1276 },
-  { label: "Los Angeles, CA (US)", suburb: "Los Angeles", state: "CA", country: "US", latitude: 34.0522, longitude: -118.2437 },
-  { label: "New York, NY (US)", suburb: "New York", state: "NY", country: "US", latitude: 40.7128, longitude: -74.006 },
-];
+    { label: "Sydney, NSW (AU)", suburb: "Sydney", state: "NSW", country: "AU", latitude: -33.8688, longitude: 151.2093 },
+    { label: "Melbourne, VIC (AU)", suburb: "Melbourne", state: "VIC", country: "AU", latitude: -37.8136, longitude: 144.9631 },
+    { label: "Brisbane, QLD (AU)", suburb: "Brisbane", state: "QLD", country: "AU", latitude: -27.4705, longitude: 153.026 },
+    { label: "Perth, WA (AU)", suburb: "Perth", state: "WA", country: "AU", latitude: -31.9505, longitude: 115.8605 },
+    { label: "Adelaide, SA (AU)", suburb: "Adelaide", state: "SA", country: "AU", latitude: -34.9285, longitude: 138.6007 },
+    { label: "Gold Coast, QLD (AU)", suburb: "Gold Coast", state: "QLD", country: "AU", latitude: -28.0167, longitude: 153.4 },
+    { label: "Canberra, ACT (AU)", suburb: "Canberra", state: "ACT", country: "AU", latitude: -35.2809, longitude: 149.13 },
+    { label: "Auckland (NZ)", suburb: "Auckland", state: "AUK", country: "NZ", latitude: -36.8485, longitude: 174.7633 },
+    { label: "Singapore (SG)", suburb: "Singapore", state: "SG", country: "SG", latitude: 1.3521, longitude: 103.8198 },
+    { label: "London (GB)", suburb: "London", state: "ENG", country: "GB", latitude: 51.5072, longitude: -0.1276 },
+    { label: "Los Angeles, CA (US)", suburb: "Los Angeles", state: "CA", country: "US", latitude: 34.0522, longitude: -118.2437 },
+    { label: "New York, NY (US)", suburb: "New York", state: "NY", country: "US", latitude: 40.7128, longitude: -74.006 },
+  ];
 
 export interface AdAgentModalProps {
   isOpen: boolean;
@@ -397,11 +397,10 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
               onClick={() => setTab("REGISTRATION")}
               data-agent-id="ad-agent-tab-registration"
               data-testid="ad-agent-tab-registration"
-              className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 font-mono text-xs font-semibold transition ${
-                tab === "REGISTRATION"
+              className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 font-mono text-xs font-semibold transition ${tab === "REGISTRATION"
                   ? "border-primary/50 bg-primary/15 text-primary shadow-sm"
                   : "border-white/[0.06] bg-surface-container-high/60 text-on-surface-variant hover:text-on-surface"
-              }`}
+                }`}
             >
               <Icon name="user" className="size-3.5" />
               <span>Ad Agent Registration &amp; Geolocation</span>
@@ -411,11 +410,10 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
               onClick={() => setTab("ORDERS")}
               data-agent-id="ad-agent-tab-orders"
               data-testid="ad-agent-tab-orders"
-              className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 font-mono text-xs font-semibold transition ${
-                tab === "ORDERS"
+              className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 font-mono text-xs font-semibold transition ${tab === "ORDERS"
                   ? "border-primary/50 bg-primary/15 text-primary shadow-sm"
                   : "border-white/[0.06] bg-surface-container-high/60 text-on-surface-variant hover:text-on-surface"
-              }`}
+                }`}
             >
               <Icon name="sparkles" className="size-3.5" />
               <span>Assigned Customize Orders ({assignedRequests.length})</span>
@@ -439,11 +437,10 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                 aria-pressed={agentStatus === "active"}
                 data-agent-id="ad-agent-status-on-btn"
                 data-testid="ad-agent-status-on-btn"
-                className={`rounded-md px-2.5 py-0.5 font-bold transition ${
-                  agentStatus === "active"
+                className={`rounded-md px-2.5 py-0.5 font-bold transition ${agentStatus === "active"
                     ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 shadow-sm"
                     : "text-on-surface-variant hover:text-on-surface"
-                } disabled:opacity-50`}
+                  } disabled:opacity-50`}
               >
                 ● ON
               </button>
@@ -454,11 +451,10 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                 aria-pressed={agentStatus === "inactive"}
                 data-agent-id="ad-agent-status-off-btn"
                 data-testid="ad-agent-status-off-btn"
-                className={`rounded-md px-2.5 py-0.5 font-bold transition ${
-                  agentStatus === "inactive"
+                className={`rounded-md px-2.5 py-0.5 font-bold transition ${agentStatus === "inactive"
                     ? "bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm"
                     : "text-on-surface-variant hover:text-on-surface"
-                } disabled:opacity-50`}
+                  } disabled:opacity-50`}
               >
                 ○ OFF
               </button>
@@ -475,11 +471,10 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
             <div className="space-y-5">
               {/* Role & Status Banner */}
               <div
-                className={`${card} p-4 border space-y-2.5 ${
-                  agentStatus === "active"
+                className={`${card} p-4 border space-y-2.5 ${agentStatus === "active"
                     ? "border-primary/30 bg-primary/[0.04]"
                     : "border-amber-500/30 bg-amber-500/[0.04]"
-                }`}
+                  }`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -496,11 +491,10 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                             : "Register as an AdRadarHQ Ad Agent"}
                     </span>
                     <span
-                      className={`rounded-full px-2.5 py-0.5 font-mono text-[11px] font-semibold border ${
-                        agentStatus === "active"
+                      className={`rounded-full px-2.5 py-0.5 font-mono text-[11px] font-semibold border ${agentStatus === "active"
                           ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
                           : "bg-amber-500/15 border-amber-500/30 text-amber-300"
-                      }`}
+                        }`}
                     >
                       {agentStatus === "active"
                         ? `ON (Active) · ${myAgentProfile?.redistributionPercentage ?? 30}% Redistribution Rate`
@@ -521,11 +515,10 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                         ? "Turn Ad Agent status OFF"
                         : "Turn Ad Agent status ON"
                     }
-                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 font-mono text-xs font-bold transition ${
-                      agentStatus === "active"
+                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 font-mono text-xs font-bold transition ${agentStatus === "active"
                         ? "border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
                         : "border-emerald-500/40 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
-                    } disabled:opacity-50`}
+                      } disabled:opacity-50`}
                   >
                     <Icon name="refresh" className={`size-3.5 ${togglingStatus ? "animate-spin" : ""}`} />
                     <span>
@@ -808,11 +801,10 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                                 ⚡ {reqDoc.tokensCharged} Tokens
                               </span>
                               <span
-                                className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
-                                  reqDoc.status === "completed"
+                                className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${reqDoc.status === "completed"
                                     ? "bg-emerald-500/20 text-emerald-300"
                                     : "bg-amber-500/20 text-amber-300"
-                                }`}
+                                  }`}
                               >
                                 {reqDoc.status}
                               </span>
