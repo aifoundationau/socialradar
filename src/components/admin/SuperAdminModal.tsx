@@ -1925,7 +1925,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       aria-labelledby="superadmin-title"
       data-testid="superadmin-modal"
       data-agent-id="superadmin-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center p-1.5 sm:p-6"
     >
       {/* Backdrop */}
       <div
@@ -1935,25 +1935,25 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       />
 
       {/* Main Container */}
-      <div className="relative z-10 flex w-full max-w-4xl lg:max-w-6xl xl:max-w-7xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[92vh] flex-col rounded-2xl border border-white/[0.14] bg-surface-container-high shadow-2xl overflow-hidden my-auto transition-all duration-200">
+      <div className="relative z-10 flex w-full max-w-4xl lg:max-w-6xl xl:max-w-7xl max-h-[calc(100dvh-0.75rem)] sm:max-h-[92vh] flex-col rounded-2xl border border-white/[0.14] bg-surface-container-high shadow-2xl overflow-hidden my-auto transition-all duration-200">
         {/* Header */}
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-white/[0.08] px-6">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
+        <div className="flex min-h-14 sm:h-16 shrink-0 items-center justify-between gap-2 border-b border-white/[0.08] px-3 sm:px-6 py-2 sm:py-0">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-primary">
               <Icon name="sparkles" className="size-4" />
             </span>
-            <div>
-              <h2 id="superadmin-title" className="text-title-sm font-bold text-on-surface">
+            <div className="min-w-0">
+              <h2 id="superadmin-title" className="text-title-sm font-bold text-on-surface truncate">
                 {isSuper ? "Super Admin Panel" : "Main Admin Panel"}
               </h2>
-              <p className="text-[11px] text-on-surface-variant font-mono">
+              <p className="text-[10px] sm:text-[11px] text-on-surface-variant font-mono truncate">
                 {isSuper
                   ? "AdRadarHQ System Configuration, Redistributive Ledger, All Users & 7-Year Archive"
                   : "AdRadarHQ System Configuration, All Users (RBAC), User Messages & FAQ Development"}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {isSuperAdmin && (
               <div className="hidden sm:flex items-center gap-1 rounded-xl bg-surface-container p-1 border border-white/[0.08] font-mono text-[10px]">
                 <button
@@ -2065,7 +2065,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         </nav>
 
         {/* Body Content */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-2.5 sm:p-6 space-y-4 sm:space-y-6">
           {errorMsg && <p className={alertError}>{errorMsg}</p>}
           {statusMsg && <p className={alertInfo}>{statusMsg}</p>}
 
@@ -2765,11 +2765,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
               {/* TAB 4: TOKEN CONTROLS & LEDGER (Super Admin & Main Admin) */}
               {tab === "LEDGER" && (
-                <div className="space-y-4 lg:space-y-3.5">
+                <div className="space-y-4 lg:space-y-3.5 min-w-0 max-w-full">
                   {/* Top Bar: Title & Action Buttons */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                    <div>
-                      <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 min-w-0">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-title-sm font-semibold text-on-surface">Redistributive Equity Ledger</h3>
                         <span className="rounded-full bg-secondary/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-secondary">
                           Live Statutory Splits
@@ -2779,12 +2779,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         Calculates equity partner ownership from total Stripe token revenue and purchased tokens.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:items-center gap-2 shrink-0 sm:flex-wrap w-full sm:w-auto">
                       <button
                         type="button"
                         onClick={() => setConfirmResetLedgerOpen(true)}
                         disabled={saving || ((ledger?.totalTokens ?? 0) === 0 && (ledger?.totalPurchasesCount ?? 0) === 0)}
-                        className={`${btnDanger} text-xs py-1.5 px-3 flex items-center gap-1.5`}
+                        className={`${btnDanger} text-xs py-1.5 px-3 flex items-center justify-center gap-1.5 w-full sm:w-auto`}
                         title="Refresh redistributive ledger to zero (requires confirmation)"
                         data-agent-id="reset-ledger-button"
                         data-testid="reset-ledger-button"
@@ -2797,7 +2797,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         type="button"
                         onClick={handleSimulatePurchase}
                         disabled={saving}
-                        className={btnSecondary}
+                        className={`${btnSecondary} justify-center w-full sm:w-auto`}
                         title="Simulate a test token purchase (+500 ⚡, $79.00 AUD)"
                         data-testid="simulate-purchase-button"
                       >
@@ -2807,7 +2807,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       <button
                         type="button"
                         onClick={() => setShowAddPartner(!showAddPartner)}
-                        className={btnPrimary}
+                        className={`${btnPrimary} justify-center w-full xs:col-span-2 sm:w-auto`}
                         data-testid="toggle-add-partner-button"
                       >
                         <Icon name="plus" className="size-4" />
@@ -2973,12 +2973,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                   )}
 
                   {/* Dual-Pane Grid on Desktop / Stacks on Mobile & Tablet */}
-                  <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-12 lg:items-start">
+                  <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-12 lg:items-start min-w-0">
                     {/* LEFT PANE (7 COLS): Owner Redistribution Breakdown */}
-                    <div className="space-y-2 lg:col-span-7">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-compact font-semibold text-on-surface">Owner Redistribution Breakdown</h4>
-                        <span className="font-mono text-[11px] text-on-surface-variant">
+                    <div className="space-y-2 min-w-0 lg:col-span-7">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-compact font-semibold text-on-surface truncate">Owner Redistribution Breakdown</h4>
+                        <span className="font-mono text-[11px] text-on-surface-variant shrink-0">
                           {config.equityPartners?.length ?? 0} Partner(s)
                         </span>
                       </div>
@@ -2992,8 +2992,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         </div>
                       ) : (
                         <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-surface-container-low max-h-[360px] overflow-y-auto">
-                          <table className="w-full text-left text-[12px]">
-                            <thead className="border-b border-white/[0.08] bg-surface-container-high/60 font-mono text-mono-label text-on-surface-variant sticky top-0 z-10 backdrop-blur-sm">
+                          <table className="w-full block md:table text-left text-[12px]">
+                            <thead className="hidden md:table-header-group border-b border-white/[0.08] bg-surface-container-high/60 font-mono text-mono-label text-on-surface-variant sticky top-0 z-10 backdrop-blur-sm">
                               <tr>
                                 <th className="px-3 py-2">Owner / Email</th>
                                 <th className="px-2.5 py-2">Equity %</th>
@@ -3004,38 +3004,48 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 <th className="px-3 py-2 text-right">Actions</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-white/[0.04]">
+                            <tbody className="block md:table-row-group divide-y divide-white/[0.08] md:divide-white/[0.04]">
                               {ledger?.distributions.map((dist) => {
                                 const partner = config.equityPartners.find((p) => p.partnerId === dist.partnerId);
                                 if (!partner) return null;
                                 return (
-                                  <tr key={dist.partnerId} className="hover:bg-white/[0.02] transition">
-                                    <td className="px-3 py-2">
-                                      <div className="font-semibold text-on-surface font-mono text-[11px] truncate max-w-[140px] sm:max-w-[180px]" title={dist.email}>
-                                        {dist.email}
-                                      </div>
-                                      {dist.name && dist.name !== dist.email && (
-                                        <div className="text-[10px] text-on-surface-variant truncate max-w-[140px]">{dist.name}</div>
-                                      )}
-                                    </td>
-                                    <td className="px-2.5 py-2 font-mono font-bold text-secondary text-[11px]">
-                                      {dist.percentage}%
-                                    </td>
-                                    <td className="px-2.5 py-2 font-mono text-primary font-semibold text-[11px] whitespace-nowrap">
-                                      <div>⚡ {dist.ownedTokens.toLocaleString("en-AU")}</div>
-                                      {partner.lastResetAt && (
-                                        <div className="text-[9px] font-mono text-secondary">
-                                          {dist.ownedTokens === 0 ? "Refreshed to 0" : `Reset ${new Date(partner.lastResetAt).toLocaleDateString("en-AU")}`}
+                                  <tr key={dist.partnerId} className="block md:table-row p-3 md:p-0 space-y-1.5 md:space-y-0 hover:bg-white/[0.02] transition">
+                                    <td className="flex items-center justify-between gap-2 md:table-cell md:px-3 md:py-2">
+                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Owner</span>
+                                      <div className="min-w-0 text-right md:text-left">
+                                        <div className="font-semibold text-on-surface font-mono text-[11px] truncate max-w-[200px] sm:max-w-[180px]" title={dist.email}>
+                                          {dist.email}
                                         </div>
-                                      )}
+                                        {dist.name && dist.name !== dist.email && (
+                                          <div className="text-[10px] text-on-surface-variant truncate max-w-[180px]">{dist.name}</div>
+                                        )}
+                                      </div>
                                     </td>
-                                    <td className="px-2.5 py-2 font-mono font-semibold text-on-surface text-[11px] whitespace-nowrap">
-                                      {formatAud(dist.ownedAudCents ?? dist.ownedCents)}
+                                    <td className="flex items-center justify-between gap-2 md:table-cell md:px-2.5 md:py-2 font-mono font-bold text-secondary text-[11px]">
+                                      <span className="md:hidden font-mono text-[10px] font-normal uppercase tracking-wider text-on-surface-variant">Equity %</span>
+                                      <span>{dist.percentage}%</span>
                                     </td>
-                                    <td className="px-2.5 py-2 font-mono font-semibold text-on-surface-variant text-[10px] whitespace-nowrap">
-                                      {formatUsd(dist.ownedUsdCents ?? Math.round(dist.ownedCents * 0.65))}
+                                    <td className="flex items-center justify-between gap-2 md:table-cell md:px-2.5 md:py-2 font-mono text-primary font-semibold text-[11px] whitespace-nowrap">
+                                      <span className="md:hidden font-mono text-[10px] font-normal uppercase tracking-wider text-on-surface-variant">Tokens</span>
+                                      <div className="text-right md:text-left">
+                                        <div>⚡ {dist.ownedTokens.toLocaleString("en-AU")}</div>
+                                        {partner.lastResetAt && (
+                                          <div className="text-[9px] font-mono text-secondary">
+                                            {dist.ownedTokens === 0 ? "Refreshed to 0" : `Reset ${new Date(partner.lastResetAt).toLocaleDateString("en-AU")}`}
+                                          </div>
+                                        )}
+                                      </div>
                                     </td>
-                                    <td className="px-2 py-2">
+                                    <td className="flex items-center justify-between gap-2 md:table-cell md:px-2.5 md:py-2 font-mono font-semibold text-on-surface text-[11px] whitespace-nowrap">
+                                      <span className="md:hidden font-mono text-[10px] font-normal uppercase tracking-wider text-on-surface-variant">AUD</span>
+                                      <span>{formatAud(dist.ownedAudCents ?? dist.ownedCents)}</span>
+                                    </td>
+                                    <td className="flex items-center justify-between gap-2 md:table-cell md:px-2.5 md:py-2 font-mono font-semibold text-on-surface-variant text-[10px] whitespace-nowrap">
+                                      <span className="md:hidden font-mono text-[10px] font-normal uppercase tracking-wider text-on-surface-variant">USD</span>
+                                      <span>{formatUsd(dist.ownedUsdCents ?? Math.round(dist.ownedCents * 0.65))}</span>
+                                    </td>
+                                    <td className="flex items-center justify-between gap-2 md:table-cell md:px-2 md:py-2">
+                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Status</span>
                                       <button
                                         type="button"
                                         onClick={() => handleTogglePartnerStatus(partner)}
@@ -3048,8 +3058,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                         {dist.status.toUpperCase()}
                                       </button>
                                     </td>
-                                    <td className="px-3 py-2 text-right whitespace-nowrap">
-                                      <div className="flex items-center justify-end gap-1.5">
+                                    <td className="flex items-center justify-between gap-2 pt-1 md:pt-0 border-t border-white/[0.06] md:border-0 md:table-cell md:px-3 md:py-2 text-right whitespace-nowrap">
+                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Actions</span>
+                                      <div className="flex flex-wrap items-center justify-end gap-1.5">
                                         {/* Refresh to 0 Tokens Button with 2-Step Confirmation */}
                                         {confirmResetPartnerId === dist.partnerId ? (
                                           <div className="flex items-center gap-1 animate-fadeIn">
@@ -3142,10 +3153,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     </div>
 
                     {/* RIGHT PANE (5 COLS): Recent Stripe Purchases */}
-                    <div className="space-y-2 lg:col-span-5">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-compact font-semibold text-on-surface">Recent Stripe Purchases</h4>
-                        <span className="font-mono text-[11px] text-on-surface-variant">
+                    <div className="space-y-2 min-w-0 lg:col-span-5">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-compact font-semibold text-on-surface truncate">Recent Stripe Purchases</h4>
+                        <span className="font-mono text-[11px] text-on-surface-variant shrink-0">
                           {recentPurchases.length} Logged
                         </span>
                       </div>
@@ -3193,13 +3204,13 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
                     {/* FULL-WIDTH DESKTOP / LAPTOP ROW (12 COLS): COMPACT AD AGENT DISTRIBUTION LEDGER (NO SCROLLBAR) */}
                     <div
-                      className="lg:col-span-12 space-y-2.5 rounded-xl border border-tertiary/30 bg-surface-container-low p-3"
+                      className="lg:col-span-12 min-w-0 space-y-2.5 rounded-xl border border-tertiary/30 bg-surface-container-low p-2.5 sm:p-3"
                       data-agent-id="ad-agent-distribution-ledger-section"
                       data-testid="ad-agent-distribution-ledger-section"
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Icon name="sparkles" className="size-3.5 text-tertiary" />
+                      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-2 min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0">
+                          <Icon name="sparkles" className="size-3.5 text-tertiary shrink-0" />
                           <h4 className="text-xs font-semibold text-on-surface">
                             Ad Agent Distribution Ledger
                           </h4>
@@ -3212,7 +3223,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             data-agent-id="ad-agent-ledger-customize-price-badge"
                             data-testid="ad-agent-ledger-customize-price-badge"
                             title="Live price from Service Pricing tab — click to edit Professional Customize Service price"
-                            className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/15 px-2.5 py-0.5 font-mono text-[10px] font-bold text-primary hover:bg-primary/25 transition"
+                            className="inline-flex flex-wrap items-center gap-1 rounded-xl sm:rounded-full border border-primary/40 bg-primary/15 px-2.5 py-1 sm:py-0.5 font-mono text-[10px] font-bold text-primary hover:bg-primary/25 transition text-left max-w-full"
                           >
                             <span>
                               Professional Customize Service: ⚡{" "}
@@ -3231,7 +3242,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             data-agent-id="toggle-add-ad-agent-btn"
                             data-testid="toggle-add-ad-agent-btn"
                             aria-label="Toggle Ad Agent Auto-Fill & Bank/PayID Form"
-                            className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-tertiary/40 bg-tertiary/15 px-2.5 py-1 font-mono text-[10px] font-bold text-tertiary hover:bg-tertiary/25 transition"
+                            className="inline-flex w-full sm:w-auto shrink-0 items-center justify-center gap-1 rounded-lg border border-tertiary/40 bg-tertiary/15 px-2.5 py-1.5 sm:py-1 font-mono text-[10px] font-bold text-tertiary hover:bg-tertiary/25 transition"
                           >
                             <Icon name={showAddAdAgent ? "chevronDown" : "plus"} className="size-3" />
                             <span>
@@ -3559,13 +3570,13 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           <p className="text-xs italic">No Ad Agents in the distribution ledger yet.</p>
                         </div>
                       ) : (
-                        <div className="overflow-visible rounded-xl border border-white/[0.08] bg-surface-container">
+                        <div className="overflow-x-auto lg:overflow-visible rounded-xl border border-white/[0.08] bg-surface-container">
                           <table
-                            className="w-full table-auto text-left text-[11px]"
+                            className="w-full block md:table table-auto text-left text-[11px]"
                             data-agent-id="ad-agent-distribution-ledger-table"
                             data-testid="ad-agent-distribution-ledger-table"
                           >
-                            <thead className="border-b border-white/[0.08] bg-surface-container-high/60 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
+                            <thead className="hidden md:table-header-group border-b border-white/[0.08] bg-surface-container-high/60 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
                               <tr>
                                 <th className="px-2.5 py-1.5">
                                   Ad Agent &amp; Customizations Value
@@ -3580,7 +3591,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 <th className="px-2.5 py-1.5 text-right">Actions</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-white/[0.04]">
+                            <tbody className="block md:table-row-group divide-y divide-white/[0.08] md:divide-white/[0.04]">
                               {liveAdAgentLedger.map((agent) => {
                                 const isSelectedRow = selectedRegisteredAgentKey === agent.agentId;
                                 const effectiveOrdersCount = Math.max(1, Math.round(Number(agent.customizationsCount || 1)));
@@ -3593,14 +3604,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     }}
                                     data-agent-id={`ad-agent-ledger-row-${agent.agentId}`}
                                     data-testid={`ad-agent-ledger-row-${agent.agentId}`}
-                                    className={`cursor-pointer transition ${
+                                    className={`block md:table-row p-3 md:p-0 space-y-2 md:space-y-0 cursor-pointer transition ${
                                       isSelectedRow
                                         ? "bg-tertiary/10 hover:bg-tertiary/15"
                                         : "hover:bg-white/[0.02]"
                                     }`}
                                   >
                                     {/* 1. Name + Total Customizations Value Next to Name + Email & Location */}
-                                    <td className="px-2.5 py-2">
+                                    <td className="block md:table-cell md:px-2.5 md:py-2">
                                       <div className="flex flex-wrap items-center gap-1.5">
                                         <span className="font-semibold text-on-surface text-[11px]">
                                           {agent.name}
@@ -3622,7 +3633,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                           </span>
                                         )}
                                       </div>
-                                      <div className="mt-0.5 font-mono text-[10px] text-on-surface-variant truncate max-w-[260px]">
+                                      <div className="mt-0.5 font-mono text-[10px] text-on-surface-variant break-all sm:truncate sm:max-w-[260px]">
                                         {agent.email}
                                         {agent.phone && agent.phone !== "Not specified" ? ` · ${agent.phone}` : ""} · 📍{" "}
                                         {agent.locationLabel}
@@ -3748,26 +3759,34 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
                                     {/* 3. Total Customizations Value */}
                                     <td
-                                      className="px-2 py-2 font-mono text-[10px]"
+                                      className="flex items-center justify-between gap-2 md:table-cell md:px-2 md:py-2 font-mono text-[10px]"
                                       data-testid={`ad-agent-customizations-total-${agent.agentId}`}
                                     >
-                                      <div className="font-bold text-on-surface">
-                                        ⚡ {agent.totalCustomizationsTokens.toLocaleString("en-AU")} ({agent.customizationsCount})
-                                      </div>
-                                      <div className="text-[9px] text-secondary font-semibold">
-                                        {formatAud(agent.totalCustomizationsAudCents)} ·{" "}
-                                        {formatUsd(agent.totalCustomizationsUsdCents)}
-                                      </div>
-                                      <div className="text-[8px] text-on-surface-variant">
-                                        {effectiveOrdersCount} × ⚡ {customizeServiceUnitTokens} ({formatAud(customizeServiceAudCents)})
+                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
+                                        Customizations Total
+                                      </span>
+                                      <div className="text-right md:text-left">
+                                        <div className="font-bold text-on-surface">
+                                          ⚡ {agent.totalCustomizationsTokens.toLocaleString("en-AU")} ({agent.customizationsCount})
+                                        </div>
+                                        <div className="text-[9px] text-secondary font-semibold">
+                                          {formatAud(agent.totalCustomizationsAudCents)} ·{" "}
+                                          {formatUsd(agent.totalCustomizationsUsdCents)}
+                                        </div>
+                                        <div className="text-[8px] text-on-surface-variant">
+                                          {effectiveOrdersCount} × ⚡ {customizeServiceUnitTokens} ({formatAud(customizeServiceAudCents)})
+                                        </div>
                                       </div>
                                     </td>
 
                                     {/* 4. Redistribution % Dropdown (10%, 20%, 30%, 40%, 50%, 60%, 70%) */}
                                     <td
-                                      className="px-2 py-2"
+                                      className="flex items-center justify-between gap-2 md:table-cell md:px-2 md:py-2"
                                       onClick={(e) => e.stopPropagation()}
                                     >
+                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
+                                        Redist. %
+                                      </span>
                                       {isSuper ? (
                                         <select
                                           value={agent.redistributionPercentage}
@@ -3799,35 +3818,43 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
                                     {/* 5. Redistribution Amount */}
                                     <td
-                                      className="px-2 py-2 font-mono text-[10px]"
+                                      className="flex items-center justify-between gap-2 md:table-cell md:px-2 md:py-2 font-mono text-[10px]"
                                       data-testid={`ad-agent-redist-amount-${agent.agentId}`}
                                     >
-                                      <div className="font-bold text-primary">
-                                        ⚡ {agent.redistributionTokens.toLocaleString("en-AU")}
-                                      </div>
-                                      <div className="font-semibold text-on-surface text-[9px]">
-                                        {formatAud(agent.redistributionAudCents)} ·{" "}
-                                        {formatUsd(agent.redistributionUsdCents)}
-                                      </div>
-                                      {agent.lastResetAt ? (
-                                        <div className="text-[8px] text-secondary">
-                                          {agent.redistributionTokens === 0
-                                            ? "Refreshed to 0"
-                                            : `Reset ${new Date(agent.lastResetAt).toLocaleDateString("en-AU")}`}
+                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
+                                        Redist. Amount
+                                      </span>
+                                      <div className="text-right md:text-left">
+                                        <div className="font-bold text-primary">
+                                          ⚡ {agent.redistributionTokens.toLocaleString("en-AU")}
                                         </div>
-                                      ) : (
-                                        <div className="text-[8px] text-on-surface-variant">
-                                          {agent.redistributionPercentage}% of ⚡{" "}
-                                          {agent.totalCustomizationsTokens.toLocaleString("en-AU")}
+                                        <div className="font-semibold text-on-surface text-[9px]">
+                                          {formatAud(agent.redistributionAudCents)} ·{" "}
+                                          {formatUsd(agent.redistributionUsdCents)}
                                         </div>
-                                      )}
+                                        {agent.lastResetAt ? (
+                                          <div className="text-[8px] text-secondary">
+                                            {agent.redistributionTokens === 0
+                                              ? "Refreshed to 0"
+                                              : `Reset ${new Date(agent.lastResetAt).toLocaleDateString("en-AU")}`}
+                                          </div>
+                                        ) : (
+                                          <div className="text-[8px] text-on-surface-variant">
+                                            {agent.redistributionPercentage}% of ⚡{" "}
+                                            {agent.totalCustomizationsTokens.toLocaleString("en-AU")}
+                                          </div>
+                                        )}
+                                      </div>
                                     </td>
 
                                     {/* 6. Status */}
                                     <td
-                                      className="px-2 py-2"
+                                      className="flex items-center justify-between gap-2 md:table-cell md:px-2 md:py-2"
                                       onClick={(e) => e.stopPropagation()}
                                     >
+                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
+                                        Status
+                                      </span>
                                       <button
                                         type="button"
                                         disabled={!isSuper || adAgentSaving}
@@ -3846,11 +3873,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
                                     {/* 7. Actions (Invoice .txt, Reset 0 ⚡ & Confirm Delete) */}
                                     <td
-                                      className="px-2.5 py-2 text-right whitespace-nowrap"
+                                      className="flex items-center justify-between gap-2 pt-1.5 md:pt-0 border-t border-white/[0.06] md:border-0 md:table-cell md:px-2.5 md:py-2 text-right whitespace-nowrap"
                                       onClick={(e) => e.stopPropagation()}
                                     >
+                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
+                                        Actions
+                                      </span>
                                       {(isSuper || isSuperAdmin) && (
-                                        <div className="flex items-center justify-end gap-1">
+                                        <div className="flex flex-wrap items-center justify-end gap-1">
                                           <button
                                             type="button"
                                             onClick={() => handleDownloadAdAgentInvoice(agent)}
@@ -3963,14 +3993,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
               {/* SUPER ADMIN TOKEN CONTROLS: ADD TOKENS, REMOVE TOKENS & REFUND TOKENS ONLY */}
               {isSuper && (
                 <div
-                  className={`${card} p-4 border border-primary/30 bg-primary/[0.03] space-y-3.5`}
+                  className={`${card} p-3 sm:p-4 border border-primary/30 bg-primary/[0.03] space-y-3.5 min-w-0`}
                   data-agent-id="user-token-management-card"
                   data-testid="user-token-management-card"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                    <div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 min-w-0">
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Icon name="sparkles" className="size-4 text-primary" />
+                        <Icon name="sparkles" className="size-4 text-primary shrink-0" />
                         <h4 className="text-compact font-bold text-on-surface">
                           Super Admin Token Controls (Add Tokens, Remove Tokens &amp; Refund Tokens Only)
                         </h4>
@@ -3984,7 +4014,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     </div>
 
                     {/* Action Mode Toggle: Add Tokens | Remove Tokens | Refund Tokens ONLY */}
-                    <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-surface-container-high/60 p-1 shrink-0">
+                    <div className="grid grid-cols-3 sm:flex items-center gap-1 rounded-xl border border-white/10 bg-surface-container-high/60 p-1 w-full sm:w-auto shrink-0">
                       <button
                         type="button"
                         onClick={() => {
@@ -3995,14 +4025,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         data-agent-id="token-mode-gift-btn"
                         data-testid="token-mode-gift-btn"
                         aria-label="Add Tokens Mode"
-                        className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                        className={`flex items-center justify-center gap-1 rounded-lg px-1.5 sm:px-2.5 py-1.5 sm:py-1 font-mono text-[10px] sm:text-[11px] font-semibold transition ${
                           tokenActionMode === "GIFT"
                             ? "bg-primary text-on-primary shadow-sm"
                             : "text-on-surface-variant hover:text-on-surface"
                         }`}
                       >
-                        <Icon name="plus" className="size-3" />
-                        <span>Add Tokens</span>
+                        <Icon name="plus" className="size-3 shrink-0" />
+                        <span className="truncate">Add Tokens</span>
                       </button>
                       <button
                         type="button"
@@ -4014,14 +4044,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         data-agent-id="token-mode-deduct-btn"
                         data-testid="token-mode-deduct-btn"
                         aria-label="Remove Tokens Mode"
-                        className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                        className={`flex items-center justify-center gap-1 rounded-lg px-1.5 sm:px-2.5 py-1.5 sm:py-1 font-mono text-[10px] sm:text-[11px] font-semibold transition ${
                           tokenActionMode === "DEDUCT"
                             ? "bg-warning text-black shadow-sm font-bold"
                             : "text-on-surface-variant hover:text-on-surface"
                         }`}
                       >
-                        <Icon name="trash" className="size-3" />
-                        <span>Remove Tokens</span>
+                        <Icon name="trash" className="size-3 shrink-0" />
+                        <span className="truncate">Remove Tokens</span>
                       </button>
                       <button
                         type="button"
@@ -4033,14 +4063,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         data-agent-id="token-mode-refund-btn"
                         data-testid="token-mode-refund-btn"
                         aria-label="Refund Tokens Mode"
-                        className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
+                        className={`flex items-center justify-center gap-1 rounded-lg px-1.5 sm:px-2.5 py-1.5 sm:py-1 font-mono text-[10px] sm:text-[11px] font-semibold transition ${
                           tokenActionMode === "REFUND"
                             ? "bg-amber-400 text-black shadow-sm font-bold"
                             : "text-on-surface-variant hover:text-on-surface"
                         }`}
                       >
-                        <Icon name="refresh" className="size-3" />
-                        <span>Refund Tokens</span>
+                        <Icon name="refresh" className="size-3 shrink-0" />
+                        <span className="truncate">Refund Tokens</span>
                       </button>
                     </div>
                   </div>
@@ -4090,7 +4120,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
                   {/* Target User Peek */}
                   {giftEmail && (
-                    <div className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-surface-container-high/50 px-3 py-1.5 font-mono text-xs">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-white/[0.08] bg-surface-container-high/50 px-3 py-1.5 font-mono text-xs break-all">
                       <span className="text-on-surface-variant">Target User:</span>
                       <span className="font-semibold text-on-surface">{giftEmail}</span>
                       <span className="text-white/20">•</span>
@@ -4456,14 +4486,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         </p>
                       </button>
 
-                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto shrink-0">
                         {isMasterLedgerExpanded && (
                           <input
                             type="text"
                             placeholder="Search email, brand, or tx ID..."
                             value={orderSearch}
                             onChange={(e) => setOrderSearch(e.target.value)}
-                            className={`${field} !py-1.5 !text-[12px] w-48 sm:w-56`}
+                            className={`${field} !py-1.5 !text-[12px] w-full sm:w-56`}
                             data-agent-id="master-order-ledger-search"
                             data-testid="master-order-ledger-search"
                           />
@@ -4471,7 +4501,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         <button
                           type="button"
                           onClick={reloadOrders}
-                          className={btnSecondary}
+                          className={`${btnSecondary} flex-1 sm:flex-initial justify-center`}
                           data-agent-id="refresh-order-ledger-button"
                           data-testid="refresh-order-ledger-button"
                         >
@@ -4484,7 +4514,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           aria-expanded={isMasterLedgerExpanded}
                           data-agent-id="toggle-master-order-ledger-btn"
                           data-testid="toggle-master-order-ledger-btn"
-                          className={`${btnSecondary} font-mono text-xs`}
+                          className={`${btnSecondary} font-mono text-xs flex-1 sm:flex-initial justify-center`}
                         >
                           <Icon
                             name="chevronDown"
@@ -4776,7 +4806,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         </p>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto shrink-0">
                         <input
                           type="text"
                           placeholder="Search user email or role..."
@@ -4787,7 +4817,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               setIsUserBalancesExpanded(true);
                             }
                           }}
-                          className={`${field} !py-1.5 !text-[12px] w-48 sm:w-60`}
+                          className={`${field} !py-1.5 !text-[12px] w-full sm:w-60`}
                           data-agent-id="user-token-balances-search"
                           data-testid="user-token-balances-search"
                         />
@@ -4795,7 +4825,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           type="button"
                           onClick={reloadRbac}
                           disabled={rbacLoading}
-                          className={btnSecondary}
+                          className={`${btnSecondary} flex-1 sm:flex-initial justify-center`}
                           data-agent-id="refresh-user-token-balances-btn"
                           data-testid="refresh-user-token-balances-btn"
                         >
@@ -4808,7 +4838,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           aria-expanded={isUserBalancesExpanded}
                           data-agent-id="toggle-user-token-balances-btn"
                           data-testid="toggle-user-token-balances-btn"
-                          className={`${btnSecondary} font-mono text-xs`}
+                          className={`${btnSecondary} font-mono text-xs flex-1 sm:flex-initial justify-center`}
                         >
                           <Icon
                             name="chevronDown"
@@ -4845,8 +4875,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
                       return (
                         <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-surface-container-low max-h-[420px] overflow-y-auto">
-                          <table className="w-full text-left text-[11px]">
-                            <thead className="border-b border-white/[0.08] bg-surface-container-high/80 font-mono text-mono-label text-on-surface-variant sticky top-0 z-10 backdrop-blur-sm">
+                          <table className="w-full block md:table text-left text-[11px]">
+                            <thead className="hidden md:table-header-group border-b border-white/[0.08] bg-surface-container-high/80 font-mono text-mono-label text-on-surface-variant sticky top-0 z-10 backdrop-blur-sm">
                               <tr>
                                 <th className="px-3 py-2">User / Email</th>
                                 <th className="px-2.5 py-2">Role</th>
@@ -4858,25 +4888,29 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 </th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-white/[0.04] font-mono">
+                            <tbody className="block md:table-row-group divide-y divide-white/[0.08] md:divide-white/[0.04] font-mono">
                               {registeredUsers.map((u) => {
                                 const bal = Math.max(0, Math.round(Number(u.tokenBalance ?? 0)));
                                 const isActiveRow = userRowAction?.uid === u.uid;
                                 const isBusy = userRowBusyUid === u.uid;
 
                                 return (
-                                  <tr key={u.uid} className="hover:bg-white/[0.02] transition">
-                                    <td className="px-3 py-2.5">
-                                      <div className="font-semibold text-on-surface truncate max-w-[220px]" title={u.email}>
-                                        {u.email}
-                                      </div>
-                                      {u.displayName && u.displayName !== u.email && (
-                                        <div className="text-[10px] font-sans text-on-surface-variant truncate max-w-[220px]">
-                                          {u.displayName}
+                                  <tr key={u.uid} className="block md:table-row p-3 md:p-0 space-y-2 md:space-y-0 hover:bg-white/[0.02] transition">
+                                    <td className="flex items-center justify-between gap-2 md:table-cell md:px-3 md:py-2.5">
+                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">User</span>
+                                      <div className="min-w-0 text-right md:text-left">
+                                        <div className="font-semibold text-on-surface truncate max-w-[210px] sm:max-w-[220px]" title={u.email}>
+                                          {u.email}
                                         </div>
-                                      )}
+                                        {u.displayName && u.displayName !== u.email && (
+                                          <div className="text-[10px] font-sans text-on-surface-variant truncate max-w-[210px]">
+                                            {u.displayName}
+                                          </div>
+                                        )}
+                                      </div>
                                     </td>
-                                    <td className="px-2.5 py-2.5 whitespace-nowrap">
+                                    <td className="flex items-center justify-between gap-2 md:table-cell md:px-2.5 md:py-2.5 whitespace-nowrap">
+                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Role</span>
                                       <span
                                         className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
                                           u.role === "superadmin"
@@ -4889,7 +4923,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                         {u.role}
                                       </span>
                                     </td>
-                                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                                    <td className="flex items-center justify-between gap-2 md:table-cell md:px-3 md:py-2.5 text-right whitespace-nowrap">
+                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Balance</span>
                                       <span
                                         className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-extrabold ${
                                           bal > 0
@@ -4901,7 +4936,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                         ⚡ {bal.toLocaleString("en-AU")} Tokens
                                       </span>
                                     </td>
-                                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                                    <td className="block md:table-cell pt-1 md:pt-0 border-t border-white/[0.06] md:border-0 md:px-3 md:py-2.5 text-right whitespace-nowrap">
                                       {!isSuper ? (
                                         <span className="text-[10px] text-outline">Super Admin Only</span>
                                       ) : !isActiveRow ? (

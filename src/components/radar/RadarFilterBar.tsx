@@ -78,9 +78,9 @@ function BrandSelectPill({
   onChange: (brandId: string) => void;
 }) {
   return (
-    <div className="flex shrink-0 items-center">
+    <div className="flex w-full min-w-0 shrink-0 items-center lg:w-auto">
       <label htmlFor="radar-brand-select" className="sr-only">Target Brand</label>
-      <div className="relative flex items-center">
+      <div className="relative flex w-full min-w-0 items-center">
         <Icon name="tag" className="pointer-events-none absolute left-2.5 size-3.5 text-primary" />
         <select
           id="radar-brand-select"
@@ -88,7 +88,7 @@ function BrandSelectPill({
           data-agent-id="radar-brand-select"
           value={selectedBrandId}
           onChange={(e) => onChange(e.target.value)}
-          className="h-10 appearance-none rounded-lg border border-white/[0.12] bg-surface-container pr-7 pl-8 font-mono text-base font-medium text-on-surface transition hover:border-primary-container focus:border-primary-container focus:outline-none sm:h-9 sm:text-mono-code"
+          className="h-10 w-full min-w-0 truncate appearance-none rounded-lg border border-white/[0.12] bg-surface-container pr-7 pl-8 font-mono text-base font-medium text-on-surface transition hover:border-primary-container focus:border-primary-container focus:outline-none sm:h-9 sm:text-mono-code lg:w-auto lg:max-w-[16rem]"
         >
           {brands && brands.length > 0 ? (
             brands.map((b) => (
@@ -161,16 +161,16 @@ export function RadarFilterBar({
         data-testid="radar-search-form"
         className="mx-auto flex w-full max-w-[1600px] flex-col gap-3 px-3 py-3 sm:px-6"
       >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="flex flex-col gap-3 min-w-0 lg:flex-row lg:items-center">
           {/* Brand selector */}
-          <div className="flex shrink-0 items-center lg:order-1">
+          <div className="flex min-w-0 shrink-0 items-center lg:order-1">
             <BrandSelectPill
               brands={brands}
               selectedBrandId={filters.brandId || ""}
               onChange={(brandId) => onChange({ brandId })}
             />
           </div>
-          <div className="flex gap-2 lg:order-2 lg:max-w-2xl lg:flex-1">
+          <div className="flex flex-wrap sm:flex-nowrap gap-2 min-w-0 lg:order-2 lg:max-w-2xl lg:flex-1">
             <div className="group relative min-w-0 flex-1">
               <Icon name="search" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-on-surface-variant" />
               <input
@@ -345,7 +345,7 @@ export function RadarFilterBar({
                 role="tooltip"
                 data-agent-id="radar-proven-winners-tooltip"
                 data-testid="radar-proven-winners-tooltip"
-                className="pointer-events-none invisible absolute top-full left-0 z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-winner/30 bg-surface-container-highest/95 p-3 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100 lg:left-1/2 lg:-translate-x-1/2"
+                className="pointer-events-none hidden sm:block invisible absolute top-full left-0 z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-winner/30 bg-surface-container-highest/95 p-3 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100 lg:left-1/2 lg:-translate-x-1/2"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-[11px] font-bold text-winner">
@@ -392,7 +392,7 @@ export function RadarFilterBar({
                 role="tooltip"
                 data-agent-id="radar-extended-days-tooltip"
                 data-testid="radar-extended-days-tooltip"
-                className="pointer-events-none invisible absolute top-full right-0 z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-secondary/30 bg-surface-container-highest/95 p-3 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 lg:right-0 lg:left-auto lg:translate-x-0"
+                className="pointer-events-none hidden sm:block invisible absolute top-full right-0 z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-secondary/30 bg-surface-container-highest/95 p-3 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 lg:right-0 lg:left-auto lg:translate-x-0"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-[11px] font-bold text-secondary">
@@ -439,7 +439,7 @@ export function RadarFilterBar({
                 role="tooltip"
                 data-agent-id="radar-elite-score-tooltip"
                 data-testid="radar-elite-score-tooltip"
-                className="pointer-events-none invisible absolute top-full left-0 z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-hot/30 bg-surface-container-highest/95 p-3 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100 sm:right-0 sm:left-auto"
+                className="pointer-events-none hidden sm:block invisible absolute top-full left-0 z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-hot/30 bg-surface-container-highest/95 p-3 text-left text-xs text-on-surface opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:visible group-hover:opacity-100 sm:right-0 sm:left-auto"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-[11px] font-bold text-hot">

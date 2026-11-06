@@ -78,6 +78,8 @@ export const metadata: Metadata = {
 
 // viewport-fit=cover lets the header and tab bar extend under notches; they pad with safe-area insets.
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
   themeColor: "#0a0e17",
   colorScheme: "dark",
   viewportFit: "cover",
@@ -85,8 +87,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}>
-      <body className="flex min-h-dvh flex-col bg-background font-sans text-on-surface">
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} h-full max-w-full overflow-x-clip antialiased`}>
+      <body className="flex min-h-dvh w-full max-w-full overflow-x-clip flex-col bg-background font-sans text-on-surface">
         <SessionProvider>
           {children}
           <AgentDomBridge />

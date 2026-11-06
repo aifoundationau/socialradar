@@ -125,20 +125,20 @@ export function BrandSwitcher({ className = "" }: { className?: string }) {
 function TokenPill() {
   const { profile } = useSession();
   return (
-    <div className="flex h-10 items-center rounded border border-white/[0.08] bg-surface-container-low pr-1 pl-2.5 sm:h-9" data-agent-id="header-token-pill" data-testid="header-token-pill">
+    <div className="flex h-9 shrink-0 items-center rounded border border-white/[0.08] bg-surface-container-low pr-1 pl-2 sm:pl-2.5" data-agent-id="header-token-pill" data-testid="header-token-pill">
       <Link
         href="/wallet"
         title="Token balance"
         aria-label="View token balance in wallet"
         data-agent-id="header-wallet-balance-link"
         data-testid="header-wallet-balance-link"
-        className="flex items-center gap-1.5 font-mono text-mono-code font-medium text-secondary tabular-nums"
+        className="flex items-center gap-1 sm:gap-1.5 font-mono text-mono-code font-medium text-secondary tabular-nums"
       >
-        <span className="relative flex size-2">
+        <span className="relative hidden xs:flex sm:flex size-2">
           <span className="absolute inline-flex size-full rounded-full bg-secondary opacity-75 motion-safe:animate-ping" />
           <span className="relative inline-flex size-2 rounded-full bg-secondary" />
         </span>
-        <Icon name="zap" className="size-3.5" />
+        <Icon name="zap" className="size-3.5 shrink-0" />
         {profile ? profile.tokenBalance.toLocaleString("en-AU") : "–"}
         <span className="hidden sm:inline">tokens</span>
       </Link>
@@ -147,7 +147,7 @@ function TokenPill() {
         aria-label="Buy tokens"
         data-agent-id="header-topup-link"
         data-testid="header-topup-link"
-        className="ml-2 flex h-8 min-w-8 items-center justify-center gap-0.5 rounded bg-primary px-1.5 font-mono text-mono-label font-semibold text-on-primary transition-colors hover:bg-primary-fixed sm:h-7 sm:px-2"
+        className="ml-1.5 sm:ml-2 flex h-7 min-w-7 items-center justify-center gap-0.5 rounded bg-primary px-1.5 font-mono text-mono-label font-semibold text-on-primary transition-colors hover:bg-primary-fixed sm:px-2"
       >
         <Icon name="plus" className="size-3" />
         <span className="hidden sm:inline">Top-up</span>
@@ -487,13 +487,13 @@ export function TopNavWallet() {
         </div>
       )}
 
-      <div className="flex h-14 items-center gap-3 px-3 sm:px-6">
+      <div className="flex h-14 w-full max-w-full min-w-0 items-center gap-1.5 px-2.5 sm:gap-3 sm:px-6">
         <Link
           href="/"
           data-agent-id="header-home-logo-link"
           data-testid="header-home-logo-link"
           aria-label="AdRadarHQ home page"
-          className="shrink-0"
+          className="shrink-0 min-w-0"
         >
           <Logo />
         </Link>
@@ -563,7 +563,7 @@ export function TopNavWallet() {
           )}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-3">
           <div className="group relative flex items-center md:hidden">
             <button
               type="button"
@@ -571,14 +571,14 @@ export function TopNavWallet() {
               aria-label="Frequently Asked Questions"
               data-agent-id="mobile-header-faqs"
               data-testid="mobile-header-faqs"
-              className="flex h-10 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-surface-container-low px-2.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors text-compact font-medium"
+              className="flex h-9 items-center gap-1 rounded-lg border border-white/[0.08] bg-surface-container-low px-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors text-compact font-medium"
             >
-              <Icon name="helpCircle" className="size-4 text-primary" />
-              <span className="text-[12px] font-medium">FAQs</span>
+              <Icon name="helpCircle" className="size-3.5 text-primary shrink-0" />
+              <span className="text-[11px] font-medium">FAQs</span>
             </button>
             <div
               role="tooltip"
-              className="pointer-events-none absolute top-full right-0 z-50 mt-2 w-64 rounded-xl border border-white/[0.14] bg-surface-container-highest p-2.5 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100"
+              className="pointer-events-none hidden sm:block absolute top-full right-0 z-50 mt-2 w-64 rounded-xl border border-white/[0.14] bg-surface-container-highest p-2.5 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100"
             >
               <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-primary">
                 <Icon name="helpCircle" className="size-3.5 shrink-0" />
@@ -597,14 +597,14 @@ export function TopNavWallet() {
                 aria-label="Monthly Search Subscription"
                 data-agent-id="mobile-header-subscription"
                 data-testid="mobile-header-subscription"
-                className="flex h-10 items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 text-primary hover:bg-primary/20 transition-colors text-[11px] font-mono font-bold"
+                className="flex h-9 items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-1.5 text-primary hover:bg-primary/20 transition-colors text-[10px] font-mono font-bold"
               >
-                <Icon name="sparkles" className="size-3.5" />
-                <span>Sub 1K</span>
+                <Icon name="sparkles" className="size-3 shrink-0" />
+                <span className="whitespace-nowrap">1K</span>
               </button>
               <div
                 role="tooltip"
-                className="pointer-events-none absolute top-full right-0 z-50 mt-2 w-64 rounded-xl border border-primary/30 bg-surface-container-highest p-2.5 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100"
+                className="pointer-events-none hidden sm:block absolute top-full right-0 z-50 mt-2 w-64 rounded-xl border border-primary/30 bg-surface-container-highest p-2.5 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100"
               >
                 <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-primary">
                   <Icon name="sparkles" className="size-3.5 shrink-0" />

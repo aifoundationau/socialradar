@@ -95,12 +95,16 @@
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
+    max-width: 100%;
+    overflow-x: clip;
   }
 
   body {
     font-size: var(--text-body);
     line-height: var(--text-body--line-height);
     letter-spacing: var(--text-body--letter-spacing);
+    max-width: 100%;
+    overflow-x: clip;
   }
 
   ::selection {
