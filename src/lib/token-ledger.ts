@@ -3,12 +3,13 @@ import { FieldValue } from "firebase-admin/firestore";
 import { db, verifyRequest, type VerifiedCaller } from "./firebase-admin";
 import type { TokenTransactionDoc, TokenTxType, UserDoc } from "./contracts";
 import { ApiError, errorResponse, jsonError, requireIdempotencyKey } from "./api";
-import { ACTION_COSTS, type ChargeableAction } from "./pricing";
+import { ACTION_COSTS, isChargingEnabled, type ChargeableAction } from "./pricing";
 
 export { ACTION_COSTS, type ChargeableAction };
 
 const usersCol = () => db.collection("users");
 const txCol = () => db.collection("token_transactions");
+const sysConfigDoc = () => db.doc("system_config/global");
 
 const toInt = (n: number) => Math.round(n);
 
@@ -290,7 +291,14 @@ export async function withTokenGate(
     const ref = typeof referenceId === "function" ? referenceId(caller) : referenceId;
 
     const rawCost = customCost !== undefined ? customCost : ACTION_COSTS[action];
-    const effectiveCost = Math.max(0, toInt(rawCost));
+    let effectiveCost = Math.max(0, toInt(rawCost));
+
+    if (effectiveCost > 0) {
+      const sysSnap = await sysConfigDoc().get().catch(() => null);
+      if (sysSnap?.exists && !isChargingEnabled(sysSnap.data())) {
+        effectiveCost = 0;
+      }
+    }
 
     if (effectiveCost === 0) {
       const balance = Math.max(0, toInt(Number((await usersCol().doc(caller.uid).get()).get("tokenBalance") ?? 0)));

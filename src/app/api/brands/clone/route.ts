@@ -4,6 +4,7 @@ import { cloneGlobalBrand } from "@/lib/brands";
 import { BrandCloneRequestSchema } from "@/lib/contracts";
 import { getSystemConfig } from "@/lib/admin";
 import { withTokenGate } from "@/lib/token-ledger";
+import { isChargingEnabled } from "@/lib/pricing";
 
 export async function POST(req: Request) {
   let input;
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
   }
 
   const config = await getSystemConfig();
-  const cost = config.isTokenSystemEnabled
+  const cost = isChargingEnabled(config)
     ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 1))
     : 0;
 

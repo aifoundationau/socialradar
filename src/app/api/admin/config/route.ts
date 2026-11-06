@@ -12,10 +12,11 @@ import {
   recordStripePurchase,
   resetPartnerTokens,
   resetRedistributiveLedger,
+  setFreeAccessWindow,
   updateEquityPartner,
   updateSystemConfig,
 } from "@/lib/admin";
-import type { EquityPartner } from "@/lib/contracts";
+import type { EquityPartner, FreeAccessDurationMinutes } from "@/lib/contracts";
 
 export async function GET(req: Request) {
   try {
@@ -43,6 +44,18 @@ export async function PUT(req: Request) {
     const caller = await verifyRequest(req, { requireRole: "admin" });
 
     const body = (await readJson(req)) as Record<string, unknown>;
+
+    if (body.action === "SET_FREE_ACCESS_WINDOW" || body.freeAccessWindow !== undefined) {
+      const superCaller = await verifyRequest(req, { requireRole: "superadmin" });
+      if (body.action === "SET_FREE_ACCESS_WINDOW") {
+        const rawDuration = body.durationMinutes;
+        const durationMinutes: FreeAccessDurationMinutes | null =
+          rawDuration === 15 || rawDuration === 30 || rawDuration === 60 ? rawDuration : null;
+        const updated = await setFreeAccessWindow(durationMinutes, superCaller.email);
+        const ledger = await getRedistributiveLedger();
+        return NextResponse.json({ success: true, config: updated, ledger });
+      }
+    }
 
     if (body.action === "FLUSH_CACHE") {
       const flushedCount = await flushRadarCache();

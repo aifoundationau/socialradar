@@ -6,7 +6,15 @@ import { useSession } from "@/components/auth/SessionProvider";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { alertError, alertInfo, btnDanger, btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
-import { audToUsdCents, formatAud, formatPrice, formatTokenEstimateHover, formatUsd, usdToAudCents } from "@/lib/pricing";
+import {
+  audToUsdCents,
+  formatAud,
+  formatPrice,
+  formatTokenEstimateHover,
+  formatUsd,
+  isFreeAccessWindowActive,
+  usdToAudCents,
+} from "@/lib/pricing";
 import type { CurrencyRateResponse } from "@/app/api/currency/route";
 import type {
   AdAgentDistributionItem,
@@ -14,6 +22,8 @@ import type {
   AdminMessage,
   EquityPartner,
   FaqItem,
+  FreeAccessDurationMinutes,
+  FreeAccessWindow,
   MonthlySubscriptionConfig,
   RagSentenceItem,
   RbacMatrix,
@@ -162,6 +172,7 @@ interface AdminConfigData {
   tokenPacks: TokenPackItem[];
   equityPartners: EquityPartner[];
   monthlySubscription?: MonthlySubscriptionConfig;
+  freeAccessWindow?: FreeAccessWindow;
   updatedAt?: string;
 }
 
@@ -176,6 +187,7 @@ type TabKey = "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "USERS" | "MESSAGES"
 type AdminFeatureKey =
   | "currency_toggles"
   | "currency_base_price"
+  | "pricing_free_access"
   | "pricing_services"
   | "pricing_subscription"
   | "packs_catalog"
@@ -1627,6 +1639,63 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     }
   }
 
+  const [freeAccessNowMs, setFreeAccessNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    if (!isOpen || !config?.freeAccessWindow?.enabled) return;
+    setFreeAccessNowMs(Date.now());
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setFreeAccessNowMs(now);
+      if (config.freeAccessWindow?.expiresAt && Date.parse(config.freeAccessWindow.expiresAt) <= now) {
+        window.dispatchEvent(new CustomEvent("adradar:config-updated"));
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isOpen, config?.freeAccessWindow?.enabled, config?.freeAccessWindow?.expiresAt]);
+
+  async function handleToggleFreeAccess(targetDuration: FreeAccessDurationMinutes | null) {
+    if (!isSuper) {
+      setErrorMsg("Only Super Admin can turn the Timed Free Access Window on or off.");
+      return;
+    }
+    const currentlyActive = isFreeAccessWindowActive(config?.freeAccessWindow, Date.now());
+    const currentDuration = currentlyActive ? (config?.freeAccessWindow?.durationMinutes ?? null) : null;
+    const nextDuration: FreeAccessDurationMinutes | null =
+      targetDuration !== null && currentDuration === targetDuration ? null : targetDuration;
+
+    setSaving(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{
+        success: boolean;
+        config: AdminConfigData;
+        ledger?: RedistributiveLedgerSummary;
+      }>("/api/admin/config", {
+        method: "PUT",
+        body: {
+          action: "SET_FREE_ACCESS_WINDOW",
+          durationMinutes: nextDuration,
+        },
+      });
+      setConfig(data.config);
+      if (data.ledger) setLedger(data.ledger);
+      setFreeAccessNowMs(Date.now());
+      window.dispatchEvent(new CustomEvent("adradar:config-updated"));
+      if (nextDuration) {
+        const labelStr = nextDuration === 60 ? "Free 1 Hour" : `Free ${nextDuration} Minutes`;
+        setStatusMsg(`${labelStr} toggled ON! The web app is now FREE to use for all registered users.`);
+      } else {
+        setStatusMsg("Timed Free Access turned OFF. Standard token pricing is now active.");
+      }
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   // Pack CRUD
   function handleAddPack() {
     if (!config || !newPack.id || !newPack.name) return;
@@ -2411,17 +2480,19 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     <div>
                       <h3 className="text-title-sm font-semibold text-on-surface">Service Pricing &amp; Token Packs (CRUD)</h3>
                       <p className="mt-0.5 text-compact text-on-surface-variant">
-                        All features start collapsed. Click any feature below to expand and configure service token amounts, monthly subscription pricing, or Stripe checkout token packs.
+                        All features start collapsed. Click any feature below to expand and configure timed free web app access, service token amounts, monthly subscription pricing, or Stripe checkout token packs.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => {
                         const allOpen =
+                          (!isSuper || isFeatureExpanded("pricing_free_access")) &&
                           isFeatureExpanded("pricing_services") &&
                           isFeatureExpanded("pricing_subscription") &&
                           showAddPack &&
                           isFeatureExpanded("packs_catalog");
+                        if (isSuper) setFeatureExpanded("pricing_free_access", !allOpen);
                         setFeatureExpanded("pricing_services", !allOpen);
                         setFeatureExpanded("pricing_subscription", !allOpen);
                         setShowAddPack(!allOpen);
@@ -2434,6 +2505,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       <Icon
                         name="chevronDown"
                         className={`size-3.5 transition-transform duration-200 ${
+                          (!isSuper || isFeatureExpanded("pricing_free_access")) &&
                           isFeatureExpanded("pricing_services") &&
                           isFeatureExpanded("pricing_subscription") &&
                           showAddPack &&
@@ -2443,7 +2515,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         }`}
                       />
                       <span>
-                        {isFeatureExpanded("pricing_services") &&
+                        {(!isSuper || isFeatureExpanded("pricing_free_access")) &&
+                        isFeatureExpanded("pricing_services") &&
                         isFeatureExpanded("pricing_subscription") &&
                         showAddPack &&
                         isFeatureExpanded("packs_catalog")
@@ -2452,6 +2525,159 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       </span>
                     </button>
                   </div>
+
+                  {/* TOP PANEL (SUPER ADMIN ONLY): Free 15 Minutes / Free 30 Minutes / Free 1 Hour */}
+                  {isSuper && (() => {
+                    const freeWindow = config.freeAccessWindow;
+                    const isFreeWindowOn = isFreeAccessWindowActive(freeWindow, freeAccessNowMs);
+                    const activeDuration = isFreeWindowOn ? (freeWindow?.durationMinutes ?? null) : null;
+                    const remainingSec =
+                      isFreeWindowOn && freeWindow?.expiresAt
+                        ? Math.max(0, Math.ceil((Date.parse(freeWindow.expiresAt) - freeAccessNowMs) / 1000))
+                        : 0;
+                    const remMin = Math.floor(remainingSec / 60);
+                    const remSec = remainingSec % 60;
+                    const countdownStr = `${remMin}m ${String(remSec).padStart(2, "0")}s`;
+
+                    return (
+                      <div
+                        className={`${card} p-4 space-y-4 ${
+                          isFreeWindowOn
+                            ? "border-2 border-winner/60 bg-winner/10 shadow-[0_0_24px_rgba(34,197,94,0.15)]"
+                            : "border border-primary/30"
+                        }`}
+                        data-agent-id="feature-card-pricing-free-access"
+                        data-testid="feature-card-pricing-free-access"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => toggleFeatureExpanded("pricing_free_access")}
+                            aria-expanded={isFeatureExpanded("pricing_free_access")}
+                            data-agent-id="toggle-feature-pricing-free-access-header"
+                            data-testid="toggle-feature-pricing-free-access-header"
+                            className="flex-1 text-left group cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Icon
+                                name="chevronDown"
+                                className={`size-4 text-primary transition-transform duration-200 ${
+                                  isFeatureExpanded("pricing_free_access") ? "rotate-180" : "-rotate-90"
+                                }`}
+                              />
+                              <h4 className="text-compact font-bold text-on-surface group-hover:text-primary transition-colors">
+                                Free 15 Minutes · Free 30 Minutes · Free 1 Hour
+                              </h4>
+                              <span
+                                className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] font-bold ${
+                                  isFreeWindowOn
+                                    ? "bg-winner/20 text-winner-soft border border-winner/40"
+                                    : "bg-surface-container-highest text-on-surface-variant"
+                                }`}
+                              >
+                                {isFreeWindowOn
+                                  ? `⚡ ACTIVE: ${activeDuration === 60 ? "Free 1 Hour" : `Free ${activeDuration}m`} (${countdownStr} left)`
+                                  : "Super Admin Only · Off"}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-[11px] text-on-surface-variant">
+                              When one is toggled on, the web app is 100% free to use for all registered users. Can be turned on and off by Super Admin only.
+                            </p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleFeatureExpanded("pricing_free_access")}
+                            aria-expanded={isFeatureExpanded("pricing_free_access")}
+                            data-agent-id="toggle-feature-pricing-free-access-btn"
+                            data-testid="toggle-feature-pricing-free-access-btn"
+                            className={`${btnSecondary} font-mono text-xs shrink-0`}
+                          >
+                            <Icon
+                              name="chevronDown"
+                              className={`size-3.5 transition-transform duration-200 ${
+                                isFeatureExpanded("pricing_free_access") ? "rotate-180" : ""
+                              }`}
+                            />
+                            <span>{isFeatureExpanded("pricing_free_access") ? "Collapse" : "Expand"}</span>
+                          </button>
+                        </div>
+
+                        {isFeatureExpanded("pricing_free_access") && (
+                          <div className="space-y-3.5 pt-2 border-t border-white/[0.08]">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                              {(
+                                [
+                                  { minutes: 15 as const, title: "Free 15 Minutes", subtitle: "15-minute free window for all registered users" },
+                                  { minutes: 30 as const, title: "Free 30 Minutes", subtitle: "30-minute free window for all registered users" },
+                                  { minutes: 60 as const, title: "Free Hour", subtitle: "60-minute (1 hour) free window for all registered users" },
+                                ] as const
+                              ).map((opt) => {
+                                const isActiveOpt = isFreeWindowOn && activeDuration === opt.minutes;
+                                return (
+                                  <button
+                                    key={opt.minutes}
+                                    type="button"
+                                    disabled={saving}
+                                    onClick={() => handleToggleFreeAccess(opt.minutes)}
+                                    aria-pressed={isActiveOpt}
+                                    data-agent-id={`toggle-free-access-${opt.minutes}m`}
+                                    data-testid={`toggle-free-access-${opt.minutes}m`}
+                                    className={`flex flex-col justify-between gap-2 rounded-xl border p-3.5 text-left transition cursor-pointer ${
+                                      isActiveOpt
+                                        ? "border-winner bg-winner/20 text-on-surface ring-1 ring-winner/50 shadow-md"
+                                        : "border-white/10 bg-surface-container hover:border-primary/50 hover:bg-surface-container-highest"
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2 w-full">
+                                      <span className="font-mono text-xs font-bold text-on-surface flex items-center gap-1.5">
+                                        <Icon
+                                          name="zap"
+                                          className={`size-3.5 ${isActiveOpt ? "text-winner-soft" : "text-primary"}`}
+                                        />
+                                        {opt.title}
+                                      </span>
+                                      <span
+                                        className={`inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
+                                          isActiveOpt
+                                            ? "bg-winner text-black"
+                                            : "bg-surface-container-highest text-on-surface-variant"
+                                        }`}
+                                      >
+                                        {isActiveOpt ? "ON · Click to Turn Off" : "OFF"}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-on-surface-variant leading-snug">
+                                      {isActiveOpt
+                                        ? `Active right now — ${countdownStr} remaining (0 tokens for all registered users)`
+                                        : opt.subtitle}
+                                    </p>
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {isFreeWindowOn && (
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-winner/40 bg-winner/15 px-3.5 py-2.5 font-mono text-xs">
+                                <span className="text-winner-soft font-semibold">
+                                  ⚡ Web App is currently FREE for all registered users ({activeDuration === 60 ? "Free Hour" : `Free ${activeDuration} Minutes`} · {countdownStr} remaining).
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={saving}
+                                  onClick={() => handleToggleFreeAccess(null)}
+                                  data-agent-id="turn-off-free-access-btn"
+                                  data-testid="turn-off-free-access-btn"
+                                  className={`${btnDanger} py-1 px-3 text-xs shrink-0`}
+                                >
+                                  Turn Off Free Access Now
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Feature 1: Customizable Product & Service Token Amounts */}
                   <div

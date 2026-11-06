@@ -948,6 +948,29 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   - Displays each Ad Agent's **Name**, **Email**, **Bank Details / PayID Details**, and **Total Value of All Customizations Done** next to their name (`# orders`, `⚡ Tokens`, `$ AUD`, `$ USD`).
   - Super Admin can add or update Ad Agents, enter/update their **Bank Details or PayID Details**, and select each Ad Agent's **Redistribution %** from a dropdown menu (`10%`, `20%`, `30%`, `40%`, `50%`, `60%`, `70%`), displaying their **Total Customizations Value** and calculated **Redistribution Amount** (`⚡ Tokens`, `$ AUD`, `$ USD`).
 
+## 25. Super Admin Timed Free Access Window (`system_config/global.freeAccessWindow` & `PUT /api/admin/config`)
+
+### `FreeAccessWindow` (`FreeAccessWindowSchema`)
+```json
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["enabled", "durationMinutes", "startedAt", "expiresAt", "activatedByEmail"],
+  "properties": {
+    "enabled": { "type": "boolean" },
+    "durationMinutes": { "type": ["integer", "null"], "enum": [15, 30, 60, null] },
+    "startedAt": { "type": ["string", "null"], "format": "date-time" },
+    "expiresAt": { "type": ["string", "null"], "format": "date-time" },
+    "activatedByEmail": { "type": ["string", "null"], "format": "email" }
+  }
+}
+```
+- **Super Admin Exclusive Control (`PUT /api/admin/config` with `action: "SET_FREE_ACCESS_WINDOW"`):**
+  - Strictly enforces `{ requireRole: "superadmin" }` (`role === "superadmin"`). Main Admin (`admin`) and all other roles are rejected with `403 FORBIDDEN`.
+  - Top panel under **Service Pricing** in `SuperAdminModal.tsx` (`feature-card-pricing-free-access`) provides three toggle buttons: **Free 15 Minutes** (`15`), **Free 30 Minutes** (`30`), and **Free Hour** (`60`), plus **Turn Off Free Access Now** (`null`).
+  - While `enabled === true` and `Date.parse(expiresAt) > Date.now()`, `isChargingEnabled(config)` returns `false` and `withTokenGate` forces `effectiveCost = 0` across all endpoints (`RADAR_SEARCH`, `AI_REMIX`, `REGENERATE_VARIATIONS`, `BRAND_CLONE`, `CUSTOMIZE_SERVICE`), making the entire web app free to use for all registered users until the timer expires or Super Admin turns it off.
+
+
 
 
 

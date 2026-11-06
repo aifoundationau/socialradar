@@ -4,7 +4,7 @@ import { RadarSearchRequestSchema, type RadarSearchRequest, type RadarSearchResp
 import { radarQueryHash, replayRadarSearch, runRadarSearch } from "@/lib/radar";
 import { withTokenGate } from "@/lib/token-ledger";
 import { getBrand } from "@/lib/brands";
-import { calculateSearchCost } from "@/lib/pricing";
+import { calculateSearchCost, isChargingEnabled } from "@/lib/pricing";
 import { getSystemConfig } from "@/lib/admin";
 
 /**
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   const queryHash = radarQueryHash(input);
 
   const config = await getSystemConfig();
-  const searchCost = config.isTokenSystemEnabled
+  const searchCost = isChargingEnabled(config)
     ? calculateSearchCost(input, config.serviceCosts)
     : 0;
 

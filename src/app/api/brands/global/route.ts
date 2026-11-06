@@ -4,6 +4,7 @@ import { errorResponse } from "@/lib/api";
 import { searchGlobalBrands } from "@/lib/brands";
 import { GlobalBrandSearchQuerySchema } from "@/lib/contracts";
 import { getSystemConfig } from "@/lib/admin";
+import { isChargingEnabled } from "@/lib/pricing";
 
 async function handleGlobalBrands(req: Request) {
   try {
@@ -37,7 +38,7 @@ async function handleGlobalBrands(req: Request) {
       getSystemConfig(),
     ]);
 
-    const brandCloneFee = config.isTokenSystemEnabled
+    const brandCloneFee = isChargingEnabled(config)
       ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 1))
       : 0;
 

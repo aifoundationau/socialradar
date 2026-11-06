@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import Link from "next/link";
 import {
   PROVEN_WINNER_DAYS,
   EXTENDED_WINNER_DAYS,
   ELITE_SCORE_THRESHOLD,
   type BrandProfile,
+  type FreeAccessWindow,
   type RadarSearchRequest,
+  type ServiceCosts,
 } from "@/lib/contracts";
 import {
   SERVICE_SURCHARGES,
   calculateSearchCost,
   formatTokenEstimateHover,
+  isChargingEnabled,
 } from "@/lib/pricing";
 import { CostTag } from "@/components/ui/CostTag";
 import { Icon, type IconName } from "@/components/ui/Icon";
@@ -127,9 +130,38 @@ export function RadarFilterBar({
   const { profile } = useSession();
   const input = useRef<HTMLInputElement>(null);
   const apple = useSyncExternalStore(noSubscribe, isApple, () => false);
-  const totalCost = calculateSearchCost(filters);
+  const [liveServiceCosts, setLiveServiceCosts] = useState<ServiceCosts | undefined>(undefined);
+  const [isTokenSystemEnabled, setIsTokenSystemEnabled] = useState<boolean>(true);
+  const [freeAccessWindow, setFreeAccessWindow] = useState<FreeAccessWindow | null>(null);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    function syncPricingConfig() {
+      fetch("/api/wallet/checkout", { headers: { accept: "application/json" }, cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!data) return;
+          if (data.serviceCosts) setLiveServiceCosts(data.serviceCosts);
+          if (typeof data.isTokenSystemEnabled === "boolean") setIsTokenSystemEnabled(data.isTokenSystemEnabled);
+          setFreeAccessWindow(data.freeAccessWindow ?? null);
+          setNowMs(Date.now());
+        })
+        .catch(() => {});
+    }
+
+    syncPricingConfig();
+    window.addEventListener("adradar:config-updated", syncPricingConfig);
+    const interval = setInterval(() => setNowMs(Date.now()), 5000);
+    return () => {
+      window.removeEventListener("adradar:config-updated", syncPricingConfig);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const chargingActive = isChargingEnabled({ isTokenSystemEnabled, freeAccessWindow }, nowMs);
+  const totalCost = chargingActive ? calculateSearchCost(filters, liveServiceCosts) : 0;
   const currentBalance = Math.max(0, profile ? profile.tokenBalance : 0);
-  const isZeroBalance = Boolean(profile && currentBalance <= 0);
+  const isZeroBalance = Boolean(profile && chargingActive && currentBalance <= 0);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -246,7 +278,9 @@ export function RadarFilterBar({
                     {totalCost} {totalCost === 1 ? "token" : "tokens"}
                   </span>
                 ) : (
-                  <CostTag action="RADAR_SEARCH" />
+                  <span className="rounded-full bg-winner/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary">
+                    Free
+                  </span>
                 )}
               </button>
 

@@ -25,6 +25,7 @@ export async function GET(req: Request) {
         serviceCosts: config.serviceCosts,
         tokenPacks: config.tokenPacks,
         monthlySubscription: config.monthlySubscription,
+        freeAccessWindow: config.freeAccessWindow,
         isTokenSystemEnabled: config.isTokenSystemEnabled,
         isAudEnabled: config.isAudEnabled,
         isUsdEnabled: config.isUsdEnabled,

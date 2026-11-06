@@ -10,6 +10,7 @@ import {
 import { formatAgentLocationLabel, getAdAgents } from "@/lib/ad-agents";
 import { CustomizeRequestInputSchema } from "@/lib/contracts";
 import { withTokenGate } from "@/lib/token-ledger";
+import { isChargingEnabled } from "@/lib/pricing";
 
 export async function GET(req: Request) {
   try {
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
       getAdAgents(),
     ]);
 
-    const costTokens = config.isTokenSystemEnabled
+    const costTokens = isChargingEnabled(config)
       ? Math.max(0, Math.round(config.serviceCosts?.customizeService ?? 55))
       : 0;
 
@@ -54,7 +55,7 @@ export async function POST(req: Request) {
     const body = await readJson(req);
     const input = CustomizeRequestInputSchema.parse(body);
     const config = await getSystemConfig();
-    const costTokens = config.isTokenSystemEnabled
+    const costTokens = isChargingEnabled(config)
       ? Math.max(0, Math.round(config.serviceCosts?.customizeService ?? 55))
       : 0;
 

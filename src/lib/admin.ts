@@ -6,6 +6,8 @@ import {
   type CustomizeRequestDoc,
   type CustomizeRequestInput,
   type EquityPartner,
+  type FreeAccessDurationMinutes,
+  type FreeAccessWindow,
   type PartnerDistribution,
   type RedistributiveLedgerSummary,
   type StripePurchaseRecord,
@@ -13,7 +15,7 @@ import {
   type TokenPackId,
   type TokenTransactionDoc,
 } from "./contracts";
-import { TOKEN_PACKS } from "./pricing";
+import { TOKEN_PACKS, isFreeAccessWindowActive } from "./pricing";
 import { creditTokens } from "./token-ledger";
 import { findClosestAdAgent, formatAgentLocationLabel } from "./ad-agents";
 
@@ -33,7 +35,16 @@ export interface ExtendedTokenPack {
 export interface AdminSystemConfig extends SystemConfig {
   tokenPacks: ExtendedTokenPack[];
   equityPartners: EquityPartner[];
+  freeAccessWindow: FreeAccessWindow;
 }
+
+export const DEFAULT_FREE_ACCESS_WINDOW: FreeAccessWindow = {
+  enabled: false,
+  durationMinutes: null,
+  startedAt: null,
+  expiresAt: null,
+  activatedByEmail: null,
+};
 
 export const DEFAULT_CONFIG: AdminSystemConfig = {
   isTokenSystemEnabled: true,
@@ -63,11 +74,12 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
     name: "Monthly Search Subscription",
     description: "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those.",
   },
+  freeAccessWindow: DEFAULT_FREE_ACCESS_WINDOW,
   equityPartners: [],
   updatedAt: new Date().toISOString(),
 };
 
-/** Retrieves system config from Firestore or returns default. */
+/** Retrieves system config from Firestore or returns default. Auto-expires Timed Free Access Windows past expiresAt. */
 export async function getSystemConfig(): Promise<AdminSystemConfig> {
   try {
     const snap = await db.doc(CONFIG_DOC_PATH).get();
@@ -76,6 +88,23 @@ export async function getSystemConfig(): Promise<AdminSystemConfig> {
       return DEFAULT_CONFIG;
     }
     const data = snap.data() || {};
+    const rawWindow = data.freeAccessWindow as Partial<FreeAccessWindow> | undefined;
+    let normalizedWindow: FreeAccessWindow = {
+      ...DEFAULT_FREE_ACCESS_WINDOW,
+      ...(rawWindow || {}),
+    };
+
+    if (normalizedWindow.enabled && !isFreeAccessWindowActive(normalizedWindow)) {
+      normalizedWindow = { ...DEFAULT_FREE_ACCESS_WINDOW };
+      // Best-effort async cleanup in Firestore when timer expires
+      db.doc(CONFIG_DOC_PATH)
+        .update({
+          freeAccessWindow: DEFAULT_FREE_ACCESS_WINDOW,
+          updatedAt: new Date().toISOString(),
+        })
+        .catch(() => {});
+    }
+
     return {
       ...DEFAULT_CONFIG,
       ...data,
@@ -93,11 +122,35 @@ export async function getSystemConfig(): Promise<AdminSystemConfig> {
         ...DEFAULT_CONFIG.monthlySubscription!,
         ...(data.monthlySubscription || {}),
       },
+      freeAccessWindow: normalizedWindow,
     };
   } catch (err) {
     console.warn("[admin] failed to fetch system config, using default", err);
     return DEFAULT_CONFIG;
   }
+}
+
+/**
+ * SuperAdmin-exclusive control to turn on a Timed Free Access Window (15, 30, or 60 minutes)
+ * or turn it off (`durationMinutes = null`). While active, the web app is free to use for all registered users.
+ */
+export async function setFreeAccessWindow(
+  durationMinutes: FreeAccessDurationMinutes | null,
+  callerEmail: string
+): Promise<AdminSystemConfig> {
+  const now = new Date();
+  const freeAccessWindow: FreeAccessWindow =
+    durationMinutes === 15 || durationMinutes === 30 || durationMinutes === 60
+      ? {
+          enabled: true,
+          durationMinutes,
+          startedAt: now.toISOString(),
+          expiresAt: new Date(now.getTime() + durationMinutes * 60_000).toISOString(),
+          activatedByEmail: callerEmail.toLowerCase(),
+        }
+      : { ...DEFAULT_FREE_ACCESS_WINDOW };
+
+  return updateSystemConfig({ freeAccessWindow });
 }
 
 /** Updates system config document in Firestore. */

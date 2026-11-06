@@ -5,7 +5,39 @@
  * Never uses decimals: only whole numbers, with all amounts rounded up (Math.ceil).
  * For all nations except Australia and New Zealand, an AUD to USD conversion is shown.
  */
-import type { TokenPackId } from "./contracts";
+import type { FreeAccessWindow, TokenPackId } from "./contracts";
+
+/**
+ * Returns true if the SuperAdmin-controlled Timed Free Access Window (15m, 30m, or 60m)
+ * is currently toggled on and has not yet expired.
+ */
+export function isFreeAccessWindowActive(
+  freeAccessWindow?: Partial<FreeAccessWindow> | null,
+  nowMs: number = Date.now()
+): boolean {
+  if (!freeAccessWindow || !freeAccessWindow.enabled || !freeAccessWindow.expiresAt) {
+    return false;
+  }
+  const exp = Date.parse(freeAccessWindow.expiresAt);
+  return Number.isFinite(exp) && exp > nowMs;
+}
+
+/**
+ * Returns true if paid token charging is active (i.e., `isTokenSystemEnabled !== false` AND
+ * no Timed Free Access Window is currently active).
+ */
+export function isChargingEnabled(
+  config?: {
+    isTokenSystemEnabled?: boolean;
+    freeAccessWindow?: Partial<FreeAccessWindow> | null;
+  } | null,
+  nowMs: number = Date.now()
+): boolean {
+  if (!config) return true;
+  if (config.isTokenSystemEnabled === false) return false;
+  if (isFreeAccessWindowActive(config.freeAccessWindow, nowMs)) return false;
+  return true;
+}
 
 /**
  * Server-authoritative action costs (integers only). 0 makes an action free: it still needs a

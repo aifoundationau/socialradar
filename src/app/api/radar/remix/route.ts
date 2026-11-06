@@ -13,6 +13,7 @@ import { assertRemixConfigured, generateRemix } from "@/lib/gemini";
 import { enrichGoogleAd, needsGoogleDetails } from "@/lib/radar";
 import { withTokenGate } from "@/lib/token-ledger";
 import { getSystemConfig } from "@/lib/admin";
+import { isChargingEnabled } from "@/lib/pricing";
 
 /**
  * Deconstructs a searched ad and writes 3 variations for one of the caller's brands.
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
   const configuredCost = isRegen
     ? (config.serviceCosts?.regenerateVariations ?? config.serviceCosts?.aiRemix ?? 1)
     : (config.serviceCosts?.aiRemix ?? 1);
-  const remixCost = config.isTokenSystemEnabled
+  const remixCost = isChargingEnabled(config)
     ? Math.max(0, Math.round(configuredCost))
     : 0;
 

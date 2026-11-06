@@ -399,6 +399,24 @@ export const MonthlySubscriptionConfigSchema = z
   .strict();
 export type MonthlySubscriptionConfig = z.infer<typeof MonthlySubscriptionConfigSchema>;
 
+export const FreeAccessDurationMinutesSchema = z.union([
+  z.literal(15),
+  z.literal(30),
+  z.literal(60),
+]);
+export type FreeAccessDurationMinutes = z.infer<typeof FreeAccessDurationMinutesSchema>;
+
+export const FreeAccessWindowSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    durationMinutes: FreeAccessDurationMinutesSchema.nullable().default(null),
+    startedAt: z.string().nullable().default(null),
+    expiresAt: z.string().nullable().default(null),
+    activatedByEmail: z.string().nullable().default(null),
+  })
+  .strict();
+export type FreeAccessWindow = z.infer<typeof FreeAccessWindowSchema>;
+
 export const SystemConfigSchema = z
   .object({
     isTokenSystemEnabled: z.boolean(),
@@ -408,6 +426,7 @@ export const SystemConfigSchema = z
     usdCentsPerToken: tokenInt.min(1).optional(),
     serviceCosts: ServiceCostsSchema,
     monthlySubscription: MonthlySubscriptionConfigSchema.optional(),
+    freeAccessWindow: FreeAccessWindowSchema.optional(),
     updatedAt: isoDate,
   })
   .strict();
