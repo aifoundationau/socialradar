@@ -35,7 +35,6 @@ type FieldErrors = Partial<Record<FieldName, string>>;
 interface PublicAdAgent {
   agentId: string;
   name: string;
-  email: string;
   phone: string;
   locationLabel: string;
   latitude: number;
@@ -280,14 +279,13 @@ export function CustomizeView() {
       setLastAssignedRequest(res.request);
       setExtraDetailsAndNotes("");
       const assignedName = res.request.assignedAgentName || "Super Admin Strategy Lead";
-      const assignedEmail = res.request.assignedAgentEmail || "support@aifoundation.net.au";
       const assignedLoc = res.request.assignedAgentLocation || "Sydney, NSW, AU";
       const assignedDist =
         typeof res.request.assignedDistanceKm === "number"
           ? ` (${res.request.assignedDistanceKm} km from your location)`
           : "";
       setSubmitSuccess(
-        `Your Customize brief for "${res.request.brandName}" has been submitted! Based on your geolocation, we have selected your closest Ad Agent — ${assignedName} (${assignedEmail}, ${assignedLoc}${assignedDist}) — to handle your customization.`
+        `Your Customize brief for "${res.request.brandName}" has been submitted! Based on your geolocation, we have selected your closest Ad Agent — ${assignedName} (${assignedLoc}${assignedDist}) — to handle your customization.`
       );
     } catch (err) {
       submitKey.current = null;
@@ -725,7 +723,6 @@ export function CustomizeView() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-primary font-bold">Closest Ad Agent to Handle Your Customization:</span>
                     <span className="font-semibold text-on-surface">{closestAgentPreview.agent.name}</span>
-                    <span className="text-on-surface-variant">({closestAgentPreview.agent.email})</span>
                   </div>
                   <span className="rounded bg-primary/20 px-2 py-0.5 text-[11px] font-bold text-primary">
                     📍 {closestAgentPreview.agent.locationLabel} · {closestAgentPreview.distanceKm} km away
@@ -787,10 +784,11 @@ export function CustomizeView() {
                   <span>Assigned Closest Ad Agent Handling Your Customization</span>
                 </div>
                 <p className="text-body-sm text-on-surface">
-                  <strong>{lastAssignedRequest.assignedAgentName}</strong> (
-                  <span className="font-mono text-primary">{lastAssignedRequest.assignedAgentEmail}</span>
-                  {lastAssignedRequest.assignedAgentPhone ? ` · ${lastAssignedRequest.assignedAgentPhone}` : ""}) in{" "}
-                  <strong>{lastAssignedRequest.assignedAgentLocation}</strong>
+                  <strong>{lastAssignedRequest.assignedAgentName}</strong>
+                  {lastAssignedRequest.assignedAgentPhone
+                    ? ` (${lastAssignedRequest.assignedAgentPhone})`
+                    : ""}{" "}
+                  in <strong>{lastAssignedRequest.assignedAgentLocation}</strong>
                   {typeof lastAssignedRequest.assignedDistanceKm === "number"
                     ? ` (${lastAssignedRequest.assignedDistanceKm} km from your location)`
                     : ""}{" "}
@@ -896,7 +894,7 @@ export function CustomizeView() {
                     </div>
                     {req.assignedAgentName && (
                       <div className="rounded-lg border border-primary/25 bg-primary/10 px-2.5 py-1 font-mono text-[11px] text-primary">
-                        Assigned Ad Agent: <strong className="text-on-surface">{req.assignedAgentName}</strong> ({req.assignedAgentEmail})
+                        Assigned Ad Agent: <strong className="text-on-surface">{req.assignedAgentName}</strong>
                         {req.assignedAgentLocation ? ` · ${req.assignedAgentLocation}` : ""}
                         {typeof req.assignedDistanceKm === "number" ? ` (${req.assignedDistanceKm} km)` : ""}
                       </div>

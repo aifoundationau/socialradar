@@ -765,7 +765,6 @@ export async function submitCustomizeRequest(params: {
     `YOUR ASSIGNED CLOSEST AD AGENT:`,
     `Based on your geolocation (${sanitizeForPlainTextArchive(customerLocationLabel)}), we have selected our closest Ad Agent to handle your customization:`,
     `- Ad Agent Name: ${sanitizeForPlainTextArchive(assignedAgent.name)}`,
-    `- Ad Agent Email: ${sanitizeForPlainTextArchive(assignedAgent.email)}`,
     `- Ad Agent Phone: ${sanitizeForPlainTextArchive(assignedAgent.phone)}`,
     `- Ad Agent Location: ${sanitizeForPlainTextArchive(assignedAgentLocation)} (${closest.distanceKm} km from your location)`,
     ``,

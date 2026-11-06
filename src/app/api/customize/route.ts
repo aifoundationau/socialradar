@@ -30,7 +30,6 @@ export async function GET(req: Request) {
       .map((a) => ({
         agentId: a.agentId,
         name: a.name,
-        email: a.email,
         phone: a.phone,
         locationLabel: formatAgentLocationLabel(a.location),
         latitude: a.location.latitude,
