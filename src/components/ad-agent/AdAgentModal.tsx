@@ -79,6 +79,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
   // Registration Form State
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [bankOrPayIdDetails, setBankOrPayIdDetails] = useState("");
   const [suburb, setSuburb] = useState("Sydney");
   const [stateRegion, setStateRegion] = useState("NSW");
   const [country, setCountry] = useState("AU");
@@ -126,6 +127,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
         setMyAgentProfile(data.myAgentProfile);
         setName(data.myAgentProfile.name || user?.displayName || "");
         setPhone(data.myAgentProfile.phone || "");
+        setBankOrPayIdDetails(data.myAgentProfile.bankOrPayIdDetails || "");
         if (data.myAgentProfile.location) {
           setSuburb(data.myAgentProfile.location.suburb || "Sydney");
           setStateRegion(data.myAgentProfile.location.state || "NSW");
@@ -198,6 +200,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
           action: "REGISTER_AD_AGENT",
           name: name.trim(),
           phone: phone.trim(),
+          bankOrPayIdDetails: bankOrPayIdDetails.trim(),
           location: locationPayload,
         },
       });
@@ -565,6 +568,27 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Bank Details or PayID Details Box */}
+                <div className="rounded-xl border border-white/10 bg-surface-container p-4 space-y-2">
+                  <label className={label} htmlFor="ad-agent-bank-payid-input">
+                    Bank Details or PayID Details (For Redistribution Payouts)
+                  </label>
+                  <textarea
+                    id="ad-agent-bank-payid-input"
+                    rows={2}
+                    maxLength={500}
+                    placeholder="e.g. PayID: agent@agency.com (or +61 400 000 000) | Bank: Commonwealth Bank, BSB: 062-000, Account: 1234 5678, Account Name: Sarah Jenkins"
+                    value={bankOrPayIdDetails}
+                    onChange={(e) => setBankOrPayIdDetails(e.target.value)}
+                    className={`${field} font-mono text-xs`}
+                    data-agent-id="ad-agent-bank-payid-input"
+                    data-testid="ad-agent-bank-payid-input"
+                  />
+                  <p className="text-[11px] font-mono text-outline">
+                    Automatically populates in the Super Admin Ad Agent Distribution Ledger for redistribution payouts.
+                  </p>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-1">

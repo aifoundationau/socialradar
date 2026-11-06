@@ -146,6 +146,7 @@ export async function registerOrUpdateAdAgent(params: {
   name: string;
   phone: string;
   location: AdAgentLocation;
+  bankOrPayIdDetails?: string;
 }): Promise<{ agent: AdAgentProfile; assignedRole: RbacRole }> {
   const cleanEmail = params.email.trim().toLowerCase();
   const now = new Date().toISOString();
@@ -168,6 +169,11 @@ export async function registerOrUpdateAdAgent(params: {
     label: formatAgentLocationLabel(params.location),
   };
 
+  const bankDetails =
+    params.bankOrPayIdDetails !== undefined
+      ? params.bankOrPayIdDetails.trim()
+      : existing?.bankOrPayIdDetails || "";
+
   const nextAgent: AdAgentProfile = {
     agentId,
     uid: params.uid,
@@ -175,6 +181,7 @@ export async function registerOrUpdateAdAgent(params: {
     phone: params.phone.trim(),
     email: cleanEmail,
     location: cleanLocation,
+    ...(bankDetails ? { bankOrPayIdDetails: bankDetails } : { bankOrPayIdDetails: "" }),
     redistributionPercentage: existing
       ? normalizeRedistributionPercent(existing.redistributionPercentage)
       : 30,
@@ -231,12 +238,13 @@ export async function registerOrUpdateAdAgent(params: {
 
 /**
  * Super Admin adds or updates an Ad Agent directly in the Ad Agent Distribution Ledger
- * under Owner Redistribution Breakdown (by email, name, and redistribution percentage dropdown).
+ * under Owner Redistribution Breakdown (by email, name, bank/PayID details, and redistribution percentage dropdown).
  */
 export async function superAdminUpsertAdAgent(params: {
   name: string;
   email: string;
   phone?: string;
+  bankOrPayIdDetails?: string;
   redistributionPercentage: number;
   location?: AdAgentLocation;
 }): Promise<AdAgentProfile> {
@@ -260,6 +268,10 @@ export async function superAdminUpsertAdAgent(params: {
 
   const agentId = existing?.agentId || `agent_${Date.now()}_${randomBytes(3).toString("hex")}`;
   const loc: AdAgentLocation = params.location || existing?.location || DEFAULT_SUPERADMIN_LOCATION;
+  const bankDetails =
+    params.bankOrPayIdDetails !== undefined
+      ? params.bankOrPayIdDetails.trim()
+      : existing?.bankOrPayIdDetails || "";
 
   const nextAgent: AdAgentProfile = {
     agentId,
@@ -271,6 +283,7 @@ export async function superAdminUpsertAdAgent(params: {
       ...loc,
       label: formatAgentLocationLabel(loc),
     },
+    bankOrPayIdDetails: bankDetails,
     redistributionPercentage: pct,
     status: existing?.status || "active",
     isSuperAdminBuiltIn: isDatabaseAdmin(null, cleanEmail) || existing?.isSuperAdminBuiltIn || false,
@@ -336,6 +349,22 @@ export async function updateAdAgentRedistributionPercent(
   await db.collection(AD_AGENTS_COL).doc(agentId).set(
     {
       redistributionPercentage: pct,
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true },
+  );
+}
+
+/**
+ * Super Admin updates an Ad Agent's Bank Details or PayID Details.
+ */
+export async function updateAdAgentBankDetails(
+  agentId: string,
+  bankOrPayIdDetails: string,
+): Promise<void> {
+  await db.collection(AD_AGENTS_COL).doc(agentId).set(
+    {
+      bankOrPayIdDetails: bankOrPayIdDetails.trim().slice(0, 500),
       updatedAt: new Date().toISOString(),
     },
     { merge: true },
@@ -498,9 +527,13 @@ export async function getAdAgentDistributionLedger(
       name: agent.name,
       phone: agent.phone,
       email: agent.email,
+      suburb: agent.location.suburb,
+      state: agent.location.state,
+      country: agent.location.country,
       locationLabel: formatAgentLocationLabel(agent.location),
       latitude: agent.location.latitude,
       longitude: agent.location.longitude,
+      bankOrPayIdDetails: agent.bankOrPayIdDetails || "",
       status: agent.status,
       isSuperAdminBuiltIn: agent.isSuperAdminBuiltIn,
       customizationsCount,
@@ -515,3 +548,4 @@ export async function getAdAgentDistributionLedger(
     };
   });
 }
+

@@ -911,6 +911,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
         "longitude": { "type": "number", "minimum": -180, "maximum": 180 }
       }
     },
+    "bankOrPayIdDetails": { "type": "string", "maxLength": 500 },
     "redistributionPercent": {
       "type": "integer",
       "enum": [10, 20, 30, 40, 50, 60, 70]
@@ -929,14 +930,15 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 - **Role Rules:**
   - **Super Admin (`superadmin`):** Automatically provisioned as an active Ad Agent (`isSuperAdminBuiltIn: true`) — **no registration required**.
   - **Main Admin (`admin`):** Can register as an Ad Agent via `AdAgentModal.tsx` while retaining their `admin` role.
-  - **Standard Users (`supporter`, etc.):** Registering via `AdAgentModal.tsx` (`Name`, `Phone Number`, locked `Registered Email`, and `Geolocation`) promotes their RBAC role to `"ad_agent"`.
+  - **Standard Users (`supporter`, etc.):** Registering via `AdAgentModal.tsx` (`Name`, `Phone Number`, locked `Registered Email`, `Geolocation`, and optional `Bank Details or PayID Details`) promotes their RBAC role to `"ad_agent"`.
 - **Closest Ad Agent Matching on Customize Orders (`POST /api/customize`):**
   - Customers enter/auto-detect their geolocation (`customerLocation`) on the **Customize your Brand Strategy with Professional Experts** form and pay the Super Admin-configured `customizeService` token cost (`config.serviceCosts.customizeService`).
   - `findClosestAdAgent(customerLocation)` calculates the Haversine great-circle distance in kilometers to every active Ad Agent and assigns the closest Ad Agent (`assignedAgentId`, `assignedAgentUid`, `assignedAgentName`, `assignedAgentEmail`, `assignedAgentPhone`, `assignedAgentLocation`, `assignedDistanceKm`).
   - The customer is immediately informed which closest Ad Agent is handling their customization, and the assigned Ad Agent receives the Customize order in their **Ad Agent Panel** (`AdAgentModal.tsx`).
 - **Ad Agent Distribution Ledger (`SuperAdminModal.tsx` under `Owner Redistribution Breakdown`):**
-  - Displays each Ad Agent's **Name**, **Email**, and **Total Value of All Customizations Done** next to their name (`# orders`, `⚡ Tokens`, `$ AUD`, `$ USD`).
-  - Super Admin can add Ad Agents by **Email** and **Name**, and select each Ad Agent's **Redistribution %** from a dropdown menu (`10%`, `20%`, `30%`, `40%`, `50%`, `60%`, `70%`), displaying their **Total Customizations Value** and calculated **Redistribution Amount** (`⚡ Tokens`, `$ AUD`, `$ USD`).
+  - Includes a **Select Registered Ad Agent Dropdown** (`data-agent-id="select-registered-ad-agent-dropdown"`) that lists all registered Ad Agents and **automatically fills out** the selected Ad Agent's **Name**, **Email**, **Phone Number**, **Geolocation (`Suburb`, `State`, `Coordinates`)**, **Redistribution % (`10%`–`70%`)**, and **Bank Details or PayID Details** (`data-agent-id="ad-agent-bank-payid-details-box"`).
+  - Displays each Ad Agent's **Name**, **Email**, **Bank Details / PayID Details**, and **Total Value of All Customizations Done** next to their name (`# orders`, `⚡ Tokens`, `$ AUD`, `$ USD`).
+  - Super Admin can add or update Ad Agents, enter/update their **Bank Details or PayID Details**, and select each Ad Agent's **Redistribution %** from a dropdown menu (`10%`, `20%`, `30%`, `40%`, `50%`, `60%`, `70%`), displaying their **Total Customizations Value** and calculated **Redistribution Amount** (`⚡ Tokens`, `$ AUD`, `$ USD`).
 
 
 

@@ -10,12 +10,14 @@ import {
   resetAdAgentRedistributionToZero,
   superAdminUpsertAdAgent,
   toggleAdAgentStatus,
+  updateAdAgentBankDetails,
   updateAdAgentRedistributionPercent,
 } from "@/lib/ad-agents";
 import { getSystemConfig, sendSuperadminMessage } from "@/lib/admin";
 import {
   RegisterAdAgentRequestSchema,
   SuperAdminAddAdAgentRequestSchema,
+  SuperAdminUpdateAdAgentBankDetailsRequestSchema,
   SuperAdminUpdateAdAgentPercentRequestSchema,
   type CustomizeRequestDoc,
 } from "@/lib/contracts";
@@ -96,6 +98,7 @@ export async function POST(req: Request) {
         name: body.name,
         phone: body.phone,
         location: body.location,
+        bankOrPayIdDetails: body.bankOrPayIdDetails ? String(body.bankOrPayIdDetails) : undefined,
       });
 
       const { agent, assignedRole } = await registerOrUpdateAdAgent({
@@ -105,6 +108,7 @@ export async function POST(req: Request) {
         name: parsed.name,
         phone: parsed.phone,
         location: parsed.location,
+        bankOrPayIdDetails: parsed.bankOrPayIdDetails,
       });
 
       const config = await getSystemConfig();
@@ -115,6 +119,7 @@ export async function POST(req: Request) {
         agent,
         assignedRole,
         adAgentLedger,
+        ledger: adAgentLedger,
       });
     }
 
@@ -163,6 +168,8 @@ export async function POST(req: Request) {
         name: body.name,
         email: body.email,
         phone: body.phone ? String(body.phone) : undefined,
+        bankOrPayIdDetails:
+          body.bankOrPayIdDetails !== undefined ? String(body.bankOrPayIdDetails) : undefined,
         redistributionPercentage: Number(
           body.redistributionPercentage || body.redistributionPercent || 30,
         ),
@@ -174,6 +181,21 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         agent,
+        adAgentLedger,
+        ledger: adAgentLedger,
+      });
+    }
+
+    if (action === "SUPERADMIN_UPDATE_BANK_DETAILS") {
+      const parsed = SuperAdminUpdateAdAgentBankDetailsRequestSchema.parse({
+        agentId: body.agentId,
+        bankOrPayIdDetails: String(body.bankOrPayIdDetails ?? ""),
+      });
+      await updateAdAgentBankDetails(parsed.agentId, parsed.bankOrPayIdDetails);
+      const config = await getSystemConfig();
+      const adAgentLedger = await getAdAgentDistributionLedger(config.audCentsPerToken || 100);
+      return NextResponse.json({
+        success: true,
         adAgentLedger,
         ledger: adAgentLedger,
       });

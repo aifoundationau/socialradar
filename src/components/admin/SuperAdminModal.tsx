@@ -319,33 +319,105 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
   // Ad Agent Distribution Ledger state
   const [adAgentLedger, setAdAgentLedger] = useState<AdAgentDistributionItem[]>([]);
-  const [showAddAdAgent, setShowAddAdAgent] = useState(false);
+  const [selectedRegisteredAgentKey, setSelectedRegisteredAgentKey] = useState<string>("");
+  const [showAddAdAgent, setShowAddAdAgent] = useState(true);
   const [newAdAgent, setNewAdAgent] = useState<{
     name: string;
     email: string;
     phone: string;
+    bankOrPayIdDetails: string;
     redistributionPercent: AdAgentRedistributionPercent;
     suburb: string;
     state: string;
+    latitude: number;
+    longitude: number;
   }>({
     name: "",
     email: "",
     phone: "",
+    bankOrPayIdDetails: "",
     redistributionPercent: 30,
     suburb: "Sydney",
     state: "NSW",
+    latitude: -33.8688,
+    longitude: 151.2093,
   });
   const [adAgentSaving, setAdAgentSaving] = useState(false);
   const [confirmDeleteAdAgentId, setConfirmDeleteAdAgentId] = useState<string | null>(null);
   const [confirmResetAdAgentId, setConfirmResetAdAgentId] = useState<string | null>(null);
   const [resettingAdAgentId, setResettingAdAgentId] = useState<string | null>(null);
 
+  function selectAndAutofillAdAgent(agentKey: string, ledgerList: AdAgentDistributionItem[] = adAgentLedger) {
+    setSelectedRegisteredAgentKey(agentKey);
+    if (!agentKey || agentKey === "__NEW__") {
+      setNewAdAgent({
+        name: "",
+        email: "",
+        phone: "",
+        bankOrPayIdDetails: "",
+        redistributionPercent: 30,
+        suburb: "Sydney",
+        state: "NSW",
+        latitude: -33.8688,
+        longitude: 151.2093,
+      });
+      return;
+    }
+
+    // 1. Check if in adAgentLedger by agentId or email
+    const matchedLedger = ledgerList.find(
+      (a) => a.agentId === agentKey || a.email.toLowerCase() === agentKey.toLowerCase()
+    );
+    if (matchedLedger) {
+      const labelParts = (matchedLedger.locationLabel || "").split(",").map((s) => s.trim());
+      setNewAdAgent({
+        name: matchedLedger.name || "",
+        email: matchedLedger.email || "",
+        phone: matchedLedger.phone || "",
+        bankOrPayIdDetails: matchedLedger.bankOrPayIdDetails || "",
+        redistributionPercent: (AD_AGENT_REDISTRIBUTION_PERCENTS.includes(
+          matchedLedger.redistributionPercentage as AdAgentRedistributionPercent
+        )
+          ? matchedLedger.redistributionPercentage
+          : 30) as AdAgentRedistributionPercent,
+        suburb: matchedLedger.suburb || labelParts[0] || "Sydney",
+        state: matchedLedger.state || labelParts[1] || "NSW",
+        latitude: typeof matchedLedger.latitude === "number" ? matchedLedger.latitude : -33.8688,
+        longitude: typeof matchedLedger.longitude === "number" ? matchedLedger.longitude : 151.2093,
+      });
+      return;
+    }
+
+    // 2. Otherwise check rbacUsers for registered user
+    const matchedUser = rbacUsers.find(
+      (u) => u.uid === agentKey || u.email.toLowerCase() === agentKey.toLowerCase()
+    );
+    if (matchedUser) {
+      setNewAdAgent({
+        name: matchedUser.displayName || matchedUser.email.split("@")[0] || "Ad Agent",
+        email: matchedUser.email,
+        phone: "+61 400 000 000",
+        bankOrPayIdDetails: "",
+        redistributionPercent: 30,
+        suburb: "Sydney",
+        state: "NSW",
+        latitude: -33.8688,
+        longitude: 151.2093,
+      });
+    }
+  }
+
   async function reloadAdAgents() {
     try {
       const data = await apiFetch<{ ledger?: AdAgentDistributionItem[] }>("/api/ad-agent", {
         method: "GET",
       });
-      if (data.ledger) setAdAgentLedger(data.ledger);
+      if (data.ledger) {
+        setAdAgentLedger(data.ledger);
+        if (!selectedRegisteredAgentKey && data.ledger.length > 0) {
+          selectAndAutofillAdAgent(data.ledger[0].agentId, data.ledger);
+        }
+      }
     } catch {
       // Non-blocking
     }
@@ -365,6 +437,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     try {
       const data = await apiFetch<{
         success: boolean;
+        agent?: { agentId: string };
         ledger: AdAgentDistributionItem[];
       }>("/api/ad-agent", {
         method: "POST",
@@ -373,28 +446,26 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           name: cleanName,
           email: cleanEmail,
           phone: newAdAgent.phone.trim() || "Not specified",
+          bankOrPayIdDetails: newAdAgent.bankOrPayIdDetails.trim(),
           redistributionPercent: newAdAgent.redistributionPercent,
           location: {
             suburb: newAdAgent.suburb.trim() || "Sydney",
             state: newAdAgent.state.trim() || "NSW",
-            country: "Australia",
-            latitude: -33.8688,
-            longitude: 151.2093,
+            country: "AU",
+            latitude: Number.isFinite(Number(newAdAgent.latitude)) ? Number(newAdAgent.latitude) : -33.8688,
+            longitude: Number.isFinite(Number(newAdAgent.longitude)) ? Number(newAdAgent.longitude) : 151.2093,
           },
         },
       });
-      if (data.ledger) setAdAgentLedger(data.ledger);
-      setNewAdAgent({
-        name: "",
-        email: "",
-        phone: "",
-        redistributionPercent: 30,
-        suburb: "Sydney",
-        state: "NSW",
-      });
-      setShowAddAdAgent(false);
+      if (data.ledger) {
+        setAdAgentLedger(data.ledger);
+        const saved = data.ledger.find((a) => a.email.toLowerCase() === cleanEmail);
+        if (saved) {
+          selectAndAutofillAdAgent(saved.agentId, data.ledger);
+        }
+      }
       setStatusMsg(
-        `Ad Agent "${cleanName}" (${cleanEmail}) added to the Ad Agent Distribution Ledger at ${newAdAgent.redistributionPercent}% redistribution.`
+        `Saved Ad Agent "${cleanName}" (${cleanEmail}) with Bank/PayID details and ${newAdAgent.redistributionPercent}% redistribution.`
       );
       reloadRbac();
     } catch (err) {
@@ -1016,7 +1087,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           if (rbacData?.users) setRbacUsers(rbacData.users);
           if (faqData?.faqs) setFaqs(faqData.faqs);
           if (ordersData?.orders) setOrderLedger(ordersData.orders);
-          if (adAgentData?.ledger) setAdAgentLedger(adAgentData.ledger);
+          if (adAgentData?.ledger) {
+            setAdAgentLedger(adAgentData.ledger);
+            if (adAgentData.ledger.length > 0) {
+              selectAndAutofillAdAgent(adAgentData.ledger[0].agentId, adAgentData.ledger);
+            }
+          }
           setLoading(false);
         }
       })
@@ -2658,7 +2734,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               </span>
                             </div>
                             <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                              Tracks all Customize orders assigned by closest geolocation. Total Customizations value is shown next to each Ad Agent&apos;s name, with Super Admin redistribution dropdown (10%–70%). Super Admin is included automatically (no registration required); Main Admin can also register as an Ad Agent.
+                              Select any registered Ad Agent from the dropdown to automatically fill out their information, view their total Customizations value, set their redistribution % (10%–70%), and enter or update their Bank Details or PayID details.
                             </p>
                           </div>
                           {isSuper && (
@@ -2667,137 +2743,252 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               onClick={() => setShowAddAdAgent((prev) => !prev)}
                               data-agent-id="toggle-add-ad-agent-btn"
                               data-testid="toggle-add-ad-agent-btn"
-                              aria-label="Add Ad Agent to Distribution Ledger"
+                              aria-label="Toggle Ad Agent Auto-Fill & Bank/PayID Form"
                               className="inline-flex items-center gap-1.5 rounded-lg border border-tertiary/40 bg-tertiary/15 px-2.5 py-1.5 font-mono text-[11px] font-bold text-tertiary hover:bg-tertiary/25 transition"
                             >
-                              <Icon name={showAddAdAgent ? "x" : "plus"} className="size-3.5" />
-                              <span>{showAddAdAgent ? "Close Form" : "+ Add Ad Agent"}</span>
+                              <Icon name={showAddAdAgent ? "chevronDown" : "plus"} className="size-3.5" />
+                              <span>
+                                {showAddAdAgent
+                                  ? "Hide Agent Auto-Fill & Bank/PayID Box"
+                                  : "Open Agent Dropdown & Bank/PayID Box"}
+                              </span>
                             </button>
                           )}
                         </div>
 
-                        {showAddAdAgent && isSuper && (
-                          <form
-                            onSubmit={handleSuperAdminUpsertAdAgent}
-                            data-agent-id="superadmin-add-ad-agent-form"
-                            data-testid="superadmin-add-ad-agent-form"
-                            className="rounded-xl border border-tertiary/35 bg-surface-container-highest/60 p-3.5 space-y-3"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-tertiary">
-                                Add Ad Agent (Email, Name &amp; Redistribution %)
-                              </span>
-                              <span className="font-mono text-[10px] text-on-surface-variant">
-                                Grants Ad Agent Customize Ledger Entry
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                              <div>
-                                <label className={label}>Ad Agent Name *</label>
-                                <input
-                                  type="text"
-                                  required
-                                  placeholder="e.g. Jordan Vance"
-                                  value={newAdAgent.name}
-                                  onChange={(e) => setNewAdAgent({ ...newAdAgent, name: e.target.value })}
-                                  data-agent-id="new-ad-agent-name-input"
-                                  data-testid="new-ad-agent-name-input"
-                                  className={field}
-                                />
-                              </div>
-                              <div>
-                                <label className={label}>Ad Agent Email *</label>
-                                <input
-                                  type="email"
-                                  required
-                                  placeholder="agent@agency.com"
-                                  value={newAdAgent.email}
-                                  onChange={(e) => setNewAdAgent({ ...newAdAgent, email: e.target.value })}
-                                  data-agent-id="new-ad-agent-email-input"
-                                  data-testid="new-ad-agent-email-input"
-                                  className={field}
-                                />
-                              </div>
-                              <div>
-                                <label className={label}>Redistribution Amount (%)</label>
+                        {showAddAdAgent && isSuper && (() => {
+                          const selectedLedgerItem = adAgentLedger.find(
+                            (a) =>
+                              a.agentId === selectedRegisteredAgentKey ||
+                              (newAdAgent.email && a.email.toLowerCase() === newAdAgent.email.trim().toLowerCase())
+                          );
+                          const unlinkedRbacAgents = rbacUsers.filter(
+                            (u) =>
+                              (u.role === "ad_agent" || u.role === "admin" || u.role === "superadmin") &&
+                              !adAgentLedger.some((a) => a.email.toLowerCase() === u.email.toLowerCase())
+                          );
+
+                          return (
+                            <form
+                              onSubmit={handleSuperAdminUpsertAdAgent}
+                              data-agent-id="superadmin-add-ad-agent-form"
+                              data-testid="superadmin-add-ad-agent-form"
+                              className="rounded-xl border border-tertiary/35 bg-surface-container-highest/60 p-3.5 space-y-3"
+                            >
+                              {/* 1. REGISTERED AD AGENTS DROPDOWN (Auto-fills all fields below) */}
+                              <div
+                                className="rounded-lg border border-tertiary/30 bg-surface-container-lowest p-3 space-y-2"
+                                data-agent-id="ad-agent-selector-autofill-panel"
+                                data-testid="ad-agent-selector-autofill-panel"
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <label
+                                    htmlFor="select-registered-ad-agent-dropdown"
+                                    className="font-mono text-[11px] font-bold uppercase tracking-wider text-tertiary"
+                                  >
+                                    Select Registered Ad Agent (Auto-Fills Information &amp; Bank / PayID Details)
+                                  </label>
+                                  {selectedLedgerItem && (
+                                    <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
+                                      <span>
+                                        Total Customizations: ⚡{" "}
+                                        {selectedLedgerItem.totalCustomizationsTokens.toLocaleString("en-AU")} ·{" "}
+                                        {formatAud(selectedLedgerItem.totalCustomizationsAudCents)} (
+                                        {selectedLedgerItem.customizationsCount}{" "}
+                                        {selectedLedgerItem.customizationsCount === 1 ? "order" : "orders"})
+                                      </span>
+                                      <span>|</span>
+                                      <span className="text-tertiary">
+                                        Redistribution ({selectedLedgerItem.redistributionPercentage}%):{" "}
+                                        {formatAud(selectedLedgerItem.redistributionAudCents)}
+                                      </span>
+                                    </span>
+                                  )}
+                                </div>
+
                                 <select
-                                  value={newAdAgent.redistributionPercent}
-                                  onChange={(e) =>
-                                    setNewAdAgent({
-                                      ...newAdAgent,
-                                      redistributionPercent: Number(e.target.value) as AdAgentRedistributionPercent,
-                                    })
-                                  }
-                                  data-agent-id="new-ad-agent-percent-select"
-                                  data-testid="new-ad-agent-percent-select"
-                                  className={field}
+                                  id="select-registered-ad-agent-dropdown"
+                                  value={selectedRegisteredAgentKey}
+                                  onChange={(e) => selectAndAutofillAdAgent(e.target.value)}
+                                  data-agent-id="select-registered-ad-agent-dropdown"
+                                  data-testid="select-registered-ad-agent-dropdown"
+                                  aria-label="Select a registered Ad Agent to auto-fill details"
+                                  className={`${field} font-mono text-xs border-tertiary/40`}
                                 >
-                                  {AD_AGENT_REDISTRIBUTION_PERCENTS.map((pct) => (
-                                    <option key={pct} value={pct}>
-                                      {pct}% Redistribution
-                                    </option>
-                                  ))}
+                                  <option value="__NEW__">+ Enter / Register New Ad Agent Manually…</option>
+                                  <optgroup label={`Registered Ad Agents in Ledger (${adAgentLedger.length})`}>
+                                    {adAgentLedger.map((agent) => (
+                                      <option key={agent.agentId} value={agent.agentId}>
+                                        {agent.name} — {agent.email} | 📍 {agent.locationLabel} | ⚡{" "}
+                                        {agent.totalCustomizationsTokens} Tokens (
+                                        {formatAud(agent.totalCustomizationsAudCents)}) | {agent.redistributionPercentage}%
+                                        {agent.bankOrPayIdDetails ? " | 🏦 Bank/PayID Saved" : ""}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                  {unlinkedRbacAgents.length > 0 && (
+                                    <optgroup label="Other Registered Ad Agent / Admin Accounts">
+                                      {unlinkedRbacAgents.map((u) => (
+                                        <option key={u.uid} value={u.email}>
+                                          {u.displayName || u.email.split("@")[0]} — {u.email} ({u.role})
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                  )}
                                 </select>
                               </div>
-                            </div>
-                            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                              <div>
-                                <label className={label}>Phone Number (Optional)</label>
-                                <input
-                                  type="tel"
-                                  placeholder="+61 400 000 000"
-                                  value={newAdAgent.phone}
-                                  onChange={(e) => setNewAdAgent({ ...newAdAgent, phone: e.target.value })}
-                                  data-agent-id="new-ad-agent-phone-input"
-                                  data-testid="new-ad-agent-phone-input"
-                                  className={field}
+
+                              {/* 2. AUTO-FILLED AD AGENT INFORMATION */}
+                              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                                <div>
+                                  <label className={label}>Ad Agent Name *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="e.g. Jordan Vance"
+                                    value={newAdAgent.name}
+                                    onChange={(e) => setNewAdAgent({ ...newAdAgent, name: e.target.value })}
+                                    data-agent-id="new-ad-agent-name-input"
+                                    data-testid="new-ad-agent-name-input"
+                                    className={field}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={label}>Ad Agent Registered Email *</label>
+                                  <input
+                                    type="email"
+                                    required
+                                    placeholder="agent@agency.com"
+                                    value={newAdAgent.email}
+                                    onChange={(e) => setNewAdAgent({ ...newAdAgent, email: e.target.value })}
+                                    data-agent-id="new-ad-agent-email-input"
+                                    data-testid="new-ad-agent-email-input"
+                                    className={field}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={label}>Redistribution Amount (%)</label>
+                                  <select
+                                    value={newAdAgent.redistributionPercent}
+                                    onChange={(e) =>
+                                      setNewAdAgent({
+                                        ...newAdAgent,
+                                        redistributionPercent: Number(e.target.value) as AdAgentRedistributionPercent,
+                                      })
+                                    }
+                                    data-agent-id="new-ad-agent-percent-select"
+                                    data-testid="new-ad-agent-percent-select"
+                                    className={field}
+                                  >
+                                    {AD_AGENT_REDISTRIBUTION_PERCENTS.map((pct) => (
+                                      <option key={pct} value={pct}>
+                                        {pct}% Redistribution
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-4">
+                                <div>
+                                  <label className={label}>Phone Number</label>
+                                  <input
+                                    type="tel"
+                                    placeholder="+61 400 000 000"
+                                    value={newAdAgent.phone}
+                                    onChange={(e) => setNewAdAgent({ ...newAdAgent, phone: e.target.value })}
+                                    data-agent-id="new-ad-agent-phone-input"
+                                    data-testid="new-ad-agent-phone-input"
+                                    className={field}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={label}>Suburb / City</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Sydney"
+                                    value={newAdAgent.suburb}
+                                    onChange={(e) => setNewAdAgent({ ...newAdAgent, suburb: e.target.value })}
+                                    data-agent-id="new-ad-agent-suburb-input"
+                                    data-testid="new-ad-agent-suburb-input"
+                                    className={field}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={label}>State / Region</label>
+                                  <input
+                                    type="text"
+                                    placeholder="NSW"
+                                    value={newAdAgent.state}
+                                    onChange={(e) => setNewAdAgent({ ...newAdAgent, state: e.target.value })}
+                                    data-agent-id="new-ad-agent-state-input"
+                                    data-testid="new-ad-agent-state-input"
+                                    className={field}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={label}>Geolocation Coordinates</label>
+                                  <div className="rounded-xl border border-white/10 bg-surface-container-lowest px-2.5 py-2 font-mono text-[11px] text-on-surface-variant truncate">
+                                    📍 {Number(newAdAgent.latitude).toFixed(2)}, {Number(newAdAgent.longitude).toFixed(2)}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* 3. BANK DETAILS OR PAYID DETAILS BOX */}
+                              <div className="rounded-lg border border-primary/30 bg-surface-container-lowest p-3 space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <label
+                                    htmlFor="ad-agent-bank-payid-details-box"
+                                    className="font-mono text-[11px] font-bold uppercase tracking-wider text-primary"
+                                  >
+                                    Bank Details or PayID Details (For Redistribution Payouts)
+                                  </label>
+                                  <span className="font-mono text-[10px] text-on-surface-variant">
+                                    BSB / Account Number / Account Name or PayID (Email / Phone / ABN)
+                                  </span>
+                                </div>
+                                <textarea
+                                  id="ad-agent-bank-payid-details-box"
+                                  rows={2}
+                                  maxLength={500}
+                                  placeholder="Enter Bank Details (Bank Name, Account Name, BSB, Account Number) or PayID Details (PayID Email / Mobile / ABN)..."
+                                  value={newAdAgent.bankOrPayIdDetails}
+                                  onChange={(e) =>
+                                    setNewAdAgent({ ...newAdAgent, bankOrPayIdDetails: e.target.value })
+                                  }
+                                  data-agent-id="ad-agent-bank-payid-details-box"
+                                  data-testid="ad-agent-bank-payid-details-box"
+                                  className={`${field} font-mono text-xs`}
                                 />
                               </div>
-                              <div>
-                                <label className={label}>Suburb / City</label>
-                                <input
-                                  type="text"
-                                  placeholder="Sydney"
-                                  value={newAdAgent.suburb}
-                                  onChange={(e) => setNewAdAgent({ ...newAdAgent, suburb: e.target.value })}
-                                  data-agent-id="new-ad-agent-suburb-input"
-                                  data-testid="new-ad-agent-suburb-input"
-                                  className={field}
-                                />
+
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => selectAndAutofillAdAgent("__NEW__")}
+                                  data-agent-id="clear-ad-agent-form-btn"
+                                  data-testid="clear-ad-agent-form-btn"
+                                  className={`${btnSecondary} px-3 py-1.5 text-xs`}
+                                >
+                                  Clear / New Agent
+                                </button>
+                                <button
+                                  type="submit"
+                                  disabled={adAgentSaving || !newAdAgent.name.trim() || !newAdAgent.email.trim()}
+                                  data-agent-id="submit-add-ad-agent-btn"
+                                  data-testid="submit-add-ad-agent-btn"
+                                  className={`${btnPrimary} px-3.5 py-1.5 text-xs`}
+                                >
+                                  {adAgentSaving
+                                    ? "Saving…"
+                                    : selectedLedgerItem
+                                      ? "Update Ad Agent & Bank / PayID Details"
+                                      : "Save Ad Agent to Ledger"}
+                                </button>
                               </div>
-                              <div>
-                                <label className={label}>State / Region</label>
-                                <input
-                                  type="text"
-                                  placeholder="NSW"
-                                  value={newAdAgent.state}
-                                  onChange={(e) => setNewAdAgent({ ...newAdAgent, state: e.target.value })}
-                                  data-agent-id="new-ad-agent-state-input"
-                                  data-testid="new-ad-agent-state-input"
-                                  className={field}
-                                />
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setShowAddAdAgent(false)}
-                                className={`${btnSecondary} px-3 py-1.5 text-xs`}
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="submit"
-                                disabled={adAgentSaving || !newAdAgent.name.trim() || !newAdAgent.email.trim()}
-                                data-agent-id="submit-add-ad-agent-btn"
-                                data-testid="submit-add-ad-agent-btn"
-                                className={`${btnPrimary} px-3.5 py-1.5 text-xs`}
-                              >
-                                {adAgentSaving ? "Saving…" : "Save Ad Agent to Ledger"}
-                              </button>
-                            </div>
-                          </form>
-                        )}
+                            </form>
+                          );
+                        })()}
 
                         {adAgentLedger.length === 0 ? (
                           <div className={`${card} p-5 text-center text-on-surface-variant`}>
@@ -2812,7 +3003,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             >
                               <thead className="border-b border-white/[0.08] bg-surface-container-high/60 font-mono text-mono-label text-on-surface-variant">
                                 <tr>
-                                  <th className="px-3 py-2">Ad Agent (Name, Email &amp; Total Customizations Value)</th>
+                                  <th className="px-3 py-2">
+                                    Ad Agent (Name, Email, Bank/PayID &amp; Total Customizations Value)
+                                  </th>
                                   <th className="px-2.5 py-2">Total Customizations Value</th>
                                   <th className="px-2.5 py-2">Redistribution %</th>
                                   <th className="px-2.5 py-2">Redistribution Amount</th>
@@ -2821,133 +3014,163 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-white/[0.04]">
-                                {adAgentLedger.map((agent) => (
-                                  <tr
-                                    key={agent.agentId}
-                                    data-agent-id={`ad-agent-ledger-row-${agent.agentId}`}
-                                    data-testid={`ad-agent-ledger-row-${agent.agentId}`}
-                                    className="hover:bg-white/[0.02] transition"
-                                  >
-                                    {/* 1. Name + Total Customizations Value Next to Name + Email & Location */}
-                                    <td className="px-3 py-2.5">
-                                      <div className="flex flex-wrap items-center gap-1.5">
-                                        <span className="font-semibold text-on-surface text-[12px]">
-                                          {agent.name}
-                                        </span>
-                                        <span
-                                          className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary"
-                                          title="Total value of all Customizations done by this Ad Agent"
-                                        >
-                                          <span>⚡ {agent.totalCustomizationsTokens.toLocaleString("en-AU")}</span>
-                                          <span>·</span>
-                                          <span>{formatAud(agent.totalCustomizationsAudCents)}</span>
-                                          <span className="text-on-surface-variant">
-                                            ({agent.customizationsCount} {agent.customizationsCount === 1 ? "order" : "orders"})
+                                {adAgentLedger.map((agent) => {
+                                  const isSelectedRow = selectedRegisteredAgentKey === agent.agentId;
+                                  return (
+                                    <tr
+                                      key={agent.agentId}
+                                      onClick={() => {
+                                        selectAndAutofillAdAgent(agent.agentId);
+                                        setShowAddAdAgent(true);
+                                      }}
+                                      data-agent-id={`ad-agent-ledger-row-${agent.agentId}`}
+                                      data-testid={`ad-agent-ledger-row-${agent.agentId}`}
+                                      className={`cursor-pointer transition ${
+                                        isSelectedRow
+                                          ? "bg-tertiary/10 hover:bg-tertiary/15"
+                                          : "hover:bg-white/[0.02]"
+                                      }`}
+                                    >
+                                      {/* 1. Name + Total Customizations Value Next to Name + Email, Location & Bank/PayID */}
+                                      <td className="px-3 py-2.5">
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                          <span className="font-semibold text-on-surface text-[12px]">
+                                            {agent.name}
                                           </span>
-                                        </span>
-                                        {agent.isSuperAdminBuiltIn && (
-                                          <span className="rounded border border-tertiary/40 bg-tertiary/15 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase text-tertiary">
-                                            Super Admin (No Reg Required)
+                                          <span
+                                            className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary"
+                                            title="Total value of all Customizations done by this Ad Agent"
+                                          >
+                                            <span>⚡ {agent.totalCustomizationsTokens.toLocaleString("en-AU")}</span>
+                                            <span>·</span>
+                                            <span>{formatAud(agent.totalCustomizationsAudCents)}</span>
+                                            <span className="text-on-surface-variant">
+                                              ({agent.customizationsCount} {agent.customizationsCount === 1 ? "order" : "orders"})
+                                            </span>
+                                          </span>
+                                          {agent.isSuperAdminBuiltIn && (
+                                            <span className="rounded border border-tertiary/40 bg-tertiary/15 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase text-tertiary">
+                                              Super Admin (No Reg Required)
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="mt-0.5 font-mono text-[11px] text-on-surface-variant">
+                                          {agent.email}
+                                          {agent.phone && agent.phone !== "Not specified" ? ` · ${agent.phone}` : ""}
+                                        </div>
+                                        <div className="mt-0.5 font-mono text-[10px] text-outline">
+                                          📍 {agent.locationLabel} ({agent.latitude.toFixed(2)},{" "}
+                                          {agent.longitude.toFixed(2)})
+                                        </div>
+                                        <div className="mt-1 font-mono text-[10px]">
+                                          {agent.bankOrPayIdDetails ? (
+                                            <span className="inline-flex items-center gap-1 rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-primary">
+                                              🏦 Bank / PayID: {agent.bankOrPayIdDetails}
+                                            </span>
+                                          ) : (
+                                            <span className="text-outline italic">
+                                              No Bank / PayID details saved yet (click row to add)
+                                            </span>
+                                          )}
+                                        </div>
+                                      </td>
+
+                                      {/* 2. Total Customizations Value */}
+                                      <td className="px-2.5 py-2.5 font-mono text-[11px] whitespace-nowrap">
+                                        <div className="font-bold text-on-surface">
+                                          ⚡ {agent.totalCustomizationsTokens.toLocaleString("en-AU")} Tokens
+                                        </div>
+                                        <div className="text-[10px] text-secondary font-semibold">
+                                          {formatAud(agent.totalCustomizationsAudCents)} AUD ·{" "}
+                                          {formatUsd(agent.totalCustomizationsUsdCents)} USD
+                                        </div>
+                                        <div className="text-[10px] text-on-surface-variant">
+                                          {agent.customizationsCount} Customize{" "}
+                                          {agent.customizationsCount === 1 ? "Order" : "Orders"}
+                                        </div>
+                                      </td>
+
+                                      {/* 3. Redistribution % Dropdown (10%, 20%, 30%, 40%, 50%, 60%, 70%) */}
+                                      <td
+                                        className="px-2.5 py-2.5 whitespace-nowrap"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        {isSuper ? (
+                                          <select
+                                            value={agent.redistributionPercentage}
+                                            disabled={adAgentSaving}
+                                            onChange={(e) =>
+                                              handleUpdateAdAgentPercent(
+                                                agent.agentId,
+                                                Number(e.target.value) as AdAgentRedistributionPercent,
+                                                agent.name
+                                              )
+                                            }
+                                            data-agent-id={`ad-agent-percent-select-${agent.agentId}`}
+                                            data-testid={`ad-agent-percent-select-${agent.agentId}`}
+                                            aria-label={`Set redistribution percentage for ${agent.name}`}
+                                            className="rounded-lg border border-tertiary/40 bg-surface-container-lowest px-2 py-1 font-mono text-[11px] font-bold text-tertiary focus:border-primary focus:outline-none"
+                                          >
+                                            {AD_AGENT_REDISTRIBUTION_PERCENTS.map((pct) => (
+                                              <option key={pct} value={pct}>
+                                                {pct}%
+                                              </option>
+                                            ))}
+                                          </select>
+                                        ) : (
+                                          <span className="font-mono text-[11px] font-bold text-tertiary">
+                                            {agent.redistributionPercentage}%
                                           </span>
                                         )}
-                                      </div>
-                                      <div className="mt-0.5 font-mono text-[11px] text-on-surface-variant">
-                                        {agent.email}
-                                        {agent.phone && agent.phone !== "Not specified" ? ` · ${agent.phone}` : ""}
-                                      </div>
-                                      <div className="mt-0.5 font-mono text-[10px] text-outline">
-                                        📍 {agent.locationLabel} ({agent.latitude.toFixed(2)},{" "}
-                                        {agent.longitude.toFixed(2)})
-                                      </div>
-                                    </td>
+                                      </td>
 
-                                    {/* 2. Total Customizations Value */}
-                                    <td className="px-2.5 py-2.5 font-mono text-[11px] whitespace-nowrap">
-                                      <div className="font-bold text-on-surface">
-                                        ⚡ {agent.totalCustomizationsTokens.toLocaleString("en-AU")} Tokens
-                                      </div>
-                                      <div className="text-[10px] text-secondary font-semibold">
-                                        {formatAud(agent.totalCustomizationsAudCents)} AUD ·{" "}
-                                        {formatUsd(agent.totalCustomizationsUsdCents)} USD
-                                      </div>
-                                      <div className="text-[10px] text-on-surface-variant">
-                                        {agent.customizationsCount} Customize{" "}
-                                        {agent.customizationsCount === 1 ? "Order" : "Orders"}
-                                      </div>
-                                    </td>
-
-                                    {/* 3. Redistribution % Dropdown (10%, 20%, 30%, 40%, 50%, 60%, 70%) */}
-                                    <td className="px-2.5 py-2.5 whitespace-nowrap">
-                                      {isSuper ? (
-                                        <select
-                                          value={agent.redistributionPercentage}
-                                          disabled={adAgentSaving}
-                                          onChange={(e) =>
-                                            handleUpdateAdAgentPercent(
-                                              agent.agentId,
-                                              Number(e.target.value) as AdAgentRedistributionPercent,
-                                              agent.name
-                                            )
-                                          }
-                                          data-agent-id={`ad-agent-percent-select-${agent.agentId}`}
-                                          data-testid={`ad-agent-percent-select-${agent.agentId}`}
-                                          aria-label={`Set redistribution percentage for ${agent.name}`}
-                                          className="rounded-lg border border-tertiary/40 bg-surface-container-lowest px-2 py-1 font-mono text-[11px] font-bold text-tertiary focus:border-primary focus:outline-none"
-                                        >
-                                          {AD_AGENT_REDISTRIBUTION_PERCENTS.map((pct) => (
-                                            <option key={pct} value={pct}>
-                                              {pct}%
-                                            </option>
-                                          ))}
-                                        </select>
-                                      ) : (
-                                        <span className="font-mono text-[11px] font-bold text-tertiary">
-                                          {agent.redistributionPercentage}%
-                                        </span>
-                                      )}
-                                    </td>
-
-                                    {/* 4. Redistribution Amount */}
-                                    <td className="px-2.5 py-2.5 font-mono text-[11px] whitespace-nowrap">
-                                      <div className="font-bold text-primary">
-                                        ⚡ {agent.redistributionTokens.toLocaleString("en-AU")} Tokens
-                                      </div>
-                                      <div className="font-semibold text-on-surface">
-                                        {formatAud(agent.redistributionAudCents)} AUD
-                                      </div>
-                                      <div className="text-[10px] text-on-surface-variant">
-                                        {formatUsd(agent.redistributionUsdCents)} USD
-                                      </div>
-                                      {agent.lastResetAt && (
-                                        <div className="text-[9px] text-secondary">
-                                          {agent.redistributionTokens === 0
-                                            ? "Refreshed to 0"
-                                            : `Reset ${new Date(agent.lastResetAt).toLocaleDateString("en-AU")}`}
+                                      {/* 4. Redistribution Amount */}
+                                      <td className="px-2.5 py-2.5 font-mono text-[11px] whitespace-nowrap">
+                                        <div className="font-bold text-primary">
+                                          ⚡ {agent.redistributionTokens.toLocaleString("en-AU")} Tokens
                                         </div>
-                                      )}
-                                    </td>
+                                        <div className="font-semibold text-on-surface">
+                                          {formatAud(agent.redistributionAudCents)} AUD
+                                        </div>
+                                        <div className="text-[10px] text-on-surface-variant">
+                                          {formatUsd(agent.redistributionUsdCents)} USD
+                                        </div>
+                                        {agent.lastResetAt && (
+                                          <div className="text-[9px] text-secondary">
+                                            {agent.redistributionTokens === 0
+                                              ? "Refreshed to 0"
+                                              : `Reset ${new Date(agent.lastResetAt).toLocaleDateString("en-AU")}`}
+                                          </div>
+                                        )}
+                                      </td>
 
-                                    {/* 5. Status */}
-                                    <td className="px-2 py-2.5">
-                                      <button
-                                        type="button"
-                                        disabled={!isSuper || adAgentSaving}
-                                        onClick={() => handleToggleAdAgentStatus(agent.agentId, agent.status)}
-                                        data-agent-id={`toggle-ad-agent-status-${agent.agentId}`}
-                                        data-testid={`toggle-ad-agent-status-${agent.agentId}`}
-                                        className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold transition ${
-                                          agent.status === "active"
-                                            ? "bg-primary/20 text-primary hover:bg-primary/30"
-                                            : "bg-surface-container-highest text-on-surface-variant hover:bg-white/[0.08]"
-                                        }`}
+                                      {/* 5. Status */}
+                                      <td
+                                        className="px-2 py-2.5"
+                                        onClick={(e) => e.stopPropagation()}
                                       >
-                                        {agent.status.toUpperCase()}
-                                      </button>
-                                    </td>
+                                        <button
+                                          type="button"
+                                          disabled={!isSuper || adAgentSaving}
+                                          onClick={() => handleToggleAdAgentStatus(agent.agentId, agent.status)}
+                                          data-agent-id={`toggle-ad-agent-status-${agent.agentId}`}
+                                          data-testid={`toggle-ad-agent-status-${agent.agentId}`}
+                                          className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold transition ${
+                                            agent.status === "active"
+                                              ? "bg-primary/20 text-primary hover:bg-primary/30"
+                                              : "bg-surface-container-highest text-on-surface-variant hover:bg-white/[0.08]"
+                                          }`}
+                                        >
+                                          {agent.status.toUpperCase()}
+                                        </button>
+                                      </td>
 
-                                    {/* 6. Actions (Reset 0 ⚡ & Confirm Delete) */}
-                                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                                      {isSuper && (
+                                      {/* 6. Actions (Reset 0 ⚡ & Confirm Delete) */}
+                                      <td
+                                        className="px-3 py-2.5 text-right whitespace-nowrap"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        {isSuper && (
                                         <div className="flex items-center justify-end gap-1.5">
                                           {confirmResetAdAgentId === agent.agentId ? (
                                             <div className="flex items-center gap-1 animate-fadeIn">
@@ -3036,7 +3259,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                       )}
                                     </td>
                                   </tr>
-                                ))}
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>

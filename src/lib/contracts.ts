@@ -680,6 +680,7 @@ export const AdAgentProfileSchema = z
     phone: safeText(1, 40),
     email: z.string().trim().toLowerCase().email().max(254),
     location: AdAgentLocationSchema,
+    bankOrPayIdDetails: z.string().trim().max(500).optional(),
     redistributionPercentage: z.number().int().min(10).max(70).default(30),
     status: z.enum(["active", "inactive"]).default("active"),
     isSuperAdminBuiltIn: z.boolean().default(false).optional(),
@@ -699,6 +700,7 @@ export const RegisterAdAgentRequestSchema = z
     name: safeText(1, 100),
     phone: safeText(3, 40),
     location: AdAgentLocationSchema,
+    bankOrPayIdDetails: z.string().trim().max(500).optional(),
   })
   .strict();
 export type RegisterAdAgentRequest = z.infer<typeof RegisterAdAgentRequestSchema>;
@@ -708,6 +710,7 @@ export const SuperAdminAddAdAgentRequestSchema = z
     name: safeText(1, 100),
     email: z.string().trim().toLowerCase().email("Valid email address is required").max(254),
     phone: safeText(0, 40).optional(),
+    bankOrPayIdDetails: z.string().trim().max(500).optional(),
     redistributionPercentage: AdAgentRedistributionPercentSchema.default(30),
     location: AdAgentLocationSchema.optional(),
   })
@@ -721,15 +724,26 @@ export const SuperAdminUpdateAdAgentPercentRequestSchema = z
   })
   .strict();
 
+export const SuperAdminUpdateAdAgentBankDetailsRequestSchema = z
+  .object({
+    agentId: z.string().min(1).max(128),
+    bankOrPayIdDetails: z.string().trim().max(500),
+  })
+  .strict();
+
 export interface AdAgentDistributionItem {
   agentId: string;
   uid?: string;
   name: string;
   phone: string;
   email: string;
+  suburb?: string;
+  state?: string;
+  country?: string;
   locationLabel: string;
   latitude: number;
   longitude: number;
+  bankOrPayIdDetails?: string;
   status: "active" | "inactive";
   isSuperAdminBuiltIn?: boolean;
   customizationsCount: number;
