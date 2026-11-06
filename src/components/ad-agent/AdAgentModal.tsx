@@ -96,6 +96,89 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
   const [aiDrafting, setAiDrafting] = useState(false);
   const [sendingReply, setSendingReply] = useState(false);
 
+  // Recommended Services State (underneath Strategy Package Body)
+  const [recGraphicArtEnabled, setRecGraphicArtEnabled] = useState(false);
+  const [recGraphicArtNeeded, setRecGraphicArtNeeded] = useState("");
+  const [recGraphicArtProvider, setRecGraphicArtProvider] = useState("");
+  const [recGraphicArtPrice, setRecGraphicArtPrice] = useState("");
+
+  const [recVideoWorkEnabled, setRecVideoWorkEnabled] = useState(false);
+  const [recVideoWorkNeeded, setRecVideoWorkNeeded] = useState("");
+  const [recVideoWorkProvider, setRecVideoWorkProvider] = useState("");
+  const [recVideoWorkPrice, setRecVideoWorkPrice] = useState("");
+
+  const [recOtherServicesNotes, setRecOtherServicesNotes] = useState("");
+
+  function resetRecommendedServices() {
+    setRecGraphicArtEnabled(false);
+    setRecGraphicArtNeeded("");
+    setRecGraphicArtProvider("");
+    setRecGraphicArtPrice("");
+    setRecVideoWorkEnabled(false);
+    setRecVideoWorkNeeded("");
+    setRecVideoWorkProvider("");
+    setRecVideoWorkPrice("");
+    setRecOtherServicesNotes("");
+  }
+
+  function buildRecommendedServicesText(): string {
+    const sections: string[] = [];
+
+    if (
+      recGraphicArtEnabled ||
+      recGraphicArtNeeded.trim() ||
+      recGraphicArtProvider.trim() ||
+      recGraphicArtPrice.trim()
+    ) {
+      const lines = ["[x] Custom Ad Graphic Art"];
+      if (recGraphicArtNeeded.trim()) {
+        lines.push(`    What May Be Needed : ${recGraphicArtNeeded.trim()}`);
+      }
+      if (recGraphicArtProvider.trim()) {
+        lines.push(`    Service Provider   : ${recGraphicArtProvider.trim()}`);
+      }
+      if (recGraphicArtPrice.trim()) {
+        lines.push(`    Price (Optional)   : ${recGraphicArtPrice.trim()}`);
+      }
+      sections.push(lines.join("\n"));
+    }
+
+    if (
+      recVideoWorkEnabled ||
+      recVideoWorkNeeded.trim() ||
+      recVideoWorkProvider.trim() ||
+      recVideoWorkPrice.trim()
+    ) {
+      const lines = ["[x] Custom Video Work"];
+      if (recVideoWorkNeeded.trim()) {
+        lines.push(`    What May Be Needed : ${recVideoWorkNeeded.trim()}`);
+      }
+      if (recVideoWorkProvider.trim()) {
+        lines.push(`    Service Provider   : ${recVideoWorkProvider.trim()}`);
+      }
+      if (recVideoWorkPrice.trim()) {
+        lines.push(`    Price (Optional)   : ${recVideoWorkPrice.trim()}`);
+      }
+      sections.push(lines.join("\n"));
+    }
+
+    if (recOtherServicesNotes.trim()) {
+      sections.push(
+        `Other Recommended Services, Providers & Estimate Pricing:\n${recOtherServicesNotes.trim()}`,
+      );
+    }
+
+    if (sections.length === 0) return "";
+
+    return [
+      "----------------------------------------------------------------------",
+      "RECOMMENDED SERVICES",
+      "----------------------------------------------------------------------",
+      sections.join("\n\n"),
+      "----------------------------------------------------------------------",
+    ].join("\n");
+  }
+
   useEffect(() => {
     if (isOpen && initialTab) {
       setTab(initialTab);
@@ -337,6 +420,13 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
     setErrorMsg(null);
     setStatusMsg(null);
     try {
+      const recommendedBlock = buildRecommendedServicesText();
+      const baseBody = replyBody.trim();
+      const finalBody =
+        recommendedBlock && !baseBody.includes("RECOMMENDED SERVICES")
+          ? `${baseBody}\n\n${recommendedBlock}`
+          : baseBody;
+
       await apiFetch("/api/ad-agent", {
         method: "POST",
         body: {
@@ -344,7 +434,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
           customizeRequestId: reqDoc.requestId,
           recipientEmail: reqDoc.userEmail,
           subject: replySubject.trim(),
-          body: replyBody.trim(),
+          body: finalBody,
         },
       });
       setStatusMsg(
@@ -354,6 +444,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
       setReplySubject("");
       setReplyBody("");
       setReplyStaffNotes("");
+      resetRecommendedServices();
       await loadAgentData();
     } catch (err) {
       setErrorMsg(errorMessage(err));
@@ -934,9 +1025,205 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                                 rows={8}
                                 value={replyBody}
                                 onChange={(e) => setReplyBody(e.target.value)}
+                                data-agent-id={`ad-agent-strategy-body-${reqDoc.requestId}`}
+                                data-testid={`ad-agent-strategy-body-${reqDoc.requestId}`}
                                 className={`${field} font-mono text-xs`}
                                 placeholder="Click 'Generate AI Work Reply ✨' above or write your customized brand strategy..."
                               />
+                            </div>
+
+                            {/* RECOMMENDED SERVICES SECTION (Underneath Strategy Package Body) */}
+                            <div
+                              className="rounded-xl border border-tertiary/35 bg-surface-container-highest/50 p-3.5 space-y-3"
+                              data-agent-id={`ad-agent-recommended-services-${reqDoc.requestId}`}
+                              data-testid={`ad-agent-recommended-services-${reqDoc.requestId}`}
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                                <div>
+                                  <h5 className="font-mono text-xs font-bold uppercase tracking-wider text-tertiary flex items-center gap-1.5">
+                                    <Icon name="sparkles" className="size-3.5 text-tertiary" />
+                                    <span>Recommended Services</span>
+                                  </h5>
+                                  <p className="text-[11px] text-on-surface-variant mt-0.5">
+                                    Select recommended creative or production services below. Checked services and notes are automatically included with your Strategy Package.
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* 1. Custom Ad Graphic Art */}
+                              <div className="rounded-lg border border-white/10 bg-surface-container-low p-3 space-y-2.5">
+                                <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={recGraphicArtEnabled}
+                                    onChange={(e) => setRecGraphicArtEnabled(e.target.checked)}
+                                    data-agent-id={`rec-graphic-art-checkbox-${reqDoc.requestId}`}
+                                    data-testid={`rec-graphic-art-checkbox-${reqDoc.requestId}`}
+                                    className="size-4 rounded border-white/20 bg-surface-container-lowest text-primary focus:ring-primary"
+                                  />
+                                  <span className="font-mono text-xs font-bold text-on-surface">
+                                    Custom Ad Graphic Art
+                                  </span>
+                                </label>
+
+                                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
+                                  <div className="sm:col-span-6">
+                                    <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
+                                      What May Be Needed
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. 3x 4:5 static hero graphics + carousel cards"
+                                      value={recGraphicArtNeeded}
+                                      onChange={(e) => {
+                                        setRecGraphicArtNeeded(e.target.value);
+                                        if (e.target.value.trim() && !recGraphicArtEnabled) {
+                                          setRecGraphicArtEnabled(true);
+                                        }
+                                      }}
+                                      data-agent-id={`rec-graphic-art-needed-${reqDoc.requestId}`}
+                                      data-testid={`rec-graphic-art-needed-${reqDoc.requestId}`}
+                                      className={`${field} py-1.5 text-xs`}
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-3">
+                                    <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
+                                      Service Provider
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. Studio Name / Agent"
+                                      value={recGraphicArtProvider}
+                                      onChange={(e) => {
+                                        setRecGraphicArtProvider(e.target.value);
+                                        if (e.target.value.trim() && !recGraphicArtEnabled) {
+                                          setRecGraphicArtEnabled(true);
+                                        }
+                                      }}
+                                      data-agent-id={`rec-graphic-art-provider-${reqDoc.requestId}`}
+                                      data-testid={`rec-graphic-art-provider-${reqDoc.requestId}`}
+                                      className={`${field} py-1.5 text-xs`}
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-3">
+                                    <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
+                                      Price (Optional)
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. $250 AUD (optional)"
+                                      value={recGraphicArtPrice}
+                                      onChange={(e) => {
+                                        setRecGraphicArtPrice(e.target.value);
+                                        if (e.target.value.trim() && !recGraphicArtEnabled) {
+                                          setRecGraphicArtEnabled(true);
+                                        }
+                                      }}
+                                      data-agent-id={`rec-graphic-art-price-${reqDoc.requestId}`}
+                                      data-testid={`rec-graphic-art-price-${reqDoc.requestId}`}
+                                      className={`${field} py-1.5 text-xs font-mono`}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* 2. Custom Video Work */}
+                              <div className="rounded-lg border border-white/10 bg-surface-container-low p-3 space-y-2.5">
+                                <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={recVideoWorkEnabled}
+                                    onChange={(e) => setRecVideoWorkEnabled(e.target.checked)}
+                                    data-agent-id={`rec-video-work-checkbox-${reqDoc.requestId}`}
+                                    data-testid={`rec-video-work-checkbox-${reqDoc.requestId}`}
+                                    className="size-4 rounded border-white/20 bg-surface-container-lowest text-primary focus:ring-primary"
+                                  />
+                                  <span className="font-mono text-xs font-bold text-on-surface">
+                                    Custom Video Work
+                                  </span>
+                                </label>
+
+                                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
+                                  <div className="sm:col-span-6">
+                                    <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
+                                      What May Be Needed
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. 3x 15s vertical UGC reels with captions & hooks"
+                                      value={recVideoWorkNeeded}
+                                      onChange={(e) => {
+                                        setRecVideoWorkNeeded(e.target.value);
+                                        if (e.target.value.trim() && !recVideoWorkEnabled) {
+                                          setRecVideoWorkEnabled(true);
+                                        }
+                                      }}
+                                      data-agent-id={`rec-video-work-needed-${reqDoc.requestId}`}
+                                      data-testid={`rec-video-work-needed-${reqDoc.requestId}`}
+                                      className={`${field} py-1.5 text-xs`}
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-3">
+                                    <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
+                                      Service Provider
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. Video Creator / Agency"
+                                      value={recVideoWorkProvider}
+                                      onChange={(e) => {
+                                        setRecVideoWorkProvider(e.target.value);
+                                        if (e.target.value.trim() && !recVideoWorkEnabled) {
+                                          setRecVideoWorkEnabled(true);
+                                        }
+                                      }}
+                                      data-agent-id={`rec-video-work-provider-${reqDoc.requestId}`}
+                                      data-testid={`rec-video-work-provider-${reqDoc.requestId}`}
+                                      className={`${field} py-1.5 text-xs`}
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-3">
+                                    <label className="block font-mono text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">
+                                      Price (Optional)
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. $450 AUD (optional)"
+                                      value={recVideoWorkPrice}
+                                      onChange={(e) => {
+                                        setRecVideoWorkPrice(e.target.value);
+                                        if (e.target.value.trim() && !recVideoWorkEnabled) {
+                                          setRecVideoWorkEnabled(true);
+                                        }
+                                      }}
+                                      data-agent-id={`rec-video-work-price-${reqDoc.requestId}`}
+                                      data-testid={`rec-video-work-price-${reqDoc.requestId}`}
+                                      className={`${field} py-1.5 text-xs font-mono`}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* 3. Other Recommended Services (Short Paragraph Box) */}
+                              <div className="rounded-lg border border-white/10 bg-surface-container-low p-3 space-y-1.5">
+                                <label
+                                  htmlFor={`rec-other-services-notes-${reqDoc.requestId}`}
+                                  className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface"
+                                >
+                                  Other Recommended Services, Who Provides Them &amp; Estimate Pricing (Optional)
+                                </label>
+                                <textarea
+                                  id={`rec-other-services-notes-${reqDoc.requestId}`}
+                                  rows={3}
+                                  maxLength={1500}
+                                  placeholder="Write a short paragraph on any other recommended services (e.g. landing page CRO, copywriting, media buying), who provides them, and estimate pricing (optional)..."
+                                  value={recOtherServicesNotes}
+                                  onChange={(e) => setRecOtherServicesNotes(e.target.value)}
+                                  data-agent-id={`rec-other-services-notes-${reqDoc.requestId}`}
+                                  data-testid={`rec-other-services-notes-${reqDoc.requestId}`}
+                                  className={`${field} text-xs leading-relaxed`}
+                                />
+                              </div>
                             </div>
 
                             <div className="flex items-center justify-end gap-2">
