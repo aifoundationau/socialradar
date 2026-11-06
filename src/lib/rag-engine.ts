@@ -697,6 +697,63 @@ export async function translateWithGoogleTranslator(params: {
 }
 
 /**
+ * Batch translates an array of FAQ Q&A items via Google Translate for the Navbar FAQ modal
+ * (used as the secondary option for any FAQs not yet in the human-verified RAG corpus for targetLang).
+ */
+export async function batchTranslateFaqsWithGoogle(params: {
+  items: Array<{ faqId: string; question: string; answer: string }>;
+  sourceLang?: string;
+  targetLang: string;
+}): Promise<{
+  translations: Record<string, { question: string; answer: string }>;
+  languageCode: string;
+  languageName: string;
+  provider: string;
+}> {
+  const langMeta = getRagLanguageMeta(params.targetLang);
+  const translations: Record<string, { question: string; answer: string }> = {};
+
+  if (params.targetLang.toLowerCase() === "en") {
+    for (const item of params.items) {
+      translations[item.faqId] = { question: item.question, answer: item.answer };
+    }
+    return {
+      translations,
+      languageCode: "en",
+      languageName: "English",
+      provider: "Google Translate",
+    };
+  }
+
+  // Translate in parallel chunks of 6 to stay fast while avoiding upstream rate limits
+  const chunkSize = 6;
+  for (let i = 0; i < params.items.length; i += chunkSize) {
+    const chunk = params.items.slice(i, i + chunkSize);
+    await Promise.all(
+      chunk.map(async (item) => {
+        const res = await translateWithGoogleTranslator({
+          question: item.question,
+          text: item.answer,
+          sourceLang: params.sourceLang || "en",
+          targetLang: params.targetLang,
+        });
+        translations[item.faqId] = {
+          question: res.translatedQuestion || item.question,
+          answer: res.translatedText || item.answer,
+        };
+      })
+    );
+  }
+
+  return {
+    translations,
+    languageCode: langMeta.code,
+    languageName: `${langMeta.name} (${langMeta.nativeName})`,
+    provider: "Google Translate",
+  };
+}
+
+/**
  * Persists a human-edited translation or user-authored multilingual FAQ into the RAG corpus.
  */
 export async function addHumanEditedRagEntry(
@@ -847,3 +904,4 @@ export async function deleteRagEntry(ragId: string): Promise<void> {
     { merge: true }
   );
 }
+

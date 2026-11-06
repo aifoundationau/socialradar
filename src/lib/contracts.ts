@@ -766,10 +766,19 @@ export const RagSentenceItemSchema = z
   .strict();
 export type RagSentenceItem = z.infer<typeof RagSentenceItemSchema>;
 
+export const GoogleTranslateFaqBatchItemSchema = z
+  .object({
+    faqId: z.string().trim().min(1).max(64),
+    question: z.string().trim().min(1).max(500),
+    answer: z.string().trim().min(1).max(4000),
+  })
+  .strict();
+
 export const GoogleTranslateRequestSchema = z
   .object({
-    text: z.string().trim().min(1, "Text to translate is required").max(4000),
+    text: z.string().trim().min(1).max(4000).optional(),
     question: z.string().trim().max(500).optional(),
+    items: z.array(GoogleTranslateFaqBatchItemSchema).max(100).optional(),
     sourceLang: z.string().trim().min(2).max(16).default("en"),
     targetLang: z.string().trim().min(2).max(16),
   })

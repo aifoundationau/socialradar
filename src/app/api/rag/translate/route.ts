@@ -1,15 +1,30 @@
 import { NextResponse } from "next/server";
 import { errorResponse, readJson } from "@/lib/api";
 import { GoogleTranslateRequestSchema } from "@/lib/contracts";
-import { translateWithGoogleTranslator } from "@/lib/rag-engine";
+import {
+  batchTranslateFaqsWithGoogle,
+  translateWithGoogleTranslator,
+} from "@/lib/rag-engine";
 
 export async function POST(req: Request) {
   try {
     const body = await readJson(req);
     const parsed = GoogleTranslateRequestSchema.parse(body);
 
+    if (parsed.items && parsed.items.length > 0) {
+      const batchResult = await batchTranslateFaqsWithGoogle({
+        items: parsed.items,
+        sourceLang: parsed.sourceLang,
+        targetLang: parsed.targetLang,
+      });
+      return NextResponse.json({
+        success: true,
+        ...batchResult,
+      });
+    }
+
     const translation = await translateWithGoogleTranslator({
-      text: parsed.text,
+      text: parsed.text || "",
       question: parsed.question,
       sourceLang: parsed.sourceLang,
       targetLang: parsed.targetLang,

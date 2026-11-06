@@ -1,9 +1,9 @@
 import { HomeCta } from "@/components/auth/HomeCta";
 import { AmbientGlow } from "@/components/ui/AmbientGlow";
 import { Icon, type IconName } from "@/components/ui/Icon";
-import { Logo } from "@/components/ui/Logo";
 import { ACTION_COSTS } from "@/lib/pricing";
 import { AppFooter } from "@/components/layout/AppFooter";
+import { PublicStartNavbar } from "@/components/layout/PublicStartNavbar";
 
 const STEPS: { title: string; body: string; icon: IconName }[] = [
   {
@@ -27,12 +27,7 @@ export default function Home() {
   return (
     <div className="relative flex flex-1 flex-col">
       <AmbientGlow />
-      <header className="relative mx-auto flex w-full max-w-5xl items-center justify-between px-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6">
-        <Logo />
-        <span className="rounded-full border border-primary-container/40 bg-primary-container/20 px-2 py-0.5 font-mono text-mono-label text-primary uppercase">
-          Remix Studio
-        </span>
-      </header>
+      <PublicStartNavbar />
 
       <main className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center gap-12 px-4 py-14 sm:gap-16 sm:px-6 sm:py-20">
         <section className="max-w-2xl space-y-6">

@@ -8,6 +8,7 @@ import { alertError } from "@/components/ui/styles";
 import { MobileTabBar } from "./MobileTabBar";
 import { TopNavWallet } from "./TopNavWallet";
 import { AppFooter } from "./AppFooter";
+import { PublicStartNavbar } from "./PublicStartNavbar";
 
 /** Client-side gate: dashboard routes render only for a signed-in user. */
 export function DashboardShell({ children }: { children: ReactNode }) {
@@ -22,10 +23,14 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   }
   if (status === "signed-out") {
     return (
-      <main className="relative flex flex-1 items-center justify-center px-4 py-16">
+      <div className="relative flex flex-1 flex-col">
         <AmbientGlow />
-        <SignInCard />
-      </main>
+        <PublicStartNavbar />
+        <main className="relative flex flex-1 items-center justify-center px-4 py-16">
+          <SignInCard />
+        </main>
+        <AppFooter />
+      </div>
     );
   }
   return (

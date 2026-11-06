@@ -157,12 +157,15 @@
     - Updated `src/components/radar/VariationEditor.tsx` so on laptop/desktop (`md:` and up):
       1. **Line 1:** All three variation tabs (`A: ...`, `B: ...`, `C: ...`) sit together cleanly on a single full-width line (`md:flex md:w-full md:flex-nowrap` with `md:flex-1 md:min-w-0` and `<span className="truncate">`).
       2. **Line 2:** The metadata badges (`For: ...`, `Tone: ...`, `Format: ...`) sit on the dedicated line directly underneath (`flex flex-wrap items-center gap-2 font-mono text-[11px] md:flex-nowrap`).
-35. **FAQ Development Search Bar, Collapsed-on-Start FAQs & Website/AI Works Sentence RAG + Multilingual Google Translator (`SuperAdminModal.tsx`, `FaqModal.tsx`, `FaqRagWorkspace.tsx`, `rag-engine.ts`):**
-    - Added Search Bar, Category Filter Pills, and Expand All / Collapse All controls to `Help & FAQ Management` in `SuperAdminModal.tsx`.
-    - Configured all FAQs in both `SuperAdminModal.tsx` and `FaqModal.tsx` to start **collapsed** on load and expand when clicked.
-    - Built `PerFaqRagDrawer` inside each expanded FAQ card and `GlobalRagCorpusSection` directly **under all FAQs**:
-      1. **Website & AI Works Sentence RAG Corpus (`GET /api/rag` & `POST /api/rag`):** Indexes every FAQ (full Q&A + atomic sentences), all Website UI sentences (`WEBSITE_UI_SENTENCES`), and live AI works across Radar Feed Searches (`RADAR_SEARCH`), AI Creative Remixes (`AI_REMIX`), and Customize AI Strategy works (`CUSTOMIZE_AI`).
-      2. **Multilingual FAQ & Sentence Authoring (`POST /api/rag/translate` & `POST /api/rag`):** Allows all users to translate or write FAQs/sentences into 22 languages using **Google Translate** for instant translation, followed by a mandatory **Human Edit & Review** step before adding to the RAG corpus.
+35. **FAQ Development Search Bar, Collapsed-on-Start FAQs & Website/AI Works Sentence RAG + Multilingual Google Translator (`SuperAdminModal.tsx`, `FaqModal.tsx`, `FaqRagWorkspace.tsx`, `PublicStartNavbar.tsx`, `rag-engine.ts`):**
+    - **Super Admin Panel (`Help & FAQ Management` in `SuperAdminModal.tsx`):**
+      - Added Search Bar, Category Filter Pills, and Expand All / Collapse All controls.
+      - All FAQs start **collapsed** on load and expand when clicked to reveal `PerFaqRagDrawer` (atomic RAG sentences + Google Translate -> Human Edit -> Add to RAG) and `GlobalRagCorpusSection` directly **under all FAQs** (indexing all 167+ sentences across FAQs, Website UI copy, Radar Feed Searches, AI Creative Remixes, and Customize AI Strategy works).
+    - **Navbar FAQ (`FaqModal.tsx` & `PublicStartNavbar.tsx`):**
+      - Shows **strictly Q&A only** (all collapsed on start, expand when clicked — without individual sentence breakdowns or translation authoring forms).
+      - Language selector defaults to **English (`en`)**; when another language is selected, serves **1. RAG Translation First** (primary human-verified RAG translation) with **2. Google Translate** as the secondary option (`batchTranslateFaqsWithGoogle`).
+      - Available to all visitors without logging in, including on the front start page Navbar (`src/app/page.tsx`) and signed-out views (`src/components/layout/DashboardShell.tsx`) via `PublicStartNavbar.tsx`.
     - Created AI Agent Skill `skills/rag-multilingual-faq-engine/SKILL.md` and documented Section 20 in `data-contracts.md`.
+
 
 
