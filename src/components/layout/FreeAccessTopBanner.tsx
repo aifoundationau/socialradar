@@ -23,10 +23,11 @@ export function FreeAccessTopBanner() {
   const [isTokenSystemEnabled, setIsTokenSystemEnabled] = useState<boolean>(true);
   const [freeAccessWindow, setFreeAccessWindow] = useState<FreeAccessWindow | null>(null);
   const [userCountry, setUserCountry] = useState<string>("AU");
-  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  const [nowMs, setNowMs] = useState<number>(0);
 
   useEffect(() => {
     let active = true;
+    setNowMs(Date.now());
 
     function syncUserCountry() {
       try {

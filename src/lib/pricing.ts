@@ -61,13 +61,15 @@ export function isCountryEligibleForFreeAccess(
  */
 export function isFreeAccessWindowActive(
   freeAccessWindow?: Partial<FreeAccessWindow> | null,
-  nowMs: number = Date.now()
+  nowMs?: number
 ): boolean {
   if (!freeAccessWindow || !freeAccessWindow.enabled || !freeAccessWindow.expiresAt) {
     return false;
   }
+  const currentMs = typeof nowMs === "number" ? nowMs : Date.now();
+  if (currentMs <= 0) return false;
   const exp = Date.parse(freeAccessWindow.expiresAt);
-  return Number.isFinite(exp) && exp > nowMs;
+  return Number.isFinite(exp) && exp > currentMs;
 }
 
 /**
@@ -81,7 +83,7 @@ export function isChargingEnabled(
     isTokenSystemEnabled?: boolean;
     freeAccessWindow?: Partial<FreeAccessWindow> | null;
   } | null,
-  nowMs: number = Date.now(),
+  nowMs?: number,
   user?: Partial<Pick<UserDoc, "subscriptionStatus" | "subscriptionPackId">> | null,
   isSuperAdmin = false,
   userCountry?: string | null

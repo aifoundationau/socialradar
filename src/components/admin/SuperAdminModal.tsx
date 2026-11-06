@@ -1645,7 +1645,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     }
   }
 
-  const [freeAccessNowMs, setFreeAccessNowMs] = useState<number>(() => Date.now());
+  const [freeAccessNowMs, setFreeAccessNowMs] = useState<number>(0);
   const [selectedCountryDropdown, setSelectedCountryDropdown] = useState<string>("");
   const [detectedUserGeo, setDetectedUserGeo] = useState<{
     country: string;
@@ -1690,8 +1690,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   }
 
   useEffect(() => {
-    if (!isOpen || !config?.freeAccessWindow?.enabled) return;
+    if (!isOpen) return;
     setFreeAccessNowMs(Date.now());
+    if (!config?.freeAccessWindow?.enabled) return;
     const timer = setInterval(() => {
       const now = Date.now();
       setFreeAccessNowMs(now);
