@@ -265,6 +265,11 @@
     - Blocked the Ad Agent menu item from rendering in the user account dropdown (`TopNavWallet.tsx`) whenever the active role is `supporter` (`role !== "supporter" && (role === "ad_agent" || isSuperAdmin || isAdmin)`).
     - Hidden the "Ad Agent Registration & Orders Panel" hero button on the Customize page (`CustomizeView.tsx`) for users with the `supporter` role.
     - Added an internal modal gate in [`AdAgentModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/ad-agent/AdAgentModal.tsx) returning `null` if a supporter role attempts to open the dialog.
+56. **Ad Agent Promotion & Mandatory Registration Workflow (`TopNavWallet.tsx`, `AdAgentModal.tsx`, `roleresponsibilities.txt`):**
+    - Enforced flow: Super Admin promotes a user to `ad_agent` via RBAC/Users in Super Admin Panel.
+    - Upon receiving the `ad_agent` role, an amber notification banner appears across the top of the web app (`new-ad-agent-banner`) and an "Action Required" indicator appears on the account avatar button and menu item (`account-menu-ad-agent-button`), prompting them to complete registration.
+    - In [`AdAgentModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/ad-agent/AdAgentModal.tsx), an onboarding banner guides the new Ad Agent through filling out Name, Location, Phone Number, and Bank/PayID details for payouts. The `ORDERS` and `CONTRACTORS` tabs require registration to be completed first before unlocking.
+    - Once submitted, the profile becomes active in the Ad Agent Directory, geolocation matching is enabled for customer customize orders, and all tabs unlock.
 
 ## What to Do When Reopened Next Startup
 1. **Read `nextinstructions.txt` First:** Start here and review the latest completed milestones above.

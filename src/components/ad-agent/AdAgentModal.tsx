@@ -539,6 +539,13 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
       setAgentStatus(res.agent.status === "inactive" ? "inactive" : "active");
       if (typeof window !== "undefined") {
         window.dispatchEvent(
+          new CustomEvent("adradar:agent-registered", {
+            detail: {
+              agent: res.agent,
+            },
+          }),
+        );
+        window.dispatchEvent(
           new CustomEvent("ad-agent-ledger-updated", {
             detail: {
               agent: res.agent,
@@ -768,29 +775,48 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
             >
               <Icon name="user" className="size-3.5" />
               <span>Ad Agent Registration &amp; Geolocation</span>
+              {!myAgentProfile && !isSuper && (
+                <span className="rounded bg-amber-500/25 border border-amber-500/40 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-300 uppercase">
+                  Action Required
+                </span>
+              )}
             </button>
             <button
               type="button"
-              onClick={() => setTab("ORDERS")}
+              onClick={() => {
+                if (!myAgentProfile && !isSuper) {
+                  setErrorMsg("Please complete and save your Ad Agent Registration below first before viewing assigned orders.");
+                  setTab("REGISTRATION");
+                  return;
+                }
+                setTab("ORDERS");
+              }}
               data-agent-id="ad-agent-tab-orders"
               data-testid="ad-agent-tab-orders"
               className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 font-mono text-xs font-semibold transition ${tab === "ORDERS"
                   ? "border-primary/50 bg-primary/15 text-primary shadow-sm"
                   : "border-white/[0.06] bg-surface-container-high/60 text-on-surface-variant hover:text-on-surface"
-                }`}
+                } ${!myAgentProfile && !isSuper ? "opacity-60" : ""}`}
             >
               <Icon name="sparkles" className="size-3.5" />
               <span>Assigned Customize Orders ({assignedRequests.length})</span>
             </button>
             <button
               type="button"
-              onClick={() => setTab("CONTRACTORS")}
+              onClick={() => {
+                if (!myAgentProfile && !isSuper) {
+                  setErrorMsg("Please complete and save your Ad Agent Registration below first before managing contractors.");
+                  setTab("REGISTRATION");
+                  return;
+                }
+                setTab("CONTRACTORS");
+              }}
               data-agent-id="ad-agent-tab-contractors"
               data-testid="ad-agent-tab-contractors"
               className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 font-mono text-xs font-semibold transition ${tab === "CONTRACTORS"
                   ? "border-primary/50 bg-primary/15 text-primary shadow-sm"
                   : "border-white/[0.06] bg-surface-container-high/60 text-on-surface-variant hover:text-on-surface"
-                }`}
+                } ${!myAgentProfile && !isSuper ? "opacity-60" : ""}`}
             >
               <Icon name="users" className="size-3.5" />
               <span>Contractors Directory ({contractors.length})</span>
@@ -846,6 +872,30 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
 
           {tab === "REGISTRATION" && (
             <div className="space-y-5">
+              {/* New Ad Agent Role: Registration Callout */}
+              {!myAgentProfile && !isSuper && (
+                <div
+                  className="rounded-2xl border border-tertiary/40 bg-gradient-to-r from-tertiary/20 via-tertiary/10 to-surface-container p-4 sm:p-5 space-y-2.5"
+                  data-agent-id="new-ad-agent-registration-banner"
+                  data-testid="new-ad-agent-registration-banner"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-tertiary/30 text-tertiary">
+                      <Icon name="sparkles" className="size-4" />
+                    </span>
+                    <h3 className="font-mono text-sm font-bold text-on-surface">
+                      Welcome! Superadmin Has Updated Your Role to Ad Agent
+                    </h3>
+                    <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 font-mono text-[10px] font-bold text-amber-300 uppercase">
+                      Registration Required
+                    </span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant leading-relaxed">
+                    Now that your role is set to <strong>Ad Agent</strong>, please complete your registration details and operating geolocation below. Once submitted, your profile will be registered in the Ad Agent Directory, you will be matched with clients via geolocation for Professional Customization orders, and your Bank / PayID details will be ready for redistribution payouts.
+                  </p>
+                </div>
+              )}
+
               {/* Role & Status Banner */}
               <div
                 className={`${card} p-4 border space-y-2.5 ${agentStatus === "active"
@@ -1168,10 +1218,10 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                     <Icon name="checkCircle" className="size-4" />
                     <span>
                       {saving
-                        ? "Saving Ad Agent Profile..."
+                        ? "Saving Ad Agent Registration..."
                         : myAgentProfile
                           ? "Update Ad Agent Profile & Geolocation"
-                          : "Register as Ad Agent"}
+                          : "Save & Complete Ad Agent Registration"}
                     </span>
                   </button>
                 </div>

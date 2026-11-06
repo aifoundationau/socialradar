@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOutUser, useSession } from "@/components/auth/SessionProvider";
@@ -15,6 +15,7 @@ import { ContactAdminModal } from "@/components/contact/ContactAdminModal";
 import { FaqModal } from "@/components/faq/FaqModal";
 import { MonthlySubscriptionModal } from "@/components/subscription/MonthlySubscriptionModal";
 import { AdAgentModal } from "@/components/ad-agent/AdAgentModal";
+import type { AdAgentProfile } from "@/lib/contracts";
 
 function NavItems({ pathname }: { pathname: string | null }) {
   return NAV.map(({ href, label, tooltipTitle, tooltipDesc }) => {
@@ -161,11 +162,13 @@ function AccountMenu({
   onOpenSupporter,
   onOpenFaq,
   onOpenAdAgent,
+  isAdAgentProfileRegistered = true,
 }: {
   onOpenAdmin: (tab?: "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "USERS" | "MESSAGES" | "RBAC" | "FAQS" | "DEV") => void;
   onOpenSupporter: () => void;
   onOpenFaq: () => void;
   onOpenAdAgent: () => void;
+  isAdAgentProfileRegistered?: boolean;
 }) {
   const { user, isAdmin, role, isSuperAdmin, actingAsRole, setActingRole, resetRole } = useSession();
   const menu = useRef<HTMLDivElement>(null);
@@ -180,9 +183,18 @@ function AccountMenu({
         aria-label="Account menu"
         data-agent-id="account-menu-button"
         data-testid="account-menu-button"
-        className="flex size-10 items-center justify-center rounded-full bg-primary text-on-primary transition-colors hover:bg-primary-fixed sm:size-8"
+        className="relative flex size-10 items-center justify-center rounded-full bg-primary text-on-primary transition-colors hover:bg-primary-fixed sm:size-8"
       >
         {initial ? <span className="text-body font-semibold">{initial}</span> : <Icon name="user" />}
+        {role === "ad_agent" && !isAdAgentProfileRegistered && (
+          <span
+            className="absolute -top-0.5 -right-0.5 flex size-3"
+            title="Ad Agent Registration Required"
+          >
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex rounded-full size-3 bg-amber-500 border border-surface-container-lowest" />
+          </span>
+        )}
       </button>
       <div
         id="account-menu"
@@ -352,14 +364,23 @@ function AccountMenu({
               data-agent-id="account-menu-ad-agent-button"
               data-testid="account-menu-ad-agent-button"
               aria-label="Open Ad Agent Registration and Customize Orders Panel"
-              className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-tertiary transition-colors hover:bg-tertiary/15 sm:min-h-10"
+              className="flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-body font-medium text-tertiary transition-colors hover:bg-tertiary/15 sm:min-h-10"
             >
-              <Icon name="sparkles" className="size-4 text-tertiary" />
-              <span>
-                {role === "superadmin"
-                  ? "Ad Agent Panel (No Reg Needed)"
-                  : "Ad Agent Orders, Profile & Contractors"}
-              </span>
+              <div className="flex items-center gap-2.5">
+                <Icon name="sparkles" className="size-4 text-tertiary" />
+                <span>
+                  {role === "superadmin"
+                    ? "Ad Agent Panel (No Reg Needed)"
+                    : !isAdAgentProfileRegistered
+                      ? "Ad Agent Registration Required"
+                      : "Ad Agent Orders, Profile & Contractors"}
+                </span>
+              </div>
+              {role === "ad_agent" && !isAdAgentProfileRegistered && (
+                <span className="rounded bg-amber-500/25 border border-amber-500/40 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-300 uppercase">
+                  Action Required
+                </span>
+              )}
             </button>
           )}
           {isAdmin ? (
@@ -433,7 +454,7 @@ function AccountMenu({
 
 /** Sticky app header: live token balance, active-brand switcher and the "Top-up" entry point. */
 export function TopNavWallet() {
-  const { isAdmin, isSuperAdmin, actingAsRole, resetRole } = useSession();
+  const { user, role, isAdmin, isSuperAdmin, actingAsRole, resetRole } = useSession();
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<
     "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "USERS" | "MESSAGES" | "RBAC" | "FAQS" | "DEV" | undefined
@@ -443,6 +464,39 @@ export function TopNavWallet() {
   const [isFaqOpen, setIsFaqOpen] = useState(false);
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false);
   const [isAdAgentOpen, setIsAdAgentOpen] = useState(false);
+
+  const [adAgentRegistrationChecked, setAdAgentRegistrationChecked] = useState(false);
+  const [isAdAgentProfileRegistered, setIsAdAgentProfileRegistered] = useState(true);
+
+  useEffect(() => {
+    if (role !== "ad_agent") {
+      setIsAdAgentProfileRegistered(true);
+      return;
+    }
+    let active = true;
+    apiFetch<{ myAgentProfile: AdAgentProfile | null }>("/api/ad-agent")
+      .then((data) => {
+        if (!active) return;
+        const prof = data.myAgentProfile;
+        const registered = Boolean(
+          prof &&
+            ((prof.phone && prof.phone !== "Not specified") ||
+              (prof.bankOrPayIdDetails && prof.bankOrPayIdDetails.trim().length > 0)),
+        );
+        setIsAdAgentProfileRegistered(registered);
+        setAdAgentRegistrationChecked(true);
+      })
+      .catch(() => {
+        if (active) setAdAgentRegistrationChecked(true);
+      });
+
+    const onRegistered = () => setIsAdAgentProfileRegistered(true);
+    window.addEventListener("adradar:agent-registered", onRegistered);
+    return () => {
+      active = false;
+      window.removeEventListener("adradar:agent-registered", onRegistered);
+    };
+  }, [role, user?.email]);
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-surface-container-lowest/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
@@ -484,6 +538,31 @@ export function TopNavWallet() {
             className="rounded bg-primary px-2.5 py-0.5 font-bold text-on-primary hover:bg-primary-fixed transition text-[11px]"
           >
             Return to Super Admin
+          </button>
+        </div>
+      )}
+
+      {/* New Ad Agent Role: Registration Required Banner */}
+      {role === "ad_agent" && adAgentRegistrationChecked && !isAdAgentProfileRegistered && (
+        <div
+          data-agent-id="new-ad-agent-banner"
+          data-testid="new-ad-agent-banner"
+          className="bg-amber-500/15 border-b border-amber-500/30 px-3 sm:px-6 py-2 flex items-center justify-between text-xs font-mono"
+        >
+          <div className="flex items-center gap-2 text-on-surface">
+            <span className="flex size-2 rounded-full bg-amber-400 animate-pulse" />
+            <span>
+              <strong>Ad Agent Role Assigned:</strong> Super Admin has updated your role to Ad Agent. Please fill out your Ad Agent Registration &amp; Customize Orders Panel to activate your profile.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsAdAgentOpen(true)}
+            data-agent-id="banner-complete-registration-btn"
+            data-testid="banner-complete-registration-btn"
+            className="rounded bg-amber-500 px-2.5 py-1 font-bold text-black hover:bg-amber-400 transition text-[11px] shrink-0 ml-2"
+          >
+            Fill Out Registration →
           </button>
         </div>
       )}
@@ -627,6 +706,7 @@ export function TopNavWallet() {
             onOpenSupporter={() => setIsSupporterOpen(true)}
             onOpenFaq={() => setIsFaqOpen(true)}
             onOpenAdAgent={() => setIsAdAgentOpen(true)}
+            isAdAgentProfileRegistered={isAdAgentProfileRegistered}
           />
         </div>
       </div>

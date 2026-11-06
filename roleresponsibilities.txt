@@ -39,6 +39,18 @@ Key Responsibilities & Capabilities:
 Professional Advertising & Brand Strategy Specialist Who Handles Customer
 Customization Orders and Earns Redistribution Payouts.
 
+How to Become an Ad Agent:
+  1. Super Admin Role Assignment: Super Admin changes the user's role to `ad_agent`
+     in the Super Admin Panel (RBAC / Users tab). Supporters cannot self-register
+     or see the Ad Agent menu until Super Admin grants this role.
+  2. Complete Ad Agent Registration: The newly designated Ad Agent must open and
+     fill out the "Ad Agent Registration & Customize Orders Panel" (Name, Phone
+     Number, Operating Geolocation, and Bank / PayID Details for redistribution payouts).
+  3. Activation: Once submitted, the profile becomes active in the Ad Agent Directory,
+     the agent is automatically matched with customers via geolocation for
+     Professional Customize orders, and the Assigned Customize Orders and
+     Contractors Directory tabs unlock.
+
 Default RBAC Permissions:
   - `manage_messages`: View, reply to, and manage customer customization briefs
                        and direct messages assigned to the Ad Agent.
