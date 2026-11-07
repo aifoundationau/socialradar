@@ -314,6 +314,17 @@ export const DEFAULT_FAQS: FaqItem[] = [
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
   },
+  {
+    faqId: "faq_ad_agent_status_disclaimer",
+    question: "What is the relationship between Ad Agents and Ad Radar HQ?",
+    answer:
+      "Ad Agents are outsourced independent contractors who are only associated with Ad Radar HQ by the way of independent contractors. Ad Agents are neither employees, partners, nor legal representatives of Ad Radar HQ or AI Foundation, and all advice, strategies, recommendations, and opinions expressed by Ad Agents are strictly their own independent views and do not represent Ad Radar HQ.",
+    category: "Refunds & Support",
+    order: 28,
+    enabled: true,
+    createdAt: "2026-11-03T00:00:00.000Z",
+    updatedAt: "2026-11-07T00:00:00.000Z",
+  },
 ];
 
 export async function getFaqs(includeDisabled = false): Promise<FaqItem[]> {

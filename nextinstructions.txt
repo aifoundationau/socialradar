@@ -307,6 +307,11 @@
     - Performed complete source code analysis across 124 files, cataloguing **695 total functions** (283 backend/lib, 52 API routes, 9 pages/layouts, 337 UI components, 14 scripts).
     - Catalogued **77 admin controls** across 11 governance suites (Currency, Pricing, Subscription, Token Packs, Redistributive Ledger, Master Order Ledger, Messages, RBAC, FAQs, Diagnostics, Ad Agent Ops).
     - Catalogued **89 total editable features** across SuperAdmin (45), Ad Agent (15), and Customer (29) tiers with operational explanations of how they work.
+64. **Terms of Service Ad Agent Independent Contractor Disclaimer & Non-Representation Clause (`src/lib/policies.ts`, `data-contracts.md`, `faqs.ts`):**
+    - Added explicit Section 7: **"Independent Contractor Status of Ad Agents & Disclaimer of Representation"** to the Terms of Service in [`src/lib/policies.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/policies.ts).
+    - Formally established that Ad Agents are outsourced independent contractors solely associated with Ad Radar HQ by the way of independent contractors.
+    - Clarified that Ad Agents are neither employees, partners, agents, nor legal representatives of Ad Radar HQ or AI Foundation, and that all advice, campaign strategies, creative directions, contractor recommendations, and opinions expressed by Ad Agents are strictly their own and do not represent Ad Radar HQ.
+    - Documented in Sections 10 and 24.5 of [`data-contracts.md`](file:///e:/Antigravity%20Projects/ad-radar/data-contracts.md) and added customer Q&A #28 to [`src/lib/faqs.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/faqs.ts).
 
 ## What to Do When Reopened Next Startup
 1. **Read `nextinstructions.txt` First:** Start here and review the latest completed milestones above.
