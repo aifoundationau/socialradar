@@ -465,8 +465,34 @@ export function TopNavWallet() {
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false);
   const [isAdAgentOpen, setIsAdAgentOpen] = useState(false);
 
+  const [isSubscriptionEnabled, setIsSubscriptionEnabled] = useState(false); // Default is Off
+
   const [adAgentRegistrationChecked, setAdAgentRegistrationChecked] = useState(false);
   const [isAdAgentProfileRegistered, setIsAdAgentProfileRegistered] = useState(true);
+
+  // Sync Monthly Search Subscription (1K) enabled status (Default is Off)
+  useEffect(() => {
+    let active = true;
+    async function syncSubscriptionStatus() {
+      try {
+        const data = await apiFetch<{
+          monthlySubscription?: { enabled?: boolean };
+        }>("/api/wallet/checkout", { method: "GET" });
+        if (active && data?.monthlySubscription) {
+          setIsSubscriptionEnabled(Boolean(data.monthlySubscription.enabled));
+        }
+      } catch {
+        // default remains false (off)
+      }
+    }
+
+    syncSubscriptionStatus();
+    window.addEventListener("adradar:config-updated", syncSubscriptionStatus);
+    return () => {
+      active = false;
+      window.removeEventListener("adradar:config-updated", syncSubscriptionStatus);
+    };
+  }, []);
 
   useEffect(() => {
     if (role !== "ad_agent") {
@@ -611,7 +637,7 @@ export function TopNavWallet() {
               <div className="absolute -top-1 left-1/2 -translate-x-1/2 size-2 rotate-45 border-t border-l border-white/[0.14] bg-surface-container-highest" />
             </div>
           </div>
-          {isAdmin && (
+          {isAdmin && isSubscriptionEnabled && (
             <div className="group relative flex items-center">
               <button
                 type="button"
@@ -669,7 +695,7 @@ export function TopNavWallet() {
               </p>
             </div>
           </div>
-          {isAdmin && (
+          {isAdmin && isSubscriptionEnabled && (
             <div className="group relative flex items-center md:hidden">
               <button
                 type="button"
@@ -719,10 +745,14 @@ export function TopNavWallet() {
           setAdminInitialTab("FAQS");
           setIsAdminOpen(true);
         }}
-        onOpenSubscription={() => {
-          setIsFaqOpen(false);
-          setIsSubscriptionOpen(true);
-        }}
+        onOpenSubscription={
+          isSubscriptionEnabled
+            ? () => {
+                setIsFaqOpen(false);
+                setIsSubscriptionOpen(true);
+              }
+            : undefined
+        }
       />
       <MonthlySubscriptionModal
         isOpen={isSubscriptionOpen}

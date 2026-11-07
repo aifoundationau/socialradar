@@ -3298,6 +3298,15 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           <span className="rounded bg-primary/20 px-2 py-0.5 font-mono text-[10px] font-bold text-primary uppercase">
                             Privileged Tier
                           </span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-bold border uppercase tracking-wider ${
+                              config.monthlySubscription?.enabled
+                                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                                : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                            }`}
+                          >
+                            {config.monthlySubscription?.enabled ? "● ON (Visible)" : "○ OFF (Hidden)"}
+                          </span>
                           <span className="rounded-full bg-surface-container-lowest/80 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-primary border border-white/10">
                             1,000 Searches / mo · {formatAud(Math.round((config.monthlySubscription?.priceAud ?? 500) * 100))} AUD
                           </span>
@@ -3326,6 +3335,88 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
                     {isFeatureExpanded("pricing_subscription") && (
                       <div className="space-y-4 pt-2 border-t border-white/[0.06]">
+                        {/* SuperAdmin Subscription (1K) On/Off Toggle Panel */}
+                        <div
+                          className="rounded-xl border border-white/10 bg-surface-container p-4 space-y-3"
+                          data-agent-id="subscription-1k-toggle-panel"
+                          data-testid="subscription-1k-toggle-panel"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                                  <Icon name="sparkles" className="size-4" />
+                                </span>
+                                <h5 className="font-mono text-sm font-bold text-on-surface">
+                                  Subscription (1K) Status Toggle
+                                </h5>
+                                <span
+                                  className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] font-bold border uppercase tracking-wider ${
+                                    config.monthlySubscription?.enabled
+                                      ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                                      : "border-amber-500/40 bg-amber-500/15 text-amber-300"
+                                  }`}
+                                >
+                                  {config.monthlySubscription?.enabled
+                                    ? "● ON (Subscription 1K Visible)"
+                                    : "○ OFF (Subscription 1K Hidden)"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-on-surface-variant leading-relaxed">
+                                {config.monthlySubscription?.enabled
+                                  ? "Subscription (1K) is currently ON and visible in the top header nav. Users can view and purchase the 1,000 monthly search plan."
+                                  : "Subscription (1K) is currently OFF and hidden from the top header nav. Turn ON to make Subscription (1K) visible and available."}
+                              </p>
+                            </div>
+
+                            {isSuper ? (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => {
+                                  const curr = config.monthlySubscription ?? {
+                                    searchesPerMonth: 1000,
+                                    enabled: false,
+                                    priceAud: 500,
+                                    name: "Monthly Search Subscription",
+                                    description: "",
+                                  };
+                                  const nextEnabled = !Boolean(curr.enabled);
+                                  saveConfig({
+                                    monthlySubscription: {
+                                      ...curr,
+                                      enabled: nextEnabled,
+                                    },
+                                  });
+                                }}
+                                data-agent-id="toggle-subscription-1k-btn"
+                                data-testid="toggle-subscription-1k-btn"
+                                aria-label={
+                                  config.monthlySubscription?.enabled
+                                    ? "Turn OFF Subscription (1K)"
+                                    : "Turn ON Subscription (1K)"
+                                }
+                                className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 font-mono text-xs font-bold transition shrink-0 shadow-sm ${
+                                  config.monthlySubscription?.enabled
+                                    ? "border-amber-500/40 bg-amber-500/20 text-amber-200 hover:bg-amber-500/30"
+                                    : "border-emerald-500/40 bg-emerald-500/25 text-emerald-200 hover:bg-emerald-500/35"
+                                } disabled:opacity-50`}
+                              >
+                                <Icon name="sliders" className="size-4" />
+                                <span>
+                                  {config.monthlySubscription?.enabled
+                                    ? "Turn OFF Subscription (1K)"
+                                    : "Turn ON Subscription (1K)"}
+                                </span>
+                              </button>
+                            ) : (
+                              <span className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-outline">
+                                Super Admin Control Only
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
                         <div className="rounded-lg border border-primary/20 bg-surface-container-lowest/70 p-3 font-mono text-xs text-on-surface leading-relaxed">
                           <span className="font-bold text-primary">Value Proposition: </span>
                           Options for every search: Every option is one token. This gives you 1,000 of those. Get Access to &apos;Free to Use&apos; Times. Can also be used to pay for Customize your Brand Strategy with Professional Experts ({config.serviceCosts?.customizeService ?? 55} {(config.serviceCosts?.customizeService ?? 55) === 1 ? "token" : "tokens"}).
@@ -3358,7 +3449,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   setDraftSubPrice(null);
                                   saveConfig({
                                     monthlySubscription: {
-                                      ...(config.monthlySubscription ?? { searchesPerMonth: 1000, enabled: true, name: "Monthly Search Subscription", description: "" }),
+                                      ...(config.monthlySubscription ?? { searchesPerMonth: 1000, enabled: false, name: "Monthly Search Subscription", description: "" }),
                                       priceAud: nextVal,
                                     },
                                   });
@@ -3383,7 +3474,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     setDraftSubPrice(null);
                                     saveConfig({
                                       monthlySubscription: {
-                                        ...(config.monthlySubscription ?? { searchesPerMonth: 1000, enabled: true, name: "Monthly Search Subscription", description: "" }),
+                                        ...(config.monthlySubscription ?? { searchesPerMonth: 1000, enabled: false, name: "Monthly Search Subscription", description: "" }),
                                         priceAud: val,
                                       },
                                     });
@@ -3396,7 +3487,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   setDraftSubPrice(null);
                                   saveConfig({
                                     monthlySubscription: {
-                                      ...(config.monthlySubscription ?? { searchesPerMonth: 1000, enabled: true, name: "Monthly Search Subscription", description: "" }),
+                                      ...(config.monthlySubscription ?? { searchesPerMonth: 1000, enabled: false, name: "Monthly Search Subscription", description: "" }),
                                       priceAud: val,
                                     },
                                   });
@@ -3413,7 +3504,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   setDraftSubPrice(null);
                                   saveConfig({
                                     monthlySubscription: {
-                                      ...(config.monthlySubscription ?? { searchesPerMonth: 1000, enabled: true, name: "Monthly Search Subscription", description: "" }),
+                                      ...(config.monthlySubscription ?? { searchesPerMonth: 1000, enabled: false, name: "Monthly Search Subscription", description: "" }),
                                       priceAud: nextVal,
                                     },
                                   });

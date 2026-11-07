@@ -685,13 +685,15 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 - **SuperAdmin & MainAdmin Exclusive:**
   - Only visible and accessible when `role === "superadmin"` or `role === "admin"`.
   - Only advertised strictly next to "FAQs" in the top header (`TopNavWallet.tsx` desktop nav and mobile header) and inside the Admin FAQ panel.
+  - **SuperAdmin On/Off Toggle (Default is Off):** SuperAdmin can turn on and off subscriptions for Subscription (1K) directly in the Admin Control Panel under Service Pricing (`toggle-subscription-1k-btn`).
+  - **Conditional Visibility:** If toggled OFF, Subscription (1K) is hidden from both desktop and mobile header navigation bars and FAQ modal, and checkout is disabled. If toggled ON, Subscription (1K) is shown.
   - The monthly AUD price can be changed at any time through the SuperAdmin / MainAdmin panel under the "PRICING" tab with instant debounced Firestore synchronization (`system_config/global.monthlySubscription.priceAud`).
 
 ### 17.2 Schema & State Contract
 ```json
 {
   "monthlySubscription": {
-    "enabled": true,
+    "enabled": false,
     "priceAud": 500,
     "searchesPerMonth": 1000,
     "name": "Monthly Search Subscription",
@@ -701,6 +703,8 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 ```
 
 ### 17.3 Interactive DOM Bindings
+- `data-agent-id="toggle-subscription-1k-btn"`, `data-testid="toggle-subscription-1k-btn"`
+- `data-agent-id="subscription-1k-toggle-panel"`, `data-testid="subscription-1k-toggle-panel"`
 - `data-agent-id="nav-link-subscription"`, `data-testid="nav-link-subscription"`
 - `data-agent-id="mobile-header-subscription"`, `data-testid="mobile-header-subscription"`
 - `data-agent-id="monthly-subscription-modal"`, `data-testid="monthly-subscription-modal"`

@@ -388,7 +388,7 @@ export type ServiceCosts = z.infer<typeof ServiceCostsSchema>;
 
 export const MonthlySubscriptionConfigSchema = z
   .object({
-    enabled: z.boolean().default(true),
+    enabled: z.boolean().default(false),
     priceAud: tokenInt.min(1).default(500),
     searchesPerMonth: tokenInt.min(1).default(1000),
     name: z.string().default("Monthly Search Subscription"),

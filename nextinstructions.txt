@@ -280,6 +280,12 @@
     - Added `searchSuburbs` and `COMMON_SUBURBS` in [`src/lib/geo.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/geo.ts), combining instant Australian/NZ/Global suburbs dictionary search with debounced OpenStreetMap Nominatim locality queries.
     - Upgraded the Contractor form in [`src/components/ad-agent/AdAgentModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/ad-agent/AdAgentModal.tsx) with a **`📍 Geolocate`** button (`contractor-geolocate-btn`) that uses browser GPS or IP reverse-geocoding (`autofindUserLocation()`) to auto-fill the contractor's suburb, state, and country.
     - Implemented real-time autofind suburb dropdown when typing into `Location *`, with one-click selection, quick city presets (`Sydney`, `Melbourne`, `Brisbane`, `Gold Coast`, `Perth`, `Remote`), and visual confirmation.
+59. **SuperAdmin Panel On/Off Toggle for Subscription (1K) (Default is Off):**
+    - Added the **Subscription (1K) Status Toggle Panel** (`subscription-1k-toggle-panel` & `toggle-subscription-1k-btn`) directly inside the **Monthly Search Subscription** section in [`SuperAdminModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/admin/SuperAdminModal.tsx), giving SuperAdmin 1-click on/off control.
+    - Set default status to **OFF** (`enabled: false`) across [`contracts.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/contracts.ts), [`admin.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/admin.ts), [`MonthlySubscriptionModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/subscription/MonthlySubscriptionModal.tsx), and [`TopNavWallet.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/layout/TopNavWallet.tsx).
+    - When toggled **OFF**, `Subscription (1K)` is completely hidden from both desktop (`nav-link-subscription`) and mobile (`mobile-header-subscription`) navigation bars and from the FAQ modal, and checkout creation is blocked.
+    - When toggled **ON**, `Subscription (1K)` appears in the top navigation bar with real-time sync via `adradar:config-updated`.
+    - Documented in Section 17 of [`data-contracts.md`](file:///e:/Antigravity%20Projects/ad-radar/data-contracts.md).
 
 ## What to Do When Reopened Next Startup
 1. **Read `nextinstructions.txt` First:** Start here and review the latest completed milestones above.

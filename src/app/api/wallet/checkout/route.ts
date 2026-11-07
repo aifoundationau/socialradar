@@ -75,10 +75,14 @@ export async function POST(req: Request) {
     let pack: TokenPack;
     if (packId === "SUB_MONTHLY_1000") {
       const sub = config.monthlySubscription ?? {
+        enabled: false,
         priceAud: 500,
         searchesPerMonth: 1000,
         name: "Monthly Search Subscription",
       };
+      if (!sub.enabled) {
+        throw new Error("Monthly Search Subscription (1K) is currently turned off by Super Admin.");
+      }
       const tokens = Math.max(1, Math.round(sub.searchesPerMonth ?? 1000));
       const priceCents = Math.max(100, Math.round((sub.priceAud ?? 500) * 100));
       pack = {

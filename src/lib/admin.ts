@@ -69,7 +69,7 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
     { id: "PACK_100", name: "Pro Pack (100)", tokens: TOKEN_PACKS.PACK_100.tokens, priceCents: TOKEN_PACKS.PACK_100.priceCents, enabled: true },
   ],
   monthlySubscription: {
-    enabled: true,
+    enabled: false,
     priceAud: 500,
     searchesPerMonth: 1000,
     name: "Monthly Search Subscription",

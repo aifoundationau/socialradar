@@ -34,7 +34,7 @@ export function MonthlySubscriptionModal({
   const router = useRouter();
   const { user, isAdmin, role } = useSession();
   const [subConfig, setSubConfig] = useState<MonthlySubscriptionConfig>({
-    enabled: true,
+    enabled: false,
     priceAud: 500,
     searchesPerMonth: 1000,
     name: "Monthly Search Subscription",
@@ -242,6 +242,19 @@ export function MonthlySubscriptionModal({
 
         {/* Content Body - Perfectly centered with zero scrollbars */}
         <div className="p-4 sm:p-5 space-y-3">
+          {!subConfig.enabled && (
+            <div
+              className="flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/15 p-3 text-xs text-amber-200 font-mono"
+              data-agent-id="sub-disabled-alert"
+              data-testid="sub-disabled-alert"
+            >
+              <Icon name="sliders" className="size-4 text-amber-400 shrink-0" />
+              <span>
+                <strong>Subscription (1K) is currently turned OFF by Super Admin.</strong> New subscriptions cannot be activated until turned on in the Super Admin panel.
+              </span>
+            </div>
+          )}
+
           {/* Main Price & Search Allowance Banner */}
           <div className="relative rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-surface-container-high to-surface-container p-3.5 sm:p-4 text-on-surface">
             <div className="flex items-center justify-between gap-3">
@@ -600,18 +613,22 @@ export function MonthlySubscriptionModal({
             <button
               type="button"
               onClick={handleSubscribe}
-              disabled={subscribing || granting || loading}
+              disabled={subscribing || granting || loading || !subConfig.enabled}
               data-agent-id="subscribe-monthly-button"
               data-testid="subscribe-monthly-button"
-              aria-label={`Subscribe Monthly for ${formatAud(audCents)} AUD`}
-              className={`${btnPrimary} text-xs font-mono py-1.5`}
+              aria-label={!subConfig.enabled ? "Subscription (1K) Disabled" : `Subscribe Monthly for ${formatAud(audCents)} AUD`}
+              className={`${btnPrimary} text-xs font-mono py-1.5 disabled:opacity-50`}
             >
               {subscribing ? (
                 <span className="size-3.5 animate-spin rounded-full border-2 border-on-primary/30 border-t-on-primary" />
               ) : (
                 <Icon name="sparkles" className="size-3.5" />
               )}
-              <span>Subscribe ({formatAud(audCents)} AUD{isAu ? " + GST" : ""} / mo)</span>
+              <span>
+                {!subConfig.enabled
+                  ? "Subscription (1K) Disabled"
+                  : `Subscribe (${formatAud(audCents)} AUD${isAu ? " + GST" : ""} / mo)`}
+              </span>
             </button>
           </div>
         </div>
