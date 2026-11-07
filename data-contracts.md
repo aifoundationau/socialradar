@@ -110,10 +110,11 @@ Standard Paid Rates for all services, products, and surcharges across the platfo
 
 From the SuperAdmin Control Panel, all rates can be dynamically set to free (`0 tokens`) using the "Set All Free (0)" preset or customized individually. A cost of `0` makes the action free: the caller must still be signed in and send an idempotency key, but nothing is written to the ledger and no balance check is made.
 
-### Refund Policy & Dispute Process
+### Strict No Refunds Policy & Dispute Process (Terms of Service)
+- **Strict No Refunds Policy:** All purchases of digital tokens, token packs, custom token top-ups, and recurring subscriptions are final and strictly non-refundable upon payment completion via Stripe.
+- **Immediate Delivery & Perpetual Validity:** Digital tokens are intangible digital units delivered immediately upon transaction and never expire. No refunds, cash redemptions, or account chargebacks are provided for change of mind, unused token balances, or account closure.
 - **Automatic Failure Refunds:** If an upstream API provider (SearchApi.io, Gemini) or system operation fails during a search or remix, tokens are automatically refunded atomically via compensating transaction (`<txId>_refund`).
-- **Written Refund Requests:** All formal or manual refund requests are to be made in writing by sending a message to the Superadmin via the secure in-app messaging interface (`/api/contact`).
-- **Statutory Audit Retention:** Written refund requests and compliance communications are cryptographically preserved for 7 years under Australian statutory recordkeeping standards and reviewed in accordance with the Australian Consumer Law (ACL).
+- **Australian Consumer Law (ACL):** Statutory consumer guarantees that cannot be excluded under the Competition and Consumer Act 2010 (Cth) are strictly preserved. Compliance inquiries or statutory disputes are communicated in writing to the Super Admin via the secure in-app messaging interface (`/api/contact`) and preserved for 7 years under statutory recordkeeping rules.
 
 ### Superadmin Token Exemption Rule
 - If the authenticated caller has custom claim `{ "role": "admin" }` (Superadmin), the effective token cost for **all actions** (`RADAR_SEARCH`, proven winners filters, extended longevity filters, elite winner filters, and `AI_REMIX`) is strictly **0 tokens**.
@@ -321,7 +322,8 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 | `createdAt` | ISO-8601 | |
 
 ### Redistributive Calculation Rules
-- **Total Tokens Pool**: Sum of `tokens` across all recorded Stripe purchases (`totalTokens`). Strict integers only (`Math.round`).
+- **Total Tokens from Stripe Pool (Strict Integers Only)**: Sum of `tokens` across all recorded Stripe purchases in `stripe_purchases` (`totalTokens`). Strict integers only (`Math.round`).
+- **Gifted Tokens Exclusion**: Gifted tokens (added at no charge via `giftTokensToUser` or logged with `type: "GIFT"` in `token_transactions`) **NEVER** show in the Redistributive Ledger and are **NEVER** counted in `totalTokens` or partner distributions. Only legitimate Stripe-purchased tokens are aggregated.
 - **Total Revenue Pool (Dual Currency)**:
   - `totalGrossAudCents`: Sum of all Stripe purchases in AUD cents (USD amounts converted at standard FX `0.65`).
   - `totalGrossUsdCents`: Sum of all Stripe purchases in USD cents (AUD amounts converted at standard FX `0.65`).

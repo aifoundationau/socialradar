@@ -504,7 +504,7 @@ export function TokenPacks() {
               </span>
             </div>
             <p className="text-xs text-on-surface-variant leading-relaxed">
-              Every token purchased or allocated to your wallet remains permanently in your account ledger. There are zero expiration dates, zero time limits, zero maintenance fees, and zero depreciation. Use your tokens whenever you need.
+              Every token purchased or allocated to your wallet remains permanently in your account ledger. There are zero expiration dates, zero time limits, zero maintenance fees, and zero depreciation. Per our Terms of Service, all digital token purchases are final and strictly non-refundable once delivered, with automatic failure token refunds if an upstream system error occurs.
             </p>
           </div>
         </div>

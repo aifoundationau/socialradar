@@ -291,6 +291,22 @@
     - Added the **Tokens Never Expire** header badge (`tokens-never-expire-top-badge`) and 100% Lifetime Guarantee card (`tokens-never-expire-rule-banner`) in [`TokenPacks.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/wallet/TokenPacks.tsx).
     - Added per-pack assurance (`Tokens never expire`) on every standard and custom pack card.
     - Surfaced the "Tokens Never Expire Rule" assurance directly beneath the active token balance in [`WalletView.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/wallet/WalletView.tsx).
+61. **Terms of Service Strict No Refunds Policy Codification & Transparency (`src/lib/policies.ts`, `TokenPacks.tsx`, `WalletView.tsx`, `faqs.ts`, `data-contracts.md`):**
+    - Added explicit Section 6: **"Strict No Refunds Policy & Australian Consumer Law (ACL)"** to the Terms of Service in [`src/lib/policies.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/policies.ts), clarifying that all digital token and subscription purchases are final and non-refundable upon payment confirmation.
+    - Established that because digital tokens are delivered instantly to the account ledger and never expire, change-of-mind refunds and unspent token redemptions are not provided.
+    - Preserved automatic failure refunds: any upstream technical failure or timeout during a search, remix, or service execution automatically refunds the exact spent tokens back to the user's ledger immediately.
+    - Preserved statutory non-excludable consumer guarantees under the Australian Consumer Law (ACL) and Competition and Consumer Act 2010 (Cth).
+    - Updated user-facing notices in [`WalletView.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/wallet/WalletView.tsx), [`TokenPacks.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/wallet/TokenPacks.tsx), and customer FAQ Q&A #25 in [`src/lib/faqs.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/faqs.ts).
+    - Documented the policy in Section 1 of [`data-contracts.md`](file:///e:/Antigravity%20Projects/ad-radar/data-contracts.md).
+62. **Redistributive Ledger Total Tokens from Stripe & Gifted Tokens Exclusion Confirmation (`src/lib/admin.ts`, `SuperAdminModal.tsx`, `data-contracts.md`):**
+    - Confirmed and fortified that [`getRedistributiveLedger`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/admin.ts) computes `totalTokens` and revenue distributions strictly from `stripe_purchases` (populated exclusively by verified Stripe checkout sessions and invoice renewals).
+    - Verified that Super Admin gifted tokens (`txType: "GIFT"` in `token_transactions`) are strictly excluded and NEVER recorded in `stripe_purchases` or counted in the Redistributive Ledger.
+    - Labeled the top metric card in [`SuperAdminModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/admin/SuperAdminModal.tsx) as **"Total Tokens from Stripe"** with subtext **"Stripe · Integers only"** and tooltip clarifying that only Stripe purchased tokens are counted.
+    - Formally recorded the rule in Section 6 of [`data-contracts.md`](file:///e:/Antigravity%20Projects/ad-radar/data-contracts.md).
+63. **Comprehensive Platform Audit & Features Census ([`totalfunctions.txt`](file:///e:/Antigravity%20Projects/ad-radar/totalfunctions.txt)):**
+    - Performed complete source code analysis across 124 files, cataloguing **695 total functions** (283 backend/lib, 52 API routes, 9 pages/layouts, 337 UI components, 14 scripts).
+    - Catalogued **77 admin controls** across 11 governance suites (Currency, Pricing, Subscription, Token Packs, Redistributive Ledger, Master Order Ledger, Messages, RBAC, FAQs, Diagnostics, Ad Agent Ops).
+    - Catalogued **89 total editable features** across SuperAdmin (45), Ad Agent (15), and Customer (29) tiers with operational explanations of how they work.
 
 ## What to Do When Reopened Next Startup
 1. **Read `nextinstructions.txt` First:** Start here and review the latest completed milestones above.

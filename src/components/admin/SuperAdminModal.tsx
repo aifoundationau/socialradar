@@ -3963,12 +3963,16 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         {/* Top Stats Cards: Total Tokens and Sum in USD & AUD */}
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:gap-2.5">
                           <div className={`${card} p-3 lg:py-2.5 lg:px-3.5`}>
-                            <span className="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">Total Tokens</span>
+                            <span className="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider" title="Total Tokens from Stripe (Stripe purchases only · Integers only · Gifted tokens excluded)">
+                              Total Tokens from Stripe
+                            </span>
                             <p className="mt-0.5 text-title-sm lg:text-title-md font-bold text-primary flex items-center gap-1.5">
                               <Icon name="zap" className="size-4 lg:size-5" />
                               {(ledger?.totalTokens ?? 0).toLocaleString("en-AU")}
                             </p>
-                            <span className="text-[10px] text-on-surface-variant truncate block">Stripe · Integers only</span>
+                            <span className="text-[10px] text-on-surface-variant truncate block" title="Only Stripe purchased tokens are counted · Gifted tokens never show">
+                              Stripe · Integers only
+                            </span>
                           </div>
 
                           <div className={`${card} p-3 lg:py-2.5 lg:px-3.5`}>

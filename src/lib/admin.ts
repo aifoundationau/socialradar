@@ -247,7 +247,12 @@ export async function getStripePurchases(limit = 100): Promise<StripePurchaseRec
   }
 }
 
-/** Aggregates total purchases and computes the redistributive equity breakdown. */
+/**
+ * Aggregates total purchases and computes the redistributive equity breakdown.
+ * CRITICAL RULE: Only legitimate Stripe purchases recorded in `stripe_purchases`
+ * are counted. Gifted tokens from Super Admin NEVER show in the Redistributive Ledger
+ * or in the Total Tokens count. Strict integers only.
+ */
 export async function getRedistributiveLedger(): Promise<RedistributiveLedgerSummary> {
   const [config, purchasesSnap] = await Promise.all([
     getSystemConfig(),
@@ -260,8 +265,9 @@ export async function getRedistributiveLedger(): Promise<RedistributiveLedgerSum
 
   for (const doc of purchasesSnap.docs) {
     const data = doc.data() as StripePurchaseRecord;
-    const tokens = Math.round(Number(data.tokens || 0));
-    const rawCents = Math.round(Number(data.amountCents || 0));
+    // Strict verification: only legitimate Stripe purchases with positive tokens are counted
+    const tokens = Math.max(0, Math.round(Number(data.tokens || 0)));
+    const rawCents = Math.max(0, Math.round(Number(data.amountCents || 0)));
     const curr = (data.currency || "aud").toLowerCase();
 
     totalTokens += tokens;

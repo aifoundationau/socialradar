@@ -93,7 +93,7 @@ export function WalletView() {
               <span>Tokens Never Expire Rule</span>
             </div>
             <p className="text-body-sm text-on-surface-variant leading-relaxed">
-              Purchased tokens remain permanently in your account with zero expiration dates or maintenance fees. If a search or remix fails on our side, tokens are refunded automatically.
+              Purchased tokens remain permanently in your account with zero expiration dates or maintenance fees. Per our Terms of Service, all token sales are final and strictly non-refundable. If a search or remix fails on our side, tokens are refunded automatically.
             </p>
           </div>
         </div>

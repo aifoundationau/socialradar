@@ -1,0 +1,557 @@
+================================================================================
+SOCIAL RADAR (ADRADARHQ) — COMPREHENSIVE ARCHITECTURE & FEATURES AUDIT
+Generated: 2026-11-07T02:19:07.824Z
+Target Environment: Next.js Turbopack / Firebase Admin SDK / Cloud Firestore
+================================================================================
+
+EXECUTIVE METRIC SUMMARY:
+--------------------------------------------------------------------------------
+1. TOTAL FUNCTIONS IN APPLICATION:       695 Functions
+   - Backend Core & Business Logic:      283 Functions (src/lib/)
+   - API Route Handlers:                  52 Functions (src/app/api/)
+   - UI Pages & Layouts:                   9 Functions (src/app/)
+   - UI Components & Client Views:       337 Functions (src/components/)
+   - Automation, Health & Testing:        14 Functions (scripts/)
+
+2. TOTAL ADMIN CONTROLS:                  77 Controls
+   - Suite 1: Currency & FX Controls:      5 Controls
+   - Suite 2: Service & Product Pricing:  10 Controls
+   - Suite 3: Subscription (1K) Status:    4 Controls
+   - Suite 4: Token Pack Governance:       8 Controls
+   - Suite 5: Redistributive Ledger:      11 Controls
+   - Suite 6: Master Order Ledger:         9 Controls
+   - Suite 7: User Messaging & 7-Yr Log:   8 Controls
+   - Suite 8: RBAC Matrix & Simulation:    5 Controls
+   - Suite 9: FAQ Development Suite:       7 Controls
+   - Suite 10: Diagnostics & Telemetry:    6 Controls
+   - Suite 11: Ad Agent & Contractor Ops:  4 Controls
+
+3. TOTAL EDITABLE FEATURES:               89 Features
+   - SuperAdmin / Main Admin Tier:        45 Editable Features
+   - Ad Agent & Contractor Tier:          15 Editable Features
+   - Supporter / Customer User Tier:      29 Editable Features
+================================================================================
+
+
+================================================================================
+PART I: APPLICATION FUNCTIONS DIRECTORY & FUNCTIONAL EXPLANATIONS (695 TOTAL)
+================================================================================
+
+This section details the functions powering AdRadarHQ, categorised by subsystem,
+explaining their operational purpose, parameters, return guarantees, and error handling.
+
+
+### 1. Token Ledger & Transaction Gatekeeper (src/lib/token-ledger.ts)
+
+- **`withTokenGate()`**: Atomic gatekeeper executing transactional deductions before performing paid operations (Radar Search, AI Remix, Customize Briefs, Brand Clones). Verifies user authentication, checks custom claim role exemptions (Super Admin = 0 tokens), ensures non-negative balance, records immutable ledger tx in token_transactions, and executes compensating failure refunds (<txId>_refund) atomically if downstream operations fail.
+- **`creditTokens()`**: Atomically adds integer tokens to users/{uid}.tokenBalance via Firestore transaction. Sets deterministic txId, enforces whole numbers (Math.round), logs transaction with audit referenceId and txType (TOPUP, GIFT, REFUND), and handles Stripe checkout fulfillments.
+- **`getUserBalance()`**: Fetches live integer token balance from users/{uid}. Enforces strict non-negative guarantee (Math.max(0, balance)) and returns zero for unauthenticated or non-existent profiles.
+- **`refundTokens()`**: Compensating transaction that refunds previously debited tokens back to users/{uid} when an upstream API provider (SearchApi.io, Gemini) encounters a 502/timeout, marking the original txId as refunded.
+- **`getLedgerHistory()`**: Retrieves owner-scoped transaction history from token_transactions collection with pagination, order sorting (createdAt desc), and human-readable metadata enrichment.
+- **`resetUserTokensToZero()`**: Administrative ledger action that resets a user's token balance to 0, logging an ADMIN_RESET transaction with mandatory audit note and admin email attribution.
+
+### 2. SuperAdmin Governance & Redistributive Ledger (src/lib/admin.ts)
+
+- **`getSystemConfig()`**: Retrieves global platform configuration from system_config/global with fallback defaults: currency toggles, base token price, service pricing matrix, subscription 1K status, and equity partners roster.
+- **`updateSystemConfig()`**: Mutates platform settings with Zod schema validation (SystemConfigSchema.strict()) and audit trail recording (updatedAt, updatedBy).
+- **`getRedistributiveLedger()`**: Aggregates total Stripe purchases exclusively from stripe_purchases collection. Sums totalTokens (integers only), totalGrossAudCents, and totalGrossUsdCents. Computes equity partner ownership and treasury retained pool. Super Admin gifted tokens are strictly excluded.
+- **`recordStripePurchase()`**: Writes an immutable Stripe purchase record into stripe_purchases collection, triggered exclusively by verified Stripe webhooks.
+- **`resetRedistributiveLedger()`**: Archives all records from stripe_purchases into archived_stripe_purchases with audit metadata and clears stripe_purchases, safely resetting Total Tokens and Revenue to 0.
+- **`resetPartnerTokens()`**: Resets an individual equity partner's claimed tokens and revenue balance to 0, updating partner audit timestamps.
+- **`giftTokensToUser()`**: Adds integer tokens at no charge ($0) to a user's wallet via creditTokens with txType: GIFT, bypassing Stripe and excluding from Redistributive Ledger.
+- **`deductTokensFromUser()`**: Administrative action deducting integer tokens from a user wallet with hard non-negative enforcement (balance never drops below 0).
+- **`getMasterOrderLedger()`**: Combines token_transactions (all searches, remixes, gifts, top-ups) and stripe_purchases, enriched with customer email and refund status, for Super Admin audit.
+- **`refundOrder()`**: Two-step administrative order refund restoring exact deducted tokens back to customer balance and marking order refunded.
+- **`getStripePurchases()`**: Fetches recent Stripe purchase records with limit and descending timestamp sort.
+
+### 3. Ad Intelligence & Search Engine (src/lib/radar.ts, src/lib/searchapi.ts, src/lib/radar-relevance.ts)
+
+- **`runRadarSearch()`**: Orchestrates multi-platform ad intelligence queries across Meta, TikTok, and Google. Enforces strict Real-Ads-Only policy, handles SearchApi.io monthly quota exhaustion (HTTP 429), and stores results in radar_cache.
+- **`queryMetaAds()`**: Executes Meta Ad Library API search via SearchApi.io, extracting advertiser data, headline, body copy, media URLs, and date ranges.
+- **`queryTikTokAds()`**: Executes TikTok Commercial Content Library search with quoted exact queries and unique_users_seen sorting, extracting real video creatives.
+- **`queryGoogleAds()`**: Queries Google Ads Transparency Center for search text ads and display/YouTube creatives with advertiser verification.
+- **`resolveSearchIntent()`**: Semantic intent analyzer mapping user keywords to canonical commercial niches and brand categories.
+- **`isRelevantGoogleAdvertiser()`**: Boundary validation regex preventing short-word collision false positives (e.g. rejecting 'Cara HO' when searching 'car').
+- **`filterRelevantDrafts()`**: Relevance gate filtering off-topic ads prior to scoring and caching.
+- **`computeRadarScore()`**: Algorithmic score (0-100%) calculating ad conversion power based on continuous run longevity (28+d, 60+d) and multi-adset budget scaling.
+
+### 4. AI Creative Remix Studio & Gemini Engine (src/lib/gemini.ts, src/lib/customize-ai.ts)
+
+- **`remixAdCreative()`**: Invokes Google Gemini with structured JSON output (AdRemixBlueprint) to deconstruct competitor ad hooks, persuasion mechanics, and generate 3 brand-aligned script variations (storyboard, voiceover, text overlay).
+- **`regenerateRemixVariations()`**: 1-token targeted regeneration creating new script angles and hooks for an existing remix blueprint without re-analyzing the source ad.
+- **`generateAiStrategistReply()`**: 4-pillar AI strategy reply designer for customize briefs, producing plain-text 7-year compliant creative strategies across Gemini 2.5 Flash-Lite, Claude Haiku 4.5, and gpt-6-luna.
+- **`getGeminiClient()`**: Initializes and caches the Google GenAI SDK client with authenticated GEMINI_API_KEY from environment.
+
+### 5. Ad Agent & Contractor Subsystem (src/lib/ad-agents.ts)
+
+- **`getAdAgentProfile()`**: Retrieves Ad Agent registration profile from ad_agents/{uid} including operating location, contact details, and payout settings.
+- **`upsertAdAgentProfile()`**: Creates or updates an Ad Agent profile upon SuperAdmin role elevation, validating location, phone, and payment details.
+- **`getAdAgentContractors()`**: Fetches subcollection ad_agents/{agentUid}/contractors, returning listed team members, skill tags, and rate structures.
+- **`addAdAgentContractor()`**: Adds a contractor profile (Name, Location, Email, Phone, Expertise, PayID, Average Rates) with validated schema.
+- **`updateAdAgentContractor()`**: Updates existing contractor record with optimistic concurrency and field validation.
+- **`deleteAdAgentContractor()`**: Removes a contractor record with mandatory confirmation gate.
+- **`listActiveAdAgents()`**: Queries all active Ad Agents for customer order assignment and geographic matching.
+
+### 6. Brand Profiles & Multi-Brand Manager (src/lib/brands.ts)
+
+- **`getUserBrands()`**: Fetches user's saved brand profiles from users/{uid}/brands with sorting and active brand determination.
+- **`createBrandProfile()`**: Creates a new brand profile (name, website, audience, value prop, tone, offer) with strict Zod validation.
+- **`updateBrandProfile()`**: Updates existing brand attributes and triggers re-sync with active remix sessions.
+- **`deleteBrandProfile()`**: Deletes a brand profile with two-step confirmation, cleaning up references.
+- **`cloneGlobalBrand()`**: Imports a pre-configured verified brand profile from global_brands catalog into user's brand list via brandClone token gate.
+
+### 7. Geolocation, Suburb Autofind & Time Services (src/lib/geo.ts)
+
+- **`searchSuburbs()`**: Hybrid suburb autofind combining fast in-memory dictionary of Australian/NZ/Global localities with debounced OpenStreetMap Nominatim queries.
+- **`autofindUserLocation()`**: Detects user's real-time geographic location via browser navigator.geolocation with IP-geolocation fallback.
+- **`loadGeoConfig()`**: Loads stored geographic and clock settings from localStorage (suburb, state, country, 12h/24h format, date format).
+- **`saveGeoConfig()`**: Persists updated user geo/time preferences and dispatches adradar:geo-updated window event for instant UI re-render.
+- **`fetchLocalWeather()`**: Queries open-meteo weather API for live temperature and weather condition code based on geographic coordinates.
+
+### 8. FAQ Development & Customer Knowledge (src/lib/faqs.ts)
+
+- **`getFaqs()`**: Fetches customer FAQ items from system_config/faqs, auto-seeding customer_v1 27-question catalog if uninitialized.
+- **`createFaq()`**: Creates a new FAQ question and answer in system_config/faqs with sequential order assignment.
+- **`updateFaq()`**: Updates question text, answer, category, order, or enabled toggle with Zod schema verification.
+- **`deleteFaq()`**: Removes an FAQ item from system_config/faqs with two-step confirmation.
+- **`reorderFaqs()`**: Atomically re-sequences order keys across FAQ items for category-based sorting.
+- **`resetFaqsToDefault()`**: Restores official 27 customer-perspective FAQs and resets customer_v1 version tag.
+
+### 9. Plain Text Messaging & 7-Year Compliance Archive (src/lib/admin.ts)
+
+- **`getAdminMessages()`**: Fetches compliance message threads from admin_messages, scoped by recipientUid for customers or unrestricted for SuperAdmin.
+- **`sendAdminMessage()`**: Dispatches a plain-text message between customer and SuperAdmin. Strictly strips HTML, script tags, and binary attachments. Enforces statutory 7-year immutable retention.
+- **`markMessageResolved()`**: Toggles resolution status on a message thread for administrative queue management.
+
+### 10. Stripe Invoicing, Checkout & Webhooks (src/lib/stripe.ts, src/app/api/webhooks/stripe/route.ts)
+
+- **`createCheckoutSession()`**: Initiates Stripe Checkout session for token packs, custom packs, or Monthly Search Subscription (1K) with Australian GST compliance, client reference ID, and metadata.
+- **`fulfillCheckoutSession()`**: Fulfills completed Stripe Checkout session, atomically crediting tokens to user ledger and logging record in stripe_purchases.
+- **`handleStripeWebhook()`**: Processes checkout.session.completed, checkout.session.async_payment_succeeded, and invoice.paid subscription cycle renewals with cryptographic signature verification.
+
+### 11. Pricing Matrix, Dual Currency & Tax Calculations (src/lib/pricing.ts)
+
+- **`buildTokenPack()`**: Constructs token pack pricing models with whole integer AUD rules, calculating savings and per-token rates.
+- **`formatAud()`**: Formats currency amounts into clean Australian Dollar strings ($XX.XX AUD) with whole integer platform standard.
+- **`formatUsd()`**: Formats foreign exchange converted values into US Dollar strings with up to 2 decimal places.
+- **`audToUsdCents()`**: Converts AUD cents to USD cents using live ECB exchange rate or standard fallback (0.65).
+- **`fetchEcbExchangeRates()`**: Fetches official European Central Bank reference exchange rates for AUD/USD conversion.
+
+--------------------------------------------------------------------------------
+COMPLETE SOURCE CODE FILE FUNCTION COUNTS (124 Files Analyzed):
+--------------------------------------------------------------------------------
+
+- `src\app\(dashboard)\brands\page.tsx`: 1 function(s) [BrandsPage]
+- `src\app\(dashboard)\customize\page.tsx`: 1 function(s) [CustomizePage]
+- `src\app\(dashboard)\layout.tsx`: 1 function(s) [DashboardLayout]
+- `src\app\(dashboard)\radar\page.tsx`: 1 function(s) [RadarPage]
+- `src\app\(dashboard)\wallet\page.tsx`: 1 function(s) [WalletPage]
+- `src\app\api\ad-agent\route.ts`: 2 function(s) [GET, POST]
+- `src\app\api\admin\config\route.ts`: 3 function(s) [GET, PUT, POST]
+- `src\app\api\admin\faqs\route.ts`: 4 function(s) [GET, POST, PUT, DELETE]
+- `src\app\api\admin\messages\ai-draft\route.ts`: 1 function(s) [POST]
+- `src\app\api\admin\messages\route.ts`: 4 function(s) [GET, POST, PATCH, DELETE]
+- `src\app\api\admin\orders\route.ts`: 2 function(s) [GET, POST]
+- `src\app\api\admin\rbac\route.ts`: 2 function(s) [GET, PUT]
+- `src\app\api\brands\clone\route.ts`: 1 function(s) [POST]
+- `src\app\api\brands\duplicate\route.ts`: 1 function(s) [POST]
+- `src\app\api\brands\global\route.ts`: 3 function(s) [handleGlobalBrands, GET, POST]
+- `src\app\api\brands\route.ts`: 4 function(s) [POST, PUT, DELETE, PATCH]
+- `src\app\api\contact\route.ts`: 2 function(s) [GET, POST]
+- `src\app\api\contractors\route.ts`: 3 function(s) [fetchContractorsForCaller, GET, POST]
+- `src\app\api\currency\route.ts`: 1 function(s) [GET]
+- `src\app\api\customize\route.ts`: 2 function(s) [GET, POST]
+- `src\app\api\faqs\route.ts`: 1 function(s) [GET]
+- `src\app\api\geo\route.ts`: 3 function(s) [weatherCodeToCondition, cleanState, GET]
+- `src\app\api\me\route.ts`: 1 function(s) [POST]
+- `src\app\api\radar\remix\route.ts`: 1 function(s) [POST]
+- `src\app\api\radar\search\route.ts`: 1 function(s) [POST]
+- `src\app\api\rag\route.ts`: 4 function(s) [GET, POST, PUT, DELETE]
+- `src\app\api\rag\translate\route.ts`: 1 function(s) [POST]
+- `src\app\api\wallet\checkout\route.ts`: 2 function(s) [GET, POST]
+- `src\app\api\wallet\confirm\route.ts`: 1 function(s) [POST]
+- `src\app\api\wallet\reset\route.ts`: 1 function(s) [POST]
+- `src\app\api\webhooks\stripe\route.ts`: 1 function(s) [POST]
+- `src\app\layout (1).tsx`: 1 function(s) [RootLayout]
+- `src\app\layout.tsx`: 1 function(s) [RootLayout]
+- `src\app\page (1).tsx`: 1 function(s) [Home]
+- `src\app\page.tsx`: 1 function(s) [Home]
+- `src\components\ad-agent\AdAgentModal.tsx`: 26 function(s) [emptySubscribe, useIsClient, AdAgentModal, isSectionExpanded, toggleSectionExpanded…]
+- `src\components\admin\SuperAdminModal (1).tsx`: 25 function(s) [emptySubscribe, useIsClient, SuperAdminModal, reloadRbac, handleTogglePermission…]
+- `src\components\admin\SuperAdminModal.tsx`: 62 function(s) [emptySubscribe, useIsClient, formatRbacRoleLabel, getUserRolesList, getUserAssignableRoles…]
+- `src\components\agent\AgentDomBridge.tsx`: 1 function(s) [AgentDomBridge]
+- `src\components\auth\HomeCta.tsx`: 2 function(s) [HomeCta, handleSignIn]
+- `src\components\auth\SessionProvider.tsx`: 8 function(s) [SessionProvider, isSuperAdminEmail, setActingRole, resetRole, fail…]
+- `src\components\auth\SignInCard.tsx`: 2 function(s) [SignInCard, handleSignIn]
+- `src\components\brands\BrandForm.tsx`: 9 function(s) [BrandForm, set, toggleGlobal, addLandingUrl, updateLandingUrl…]
+- `src\components\brands\BrandSlideOver.tsx`: 4 function(s) [emptySubscribe, useIsClient, BrandSlideOver, handleKeyDown]
+- `src\components\brands\BrandsManager.tsx`: 8 function(s) [BrandsManager, run, makeActive, remove, handleToggleGlobal…]
+- `src\components\contact\ContactAdminModal.tsx`: 8 function(s) [emptySubscribe, useIsClient, ContactAdminModal, handleCopyText, handleKeyDown…]
+- `src\components\currency\CurrencyConverterModal.tsx`: 8 function(s) [emptySubscribe, useIsClient, CurrencyConverterModal, fetchRate, handleKeyDown…]
+- `src\components\customize\CustomizeView.tsx`: 13 function(s) [haversineKmClient, toRad, CustomizeView, handleCopyText, loadCustomizeState…]
+- `src\components\faq\FaqModal.tsx`: 5 function(s) [emptySubscribe, useIsClient, FaqModal, handleKeyDown, loadFaqsAndRag]
+- `src\components\faq\FaqRagWorkspace.tsx`: 13 function(s) [PerFaqRagDrawer, handleGoogleTranslateFaq, handleSaveHumanEditedFaqToRag, handleCopy, GlobalRagCorpusSection…]
+- `src\components\geo\GeoTimeModal.tsx`: 6 function(s) [emptySubscribe, useIsClient, GeoTimeModal, handleKeyDown, handleAutofind…]
+- `src\components\layout\AppFooter.tsx`: 3 function(s) [AppFooter, handleGeoUpdated, updateClock]
+- `src\components\layout\DashboardShell.tsx`: 1 function(s) [DashboardShell]
+- `src\components\layout\FreeAccessTopBanner.tsx`: 3 function(s) [FreeAccessTopBanner, syncUserCountry, fetchFreeStatus]
+- `src\components\layout\MobileTabBar.tsx`: 3 function(s) [Tabs, TabsForPath, MobileTabBar]
+- `src\components\layout\nav.ts`: 1 function(s) [isActivePath]
+- `src\components\layout\PublicStartNavbar.tsx`: 1 function(s) [PublicStartNavbar]
+- `src\components\layout\TopNavWallet (1).tsx`: 7 function(s) [NavItems, NavLinks, BrandSwitcher, select, TokenPill…]
+- `src\components\layout\TopNavWallet.tsx`: 9 function(s) [NavItems, NavLinks, BrandSwitcher, select, TokenPill…]
+- `src\components\legal\PolicyModal.tsx`: 4 function(s) [emptySubscribe, useIsClient, PolicyModal, handleKeyDown]
+- `src\components\radar\AdWinnerCard (1).tsx`: 8 function(s) [formatDay, hostname, formatViews, HighlightedText, AdMedia…]
+- `src\components\radar\AdWinnerCard.tsx`: 8 function(s) [formatDay, hostname, formatViews, HighlightedText, AdMedia…]
+- `src\components\radar\AnatomyBreakdown.tsx`: 2 function(s) [parseBeat, AnatomyBreakdown]
+- `src\components\radar\CsvExportButton.tsx`: 6 function(s) [cell, downloadCsv, clip, metaCta, slug…]
+- `src\components\radar\options.ts`: 1 function(s) [formatDay]
+- `src\components\radar\RadarFilterBar.tsx`: 8 function(s) [noSubscribe, isApple, BrandSelectPill, RadarFilterBar, syncGeo…]
+- `src\components\radar\RadarView (1).tsx`: 9 function(s) [storageKey, loadSaved, Pager, SkeletonGrid, RadarView…]
+- `src\components\radar\RadarView.tsx`: 9 function(s) [storageKey, loadSaved, Pager, SkeletonGrid, RadarView…]
+- `src\components\radar\RemixStudio (1).tsx`: 7 function(s) [ErrorNote, scriptText, Toast, StudioSkeleton, RemixStudio…]
+- `src\components\radar\RemixStudio.tsx`: 7 function(s) [ErrorNote, scriptText, Toast, StudioSkeleton, RemixStudio…]
+- `src\components\radar\VariationEditor.tsx`: 4 function(s) [variationLetter, beatTag, runTime, VariationEditor]
+- `src\components\subscription\MonthlySubscriptionModal.tsx`: 8 function(s) [emptySubscribe, useIsClient, MonthlySubscriptionModal, handleKeyDown, handleGeoUpdated…]
+- `src\components\supporter\SupporterModal.tsx`: 8 function(s) [emptySubscribe, useIsClient, SupporterModal, handleConfirmSelfRefreshZero, handleCopyText…]
+- `src\components\ui\AmbientGlow.tsx`: 1 function(s) [AmbientGlow]
+- `src\components\ui\CostTag.tsx`: 1 function(s) [CostTag]
+- `src\components\ui\Icon (1).tsx`: 1 function(s) [Icon]
+- `src\components\ui\Icon.tsx`: 1 function(s) [Icon]
+- `src\components\ui\Logo.tsx`: 1 function(s) [Logo]
+- `src\components\wallet\CheckoutBanner.tsx`: 1 function(s) [CheckoutBanner]
+- `src\components\wallet\LedgerHistory (1).tsx`: 3 function(s) [formatWhen, Delta, LedgerHistory]
+- `src\components\wallet\LedgerHistory.tsx`: 3 function(s) [formatWhen, Delta, LedgerHistory]
+- `src\components\wallet\TokenPacks (1).tsx`: 2 function(s) [TokenPacks, buy]
+- `src\components\wallet\TokenPacks.tsx`: 4 function(s) [TokenPacks, handleGeoUpdated, fetchPricingAndPacks, buy]
+- `src\components\wallet\WalletView.tsx`: 2 function(s) [WalletView, handleConfirmRefreshToZero]
+- `src\lib\ad-agents.ts`: 14 function(s) [haversineDistanceKm, toRad, normalizeRedistributionPercent, formatAgentLocationLabel, getAdAgents…]
+- `src\lib\admin (1).ts`: 16 function(s) [getSystemConfig, updateSystemConfig, grantDevAdminRole, flushRadarCache, recordStripePurchase…]
+- `src\lib\admin.ts`: 28 function(s) [getSystemConfig, setFreeAccessWindow, updateSystemConfig, grantDevAdminRole, flushRadarCache…]
+- `src\lib\api (1).ts`: 5 function(s) [jsonError, errorResponse, requireIdempotencyKey, optionalIdempotencyKey, readJson]
+- `src\lib\api-client.ts`: 2 function(s) [newIdempotencyKey, errorMessage]
+- `src\lib\api.ts`: 5 function(s) [jsonError, errorResponse, requireIdempotencyKey, optionalIdempotencyKey, readJson]
+- `src\lib\brands.ts`: 12 function(s) [userRef, brandsCol, brandIdFromKey, notFound, createBrand…]
+- `src\lib\contracts (1).ts`: 2 function(s) [sanitizeText, safeText]
+- `src\lib\contracts (2).ts`: 2 function(s) [sanitizeText, safeText]
+- `src\lib\contracts.ts`: 2 function(s) [sanitizeText, safeText]
+- `src\lib\countries.ts`: 3 function(s) [getCountryName, normalizeAllowedCountries, formatAllowedCountriesSummary]
+- `src\lib\customize-ai.ts`: 2 function(s) [buildDeterministicStaffReply, generateCustomizeStaffReply]
+- `src\lib\dom-agent-bridge.ts`: 8 function(s) [detectUserIntent, evaluateTaskReadiness, findAgentElement, preCheckElement, waitForLayoutStability…]
+- `src\lib\faqs.ts`: 5 function(s) [getFaqs, createFaq, updateFaq, deleteFaq, resetDefaultFaqs]
+- `src\lib\firebase-admin (1).ts`: 3 function(s) [createAdminApp, verifyRequest, setUserClaims]
+- `src\lib\firebase-admin.ts`: 5 function(s) [createAdminApp, initAdminFirestore, isDatabaseAdmin, verifyRequest, setUserClaims]
+- `src\lib\gemini (1).ts`: 6 function(s) [getGemini, assertRemixConfigured, toGeminiSchema, generateRemix, mediaPart…]
+- `src\lib\gemini.ts`: 7 function(s) [getGemini, assertRemixConfigured, toGeminiSchema, buildFallbackRemix, generateRemix…]
+- `src\lib\geo.ts`: 10 function(s) [loadDetectedGeoCountry, saveDetectedGeoCountry, weatherCodeToCondition, detectBrowserAuNz, loadGeoConfig…]
+- `src\lib\google-topads.ts`: 9 function(s) [https, idPart, cleanText, extractCleanDomain, detectGoogleAdFormat…]
+- `src\lib\meta-topads.ts`: 9 function(s) [https, idPart, cleanText, detectMetaCreativeFormat, inferMetaCta…]
+- `src\lib\pricing (1).ts`: 9 function(s) [calculateSearchCost, audToUsdCents, usdToAudCents, formatTokenEstimateHover, costLabel…]
+- `src\lib\pricing.ts`: 13 function(s) [isMonthlySubscriber, isCountryEligibleForFreeAccess, isFreeAccessWindowActive, isChargingEnabled, calculateSearchCost…]
+- `src\lib\radar (1).ts`: 19 function(s) [text, ctaLabel, https, idPart, daysBetween…]
+- `src\lib\radar-matrix.ts`: 2 function(s) [extractTokens, calculateMatrixScore]
+- `src\lib\radar-relevance.ts`: 4 function(s) [escapeRegex, detectSpecificAutomotiveBrand, resolveSearchIntent, isRelevantGoogleAdvertiser]
+- `src\lib\radar.ts`: 23 function(s) [text, ctaLabel, https, idPart, daysBetween…]
+- `src\lib\rag-engine.ts`: 13 function(s) [extractRagKeywords, splitIntoSentences, buildFaqRagEntries, buildWebsiteAndBaselineAiEntries, harvestLiveAiWorksSentences…]
+- `src\lib\rag-languages.ts`: 1 function(s) [getRagLanguageMeta]
+- `src\lib\rbac.ts`: 5 function(s) [normalizeUserRoles, getRbacConfig, updateRolePermissions, assignUserRole, getRbacUsersList]
+- `src\lib\searchapi.ts`: 1 function(s) [searchApi]
+- `src\lib\stripe.ts`: 3 function(s) [getStripe, buildCheckoutParams, fulfillCheckoutSession]
+- `src\lib\tiktok-topads.ts`: 7 function(s) [https, idPart, cleanText, detectTikTokUgcFormat, inferTikTokCta…]
+- `src\lib\token-ledger (1).ts`: 9 function(s) [usersCol, txCol, toInt, buildTxId, ensureUserDoc…]
+- `src\lib\token-ledger (2).ts`: 9 function(s) [usersCol, txCol, toInt, buildTxId, ensureUserDoc…]
+- `src\lib\token-ledger.ts`: 10 function(s) [usersCol, txCol, sysConfigDoc, toInt, buildTxId…]
+- `scripts\e2e.mjs`: 10 function(s) [load, check, call, userDoc, key…]
+- `scripts\test-messages-e2e.mjs`: 1 function(s) [testMessagesPipeline]
+- `scripts\test-rules.mjs`: 1 function(s) [P]
+- `scripts\verify-database.mjs`: 2 function(s) [createAdminApp, run]
+
+================================================================================
+PART II: COMPLETE ADMIN CONTROLS DIRECTORY & HOW THEY WORK (77 TOTAL)
+================================================================================
+
+AdRadarHQ features 77 discrete administrative controls distributed across 11
+governance suites in the SuperAdmin Control Panel (SuperAdminModal.tsx) and Main Admin:
+
+SUITE 1: CURRENCY & FOREIGN EXCHANGE CONTROLS (5 Controls)
+1. Token System Master Toggle (isTokenSystemEnabled):
+   - How it works: Enables or disables platform-wide token gate enforcement. When enabled, actions require integer token debits; when disabled, actions run at 0 cost.
+2. Australian Dollar Invoicing Toggle (isAudEnabled):
+   - How it works: Controls AUD checkout availability and invoice generation. Australian entity legal default.
+3. Indicative USD Toggle (isUsdEnabled):
+   - How it works: Displays/hides foreign exchange conversion estimates alongside AUD prices for international visitors.
+4. Base Token Price in AUD (centsPerToken):
+   - How it works: Sets base value of 1 token in AUD cents (default: 100 cents = $1.00 AUD). Updates all token pack formulas.
+5. Sync ECB Foreign Exchange Rates (syncEcbRates):
+   - How it works: One-click sync fetching official ECB daily rates to calibrate indicative USD conversion.
+
+SUITE 2: SERVICE & PRODUCT PRICING CONTROLS (10 Controls)
+6. Base Radar Search Cost (searchStandard):
+   - How it works: Sets token deduction for standard Meta, TikTok, or Google ad library search (default: 1 Token).
+7. Proven Winners (28+d) Surcharge (searchProvenWinners):
+   - How it works: Surcharge for isolating high-converting ads active for 28+ continuous days (default: 1 Token).
+8. Extended Longevity (60+d) Surcharge (searchExtendedDays):
+   - How it works: Surcharge for evergreen ads running 60+ continuous days (default: 1 Token).
+9. Elite Winner Score (90%+) Surcharge (searchEliteScore):
+   - How it works: Surcharge for top 1% ads with maximum velocity and multi-adset spend (default: 1 Token).
+10. AI Creative Remix Studio (aiRemix):
+    - How it works: Token fee for complete Gemini deconstruction and 3 script variations (default: 1 Token).
+11. Regenerate Variations (regenerateVariations):
+    - How it works: Token fee for generating fresh hooks/scripts for existing remix (default: 1 Token).
+12. Global Brand Clone (brandClone):
+    - How it works: Token fee for importing proven global brand blueprint into user's account (default: 1 Token).
+13. Customize Service Fee (customizeService):
+    - How it works: Token fee for submitting bespoke creative brief to Ad Agents / Super Admin (default: 45 Tokens).
+14. "Set All Free (0 Tokens)" Preset:
+    - How it works: 1-click administrative preset setting all search and remix actions to 0 tokens for promotional windows.
+15. "Restore Default Pricing" Preset:
+    - How it works: Restores all service fees to default balanced token amounts.
+
+SUITE 3: MONTHLY SEARCH SUBSCRIPTION (1K) CONTROLS (4 Controls)
+16. Subscription (1K) Status Toggle:
+    - How it works: Master on/off toggle. When OFF (default), Subscription 1K is hidden from top nav, mobile nav, and checkout. When ON, surfaces in navigation and enables Stripe recurring subscription.
+17. Monthly Search Token Allocation:
+    - How it works: Sets monthly recurring search tokens credited to subscriber ledger (default: 1,000 tokens).
+18. Subscription Price Cents:
+    - How it works: Sets monthly recurring AUD fee ($29 AUD/month).
+19. Subscriber Country Filter:
+    - How it works: Designates eligible geolocations for timed free promotional windows.
+
+SUITE 4: TOKEN PACK GOVERNANCE CONTROLS (8 Controls)
+20. Quick Pack (10) Enabled Toggle:
+    - How it works: Shows/hides 10-token pack in wallet catalog.
+21. Quick Pack (10) Price Input:
+    - How it works: Sets integer AUD price for Quick Pack.
+22. Creator Pack (50) Enabled Toggle:
+    - How it works: Shows/hides 50-token pack.
+23. Creator Pack (50) Price Input:
+    - How it works: Sets integer AUD price for Creator Pack.
+24. Pro Pack (100) Enabled Toggle:
+    - How it works: Shows/hides 100-token pack.
+25. Pro Pack (100) Price Input:
+    - How it works: Sets integer AUD price for Pro Pack.
+26. Custom Pack Enabled Toggle:
+    - How it works: Enables user custom token quantity slider.
+27. Save Token Pack Configurations:
+    - How it works: Persists pack catalog changes with atomic validation.
+
+SUITE 5: REDISTRIBUTIVE LEDGER & EQUITY CONTROLS (11 Controls)
+28. Total Tokens from Stripe Display (Stripe Only):
+    - How it works: Real-time sum of purchased tokens from stripe_purchases. Gifted tokens strictly excluded.
+29. Gross Revenue AUD Metric Display:
+    - How it works: Total Stripe revenue aggregated in AUD.
+30. Gross Revenue USD Metric Display:
+    - How it works: Indicative dual-currency revenue display.
+31. Owner Redistribution Percentage Calculator:
+    - How it works: Calculates active partner allocation vs treasury retainage.
+32. Add Equity Partner Form:
+    - How it works: Registers partner name, email, and equity percentage.
+33. Edit Partner Allocation:
+    - How it works: Modifies partner revenue percentage.
+34. Delete Equity Partner Button:
+    - How it works: Removes partner with confirmation gate.
+35. Claim Partner Tokens / Payout:
+    - How it works: Records partner payout and updates claimed balance.
+36. Reset Partner Tokens to 0 (Two-Step Confirm):
+    - How it works: Resets an individual partner row to 0 tokens.
+37. Reset Entire Redistributive Ledger to 0 (Two-Step Confirm):
+    - How it works: Archives stripe_purchases to archived_stripe_purchases and resets total metrics to 0.
+38. Export Redistributive Ledger Audit CSV:
+    - How it works: Generates downloadable audit CSV of all partner entitlements.
+
+SUITE 6: MASTER ORDER LEDGER & USER TOKEN CONTROLS (9 Controls)
+39. Order Type Filter Pills:
+    - How it works: Filters ledger rows by All, Searches, Stripe Purchases, Customize, Gifts & Refunds.
+40. Order Search Input:
+    - How it works: Live text filter by customer email, txId, or reference note.
+41. Two-Step Refund Order Button (Refund -> Confirm):
+    - How it works: Restores exact debited tokens to user balance and marks order refunded.
+42. SuperAdmin Gift Tokens Card:
+    - How it works: Credits tokens at no charge ($0) to user with presets (+10, +45, +100, +500) or custom input.
+43. Deduct / Remove Tokens Card:
+    - How it works: Removes tokens from user balance with non-negative guard (balance >= 0).
+44. Reset User Tokens to 0 Card (Two-Step Confirm):
+    - How it works: Clears user balance to 0 with confirmation dialog.
+45. All Users Live Balances Directory:
+    - How it works: Directory table showing live token balances across all registered accounts.
+46. Search Users Directory Filter:
+    - How it works: Real-time search across registered users.
+47. User Activity Deep-Link:
+    - How it works: Inspects search and remix activity for selected user.
+
+SUITE 7: USER MESSAGING & 7-YEAR COMPLIANCE ARCHIVE CONTROLS (8 Controls)
+48. Message Thread Filter:
+    - How it works: Filters customer threads by All, Customize Briefs, General Support.
+49. Thread Search Input:
+    - How it works: Searches messages by user email or content.
+50. Plain Text Reply Composer:
+    - How it works: Plain text editor enforcing statutory compliance, rejecting HTML/attachments.
+51. "Generate AI Strategy Reply ✨" Button:
+    - How it works: Invokes AI Strategist (Gemini 2.5 Flash-Lite / Haiku / gpt-6-luna) to generate 4-pillar response.
+52. Send Message / Reply Button:
+    - How it works: Delivers response directly to customer's Message Panel.
+53. Mark Message Resolved Button:
+    - How it works: Updates thread status to completed.
+54. Archive Message Thread:
+    - How it works: Moves thread to 7-year immutable archive.
+55. Export Compliance Audit Log:
+    - How it works: Exports message history for statutory compliance audit.
+
+SUITE 8: RBAC MATRIX & VIEW SIMULATION CONTROLS (5 Controls)
+56. User Role Selector Dropdown:
+    - How it works: Sets user custom claims: superadmin, admin, moderator, agency, ad_agent, supporter.
+57. RBAC Matrix Permission Editor:
+    - How it works: Defines granular permissions per role.
+58. Superadmin View Simulator (actingAsRole):
+    - How it works: Allows SuperAdmin to view UI as Super Admin, Main Admin, or Supporter.
+59. "Return to Super Admin" Reset Pill:
+    - How it works: Instantly exits simulation and restores Super Admin privileges.
+60. RBAC User Search:
+    - How it works: Filters user directory for role assignments.
+
+SUITE 9: FAQ DEVELOPMENT SUITE CONTROLS (7 Controls)
+61. FAQ Category Filter:
+    - How it works: Filters FAQs by Radar Search, AI Remix, Customize, Brand Cards, Tokens, Refunds.
+62. Add New FAQ Modal:
+    - How it works: Creates new customer question and answer.
+63. Edit FAQ Inline:
+    - How it works: Edits question, answer, category, or order.
+64. Delete FAQ Button (Two-Step Confirm):
+    - How it works: Deletes FAQ item with confirmation dialog.
+65. Reorder FAQs (Move Up / Down):
+    - How it works: Re-sequences display order of FAQs.
+66. Toggle FAQ Enabled Switch:
+    - How it works: Shows/hides FAQ from customer modal.
+67. Reset FAQs to Default Button:
+    - How it works: Re-seeds official 27 customer Q&As.
+
+SUITE 10: DEVELOPER DIAGNOSTICS & TELEMETRY CONTROLS (6 Controls)
+68. System Health Telemetry Dashboard:
+    - How it works: Monitors Firestore, Auth, SearchApi, Gemini, and Stripe status.
+69. Flush Radar Cache Button:
+    - How it works: Purges cached ad library responses.
+70. Invalidate RAG Knowledge Corpus:
+    - How it works: Clears vector cache for policy knowledge engine.
+71. Seed RAG Corpus Button:
+    - How it works: Generates 167+ sentence embeddings.
+72. Firebase ADC Credential Status & Refresh:
+    - How it works: Validates service account connectivity.
+73. Run Complete Database Health Check:
+    - How it works: Executes automated verification script.
+
+SUITE 11: AD AGENT & CONTRACTOR OPERATIONS CONTROLS (4 Controls)
+74. Ad Agent Profile Approval Toggle:
+    - How it works: Activates/deactivates Ad Agent in public directory.
+75. Assign Customize Order to Ad Agent:
+    - How it works: Routes customer brief to specific Ad Agent.
+76. Contractor Roster Inspection:
+    - How it works: Inspects contractors registered under each Ad Agent.
+77. Payout Details Verification:
+    - How it works: Inspects PayID and banking details for order settlements.
+
+
+================================================================================
+PART III: TOTAL EDITABLE FEATURES DIRECTORY & HOW THEY WORK (89 TOTAL)
+================================================================================
+
+This section catalogs every field and preference that can be edited by users,
+ad agents, or administrators across the platform:
+
+A. SUPERADMIN & MAIN ADMIN EDITABLE FEATURES (45 Features)
+1.  System Currency: Token System Enabled Toggle (boolean)
+2.  System Currency: AUD Invoicing Enabled Toggle (boolean)
+3.  System Currency: USD Indicative Display Enabled Toggle (boolean)
+4.  Base Token Price in AUD (integer cents, default 100)
+5.  Service Pricing: Standard Radar Search token cost (integer, default 1)
+6.  Service Pricing: Proven Winners (28+d) surcharge (integer, default 1)
+7.  Service Pricing: Extended Longevity (60+d) surcharge (integer, default 1)
+8.  Service Pricing: Elite Winner (90%+) surcharge (integer, default 1)
+9.  Service Pricing: AI Creative Remix token cost (integer, default 1)
+10. Service Pricing: Regenerate Variations token cost (integer, default 1)
+11. Service Pricing: Global Brand Clone token cost (integer, default 1)
+12. Service Pricing: Customize Service token cost (integer, default 45)
+13. Subscription 1K: Status Toggle (boolean, default false / Off)
+14. Subscription 1K: Monthly Token Allocation (integer, default 1,000)
+15. Subscription 1K: Price in AUD (integer cents, default 2,900 = $29 AUD)
+16. Token Pack 10: Display Name (string)
+17. Token Pack 10: Price in AUD (integer cents)
+18. Token Pack 10: Enabled Switch (boolean)
+19. Token Pack 50: Display Name (string)
+20. Token Pack 50: Price in AUD (integer cents)
+21. Token Pack 50: Enabled Switch (boolean)
+22. Token Pack 100: Display Name (string)
+23. Token Pack 100: Price in AUD (integer cents)
+24. Token Pack 100: Enabled Switch (boolean)
+25. Custom Token Pack: Enabled Switch (boolean)
+26. Custom Token Pack: Unit Price Multiplier (integer cents per token)
+27. Equity Partner: Full Name (string)
+28. Equity Partner: Settlement Email (string)
+29. Equity Partner: Share Percentage (numeric, 0-100)
+30. Equity Partner: Active/Paused Status (string)
+31. Equity Partner: Claimed Tokens Balance (integer)
+32. User Wallet: Gift Tokens Amount (positive integer)
+33. User Wallet: Deduct Tokens Amount (positive integer)
+34. User Wallet: Audit Note on Manual Token Adjustment (string)
+35. Order Refund: Target Transaction ID (string)
+36. User RBAC: Assigned Security Role (superadmin/admin/agency/ad_agent/supporter)
+37. Admin Role Simulation: actingAsRole State (superadmin/admin/supporter)
+38. Admin Message: Plain-Text Reply Draft Content (sanitized string)
+39. Admin Message: Thread Resolution Status (open/resolved/archived)
+40. FAQ Item: Question Text (string)
+41. FAQ Item: Answer Text (string)
+42. FAQ Item: Category (Radar Search/AI Remix/Customize/Brands/Tokens/Refunds)
+43. FAQ Item: Sequence Sort Order (integer)
+44. FAQ Item: Enabled/Active Toggle (boolean)
+45. Ad Agent Profile: SuperAdmin Approval Status (active/pending/suspended)
+
+B. AD AGENT EDITABLE FEATURES (15 Features)
+46. Ad Agent Business / Operator Name (string)
+47. Ad Agent Operating Suburb / Location (string, with Autofind & GPS Geolocate)
+48. Ad Agent Contact Phone Number (string)
+49. Ad Agent Payout Details (PayID / BSB & Account Number)
+50. Ad Agent Bio & Capabilities Description (string)
+51. Contractor Full Name (string)
+52. Contractor Suburb / Location (string, with Autofind & GPS Geolocate)
+53. Contractor Email Address (string)
+54. Contractor Phone Number (string)
+55. Contractor Skill / Expertise Tag (string)
+56. Contractor PayID and Bank Payment Details (string)
+57. Contractor Average Rates (Hourly / Per Job string)
+58. Customize Order Status (In Progress, Reviewing, Completed)
+59. Customize Order Assigned Contractor (selection from registered contractors)
+60. Customize Order Creative Strategy Notes & Deliverable Copy (string)
+
+C. SUPPORTER / CUSTOMER / USER EDITABLE FEATURES (29 Features)
+61. Brand Card: Brand Name (string)
+62. Brand Card: Website URL (string)
+63. Brand Card: Target Audience Description (string)
+64. Brand Card: Core Value Proposition & Primary Hook (string)
+65. Brand Card: Brand Voice & Tone (string)
+66. Brand Card: Primary Promotional Offer (string)
+67. Brand Card: Selected / Active State (boolean)
+68. Radar Search: Keyword / Brand Search Query Input (string)
+69. Radar Search: Target Platform Selection (Meta, TikTok, Google)
+70. Radar Search: Target Country Selection (AU, US, GB, CA, NZ, etc.)
+71. Radar Search: Media Format Filter (ALL, VIDEO, IMAGE)
+72. Radar Search: Proven Winners (28+d) Filter Toggle (boolean)
+73. Radar Search: Extended Longevity (60+d) Filter Toggle (boolean)
+74. Radar Search: Top Winners (90%+) Score Filter Toggle (boolean)
+75. AI Creative Remix: Hook Tone & Angle Variation Selector (dropdown)
+76. AI Creative Remix: Target Script Length (dropdown)
+77. AI Creative Remix: Custom Modification Prompt / Directives (string)
+78. Customize Order Brief: Selected Brand Profile (dropdown)
+79. Customize Order Brief: Campaign Goals & Conversion Objectives (string)
+80. Customize Order Brief: Target Ad Networks (multi-select checkboxes)
+81. Customize Order Brief: Competitor Reference URL / Ad Library Link (string)
+82. Customize Order Brief: "Extra Details & Descriptions to Think About" Box (string)
+83. Support Message: User Inquiry Content to Super Admin (plain-text string)
+84. Geo & Time Widget: Custom Suburb Setting (string)
+85. Geo & Time Widget: Custom State Setting (string)
+86. Geo & Time Widget: Date Display Format (DD/MM/YYYY vs MM/DD/YYYY)
+87. Geo & Time Widget: Clock Format (12-Hour AM/PM vs 24-Hour Military)
+88. User Wallet: Refresh Balance to 0 Tokens (Two-step confirmation)
+89. User Account: Display Name & Profile Settings (string)
+
+================================================================================
+END OF AUDIT REPORT (totalfunctions.txt)
+================================================================================

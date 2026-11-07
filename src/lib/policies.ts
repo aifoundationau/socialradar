@@ -71,12 +71,12 @@ export const POLICIES: Record<string, PolicyDoc> = {
           "The default price for one token is AUD $1. From the SuperAdmin Control Panel, both the base token price and the token amount for all services and products that are sold (including Base Search, Proven Winners (28+d) filters, Extended Longevity filters, Elite Winner filters, AI Creative Remixes, and Global Brand Copies) are fully customizable.",
           "We never ever use decimals for token balances and AUD invoices; all platform token fees and invoices strictly use whole numbers. For international visitors viewing foreign exchange estimates, the currency conversion can show up to 2 decimal places.",
           "Geolocation sets the user's default region. Australians and New Zealanders accessing the platform from Australia or New Zealand view pricing strictly in AUD. If someone is outside of Australia or New Zealand, we use our currency converter for AUD to USD currency conversion to display the USD conversion (up to 2 decimal places) alongside the AUD price, while all formal invoices remain in Australian Dollars (AUD).",
-          "Refund Rules: If a search or remix fails on our side, tokens are refunded automatically. All formal refund requests are to be made in writing by sending a message to the Super Admin via the platform's secure messaging system. Requests are preserved under statutory 7-year audit retention and evaluated in accordance with the Australian Consumer Law (ACL).",
+          "Strict No Refunds Policy: All token purchases and subscription fees are final and strictly non-refundable upon payment confirmation. Because tokens are delivered immediately upon checkout and never expire, change-of-mind refunds and cash redemptions for unused balances are not provided. If a search or remix fails on our side due to upstream technical errors, tokens are refunded automatically back to your ledger. All formal communications sent to the Super Admin via the platform's secure messaging system are preserved under statutory 7-year audit retention and evaluated in accordance with non-excludable guarantees under the Australian Consumer Law (ACL).",
         ],
         bullets: [
           "Full disclaimer: all invoices and Stripe Checkout transactions are strictly billed and settled in Australian Dollars (AUD).",
           "Tokens represent flexible access credits: you exchange money for a token, tokens mean more flexible payment options, as a payment may be distributed to multiple service providers.",
-          "Refund rules: all refund requests are to be made in writing by sending a message to the Super Admin.",
+          "Strict No Refunds: all purchases of digital tokens and subscriptions are final and non-refundable.",
           "Automatic failure refunds: upstream system or network failures automatically refund tokens back to your ledger.",
           "Tokens never expire and remain permanently credited to your account ledger.",
           "Zero-decimal standard: our business exclusively uses whole numbers and rounds up all calculations to make them whole numbers.",
@@ -105,6 +105,22 @@ export const POLICIES: Record<string, PolicyDoc> = {
         bullets: [
           "Timed Free Access campaigns apply strictly to active Monthly Subscribers located within the campaign's selected countries as verified by user geolocation.",
           "The list of countries receiving free access changes from time to time — message AdRadarHQ for a list of countries.",
+        ],
+      },
+      {
+        heading: "6. Strict No Refunds Policy & Australian Consumer Law (ACL)",
+        paragraphs: [
+          "Strict No Refunds Policy: All purchases of digital tokens, token packs, custom token top-ups, and subscription tiers (including the monthly 1,000 token subscription) are final and strictly non-refundable once processed through Stripe.",
+          "Immediate Digital Delivery & Perpetual Validity: Digital tokens are intangible digital units of utility delivered immediately upon successful transaction and credited directly to your cryptographic account ledger. Because digital tokens never expire, are immediately accessible, and can be utilized at any time across the platform's features, no refunds, cancellations, chargebacks, or cash redemptions are provided for change of mind, unused balances, or account closure.",
+          "Automatic System Failure Token Re-credits: If an upstream technical error, third-party network timeout, or platform fault prevents an ad search, creative remix, or custom request from executing, the exact token cost deducted is automatically refunded back to your ledger balance in real time.",
+          "Australian Consumer Law Guarantees: AI Foundation complies with the Competition and Consumer Act 2010 (Cth) and the Australian Consumer Law (ACL). Nothing in these Terms of Service purports to exclude, restrict, or modify any statutory consumer guarantees, rights, or remedies that cannot be lawfully excluded under the Australian Consumer Law.",
+        ],
+        bullets: [
+          "Strict No Refunds: All digital token and subscription transactions are final and non-refundable upon payment confirmation.",
+          "Zero Expiry Protection: Tokens never expire, ensuring perpetual value with zero maintenance fees or balance forfeitures.",
+          "Immediate Delivery: Intangible digital goods are provisioned instantly into your account upon payment completion.",
+          "Automatic failure refunds: Upstream technical failures automatically credit tokens back to your account ledger immediately.",
+          "Australian Consumer Law (ACL): Non-excludable statutory consumer rights and statutory dispute processes are fully preserved.",
         ],
       },
     ],

@@ -283,14 +283,14 @@ export const DEFAULT_FAQS: FaqItem[] = [
   },
   {
     faqId: "faq_how_to_get_refund",
-    question: "How do I request a formal refund or contact the SuperAdmin?",
+    question: "What is the refund policy on token purchases and subscriptions?",
     answer:
-      "If you need assistance or wish to request a refund under the Australian Consumer Law (ACL), click your user profile menu and select 'Message Admin' or 'Contact Super Admin'. Send a secure written message detailing your request. Messages to SuperAdmin are 100% free of charge (0 tokens) and are reviewed promptly.",
+      "All digital token purchases and subscriptions are final and strictly non-refundable once processed through Stripe. Because digital tokens are delivered immediately upon checkout and never expire, change-of-mind refunds or cash redemptions for unused tokens are not provided. If a search or remix encounters an upstream technical failure, spent tokens are automatically credited back to your ledger instantly. For questions regarding statutory non-excludable guarantees under the Australian Consumer Law (ACL), you can send a free message directly to the Super Admin via 'Message Admin'.",
     category: "Refunds & Support",
     order: 25,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
-    updatedAt: "2026-11-03T00:00:00.000Z",
+    updatedAt: "2026-11-07T00:00:00.000Z",
   },
   {
     faqId: "faq_privacy_data_security",
