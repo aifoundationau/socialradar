@@ -1,5 +1,5 @@
 # Firebase App Hosting config for backend "ad-radar" in project ad-radar-au.
-# https://ad-radar--ad-radar-au.us-central1.hosted.app
+# Production: https://socialradar.aifoundation.net.au
 # Public values live here; secrets live in Cloud Secret Manager (firebase apphosting:secrets:set).
 
 runConfig:
@@ -32,7 +32,7 @@ env:
     value: ad-radar
     availability: [RUNTIME]
   - variable: APP_URL
-    value: https://ad-radar--ad-radar-au.us-central1.hosted.app
+    value: https://socialradar.aifoundation.net.au
     availability: [RUNTIME]
 
   # Stripe — test mode while in staging.

@@ -1047,6 +1047,44 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 - **Supporter Admin Panel (`SupporterModal.tsx` under `CONTRACTORS` Tab):** Ad Agents can add as many contractors as they want, manage their directory with search, live rates box, PayID/banking notes, editing, and deletion with mandatory confirmation.
 - **Service Provider Box (`AdAgentModal.tsx`):** Direct "⚡ Pick Contractor" quick dropdowns on **Custom Ad Graphic Art** and **Custom Video Work**, plus "+ Insert Contractor" on **Other Recommended Services**, automatically populating contractor name, location, phone, and average pricing.
 
+## 27. Universal Progressive Web App (PWA) & Multi-Platform Download App Architecture (`/manifest.json`, `src/app/manifest.ts`, `/sw.js`, `InstallAppModal.tsx`)
+
+### 27.1 PWA Core Specification & Manifest
+- **Dynamic Manifest Route (`src/app/manifest.ts`) & Static Fallback (`/manifest.json`):**
+  - `name`: `"AdRadarHQ - AI Competitor Ad Spy & Creative Remix"`
+  - `short_name`: `"AdRadarHQ"`
+  - `start_url`: `"/radar"`
+  - `display`: `"standalone"` (fullscreen app mode without browser URL address bar)
+  - `theme_color`: `"#0a0e17"`
+  - `background_color`: `"#0a0e17"`
+  - `icons`: Scalable SVG (`/icon.svg`), 192x192 PNG (`/icon-192.png`), 512x512 PNG (`/icon-512.png`), maskable 512x512 PNG, and Apple touch icon (`/apple-touch-icon.png`).
+  - `shortcuts`: 1-click launchers for Search Radar (`/radar`), My Brands (`/brands`), Customize Strategy (`/customize`), and Wallet (`/wallet`).
+- **Service Worker (`public/sw.js`):**
+  - Registers under scope `/` with asset caching for static icons and manifest, providing instant launch and offline fallback capabilities satisfying Chromium desktop and Android PWA criteria.
+
+### 27.2 Device-Specific Download & Installation Protocols
+1. **Google Chrome on Laptop / Desktop (macOS, Windows, Linux, ChromeOS):**
+   - Intercepts `beforeinstallprompt` event and exposes 1-click install button (`data-agent-id="install-pwa-direct-btn"`).
+   - Provides step-by-step guidance for installing via the Chrome address bar monitor icon (next to bookmark star ⭐️) or Chrome Menu `(⋮) -> Cast, save, and share -> Install AdRadarHQ`.
+2. **Android (Samsung Galaxy, Google Pixel, etc.):**
+   - Triggers native Web App install prompt via `deferredPrompt.prompt()` (`data-agent-id="install-pwa-android-btn"`).
+   - Provides fallback instructions for Chrome on Android: `Menu (⋮) -> Add to Home screen / Install app`.
+3. **Apple iPhone & iPad (iOS Safari & Chrome):**
+   - Implements Apple web app meta tags (`apple-mobile-web-app-capable: yes`, `apple-mobile-web-app-status-bar-style: black-translucent`, and `apple-touch-icon`).
+   - Presents a 3-step visual iOS installation walkthrough:
+     1. Tap **Share** button (`⎋`) in Safari bottom bar or Chrome toolbar.
+     2. Scroll down and tap **"Add to Home Screen"** (`⊕`).
+     3. Tap **"Add"** in the top-right corner to create the official fullscreen home screen launcher.
+
+### 27.3 Interactive DOM Bindings
+- `data-agent-id="header-download-app-btn"`, `data-testid="header-download-app-btn"`
+- `data-agent-id="start-navbar-download-app-btn"`, `data-testid="start-navbar-download-app-btn"`
+- `data-agent-id="account-menu-download-app-button"`, `data-testid="account-menu-download-app-button"`
+- `data-agent-id="install-app-modal"`, `data-testid="install-app-modal"`
+- `data-agent-id="tab-device-desktop"`, `data-agent-id="tab-device-android"`, `data-agent-id="tab-device-ios"`
+- `data-agent-id="install-pwa-direct-btn"`, `data-agent-id="install-pwa-android-btn"`
+
+
 
 
 

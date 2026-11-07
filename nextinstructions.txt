@@ -1,7 +1,17 @@
 # Next Instructions for Social Radar (ad-radar)
 
-## Current Status (November 2, 2026)
-1. **Firebase Authentication Refreshed & Dev Server Active on Port 3000:**
+## Current Status (November 8, 2026)
+1. **Multi-Platform Download App Suite (Chrome Laptop/Desktop, Android, and iPhone/iPad):**
+   - Web App Manifest configured via dynamic route [`src/app/manifest.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/app/manifest.ts) and static fallback [`public/manifest.json`](file:///e:/Antigravity%20Projects/ad-radar/public/manifest.json).
+   - Generated scalable vector and high-resolution icons: [`public/icon.svg`](file:///e:/Antigravity%20Projects/ad-radar/public/icon.svg), [`public/icon-192.png`](file:///e:/Antigravity%20Projects/ad-radar/public/icon-192.png), [`public/icon-512.png`](file:///e:/Antigravity%20Projects/ad-radar/public/icon-512.png), and [`public/apple-touch-icon.png`](file:///e:/Antigravity%20Projects/ad-radar/public/apple-touch-icon.png).
+   - Standalone offline caching service worker implemented at [`public/sw.js`](file:///e:/Antigravity%20Projects/ad-radar/public/sw.js).
+   - Added platform installation detection and trigger hook [`src/hooks/usePwaInstall.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/hooks/usePwaInstall.ts).
+   - Created accessible modal [`src/components/pwa/InstallAppModal.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/pwa/InstallAppModal.tsx) with dedicated platform tabs for Chrome (Laptop/PC), Android, and iPhone/iPad.
+   - Added "Download App" triggers to both public start navbar [`src/components/layout/PublicStartNavbar.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/layout/PublicStartNavbar.tsx) and authenticated top nav [`src/components/layout/TopNavWallet.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/layout/TopNavWallet.tsx).
+   - Documented in Section 27 of [`data-contracts.md`](file:///e:/Antigravity%20Projects/ad-radar/data-contracts.md).
+   - All 71/71 Firestore security rules cases passing and zero TypeScript errors (`npx tsc --noEmit`).
+
+2. **Firebase Authentication Refreshed & Dev Server Active on Port 3000:**
    - Google Cloud Application Default Credentials (ADC) successfully refreshed.
    - Next.js Turbopack dev server running on port 3000 (`http://localhost:3000`) and responding with HTTP 200.
 2. **Refund Rules (Written Request to Superadmin):**
@@ -312,6 +322,11 @@
     - Formally established that Ad Agents are outsourced independent contractors solely associated with Ad Radar HQ by the way of independent contractors.
     - Clarified that Ad Agents are neither employees, partners, agents, nor legal representatives of Ad Radar HQ or AI Foundation, and that all advice, campaign strategies, creative directions, contractor recommendations, and opinions expressed by Ad Agents are strictly their own and do not represent Ad Radar HQ.
     - Documented in Sections 10 and 24.5 of [`data-contracts.md`](file:///e:/Antigravity%20Projects/ad-radar/data-contracts.md) and added customer Q&A #28 to [`src/lib/faqs.ts`](file:///e:/Antigravity%20Projects/ad-radar/src/lib/faqs.ts).
+65. **Stripe Webhook Endpoint Updated to Production Domain (`https://socialradar.aifoundation.net.au/api/webhooks/stripe`):**
+    - Diagnosed the failing webhook alert from Stripe: the old endpoint was pointing to a decommissioned Firebase App Hosting URL (`https://ad-radar--ad-radar-au.us-central1.hosted.app/api/webhooks/stripe`) which returned `404 Not Found`.
+    - Repointed Stripe webhook endpoint `we_1UVp8MI8bClhBF4PBES31zcH` via Stripe API to the live production endpoint on Vercel: `https://socialradar.aifoundation.net.au/api/webhooks/stripe`.
+    - Enabled all necessary event subscriptions: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `invoice.paid`, and `customer.subscription.deleted`.
+    - Updated [`apphosting.yaml`](file:///e:/Antigravity%20Projects/ad-radar/apphosting.yaml) to reference the production domain.
 
 ## What to Do When Reopened Next Startup
 1. **Read `nextinstructions.txt` First:** Start here and review the latest completed milestones above.

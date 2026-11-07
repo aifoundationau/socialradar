@@ -15,6 +15,7 @@ import { ContactAdminModal } from "@/components/contact/ContactAdminModal";
 import { FaqModal } from "@/components/faq/FaqModal";
 import { MonthlySubscriptionModal } from "@/components/subscription/MonthlySubscriptionModal";
 import { AdAgentModal } from "@/components/ad-agent/AdAgentModal";
+import { InstallAppModal } from "@/components/pwa/InstallAppModal";
 import type { AdAgentProfile } from "@/lib/contracts";
 
 function NavItems({ pathname }: { pathname: string | null }) {
@@ -162,12 +163,14 @@ function AccountMenu({
   onOpenSupporter,
   onOpenFaq,
   onOpenAdAgent,
+  onOpenInstallApp,
   isAdAgentProfileRegistered = true,
 }: {
   onOpenAdmin: (tab?: "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "USERS" | "MESSAGES" | "RBAC" | "FAQS" | "DEV") => void;
   onOpenSupporter: () => void;
   onOpenFaq: () => void;
   onOpenAdAgent: () => void;
+  onOpenInstallApp: () => void;
   isAdAgentProfileRegistered?: boolean;
 }) {
   const { user, isAdmin, role, isSuperAdmin, actingAsRole, setActingRole, resetRole } = useSession();
@@ -343,6 +346,20 @@ function AccountMenu({
             type="button"
             onClick={() => {
               menu.current?.hidePopover();
+              onOpenInstallApp();
+            }}
+            data-agent-id="account-menu-download-app-button"
+            data-testid="account-menu-download-app-button"
+            aria-label="Download App for Chrome Laptop, Android, and iPhone"
+            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-emerald-400 transition-colors hover:bg-emerald-500/10 sm:min-h-10"
+          >
+            <Icon name="download" className="size-4 text-emerald-400" />
+            <span>Download App (Laptop / Mobile)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              menu.current?.hidePopover();
               onOpenFaq();
             }}
             data-agent-id="account-menu-faqs-button"
@@ -464,6 +481,7 @@ export function TopNavWallet() {
   const [isFaqOpen, setIsFaqOpen] = useState(false);
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false);
   const [isAdAgentOpen, setIsAdAgentOpen] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
 
   const [isSubscriptionEnabled, setIsSubscriptionEnabled] = useState(false); // Default is Off
 
@@ -723,6 +741,32 @@ export function TopNavWallet() {
             </div>
           )}
           <BrandSwitcher className="hidden lg:flex" />
+          {/* Download App / Install PWA Button */}
+          <div className="group relative flex items-center">
+            <button
+              type="button"
+              onClick={() => setIsInstallModalOpen(true)}
+              aria-label="Download App for Chrome Laptop, Android, and iPhone"
+              data-agent-id="header-download-app-btn"
+              data-testid="header-download-app-btn"
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 sm:px-2.5 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 transition-colors text-compact font-semibold"
+            >
+              <Icon name="download" className="size-3.5 text-emerald-400 shrink-0" />
+              <span className="hidden sm:inline text-xs font-mono font-bold">App</span>
+            </button>
+            <div
+              role="tooltip"
+              className="pointer-events-none hidden sm:block absolute top-full right-0 z-50 mt-2 w-64 rounded-xl border border-emerald-500/30 bg-surface-container-highest p-2.5 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100"
+            >
+              <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-emerald-300">
+                <Icon name="download" className="size-3.5 shrink-0 text-emerald-400" />
+                <span>Download AdRadarHQ App</span>
+              </div>
+              <p className="mt-1 text-[11px] leading-snug text-on-surface-variant font-normal">
+                Install as a standalone app on Google Chrome (Laptop/Desktop), Android, or iPhone / iPad.
+              </p>
+            </div>
+          </div>
           <TokenPill />
           <AccountMenu
             onOpenAdmin={(tab) => {
@@ -732,10 +776,16 @@ export function TopNavWallet() {
             onOpenSupporter={() => setIsSupporterOpen(true)}
             onOpenFaq={() => setIsFaqOpen(true)}
             onOpenAdAgent={() => setIsAdAgentOpen(true)}
+            onOpenInstallApp={() => setIsInstallModalOpen(true)}
             isAdAgentProfileRegistered={isAdAgentProfileRegistered}
           />
         </div>
       </div>
+
+      <InstallAppModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+      />
 
       <FaqModal
         isOpen={isFaqOpen}
