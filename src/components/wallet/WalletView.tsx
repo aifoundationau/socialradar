@@ -87,9 +87,15 @@ export function WalletView() {
               )}
             </div>
           </div>
-          <p className="max-w-sm text-body text-on-surface-variant">
-            If a search or remix fails on our side, its tokens are refunded automatically. Refund requests are to be made in writing by sending a message to the Super Admin.
-          </p>
+          <div className="max-w-sm space-y-1.5 text-right sm:text-left">
+            <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-400">
+              <Icon name="checkCircle" className="size-3.5 text-emerald-400 shrink-0" />
+              <span>Tokens Never Expire Rule</span>
+            </div>
+            <p className="text-body-sm text-on-surface-variant leading-relaxed">
+              Purchased tokens remain permanently in your account with zero expiration dates or maintenance fees. If a search or remix fails on our side, tokens are refunded automatically.
+            </p>
+          </div>
         </div>
 
         {profile && currentBalance <= 0 && (

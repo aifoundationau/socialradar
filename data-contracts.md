@@ -341,6 +341,12 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
   - `treasuryAudCents = Math.round(totalGrossAudCents * (treasuryPercentage / 100))`
   - `treasuryUsdCents = Math.round(totalGrossUsdCents * (treasuryPercentage / 100))`
 
+### Tokens Never Expire Rule (Platform Business Rule)
+1. **Indefinite Ledger Lifetime:** All tokens purchased through Stripe, custom token amounts, bonus allocations, or automatic failure refunds have **zero expiration date** and remain permanently credited to `users/{uid}.tokenBalance`.
+2. **Zero Inactivity Penalties:** User token balances never decay, depreciate, or suffer periodic maintenance charges or forfeiture.
+3. **No Drop-Off on New Calendar Cycles:** Unlike restrictive SaaS subscriptions that forfeit unused searches at the end of each billing month, top-up tokens carry forward indefinitely.
+4. **Deterministic Token Consumption:** Tokens are deducted strictly on approved customer actions (1 credit per base search/remix, 55 credits per customize order) or via deliberate user confirmation (`wallet-refresh-tokens-zero-btn`). Failed requests automatically refund tokens in full.
+
 ## 7. Admin Messaging (7-Year Plain Text Retention)
 
 ### `AdminMessage` (`admin_messages/{messageId}`)

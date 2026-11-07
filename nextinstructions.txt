@@ -286,6 +286,11 @@
     - When toggled **OFF**, `Subscription (1K)` is completely hidden from both desktop (`nav-link-subscription`) and mobile (`mobile-header-subscription`) navigation bars and from the FAQ modal, and checkout creation is blocked.
     - When toggled **ON**, `Subscription (1K)` appears in the top navigation bar with real-time sync via `adradar:config-updated`.
     - Documented in Section 17 of [`data-contracts.md`](file:///e:/Antigravity%20Projects/ad-radar/data-contracts.md).
+60. **Tokens Never Expire Rule Codification & Visual Assurance (`TokenPacks.tsx`, `WalletView.tsx`, `data-contracts.md`):**
+    - Codified the platform-wide **Tokens Never Expire Rule** into Section 6 of [`data-contracts.md`](file:///e:/Antigravity%20Projects/ad-radar/data-contracts.md): all tokens (purchased, bonus, or failure refunds) have zero expiration date, zero depreciation, and remain permanently in the account ledger.
+    - Added the **Tokens Never Expire** header badge (`tokens-never-expire-top-badge`) and 100% Lifetime Guarantee card (`tokens-never-expire-rule-banner`) in [`TokenPacks.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/wallet/TokenPacks.tsx).
+    - Added per-pack assurance (`Tokens never expire`) on every standard and custom pack card.
+    - Surfaced the "Tokens Never Expire Rule" assurance directly beneath the active token balance in [`WalletView.tsx`](file:///e:/Antigravity%20Projects/ad-radar/src/components/wallet/WalletView.tsx).
 
 ## What to Do When Reopened Next Startup
 1. **Read `nextinstructions.txt` First:** Start here and review the latest completed milestones above.

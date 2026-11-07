@@ -172,11 +172,21 @@ export function TokenPacks() {
     <section id="packs" className="scroll-mt-24 space-y-4" aria-labelledby="packs-heading">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 id="packs-heading" className="text-headline-md font-semibold">
-            Top up
-          </h2>
-          <p className="text-body text-on-surface-variant">
-            One-off purchase through Stripe. Tokens never expire. Default currency is AUD ({baseRateText}), and all invoices are issued in Australian Dollars (AUD).
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h2 id="packs-heading" className="text-headline-md font-semibold">
+              Top up
+            </h2>
+            <span
+              data-agent-id="tokens-never-expire-top-badge"
+              data-testid="tokens-never-expire-top-badge"
+              className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/35 px-2.5 py-0.5 font-mono text-[11px] font-bold text-emerald-300"
+            >
+              <Icon name="checkCircle" className="size-3.5 text-emerald-300" />
+              <span>Tokens Never Expire Rule</span>
+            </span>
+          </div>
+          <p className="text-body text-on-surface-variant mt-0.5">
+            One-off purchase through Stripe. <strong>Tokens never expire</strong> — your purchased tokens remain permanently credited to your account ledger. Default currency is AUD ({baseRateText}), and all invoices are issued in Australian Dollars (AUD).
           </p>
         </div>
 
@@ -326,6 +336,10 @@ export function TokenPacks() {
                   ? `${perTokenAud} AUD/tok · +10% GST (${formatAud(Math.round(pack.priceCents * 1.1))} AUD total)`
                   : `${perTokenAud} AUD/tok · No Tax (${geo.country})`}
               </p>
+              <div className="flex items-center gap-1 font-mono text-[10px] font-semibold text-emerald-400">
+                <Icon name="checkCircle" className="size-3 text-emerald-400 shrink-0" />
+                <span>Tokens never expire</span>
+              </div>
               <button
                 type="button"
                 data-testid={`buy-${pack.id.toLowerCase()}`}
@@ -451,6 +465,11 @@ export function TokenPacks() {
               : `No Tax (${geo.country}) · Price locked to Admin Panel`}
           </p>
 
+          <div className="flex items-center gap-1 font-mono text-[10px] font-semibold text-emerald-400">
+            <Icon name="checkCircle" className="size-3 text-emerald-400 shrink-0" />
+            <span>Tokens never expire</span>
+          </div>
+
           <button
             type="button"
             data-testid="buy-pack-custom"
@@ -464,6 +483,32 @@ export function TokenPacks() {
           </button>
         </li>
       </ul>
+
+      {/* Tokens Never Expire Rule Guarantee Banner */}
+      <div
+        data-agent-id="tokens-never-expire-rule-banner"
+        data-testid="tokens-never-expire-rule-banner"
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.08] p-4 text-on-surface"
+      >
+        <div className="flex items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
+            <Icon name="checkCircle" className="size-5" />
+          </span>
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-mono text-xs sm:text-sm font-bold text-emerald-300 uppercase tracking-wide">
+                Tokens Never Expire Rule
+              </h3>
+              <span className="rounded bg-emerald-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300 uppercase">
+                100% Lifetime Guarantee
+              </span>
+            </div>
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              Every token purchased or allocated to your wallet remains permanently in your account ledger. There are zero expiration dates, zero time limits, zero maintenance fees, and zero depreciation. Use your tokens whenever you need.
+            </p>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
