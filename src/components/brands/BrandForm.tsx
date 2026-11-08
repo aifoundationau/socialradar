@@ -4,7 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { BrandProfileInputSchema, ToneOfVoiceSchema, type BrandProfile } from "@/lib/contracts";
 import { apiFetch, errorMessage, newIdempotencyKey } from "@/lib/api-client";
 import { Icon } from "@/components/ui/Icon";
-import { alertError, btnPrimary, btnSecondary, field, fieldError, hint, label } from "@/components/ui/styles";
+import { alertError, btnPrimary, btnSecondary, field, fieldError } from "@/components/ui/styles";
 
 export const TONE_LABELS: Record<BrandProfile["toneOfVoice"], string> = {
   DIRECT_RESPONSE: "Direct response",

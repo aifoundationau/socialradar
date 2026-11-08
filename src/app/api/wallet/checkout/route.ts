@@ -34,7 +34,10 @@ export async function GET(req: Request) {
         serviceCosts: config.serviceCosts,
         tokenPacks: config.tokenPacks,
         monthlySubscription: config.monthlySubscription,
-        freeAccessWindow: config.freeAccessWindow,
+        // Public endpoint: never expose who switched the window on.
+        freeAccessWindow: config.freeAccessWindow
+          ? { ...config.freeAccessWindow, activatedByEmail: null }
+          : config.freeAccessWindow,
         isTokenSystemEnabled: config.isTokenSystemEnabled,
         isAudEnabled: config.isAudEnabled,
         isUsdEnabled: config.isUsdEnabled,
@@ -81,7 +84,7 @@ export async function POST(req: Request) {
         name: "Monthly Search Subscription",
       };
       if (!sub.enabled) {
-        throw new Error("Monthly Search Subscription (1K) is currently turned off by Super Admin.");
+        throw new ApiError("FORBIDDEN", "Monthly Search Subscription (1K) is currently turned off by Super Admin.", 403);
       }
       const tokens = Math.max(1, Math.round(sub.searchesPerMonth ?? 1000));
       const priceCents = Math.max(100, Math.round((sub.priceAud ?? 500) * 100));
@@ -124,7 +127,19 @@ export async function POST(req: Request) {
       }
     }
 
-    const appUrl = new URL(req.url).origin || process.env.APP_URL || "http://localhost:3000";
+    // Stripe's largest single charge is AUD 999,999.99, and Stripe Tax adds 10% GST on top for Australian
+    // buyers, so the pre-tax price must stay at or below 999,999.99 / 1.1.
+    const MAX_PRICE_CENTS_BEFORE_GST = 90_909_090;
+    if (pack.priceCents > MAX_PRICE_CENTS_BEFORE_GST) {
+      throw new ApiError(
+        "INVALID_INPUT",
+        "That's more than Stripe accepts in a single payment (AUD 909,090.90 before GST). Please choose fewer tokens.",
+        400,
+      );
+    }
+
+    // Prefer the configured public origin: behind a proxy the request's own origin can be an internal host.
+    const appUrl = process.env.APP_URL?.trim().replace(/\/+$/, "") || new URL(req.url).origin;
     const stripe = getStripe();
     const baseIdempotencyKey = buildTxId(caller.uid, `${key}_${buyerCountry}_ex`);
 

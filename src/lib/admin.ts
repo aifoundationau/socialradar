@@ -1,7 +1,9 @@
 import "server-only";
 import { randomBytes } from "crypto";
-import { adminAuth, db, setUserClaims } from "./firebase-admin";
+import type { DocumentData } from "firebase-admin/firestore";
+import { adminAuth, db } from "./firebase-admin";
 import {
+  LINK_URL_PATTERN,
   type AdminMessage,
   type CustomizeRequestDoc,
   type CustomizeRequestInput,
@@ -15,6 +17,7 @@ import {
   type TokenPackId,
   type TokenTransactionDoc,
 } from "./contracts";
+import { ApiError } from "./api";
 import { TOKEN_PACKS, isFreeAccessWindowActive, normalizeAllowedCountries } from "./pricing";
 import { creditTokens } from "./token-ledger";
 import { findClosestAdAgent, formatAgentLocationLabel } from "./ad-agents";
@@ -80,7 +83,44 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
   updatedAt: new Date().toISOString(),
 };
 
-/** Retrieves system config from Firestore or returns default. Auto-expires Timed Free Access Windows past expiresAt. */
+/** Effective config from the raw Firestore document: defaults filled in, an expired free-access window off. */
+function normalizeConfig(data: DocumentData): AdminSystemConfig {
+  const rawWindow = data.freeAccessWindow as Partial<FreeAccessWindow> | undefined;
+  const savedCountries = normalizeAllowedCountries(rawWindow?.allowedCountries);
+  let freeAccessWindow: FreeAccessWindow = {
+    ...DEFAULT_FREE_ACCESS_WINDOW,
+    ...(rawWindow || {}),
+    allowedCountries: savedCountries,
+  };
+  if (freeAccessWindow.enabled && !isFreeAccessWindowActive(freeAccessWindow)) {
+    freeAccessWindow = { ...DEFAULT_FREE_ACCESS_WINDOW, allowedCountries: savedCountries };
+  }
+
+  return {
+    ...DEFAULT_CONFIG,
+    ...data,
+    serviceCosts: {
+      ...DEFAULT_CONFIG.serviceCosts,
+      ...(data.serviceCosts || {}),
+    },
+    equityPartners: Array.isArray(data.equityPartners) ? data.equityPartners : [],
+    audCentsPerToken: typeof data.audCentsPerToken === "number" ? data.audCentsPerToken : DEFAULT_CONFIG.audCentsPerToken,
+    tokenPacks:
+      Array.isArray(data.tokenPacks) && data.tokenPacks.length > 0
+        ? data.tokenPacks
+        : DEFAULT_CONFIG.tokenPacks,
+    monthlySubscription: {
+      ...DEFAULT_CONFIG.monthlySubscription!,
+      ...(data.monthlySubscription || {}),
+    },
+    freeAccessWindow,
+  };
+}
+
+/**
+ * Retrieves system config from Firestore or returns default. Auto-expires Timed Free Access Windows past
+ * expiresAt. Reads may fall back to the defaults on error; writes never do (see updateSystemConfig).
+ */
 export async function getSystemConfig(): Promise<AdminSystemConfig> {
   try {
     const snap = await db.doc(CONFIG_DOC_PATH).get();
@@ -89,47 +129,17 @@ export async function getSystemConfig(): Promise<AdminSystemConfig> {
       return DEFAULT_CONFIG;
     }
     const data = snap.data() || {};
-    const rawWindow = data.freeAccessWindow as Partial<FreeAccessWindow> | undefined;
-    const savedCountries = normalizeAllowedCountries(rawWindow?.allowedCountries);
-    let normalizedWindow: FreeAccessWindow = {
-      ...DEFAULT_FREE_ACCESS_WINDOW,
-      ...(rawWindow || {}),
-      allowedCountries: savedCountries,
-    };
-
-    if (normalizedWindow.enabled && !isFreeAccessWindowActive(normalizedWindow)) {
-      normalizedWindow = {
-        ...DEFAULT_FREE_ACCESS_WINDOW,
-        allowedCountries: savedCountries,
-      };
-      // Best-effort async cleanup in Firestore when timer expires
+    const config = normalizeConfig(data);
+    if (data.freeAccessWindow?.enabled && !config.freeAccessWindow.enabled) {
+      // Best-effort async cleanup in Firestore when the timer has expired
       db.doc(CONFIG_DOC_PATH)
         .update({
-          freeAccessWindow: normalizedWindow,
+          freeAccessWindow: config.freeAccessWindow,
           updatedAt: new Date().toISOString(),
         })
         .catch(() => {});
     }
-
-    return {
-      ...DEFAULT_CONFIG,
-      ...data,
-      serviceCosts: {
-        ...DEFAULT_CONFIG.serviceCosts,
-        ...(data.serviceCosts || {}),
-      },
-      equityPartners: Array.isArray(data.equityPartners) ? data.equityPartners : [],
-      audCentsPerToken: typeof data.audCentsPerToken === "number" ? data.audCentsPerToken : DEFAULT_CONFIG.audCentsPerToken,
-      tokenPacks:
-        Array.isArray(data.tokenPacks) && data.tokenPacks.length > 0
-          ? data.tokenPacks
-          : DEFAULT_CONFIG.tokenPacks,
-      monthlySubscription: {
-        ...DEFAULT_CONFIG.monthlySubscription!,
-        ...(data.monthlySubscription || {}),
-      },
-      freeAccessWindow: normalizedWindow,
-    };
+    return config;
   } catch (err) {
     console.warn("[admin] failed to fetch system config, using default", err);
     return DEFAULT_CONFIG;
@@ -146,69 +156,77 @@ export async function setFreeAccessWindow(
   callerEmail: string,
   allowedCountries?: string[]
 ): Promise<AdminSystemConfig> {
-  const current = await getSystemConfig();
-  const nextCountries =
-    allowedCountries !== undefined
-      ? normalizeAllowedCountries(allowedCountries)
-      : normalizeAllowedCountries(current.freeAccessWindow?.allowedCountries);
+  return updateSystemConfig((current) => {
+    const nextCountries =
+      allowedCountries !== undefined
+        ? normalizeAllowedCountries(allowedCountries)
+        : normalizeAllowedCountries(current.freeAccessWindow?.allowedCountries);
 
-  if (durationMinutes === undefined) {
-    const freeAccessWindow: FreeAccessWindow = {
-      ...(current.freeAccessWindow ?? DEFAULT_FREE_ACCESS_WINDOW),
-      allowedCountries: nextCountries,
+    if (durationMinutes === undefined) {
+      return {
+        freeAccessWindow: {
+          ...(current.freeAccessWindow ?? DEFAULT_FREE_ACCESS_WINDOW),
+          allowedCountries: nextCountries,
+        },
+      };
+    }
+
+    const now = new Date();
+    const freeAccessWindow: FreeAccessWindow =
+      durationMinutes === 15 || durationMinutes === 30 || durationMinutes === 60
+        ? {
+            enabled: true,
+            durationMinutes,
+            startedAt: now.toISOString(),
+            expiresAt: new Date(now.getTime() + durationMinutes * 60_000).toISOString(),
+            activatedByEmail: callerEmail.toLowerCase(),
+            allowedCountries: nextCountries,
+          }
+        : {
+            ...DEFAULT_FREE_ACCESS_WINDOW,
+            allowedCountries: nextCountries,
+          };
+    return { freeAccessWindow };
+  });
+}
+
+/** A config change; serviceCosts and monthlySubscription may be partial and are merged into the current values. */
+export type SystemConfigUpdate = Omit<Partial<AdminSystemConfig>, "serviceCosts" | "monthlySubscription"> & {
+  serviceCosts?: Partial<AdminSystemConfig["serviceCosts"]>;
+  monthlySubscription?: Partial<NonNullable<AdminSystemConfig["monthlySubscription"]>>;
+};
+
+/**
+ * Updates the system config in one Firestore transaction. The change is applied to the config as stored at
+ * write time, so concurrent saves can't overwrite each other, and a failed read aborts the write instead of
+ * writing defaults over the real config. Pass a function to compute the change from the current config
+ * (it may run more than once if the transaction retries, so keep it free of side effects).
+ */
+export async function updateSystemConfig(
+  update: SystemConfigUpdate | ((current: AdminSystemConfig) => SystemConfigUpdate),
+): Promise<AdminSystemConfig> {
+  const ref = db.doc(CONFIG_DOC_PATH);
+  return db.runTransaction(async (t) => {
+    const snap = await t.get(ref);
+    const current = snap.exists ? normalizeConfig(snap.data() || {}) : DEFAULT_CONFIG;
+    const patch = typeof update === "function" ? update(current) : update;
+    const next: AdminSystemConfig = {
+      ...current,
+      ...patch,
+      serviceCosts: {
+        ...current.serviceCosts,
+        ...(patch.serviceCosts ?? {}),
+      },
+      monthlySubscription: patch.monthlySubscription
+        ? {
+            ...(current.monthlySubscription ?? DEFAULT_CONFIG.monthlySubscription!),
+            ...patch.monthlySubscription,
+          }
+        : current.monthlySubscription,
+      updatedAt: new Date().toISOString(),
     };
-    return updateSystemConfig({ freeAccessWindow });
-  }
-
-  const now = new Date();
-  const freeAccessWindow: FreeAccessWindow =
-    durationMinutes === 15 || durationMinutes === 30 || durationMinutes === 60
-      ? {
-          enabled: true,
-          durationMinutes,
-          startedAt: now.toISOString(),
-          expiresAt: new Date(now.getTime() + durationMinutes * 60_000).toISOString(),
-          activatedByEmail: callerEmail.toLowerCase(),
-          allowedCountries: nextCountries,
-        }
-      : {
-          ...DEFAULT_FREE_ACCESS_WINDOW,
-          allowedCountries: nextCountries,
-        };
-
-  return updateSystemConfig({ freeAccessWindow });
-}
-
-/** Updates system config document in Firestore. */
-export async function updateSystemConfig(patch: Partial<AdminSystemConfig>): Promise<AdminSystemConfig> {
-  const current = await getSystemConfig();
-  const next: AdminSystemConfig = {
-    ...current,
-    ...patch,
-    serviceCosts: {
-      ...current.serviceCosts,
-      ...(patch.serviceCosts ?? {}),
-    },
-    monthlySubscription: patch.monthlySubscription
-      ? {
-          ...(current.monthlySubscription ?? DEFAULT_CONFIG.monthlySubscription!),
-          ...patch.monthlySubscription,
-        }
-      : current.monthlySubscription,
-    updatedAt: new Date().toISOString(),
-  };
-  await db.doc(CONFIG_DOC_PATH).set(next);
-  return next;
-}
-
-/** Sets superadmin claims on an authorized administrator account. */
-export async function grantDevAdminRole(uid: string): Promise<void> {
-  await setUserClaims(uid, {
-    role: "superadmin",
-    tier: "agency",
-    isSuperAdmin: true,
-    admin: true,
-    superadmin: true,
+    t.set(ref, next);
+    return next;
   });
 }
 
@@ -229,10 +247,22 @@ export async function flushRadarCache(): Promise<number> {
 // REDISTRIBUTIVE LEDGER & STRIPE PURCHASES
 // ============================================================================
 
-/** Records an immutable Stripe purchase to the ledger. Idempotent on purchaseId. */
+/**
+ * Records an immutable Stripe purchase to the ledger. Idempotent on purchaseId: the first write wins, so
+ * the webhook and the browser confirmation (and Stripe's retries) can't move the purchase date.
+ */
 export async function recordStripePurchase(record: StripePurchaseRecord): Promise<void> {
-  const ref = db.collection(PURCHASES_COL).doc(record.purchaseId);
-  await ref.set(record, { merge: true });
+  // Firestore rejects undefined values (e.g. a missing email), which would fail the webhook and keep
+  // Stripe retrying, so drop them.
+  const clean = Object.fromEntries(Object.entries(record).filter(([, v]) => v !== undefined));
+  try {
+    await db.collection(PURCHASES_COL).doc(record.purchaseId).create(clean);
+  } catch (err) {
+    const { code, message } = err as { code?: unknown; message?: unknown };
+    const alreadyExists =
+      code === 6 || code === "already-exists" || /ALREADY_EXISTS|already exists/i.test(String(message ?? ""));
+    if (!alreadyExists) throw err;
+  }
 }
 
 /** Fetches recent recorded Stripe purchases. */
@@ -373,16 +403,14 @@ export async function resetRedistributiveLedger(callerUid?: string): Promise<{
     }
   }
 
-  const current = await getSystemConfig();
-  if (current.equityPartners?.length) {
-    const resetPartners = current.equityPartners.map((p) => ({
+  await updateSystemConfig((current) => ({
+    equityPartners: (current.equityPartners || []).map((p) => ({
       ...p,
       claimedTokens: 0,
       claimedAudCents: 0,
       claimedUsdCents: 0,
-    }));
-    await updateSystemConfig({ equityPartners: resetPartners });
-  }
+    })),
+  }));
 
   const [ledger, recentPurchases] = await Promise.all([
     getRedistributiveLedger(),
@@ -405,15 +433,6 @@ export async function resetPartnerTokens(params: {
   clearedTokens: number;
   partnerEmail: string;
 }> {
-  const current = await getSystemConfig();
-  const partners = current.equityPartners || [];
-  const partnerIndex = partners.findIndex((p) => p.partnerId === params.partnerId);
-
-  if (partnerIndex === -1) {
-    throw new Error(`Equity partner "${params.partnerId}" not found.`);
-  }
-
-  const targetPartner = partners[partnerIndex];
   const purchasesSnap = await db.collection(PURCHASES_COL).get();
 
   let totalTokens = 0;
@@ -437,32 +456,42 @@ export async function resetPartnerTokens(params: {
     }
   }
 
-  const pct = Number(targetPartner.percentage) || 0;
-  const grossTokens = targetPartner.status === "active" ? Math.round(totalTokens * (pct / 100)) : 0;
-  const grossAudCents = targetPartner.status === "active" ? Math.round(totalGrossAudCents * (pct / 100)) : 0;
-  const grossUsdCents = targetPartner.status === "active" ? Math.round(totalGrossUsdCents * (pct / 100)) : 0;
+  // Purchase totals are read first; the partner itself is updated inside the config transaction.
+  const outcome = { clearedTokens: 0, partnerEmail: "" };
+  const updated = await updateSystemConfig((current) => {
+    const partners = current.equityPartners || [];
+    const partnerIndex = partners.findIndex((p) => p.partnerId === params.partnerId);
+    if (partnerIndex === -1) {
+      throw new ApiError("NOT_FOUND", `Equity partner "${params.partnerId}" not found.`, 404);
+    }
+    const targetPartner = partners[partnerIndex];
 
-  const prevClaimedTokens = Math.round(Number(targetPartner.claimedTokens || 0));
-  const clearedTokens = Math.max(0, grossTokens - prevClaimedTokens);
+    const pct = Number(targetPartner.percentage) || 0;
+    const isActive = targetPartner.status === "active";
+    const grossTokens = isActive ? Math.round(totalTokens * (pct / 100)) : 0;
+    const grossAudCents = isActive ? Math.round(totalGrossAudCents * (pct / 100)) : 0;
+    const grossUsdCents = isActive ? Math.round(totalGrossUsdCents * (pct / 100)) : 0;
 
-  const updatedPartner: EquityPartner = {
-    ...targetPartner,
-    claimedTokens: grossTokens,
-    claimedAudCents: grossAudCents,
-    claimedUsdCents: grossUsdCents,
-    lastResetAt: new Date().toISOString(),
-    lastResetBy: params.resetByEmail,
-  };
+    const prevClaimedTokens = Math.round(Number(targetPartner.claimedTokens || 0));
+    outcome.clearedTokens = Math.max(0, grossTokens - prevClaimedTokens);
+    outcome.partnerEmail = targetPartner.email;
 
-  const updatedPartners = [...partners];
-  updatedPartners[partnerIndex] = updatedPartner;
+    const updatedPartners = [...partners];
+    updatedPartners[partnerIndex] = {
+      ...targetPartner,
+      claimedTokens: grossTokens,
+      claimedAudCents: grossAudCents,
+      claimedUsdCents: grossUsdCents,
+      lastResetAt: new Date().toISOString(),
+      lastResetBy: params.resetByEmail,
+    };
+    return { equityPartners: updatedPartners };
+  });
 
-  await updateSystemConfig({ equityPartners: updatedPartners });
-
-  // If partner has a user wallet account, also reset their tokenBalance to 0
+  // If partner has a user wallet account, also reset their tokenBalance to 0 (intended behaviour)
   try {
     await resetTokensForUser({
-      recipientEmail: targetPartner.email,
+      recipientEmail: outcome.partnerEmail,
       note: `Owner Redistribution cleared to 0 by Admin (${params.resetByEmail})`,
       resetByEmail: params.resetByEmail,
     });
@@ -471,76 +500,90 @@ export async function resetPartnerTokens(params: {
   }
 
   return {
-    equityPartners: updatedPartners,
-    clearedTokens,
-    partnerEmail: targetPartner.email,
+    equityPartners: updated.equityPartners,
+    clearedTokens: outcome.clearedTokens,
+    partnerEmail: outcome.partnerEmail,
   };
 }
 
-/** Adds a new equity partner to system config. */
+/** Adds a new equity partner to system config (checked against the 100% cap inside the transaction). */
 export async function addEquityPartner(
   partner: Omit<EquityPartner, "createdAt" | "partnerId">
 ): Promise<EquityPartner[]> {
-  const current = await getSystemConfig();
-  const partners = current.equityPartners || [];
-
-  const activeTotal = partners
-    .filter((p) => p.status === "active")
-    .reduce((acc, p) => acc + p.percentage, 0);
-
-  if (partner.status === "active" && activeTotal + partner.percentage > 100) {
-    throw new Error(`Total active partner allocation cannot exceed 100%. Currently allocated: ${activeTotal}%.`);
-  }
-
   const cleanEmail = partner.email.trim().toLowerCase();
   const cleanName = partner.name?.trim() || cleanEmail.split("@")[0] || cleanEmail;
 
-  const newPartner: EquityPartner = {
-    ...partner,
-    name: cleanName,
-    email: cleanEmail,
-    partnerId: `eq_${Date.now()}_${randomBytes(4).toString("hex")}`,
-    createdAt: new Date().toISOString(),
-  };
+  const updated = await updateSystemConfig((current) => {
+    const partners = current.equityPartners || [];
+    const activeTotal = partners
+      .filter((p) => p.status === "active")
+      .reduce((acc, p) => acc + (Number(p.percentage) || 0), 0);
 
-  const updatedPartners = [...partners, newPartner];
-  await updateSystemConfig({ equityPartners: updatedPartners });
-  return updatedPartners;
+    if (partner.status === "active" && activeTotal + partner.percentage > 100) {
+      throw new ApiError(
+        "INVALID_INPUT",
+        `Total active partner allocation cannot exceed 100%. Currently allocated: ${activeTotal}%.`,
+        400,
+      );
+    }
+
+    const newPartner: EquityPartner = {
+      ...partner,
+      name: cleanName,
+      email: cleanEmail,
+      partnerId: `eq_${Date.now()}_${randomBytes(4).toString("hex")}`,
+      createdAt: new Date().toISOString(),
+    };
+    return { equityPartners: [...partners, newPartner] };
+  });
+  return updated.equityPartners;
 }
 
-/** Updates an equity partner. */
+/** Updates an equity partner's editable fields (name, email, percentage, notes, status). */
 export async function updateEquityPartner(
   partnerId: string,
-  patch: Partial<EquityPartner>
+  patch: Partial<Pick<EquityPartner, "name" | "email" | "percentage" | "notes" | "status">>
 ): Promise<EquityPartner[]> {
-  const current = await getSystemConfig();
-  const partners = current.equityPartners || [];
-  const updatedPartners = partners.map((p) => (p.partnerId === partnerId ? { ...p, ...patch } : p));
-  await updateSystemConfig({ equityPartners: updatedPartners });
-  return updatedPartners;
+  const updated = await updateSystemConfig((current) => {
+    const partners = current.equityPartners || [];
+    if (!partners.some((p) => p.partnerId === partnerId)) {
+      throw new ApiError("NOT_FOUND", `Equity partner "${partnerId}" not found.`, 404);
+    }
+    const updatedPartners = partners.map((p) => (p.partnerId === partnerId ? { ...p, ...patch } : p));
+    const activeTotal = updatedPartners
+      .filter((p) => p.status === "active")
+      .reduce((acc, p) => acc + (Number(p.percentage) || 0), 0);
+    if (activeTotal > 100) {
+      throw new ApiError(
+        "INVALID_INPUT",
+        `Total active partner allocation cannot exceed 100% (this change would make it ${activeTotal}%).`,
+        400,
+      );
+    }
+    return { equityPartners: updatedPartners };
+  });
+  return updated.equityPartners;
 }
 
 /** Deletes an equity partner. */
 export async function deleteEquityPartner(partnerId: string): Promise<EquityPartner[]> {
-  const current = await getSystemConfig();
-  const partners = current.equityPartners || [];
-  const updatedPartners = partners.filter((p) => p.partnerId !== partnerId);
-  await updateSystemConfig({ equityPartners: updatedPartners });
-  return updatedPartners;
+  const updated = await updateSystemConfig((current) => ({
+    equityPartners: (current.equityPartners || []).filter((p) => p.partnerId !== partnerId),
+  }));
+  return updated.equityPartners;
 }
 
 // ============================================================================
 // ADMIN MESSAGING (7-YEAR PLAIN TEXT STATUTORY RETENTION)
 // ============================================================================
 
-const LINK_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.|data:|\[[^\]]+\]\(\s*(?:https?:\/\/|ftp:\/\/|www\.)[^)]+\))/i;
-
+// LINK_URL_PATTERN comes from contracts.ts, so the server applies exactly the rule the forms show.
 export function assertPlainTextNoLinks(text: string, fieldName = "Text") {
   if (/<[^>]*>/i.test(text)) {
-    throw new Error(`${fieldName} contains forbidden HTML tags. Plain text only.`);
+    throw new ApiError("INVALID_INPUT", `${fieldName} contains forbidden HTML tags. Plain text only.`, 400);
   }
   if (LINK_URL_PATTERN.test(text)) {
-    throw new Error(`${fieldName} contains links or file upload URLs. Plain text communication only.`);
+    throw new ApiError("INVALID_INPUT", `${fieldName} contains links or file upload URLs. Plain text communication only.`, 400);
   }
 }
 
@@ -555,8 +598,8 @@ export async function createAdminMessage(params: {
 }): Promise<AdminMessage> {
   const cleanSubject = params.subject.trim().slice(0, 150);
   const cleanBody = params.body.trim().slice(0, 10000);
-  if (!cleanSubject) throw new Error("Subject is required");
-  if (!cleanBody) throw new Error("Message body is required");
+  if (!cleanSubject) throw new ApiError("INVALID_INPUT", "Subject is required", 400);
+  if (!cleanBody) throw new ApiError("INVALID_INPUT", "Message body is required", 400);
 
   assertPlainTextNoLinks(cleanSubject, "Subject");
   assertPlainTextNoLinks(cleanBody, "Message body");
@@ -584,14 +627,12 @@ export async function createAdminMessage(params: {
 
   if (params.customizeRequestId) {
     try {
-      await db.collection(CUSTOMIZE_COL).doc(params.customizeRequestId).set(
-        {
-          status: message.direction === "admin_to_user" ? "completed" : "pending",
-          ...(message.direction === "admin_to_user" ? { staffCompletedMessageId: messageId } : {}),
-          updatedAt: now.toISOString(),
-        },
-        { merge: true }
-      );
+      // update(), not set/merge, so an unknown or mistyped id can't create a stray request document.
+      await db.collection(CUSTOMIZE_COL).doc(params.customizeRequestId).update({
+        status: message.direction === "admin_to_user" ? "completed" : "pending",
+        ...(message.direction === "admin_to_user" ? { staffCompletedMessageId: messageId } : {}),
+        updatedAt: now.toISOString(),
+      });
     } catch {
       // Non-fatal if customize request doc does not exist yet
     }
@@ -613,9 +654,9 @@ export async function sendSuperadminMessage(params: {
   const cleanSubject = params.subject.trim().slice(0, 150);
   const cleanBody = params.body.trim().slice(0, 10000);
 
-  if (!cleanEmail) throw new Error("Recipient email is required.");
-  if (!cleanSubject) throw new Error("Subject is required.");
-  if (!cleanBody) throw new Error("Message body is required.");
+  if (!cleanEmail) throw new ApiError("INVALID_INPUT", "Recipient email is required.", 400);
+  if (!cleanSubject) throw new ApiError("INVALID_INPUT", "Subject is required.", 400);
+  if (!cleanBody) throw new ApiError("INVALID_INPUT", "Message body is required.", 400);
 
   assertPlainTextNoLinks(cleanSubject, "Subject");
   assertPlainTextNoLinks(cleanBody, "Message body");
@@ -659,14 +700,12 @@ export async function sendSuperadminMessage(params: {
 
   if (params.customizeRequestId) {
     try {
-      await db.collection(CUSTOMIZE_COL).doc(params.customizeRequestId).set(
-        {
-          status: message.direction === "admin_to_user" ? "completed" : "pending",
-          ...(message.direction === "admin_to_user" ? { staffCompletedMessageId: messageId } : {}),
-          updatedAt: now.toISOString(),
-        },
-        { merge: true }
-      );
+      // update(), not set/merge, so an unknown or mistyped id can't create a stray request document.
+      await db.collection(CUSTOMIZE_COL).doc(params.customizeRequestId).update({
+        status: message.direction === "admin_to_user" ? "completed" : "pending",
+        ...(message.direction === "admin_to_user" ? { staffCompletedMessageId: messageId } : {}),
+        updatedAt: now.toISOString(),
+      });
     } catch {
       // Non-fatal if customize request doc does not exist yet
     }
@@ -719,7 +758,7 @@ export async function updateAdminMessageStatus(
 /** Permanently deletes an admin message from the Firestore database. */
 export async function deleteAdminMessage(messageId: string): Promise<void> {
   if (!messageId.trim()) {
-    throw new Error("Message ID is required.");
+    throw new ApiError("INVALID_INPUT", "Message ID is required.", 400);
   }
   await db.collection(MESSAGES_COL).doc(messageId.trim()).delete();
 }
@@ -755,13 +794,15 @@ export async function submitCustomizeRequest(params: {
   userEmail: string;
   tokensCharged: number;
   input: CustomizeRequestInput;
+  /** Deterministic id (derived from the paid transaction) so a replayed request can't create a second one. */
+  requestId?: string;
 }): Promise<{
   request: CustomizeRequestDoc;
   adminMessage: AdminMessage;
   customerConfirmationMessage: AdminMessage;
 }> {
   const now = new Date().toISOString();
-  const requestId = `cust_${Date.now()}_${randomBytes(4).toString("hex")}`;
+  const requestId = params.requestId ?? `cust_${Date.now()}_${randomBytes(4).toString("hex")}`;
   const cleanEmail = params.userEmail.toLowerCase().trim();
 
   // Select the closest Ad Agent to the customer's geolocation (or customer's chosen Ad Agent)
@@ -1062,7 +1103,7 @@ export async function giftTokensToUser(params: {
   }
 
   if (!targetUid) {
-    throw new Error(`No registered account found for "${cleanEmail}". Ask the user to sign in once first.`);
+    throw new ApiError("NOT_FOUND", `No registered account found for "${cleanEmail}". Ask the user to sign in once first.`, 404);
   }
 
   const txId = `gift_${Date.now()}_${randomBytes(4).toString("hex")}`;
@@ -1120,7 +1161,7 @@ export async function deductTokensFromUser(params: {
   }
 
   if (!targetUid) {
-    throw new Error(`No registered account found for "${cleanEmail}".`);
+    throw new ApiError("NOT_FOUND", `No registered account found for "${cleanEmail}".`, 404);
   }
 
   const userRef = db.collection("users").doc(targetUid);
@@ -1130,18 +1171,14 @@ export async function deductTokensFromUser(params: {
   return db.runTransaction(async (t) => {
     const userSnap = await t.get(userRef);
     if (!userSnap.exists) {
-      throw new Error(`User wallet not initialized for "${cleanEmail}".`);
+      throw new ApiError("NOT_FOUND", `User wallet not initialized for "${cleanEmail}".`, 404);
     }
     const currentBalance = Math.max(0, Math.round(Number(userSnap.get("tokenBalance") ?? 0)));
     if (currentBalance <= 0) {
-      throw new Error(
-        `Account "${cleanEmail}" has 0 tokens. Nobody can have negative tokens — all users at 0 tokens must buy more tokens.`
-      );
+      throw new ApiError("INVALID_INPUT", `Account "${cleanEmail}" has 0 tokens. Nobody can have negative tokens — all users at 0 tokens must buy more tokens.`, 400);
     }
     if (cleanTokens > currentBalance) {
-      throw new Error(
-        `Cannot remove ${cleanTokens} tokens from "${cleanEmail}" because their current balance is ${currentBalance} tokens. Nobody can have negative tokens (minimum balance is 0).`
-      );
+      throw new ApiError("INVALID_INPUT", `Cannot remove ${cleanTokens} tokens from "${cleanEmail}" because their current balance is ${currentBalance} tokens. Nobody can have negative tokens (minimum balance is 0).`, 400);
     }
     const actualDeduct = cleanTokens;
     const balanceAfter = Math.max(0, currentBalance - actualDeduct);
@@ -1202,7 +1239,7 @@ export async function resetTokensForUser(params: {
   }
 
   if (!targetUid) {
-    throw new Error(`No registered account found for "${cleanEmail}".`);
+    throw new ApiError("NOT_FOUND", `No registered account found for "${cleanEmail}".`, 404);
   }
 
   const userRef = db.collection("users").doc(targetUid);
@@ -1212,7 +1249,7 @@ export async function resetTokensForUser(params: {
   return db.runTransaction(async (t) => {
     const userSnap = await t.get(userRef);
     if (!userSnap.exists) {
-      throw new Error(`User wallet not initialized for "${cleanEmail}".`);
+      throw new ApiError("NOT_FOUND", `User wallet not initialized for "${cleanEmail}".`, 404);
     }
     const currentBalance = Math.max(0, Math.round(Number(userSnap.get("tokenBalance") ?? 0)));
     const now = new Date().toISOString();

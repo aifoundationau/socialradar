@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "./firebase-admin";
+import { ApiError } from "./api";
 import type { CreateFaqRequest, FaqItem, UpdateFaqRequest } from "./contracts";
 
 const FAQS_DOC_PATH = "system_config/faqs";
@@ -327,90 +328,138 @@ export const DEFAULT_FAQS: FaqItem[] = [
   },
 ];
 
+/** Stored shape of system_config/faqs. */
+interface FaqDoc {
+  version?: string;
+  faqs?: FaqItem[];
+  /** Default FAQ ids an admin deleted; the seed step never adds these back. */
+  deletedDefaultIds?: string[];
+  updatedAt?: string;
+}
+
+interface FaqState {
+  faqs: FaqItem[];
+  deletedDefaultIds: string[];
+}
+
+const DEFAULT_FAQ_IDS = new Set(DEFAULT_FAQS.map((f) => f.faqId));
+const byOrder = (a: FaqItem, b: FaqItem) => a.order - b.order;
+/** createFaq ids look like faq_<epoch ms>_<random>; built-in defaults have readable ids. */
+const isAdminCreatedFaq = (f: FaqItem) => /^faq_\d{10,}_/.test(f.faqId);
+
+/**
+ * The FAQ list as it should be stored, plus whether that differs from what is stored:
+ * - no document yet: the defaults;
+ * - older FAQS_SCHEMA_VERSION: the new defaults plus every FAQ an admin created (admin FAQs survive);
+ * - current version: what is stored, plus any default that is missing and wasn't deleted by an admin.
+ */
+function resolveFaqState(data: FaqDoc | undefined): FaqState & { changed: boolean } {
+  const deletedDefaultIds = Array.isArray(data?.deletedDefaultIds) ? [...data.deletedDefaultIds] : [];
+  const deleted = new Set(deletedDefaultIds);
+  const stored = Array.isArray(data?.faqs) ? data.faqs : [];
+  const isCurrentVersion = Boolean(data) && data?.version === FAQS_SCHEMA_VERSION;
+
+  const faqs = isCurrentVersion ? [...stored] : stored.filter(isAdminCreatedFaq);
+  let changed = !isCurrentVersion;
+  const ids = new Set(faqs.map((f) => f.faqId));
+  for (const def of DEFAULT_FAQS) {
+    if (!ids.has(def.faqId) && !deleted.has(def.faqId)) {
+      faqs.push(def);
+      changed = true;
+    }
+  }
+  return { faqs: faqs.sort(byOrder), deletedDefaultIds, changed };
+}
+
+/**
+ * Applies `mutate` to the stored FAQ list inside one transaction, always keeping the schema version (a
+ * write without it made the next read reset everything to the defaults, undoing every admin edit).
+ * `mutate` may run more than once if the transaction retries, so keep it free of side effects.
+ */
+async function writeFaqs(mutate: (state: FaqState) => void): Promise<FaqItem[]> {
+  const ref = db.doc(FAQS_DOC_PATH);
+  return db.runTransaction(async (t) => {
+    const snap = await t.get(ref);
+    const { faqs, deletedDefaultIds } = resolveFaqState(snap.exists ? (snap.data() as FaqDoc) : undefined);
+    const state: FaqState = { faqs: faqs.map((f) => ({ ...f })), deletedDefaultIds };
+    mutate(state);
+    const nextFaqs = state.faqs.sort(byOrder);
+    t.set(ref, {
+      version: FAQS_SCHEMA_VERSION,
+      faqs: nextFaqs,
+      deletedDefaultIds: state.deletedDefaultIds,
+      updatedAt: new Date().toISOString(),
+    });
+    return nextFaqs;
+  });
+}
+
 export async function getFaqs(includeDisabled = false): Promise<FaqItem[]> {
+  const visible = (faqs: FaqItem[]) => faqs.filter((f) => includeDisabled || f.enabled).sort(byOrder);
   try {
     const snap = await db.doc(FAQS_DOC_PATH).get();
-    if (!snap.exists) {
-      await db.doc(FAQS_DOC_PATH).set({ version: FAQS_SCHEMA_VERSION, faqs: DEFAULT_FAQS, updatedAt: new Date().toISOString() });
-      return DEFAULT_FAQS.filter((f) => includeDisabled || f.enabled);
+    const state = resolveFaqState(snap.exists ? (snap.data() as FaqDoc) : undefined);
+    if (state.changed) {
+      // Seed / migrate inside a transaction so it can't overwrite an admin edit made in the meantime.
+      return visible(await writeFaqs(() => {}).catch(() => state.faqs));
     }
-    const data = snap.data() || {};
-    if (data.version !== FAQS_SCHEMA_VERSION) {
-      // Seamlessly upgrade to the comprehensive customer-perspective default FAQs
-      await db.doc(FAQS_DOC_PATH).set({ version: FAQS_SCHEMA_VERSION, faqs: DEFAULT_FAQS, updatedAt: new Date().toISOString() });
-      return DEFAULT_FAQS.filter((f) => includeDisabled || f.enabled);
-    }
-    const loadedFaqs = Array.isArray(data.faqs) ? (data.faqs as FaqItem[]) : [];
-
-    // Ensure all seed default FAQs are present
-    const existingIds = new Set(loadedFaqs.map((f) => f.faqId));
-    let hasNewDefaults = false;
-    for (const def of DEFAULT_FAQS) {
-      if (!existingIds.has(def.faqId)) {
-        loadedFaqs.push(def);
-        hasNewDefaults = true;
-      }
-    }
-    if (hasNewDefaults) {
-      loadedFaqs.sort((a, b) => a.order - b.order);
-      await db.doc(FAQS_DOC_PATH).set({ version: FAQS_SCHEMA_VERSION, faqs: loadedFaqs, updatedAt: new Date().toISOString() }).catch(() => null);
-    }
-
-    return loadedFaqs
-      .filter((f) => includeDisabled || f.enabled)
-      .sort((a, b) => a.order - b.order);
+    return visible(state.faqs);
   } catch (err) {
     console.warn("[faqs] error loading faqs from firestore, using defaults", err);
-    return DEFAULT_FAQS.filter((f) => includeDisabled || f.enabled);
+    return visible(DEFAULT_FAQS);
   }
 }
 
 export async function createFaq(input: CreateFaqRequest): Promise<FaqItem> {
-  const current = await getFaqs(true);
   const now = new Date().toISOString();
   const faqId = `faq_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  const item: FaqItem = {
-    faqId,
-    question: input.question.trim(),
-    answer: input.answer.trim(),
-    category: input.category.trim() || "General",
-    order: input.order ?? current.length + 1,
-    enabled: input.enabled ?? true,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  const next = [...current, item];
-  await db.doc(FAQS_DOC_PATH).set({ faqs: next, updatedAt: now });
-  return item;
+  let created!: FaqItem;
+  await writeFaqs((state) => {
+    created = {
+      faqId,
+      question: input.question.trim(),
+      answer: input.answer.trim(),
+      category: input.category.trim() || "General",
+      order: input.order ?? state.faqs.length + 1,
+      enabled: input.enabled ?? true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.faqs.push(created);
+  });
+  return created;
 }
 
 export async function updateFaq(input: UpdateFaqRequest): Promise<FaqItem> {
-  const current = await getFaqs(true);
-  const idx = current.findIndex((f) => f.faqId === input.faqId);
-  if (idx === -1) throw new Error(`FAQ ${input.faqId} not found`);
-
   const now = new Date().toISOString();
-  const existing = current[idx];
-  const updated: FaqItem = {
-    ...existing,
-    ...input.patch,
-    updatedAt: now,
-  };
-
-  current[idx] = updated;
-  await db.doc(FAQS_DOC_PATH).set({ faqs: current, updatedAt: now });
+  let updated!: FaqItem;
+  await writeFaqs((state) => {
+    const idx = state.faqs.findIndex((f) => f.faqId === input.faqId);
+    if (idx === -1) throw new ApiError("NOT_FOUND", `FAQ ${input.faqId} not found`, 404);
+    updated = { ...state.faqs[idx], ...input.patch, updatedAt: now };
+    state.faqs[idx] = updated;
+  });
   return updated;
 }
 
 export async function deleteFaq(faqId: string): Promise<void> {
-  const current = await getFaqs(true);
-  const next = current.filter((f) => f.faqId !== faqId);
-  await db.doc(FAQS_DOC_PATH).set({ faqs: next, updatedAt: new Date().toISOString() });
+  await writeFaqs((state) => {
+    state.faqs = state.faqs.filter((f) => f.faqId !== faqId);
+    // Remember deleted defaults so the seed step doesn't bring them back.
+    if (DEFAULT_FAQ_IDS.has(faqId) && !state.deletedDefaultIds.includes(faqId)) {
+      state.deletedDefaultIds.push(faqId);
+    }
+  });
 }
 
+/** Explicit admin action: replaces every FAQ with the defaults (admin-created ones included). */
 export async function resetDefaultFaqs(): Promise<FaqItem[]> {
-  await db.doc(FAQS_DOC_PATH).set({ version: FAQS_SCHEMA_VERSION, faqs: DEFAULT_FAQS, updatedAt: new Date().toISOString() });
+  await db.doc(FAQS_DOC_PATH).set({
+    version: FAQS_SCHEMA_VERSION,
+    faqs: DEFAULT_FAQS,
+    deletedDefaultIds: [],
+    updatedAt: new Date().toISOString(),
+  });
   return DEFAULT_FAQS;
 }
 

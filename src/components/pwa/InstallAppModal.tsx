@@ -3,7 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/Icon";
-import { btnPrimary, btnSecondary, card } from "@/components/ui/styles";
+import { btnPrimary, btnSecondary } from "@/components/ui/styles";
 import { usePwaInstall, type PlatformType } from "@/hooks/usePwaInstall";
 
 const emptySubscribe = () => () => {};

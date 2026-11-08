@@ -25,7 +25,18 @@ export async function POST(req: Request) {
     ? calculateSearchCost(input, config.serviceCosts)
     : 0;
 
-  const searchLabel = `${input.platform} Search: "${input.query}" (${input.country}${input.provenWinnersOnly ? ", 28+d" : ""})`;
+  // Also the idempotency reference: it must include every option that changes the price or the results,
+  // so a replayed key can't fetch a differently filtered (e.g. surcharged) search for free.
+  const searchOptions = [
+    input.country,
+    input.mediaType !== "ALL" ? input.mediaType.toLowerCase() : null,
+    input.provenWinnersOnly ? "28+d" : null,
+    input.extendedLongevity ? "60+d" : null,
+    input.eliteWinnersOnly ? "top 90%+" : null,
+  ].filter(Boolean);
+  const searchLabel = `${input.platform} Search: "${input.query}" (${searchOptions.join(", ")})${
+    input.brandId ? ` [brand ${input.brandId}]` : ""
+  }`;
 
   return withTokenGate(
     req,

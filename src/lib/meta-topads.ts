@@ -8,6 +8,9 @@ export type MetaDraft = Omit<NormalizedAd, "winningScore" | "highlightKeywords">
 
 type Json = Record<string, unknown>;
 
+/** Seconds to wait for a synchronous Apify actor run (Apify allows up to 300). */
+const APIFY_RUN_TIMEOUT_S = 45;
+
 const obj = (v: unknown): Json => (v && typeof v === "object" && !Array.isArray(v) ? (v as Json) : {});
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const https = (v: unknown) =>
@@ -239,8 +242,10 @@ export async function fetchMetaExternalTopAds(params: {
     ? new URL(customUrl)
     : new URL(`https://api.apify.com/v2/acts/${encodeURIComponent(actorId!)}/run-sync-get-dataset-items`);
 
-  if (apifyToken && !customUrl) {
-    endpoint.searchParams.set("token", apifyToken);
+  if (!customUrl) {
+    // Synchronous actor runs often need more than 20 s; Apify stops the run at the same limit so no
+    // credits are spent after we've given up waiting.
+    endpoint.searchParams.set("timeout", String(APIFY_RUN_TIMEOUT_S));
   }
 
   try {
@@ -249,7 +254,9 @@ export async function fetchMetaExternalTopAds(params: {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        ...(apifyToken && customUrl ? { Authorization: `Bearer ${apifyToken}` } : {}),
+        // The token goes in a header (never the URL, which can end up in logs), and only to Apify itself:
+        // a custom META_TOPADS_API_URL never receives the Apify token.
+        ...(apifyToken && !customUrl ? { Authorization: `Bearer ${apifyToken}` } : {}),
       },
       body: JSON.stringify({
         query: params.query.replace(/"/g, "").trim(),
@@ -257,7 +264,7 @@ export async function fetchMetaExternalTopAds(params: {
         mediaType: params.mediaType,
         maxItems: 40,
       }),
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout((APIFY_RUN_TIMEOUT_S + 5) * 1000),
       cache: "no-store",
     });
 

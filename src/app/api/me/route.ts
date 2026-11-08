@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, isDatabaseAdmin, setUserClaims, verifyRequest } from "@/lib/firebase-admin";
+import { db, setUserClaims, verifyRequest } from "@/lib/firebase-admin";
 import { ensureUserDoc } from "@/lib/token-ledger";
 import { errorResponse } from "@/lib/api";
 import type { BrandProfile } from "@/lib/contracts";
@@ -18,7 +18,8 @@ export async function POST(req: Request) {
       .sort((a, b) => a.brandName.localeCompare(b.brandName));
 
     // Sync Auth custom claims if missing or misaligned, while preserving assigned multi-roles
-    const isSuper = isDatabaseAdmin(caller.token, caller.email);
+    // Set by verifyRequest only for the database admin with a verified email.
+    const isSuper = caller.claims.isSuperAdmin === true;
     if (isSuper) {
       if (caller.token.role !== "superadmin" || caller.token.tier !== "agency") {
         await setUserClaims(caller.uid, {

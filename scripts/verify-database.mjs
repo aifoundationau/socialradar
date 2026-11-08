@@ -3,6 +3,16 @@ import { initializeApp, cert, applicationDefault } from "firebase-admin/app";
 import { getFirestore, initializeFirestore } from "firebase-admin/firestore";
 import { readFileSync, existsSync } from "node:fs";
 
+// This script writes to the LIVE Firestore database (it seeds/repairs documents), so it only runs when
+// asked for explicitly.
+if (!process.argv.includes("--live")) {
+  console.error(
+    "[verify-database] This script writes to the LIVE Firestore database. Re-run with --live to confirm:\n" +
+      "  node scripts/verify-database.mjs --live",
+  );
+  process.exit(1);
+}
+
 try {
   dns.setDefaultResultOrder("ipv4first");
 } catch {

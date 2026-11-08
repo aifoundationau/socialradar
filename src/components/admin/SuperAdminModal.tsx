@@ -18,7 +18,6 @@ import {
   getCountryName,
   isFreeAccessWindowActive,
   normalizeAllowedCountries,
-  usdToAudCents,
 } from "@/lib/pricing";
 import type { CurrencyRateResponse } from "@/app/api/currency/route";
 import type {
@@ -42,7 +41,6 @@ import {
   AD_AGENT_REDISTRIBUTION_PERCENTS,
   LINK_URL_PATTERN,
   RBAC_PERMISSIONS_LIST,
-  RBAC_ROLES_LIST,
 } from "@/lib/contracts";
 import { GlobalRagCorpusSection, PerFaqRagDrawer } from "@/components/faq/FaqRagWorkspace";
 import { autofindUserLocation, loadDetectedGeoCountry, loadGeoConfig } from "@/lib/geo";
@@ -400,7 +398,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [quickAssignEmail, setQuickAssignEmail] = useState("");
   const [quickAssignRoles, setQuickAssignRoles] = useState<AssignableRbacRole[]>(["supporter"]);
   const [confirmQuickAssignOpen, setConfirmQuickAssignOpen] = useState(false);
-  const [confirmQuickResetRoleOpen, setConfirmQuickResetRoleOpen] = useState(false);
   const [pendingUserRoles, setPendingUserRoles] = useState<Record<string, AssignableRbacRole[]>>({});
   const [confirmingRoleUid, setConfirmingRoleUid] = useState<string | null>(null);
   const [confirmResetRoleUid, setConfirmResetRoleUid] = useState<string | null>(null);
@@ -486,9 +483,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
   async function reloadRagEntries() {
     try {
-      const res = await fetch("/api/rag", { method: "GET", cache: "no-store" });
-      const data = await res.json();
-      if (res.ok && Array.isArray(data.entries)) {
+      // Signed-in admin request: the server only returns the full corpus to admins.
+      const data = await apiFetch<{ entries?: RagSentenceItem[] }>("/api/rag", { method: "GET" });
+      if (Array.isArray(data.entries)) {
         setAdminRagEntries(data.entries);
       }
     } catch {
@@ -1061,7 +1058,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       );
       setQuickAssignEmail("");
       setConfirmQuickAssignOpen(false);
-      setConfirmQuickResetRoleOpen(false);
       if (uid) setConfirmResetRoleUid(null);
     } catch (err) {
       setErrorMsg(errorMessage(err));
@@ -1971,35 +1967,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       }
       setLedger(data.ledger);
       setStatusMsg(`Partner ${partner.name} status updated to ${newStatus}.`);
-    } catch (err) {
-      setErrorMsg(errorMessage(err));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleSimulatePurchase() {
-    setSaving(true);
-    setErrorMsg(null);
-    setStatusMsg(null);
-    try {
-      const data = await apiFetch<{
-        success: boolean;
-        ledger: RedistributiveLedgerSummary;
-        recentPurchases: StripePurchaseRecord[];
-      }>("/api/admin/config", {
-        method: "PUT",
-        body: {
-          action: "SIMULATE_PURCHASE",
-          tokens: 500,
-          amountCents: 7900,
-          packId: "PACK_500",
-        },
-      });
-      setLedger(data.ledger);
-      setRecentPurchases(data.recentPurchases);
-      await reloadOrders();
-      setStatusMsg("Simulated purchase (+500 tokens, $79.00 AUD) recorded to redistributive ledger.");
     } catch (err) {
       setErrorMsg(errorMessage(err));
     } finally {
@@ -3899,19 +3866,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           </button>
                           <button
                             type="button"
-                            onClick={handleSimulatePurchase}
-                            disabled={saving}
-                            className={`${btnSecondary} justify-center w-full sm:w-auto`}
-                            title="Simulate a test token purchase (+500 ⚡, $79.00 AUD)"
-                            data-testid="simulate-purchase-button"
-                          >
-                            <Icon name="plus" className="size-3.5" />
-                            Simulate Purchase (Test)
-                          </button>
-                          <button
-                            type="button"
                             onClick={() => setShowAddPartner(!showAddPartner)}
-                            className={`${btnPrimary} justify-center w-full xs:col-span-2 sm:w-auto`}
+                            className={`${btnPrimary} justify-center w-full sm:w-auto`}
                             data-testid="toggle-add-partner-button"
                           >
                             <Icon name="plus" className="size-4" />
@@ -4356,7 +4312,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           <div className={`${card} p-6 text-center text-on-surface-variant`}>
                             <p className="text-sm italic">No Stripe purchases recorded yet.</p>
                             <p className="text-[11px] mt-1 text-outline">
-                              Make a purchase via Wallet or click &ldquo;Simulate Purchase (Test)&rdquo; above.
+                              Purchases appear here once customers buy tokens through the Wallet.
                             </p>
                           </div>
                         ) : (
@@ -7084,7 +7040,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                         Move to Inbox
                                       </button>
                                     )}
-                                    {confirmDeleteMessageId === selectedMessage.messageId ? (
+                                    {/* Permanent deletion overrides 7-year retention: Super Admin only (server-enforced too). */}
+                                    {isSuper && (confirmDeleteMessageId === selectedMessage.messageId ? (
                                       <div className="inline-flex items-center gap-1.5">
                                         <button
                                           type="button"
@@ -7126,7 +7083,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                         <Icon name="trash" className="size-3.5" />
                                         <span>Delete</span>
                                       </button>
-                                    )}
+                                    ))}
                                   </div>
                                 </div>
                               ) : (

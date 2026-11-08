@@ -441,10 +441,22 @@ export const COMMON_SUBURBS: SuburbSuggestion[] = [
   { label: "Toronto, ON (CA)", suburb: "Toronto", state: "ON", country: "CA" },
 ];
 
+type NominatimPlace = { name?: string; address?: Record<string, string | undefined> };
+
+/** Nominatim results per query (this tab only), and when the last request went out. */
+const nominatimCache = new Map<string, SuburbSuggestion[]>();
+let lastNominatimRequestAt = 0;
+
 /**
- * Searches and autofinds matching suburbs from local fast dataset and OpenStreetMap Nominatim.
+ * Searches and autofinds matching suburbs from the local fast dataset, and (only with `allowNetwork`, i.e.
+ * an explicit user action such as pressing Enter) OpenStreetMap Nominatim. Nominatim's usage policy
+ * forbids type-ahead autocomplete and allows at most one request per second, so typing must use the
+ * local list only.
  */
-export async function searchSuburbs(rawQuery: string): Promise<SuburbSuggestion[]> {
+export async function searchSuburbs(
+  rawQuery: string,
+  options: { allowNetwork?: boolean } = {},
+): Promise<SuburbSuggestion[]> {
   const query = rawQuery.trim().toLowerCase();
   if (query.length < 2) return [];
 
@@ -456,10 +468,28 @@ export async function searchSuburbs(rawQuery: string): Promise<SuburbSuggestion[
       s.state.toLowerCase() === query,
   );
 
-  // If query is an exact or strong match with local database, return fast
-  if (localMatches.length >= 3) {
+  // If query is an exact or strong match with local database (or no lookup was asked for), return fast
+  if (localMatches.length >= 3 || !options.allowNetwork) {
     return localMatches.slice(0, 8);
   }
+
+  const merge = (fetched: SuburbSuggestion[]) => {
+    const combined = [...localMatches];
+    for (const item of fetched) {
+      if (!combined.some((c) => c.label.toLowerCase() === item.label.toLowerCase())) {
+        combined.push(item);
+      }
+    }
+    return combined.slice(0, 8);
+  };
+
+  const cached = nominatimCache.get(query);
+  if (cached) return merge(cached);
+
+  // At most one Nominatim request per second.
+  const wait = lastNominatimRequestAt + 1100 - Date.now();
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  lastNominatimRequestAt = Date.now();
 
   // Network fetch for niche or specific suburbs with short timeout
   try {
@@ -471,7 +501,7 @@ export async function searchSuburbs(rawQuery: string): Promise<SuburbSuggestion[
       const data = await res.json();
       if (Array.isArray(data)) {
         const fetched: SuburbSuggestion[] = data
-          .map((item: any) => {
+          .map((item: NominatimPlace) => {
             const addr = item.address || {};
             const suburbName =
               addr.suburb ||
@@ -493,13 +523,8 @@ export async function searchSuburbs(rawQuery: string): Promise<SuburbSuggestion[
           })
           .filter(Boolean) as SuburbSuggestion[];
 
-        const combined = [...localMatches];
-        for (const item of fetched) {
-          if (!combined.some((c) => c.label.toLowerCase() === item.label.toLowerCase())) {
-            combined.push(item);
-          }
-        }
-        return combined.slice(0, 8);
+        nominatimCache.set(query, fetched);
+        return merge(fetched);
       }
     }
   } catch {

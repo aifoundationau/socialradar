@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyRequest } from "@/lib/firebase-admin";
 import { errorResponse, optionalIdempotencyKey, readJson } from "@/lib/api";
 import { createBrand, deleteBrand, setActiveBrand, updateBrand } from "@/lib/brands";
+import { requirePermission } from "@/lib/rbac";
 import {
   ActiveBrandRequestSchema,
   BrandDeleteRequestSchema,
@@ -16,6 +17,7 @@ import {
 export async function POST(req: Request) {
   try {
     const caller = await verifyRequest(req);
+    await requirePermission(caller, "manage_brands");
     const key = optionalIdempotencyKey(req);
     const input = BrandProfileInputSchema.parse(await readJson(req));
     const { brand, replayed } = await createBrand(caller, input, key);
@@ -29,6 +31,7 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const caller = await verifyRequest(req);
+    await requirePermission(caller, "manage_brands");
     const brand = await updateBrand(caller.uid, BrandProfileSchema.parse(await readJson(req)), caller.email);
     return NextResponse.json({ brand });
   } catch (err) {
@@ -40,6 +43,7 @@ export async function PUT(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const caller = await verifyRequest(req);
+    await requirePermission(caller, "manage_brands");
     const { brandId } = BrandDeleteRequestSchema.parse(await readJson(req));
     await deleteBrand(caller.uid, brandId);
     return NextResponse.json({ deleted: brandId });
@@ -52,6 +56,7 @@ export async function DELETE(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const caller = await verifyRequest(req);
+    await requirePermission(caller, "manage_brands");
     const { activeBrandId } = ActiveBrandRequestSchema.parse(await readJson(req));
     await setActiveBrand(caller, activeBrandId);
     return NextResponse.json({ activeBrandId });

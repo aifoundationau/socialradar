@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import { PROVEN_WINNER_DAYS, type NormalizedAd } from "@/lib/contracts";
 import { Icon } from "@/components/ui/Icon";
-import { MEDIA_LABELS, PLATFORMS } from "./options";
+import { PLATFORMS } from "./options";
 
 function formatDay(iso: string) {
   const d = new Date(iso);

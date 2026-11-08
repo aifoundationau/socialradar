@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import Link from "next/link";
 import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { clientDb } from "@/lib/firebase-client";
 import { useSession } from "@/components/auth/SessionProvider";
@@ -31,7 +30,7 @@ export type SupporterTab = "TOKENS" | "BUY_TOKENS" | "MESSAGES";
 
 export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalProps) {
   const isClient = useIsClient();
-  const { user, profile, activeBrand, role, isSuperAdmin, resetRole } = useSession();
+  const { user, profile, isSuperAdmin, resetRole } = useSession();
   const uid = user?.uid;
 
   const [tab, setTab] = useState<SupporterTab>(initialTab ?? "TOKENS");

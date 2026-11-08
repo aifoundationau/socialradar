@@ -1,6 +1,5 @@
 import "server-only";
 import Stripe from "stripe";
-import type { z } from "zod";
 import { TopupMetadataSchema, type TokenPackId } from "./contracts";
 import { TOKEN_PACK_CURRENCY, type TokenPack } from "./pricing";
 import { creditTokens } from "./token-ledger";
@@ -41,7 +40,6 @@ export function buildCheckoutParams(opts: {
   const {
     uid,
     email,
-    stripeCustomerId,
     pack,
     appUrl,
     subscriptionName,

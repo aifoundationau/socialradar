@@ -1,6 +1,16 @@
 import { initializeApp, cert, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
+// This test writes (and then deletes) a document in the LIVE Firestore database, so it only runs when
+// asked for explicitly.
+if (!process.argv.includes("--live")) {
+  console.error(
+    "[test-messages-e2e] This test writes to the LIVE Firestore database. Re-run with --live to confirm:\n" +
+      "  node scripts/test-messages-e2e.mjs --live",
+  );
+  process.exit(1);
+}
+
 let app;
 if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
   const json = JSON.parse(Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, "base64").toString("utf8"));

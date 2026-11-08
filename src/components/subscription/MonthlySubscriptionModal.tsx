@@ -5,11 +5,11 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/components/auth/SessionProvider";
 import { Icon } from "@/components/ui/Icon";
-import { btnPrimary, btnSecondary, card } from "@/components/ui/styles";
+import { btnPrimary, btnSecondary } from "@/components/ui/styles";
 import { formatAud, formatUsd, FX_AUD_TO_USD } from "@/lib/pricing";
 import { DEFAULT_AU_GEO, loadGeoConfig, type GeoConfig } from "@/lib/geo";
 import { apiFetch, errorMessage, newIdempotencyKey } from "@/lib/api-client";
-import type { MonthlySubscriptionConfig, ServiceCosts } from "@/lib/contracts";
+import type { MonthlySubscriptionConfig } from "@/lib/contracts";
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -32,7 +32,7 @@ export function MonthlySubscriptionModal({
 }: MonthlySubscriptionModalProps) {
   const isClient = useIsClient();
   const router = useRouter();
-  const { user, isAdmin, role } = useSession();
+  const { user, isSuperAdmin, role } = useSession();
   const [subConfig, setSubConfig] = useState<MonthlySubscriptionConfig>({
     enabled: false,
     priceAud: 500,
@@ -41,16 +41,6 @@ export function MonthlySubscriptionModal({
     description:
       "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those. Get Access to 'Free to Use' Times.",
   });
-  const [serviceCosts, setServiceCosts] = useState<ServiceCosts>({
-    searchStandard: 1,
-    searchProvenWinners: 1,
-    searchExtendedDays: 1,
-    searchEliteScore: 1,
-    aiRemix: 1,
-    regenerateVariations: 1,
-    brandClone: 1,
-    customizeService: 55,
-  });
   const [loading, setLoading] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
   const [granting, setGranting] = useState(false);
@@ -58,6 +48,41 @@ export function MonthlySubscriptionModal({
   const [fxRate, setFxRate] = useState<number>(FX_AUD_TO_USD);
   const [fxIsLive, setFxIsLive] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Declared before the effect that calls it.
+  async function loadConfig() {
+    setLoading(true);
+    try {
+      const [checkoutRes, fxRes] = await Promise.allSettled([
+        fetch("/api/wallet/checkout", { method: "GET", cache: "no-store" }),
+        // Same source as the rest of the app: ECB rates via /api/currency (cached server-side).
+        fetch("/api/currency"),
+      ]);
+
+      if (checkoutRes.status === "fulfilled" && checkoutRes.value.ok) {
+        const data = (await checkoutRes.value.json()) as {
+          monthlySubscription?: MonthlySubscriptionConfig;
+        };
+        if (data?.monthlySubscription) {
+          setSubConfig(data.monthlySubscription);
+        }
+      }
+
+      if (fxRes.status === "fulfilled" && fxRes.value.ok) {
+        const fxData = (await fxRes.value.json()) as { rate?: number; source?: string };
+        const liveUsd = fxData?.rate;
+        if (typeof liveUsd === "number" && liveUsd > 0) {
+          setFxRate(liveUsd);
+          // The route answers with a fixed fallback rate when the ECB feed is unreachable.
+          setFxIsLive(!/fallback/i.test(fxData.source ?? ""));
+        }
+      }
+    } catch {
+      // Fall back to default
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -86,42 +111,6 @@ export function MonthlySubscriptionModal({
       window.removeEventListener("storage", handleGeoUpdated);
     };
   }, [isOpen]);
-
-  async function loadConfig() {
-    setLoading(true);
-    try {
-      const [checkoutRes, fxRes] = await Promise.allSettled([
-        fetch("/api/wallet/checkout", { method: "GET", cache: "no-store" }),
-        fetch("https://open.er-api.com/v6/latest/AUD", { cache: "no-store" }),
-      ]);
-
-      if (checkoutRes.status === "fulfilled" && checkoutRes.value.ok) {
-        const data = (await checkoutRes.value.json()) as {
-          monthlySubscription?: MonthlySubscriptionConfig;
-          serviceCosts?: ServiceCosts;
-        };
-        if (data?.monthlySubscription) {
-          setSubConfig(data.monthlySubscription);
-        }
-        if (data?.serviceCosts) {
-          setServiceCosts((prev) => ({ ...prev, ...data.serviceCosts }));
-        }
-      }
-
-      if (fxRes.status === "fulfilled" && fxRes.value.ok) {
-        const fxData = (await fxRes.value.json()) as { rates?: { USD?: number } };
-        const liveUsd = fxData?.rates?.USD;
-        if (typeof liveUsd === "number" && liveUsd > 0) {
-          setFxRate(liveUsd);
-          setFxIsLive(true);
-        }
-      }
-    } catch {
-      // Fall back to default
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleSubscribe() {
     setSubscribing(true);
@@ -590,7 +579,8 @@ export function MonthlySubscriptionModal({
           </button>
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-            {isAdmin && (
+            {/* Gifting tokens is Super Admin only on the server, so Main Admins don't get the button. */}
+            {isSuperAdmin && (
               <button
                 type="button"
                 onClick={handleGrantTest}

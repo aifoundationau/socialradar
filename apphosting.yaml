@@ -1,6 +1,13 @@
-# Firebase App Hosting config for backend "ad-radar" in project ad-radar-au.
+# Firebase App Hosting config for backend "ad-radar" in project ai-foundation-firebase (see .firebaserc).
 # Production: https://socialradar.aifoundation.net.au
-# Public values live here; secrets live in Cloud Secret Manager (firebase apphosting:secrets:set).
+# Public values live here; secrets live in Cloud Secret Manager of ai-foundation-firebase.
+# Create or update each secret below before the next rollout (a missing secret fails the build):
+#   firebase apphosting:secrets:set firebase-web-api-key  --project ai-foundation-firebase
+#   firebase apphosting:secrets:set stripe-secret-key     --project ai-foundation-firebase
+#   firebase apphosting:secrets:set stripe-webhook-secret --project ai-foundation-firebase
+#   firebase apphosting:secrets:set gemini-api-key        --project ai-foundation-firebase
+#   firebase apphosting:secrets:set searchapi-api-key     --project ai-foundation-firebase
+# (each command offers to grant the "ad-radar" backend access; answer yes)
 
 runConfig:
   minInstances: 0 # scale to zero while this is staging
@@ -14,26 +21,27 @@ env:
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     secret: firebase-web-api-key
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-    value: ad-radar-au.firebaseapp.com
+    value: ai-foundation-firebase.firebaseapp.com
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    value: ad-radar-au
+    value: ai-foundation-firebase
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-    value: ad-radar-au.firebasestorage.app
+    value: ai-foundation-firebase.firebasestorage.app
   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-    value: "981431643534"
+    value: "614773274800"
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
-    value: 1:981431643534:web:40f3238cb5c871368488df
+    value: 1:614773274800:web:03b3410d7fd540c59ea375
 
   # Server. Admin SDK credentials come from the backend's service account (no keys).
   - variable: FIREBASE_PROJECT_ID
-    value: ad-radar-au
+    value: ai-foundation-firebase
     availability: [RUNTIME]
   - variable: FIRESTORE_DATABASE_ID
     value: ad-radar
     availability: [RUNTIME]
+  # Also needed at BUILD: layout.tsx bakes it into the canonical / OpenGraph URLs of static pages.
   - variable: APP_URL
     value: https://socialradar.aifoundation.net.au
-    availability: [RUNTIME]
+    availability: [BUILD, RUNTIME]
 
   # Stripe — test mode while in staging.
   - variable: STRIPE_SECRET_KEY
@@ -41,4 +49,12 @@ env:
     availability: [RUNTIME]
   - variable: STRIPE_WEBHOOK_SECRET
     secret: stripe-webhook-secret
+    availability: [RUNTIME]
+
+  # AI remix (Gemini) and ad library search (SearchApi.io) — both features fail without these.
+  - variable: GEMINI_API_KEY
+    secret: gemini-api-key
+    availability: [RUNTIME]
+  - variable: SEARCHAPI_API_KEY
+    secret: searchapi-api-key
     availability: [RUNTIME]

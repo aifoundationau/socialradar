@@ -23,9 +23,10 @@ export async function POST(req: Request) {
     req,
     "BRAND_CLONE",
     input.globalBrandId,
-    async ({ caller, balanceAfter }) => {
-      const brand = await cloneGlobalBrand(caller, input.globalBrandId);
-      return NextResponse.json({ brand, balanceAfter }, { status: 201 });
+    async ({ caller, txId, balanceAfter }) => {
+      // The paid transaction id is the brand's idempotency key: a replayed request returns the same copy.
+      const { brand, replayed } = await cloneGlobalBrand(caller, input.globalBrandId, txId);
+      return NextResponse.json({ brand, balanceAfter }, { status: replayed ? 200 : 201 });
     },
     cost,
   );

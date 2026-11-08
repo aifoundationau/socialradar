@@ -1,11 +1,28 @@
 import "server-only";
-import { FieldValue } from "firebase-admin/firestore";
 import { db, verifyRequest, type VerifiedCaller } from "./firebase-admin";
-import type { TokenTransactionDoc, TokenTxType, UserDoc } from "./contracts";
+import type { ErrorCode, FreeAccessWindow, RbacPermission, TokenTransactionDoc, TokenTxType, UserDoc } from "./contracts";
 import { ApiError, errorResponse, jsonError, requireIdempotencyKey } from "./api";
-import { ACTION_COSTS, isChargingEnabled, type ChargeableAction } from "./pricing";
+import {
+  ACTION_COSTS,
+  ALL_COUNTRIES_CODE,
+  isChargingEnabled,
+  isFreeAccessWindowActive,
+  isMonthlySubscriber,
+  normalizeAllowedCountries,
+  type ChargeableAction,
+} from "./pricing";
+import { requirePermission } from "./rbac";
+import { resolveRequestCountry } from "./request-geo";
 
 export { ACTION_COSTS, type ChargeableAction };
+
+/** The Role Permissions entry each paid action needs (Customize is a purchase open to every role). */
+const ACTION_PERMISSIONS: Partial<Record<ChargeableAction, RbacPermission>> = {
+  RADAR_SEARCH: "search_radar",
+  AI_REMIX: "ai_remix",
+  REGENERATE_VARIATIONS: "ai_remix",
+  BRAND_CLONE: "manage_brands",
+};
 
 const usersCol = () => db.collection("users");
 const txCol = () => db.collection("token_transactions");
@@ -137,7 +154,7 @@ export async function refundTokens(originalTxId: string): Promise<LedgerResult> 
 
   return db.runTransaction(async (t) => {
     const [origSnap, refundSnap] = await Promise.all([t.get(origRef), t.get(refundRef)]);
-    if (!origSnap.exists) throw new Error(`Original transaction ${originalTxId} not found`);
+    if (!origSnap.exists) throw new ApiError("NOT_FOUND", `Original transaction ${originalTxId} not found`, 404);
     const orig = origSnap.data() as TokenTransactionDoc;
     if (refundSnap.exists) {
       return {
@@ -147,7 +164,7 @@ export async function refundTokens(originalTxId: string): Promise<LedgerResult> 
       };
     }
     if (orig.delta >= 0 || orig.type === "REFUND" || orig.type === "TOPUP" || orig.type === "GIFT") {
-      throw new Error("Only deductions can be refunded");
+      throw new ApiError("INVALID_INPUT", "Only deductions can be refunded", 400);
     }
 
     const userRef = usersCol().doc(orig.uid);
@@ -264,6 +281,8 @@ export interface GateContext {
   caller: VerifiedCaller;
   txId: string;
   balanceAfter: number;
+  /** Tokens charged for this call (0 when the action is free for this caller right now). */
+  cost: number;
   /**
    * True if this idempotency key was already charged. Handlers MUST then return
    * the previously persisted result for `txId` (or 409) instead of redoing paid work.
@@ -287,6 +306,9 @@ export async function withTokenGate(
   let charged: LedgerResult | null = null;
   try {
     const caller = await verifyRequest(req);
+    // Checked before anything is charged, so a blocked role is never billed.
+    const permission = ACTION_PERMISSIONS[action];
+    if (permission) await requirePermission(caller, permission);
     const key = requireIdempotencyKey(req);
     const ref = typeof referenceId === "function" ? referenceId(caller) : referenceId;
 
@@ -299,26 +321,26 @@ export async function withTokenGate(
         usersCol().doc(caller.uid).get().catch(() => null),
       ]);
       const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
-      const userCountry = (
-        req.headers.get("x-user-country") ||
-        req.headers.get("x-vercel-ip-country") ||
-        req.headers.get("cf-ipcountry") ||
-        "AU"
-      )
-        .trim()
-        .toUpperCase();
-      if (
-        sysSnap?.exists &&
-        !isChargingEnabled(sysSnap.data(), Date.now(), userData, caller.claims.isSuperAdmin, userCountry)
-      ) {
-        effectiveCost = 0;
+      const sys = sysSnap?.exists ? sysSnap.data() : null;
+      if (sys) {
+        // The country only matters for a subscriber during a free window limited to some countries. It is
+        // worked out on the server (edge header or IP lookup), never taken from a browser-supplied header.
+        const freeWindow = sys.freeAccessWindow as Partial<FreeAccessWindow> | undefined;
+        const countryMatters =
+          isFreeAccessWindowActive(freeWindow) &&
+          isMonthlySubscriber(userData, caller.claims.isSuperAdmin) &&
+          !normalizeAllowedCountries(freeWindow?.allowedCountries).includes(ALL_COUNTRIES_CODE);
+        const userCountry = countryMatters ? (await resolveRequestCountry(req)) || "AU" : "AU";
+        if (!isChargingEnabled(sys, Date.now(), userData, caller.claims.isSuperAdmin, userCountry)) {
+          effectiveCost = 0;
+        }
       }
     }
 
     if (effectiveCost === 0) {
       const balance = Math.max(0, toInt(Number((await usersCol().doc(caller.uid).get()).get("tokenBalance") ?? 0)));
       const txId = buildTxId(caller.uid, key);
-      const res = await handler({ caller, txId, balanceAfter: balance, replayed: false });
+      const res = await handler({ caller, txId, balanceAfter: balance, replayed: false, cost: 0 });
       try {
         await txCol().doc(txId).set(
           {
@@ -348,17 +370,28 @@ export async function withTokenGate(
       txId: buildTxId(caller.uid, key),
     });
 
-    return await handler({ caller, ...charged });
+    return await handler({ caller, ...charged, cost: effectiveCost });
   } catch (err) {
     // Refund only fresh charges; client errors from the handler (4xx ApiError other than upstream) are also refunded
     // because no paid work was delivered.
     if (charged && !charged.replayed) {
+      let refunded = false;
       try {
         await refundTokens(charged.txId);
-        // Only say "refunded" when it actually happened (free actions never charge).
-        if (err instanceof ApiError) return jsonError(err.code, `${err.message} Your tokens were refunded.`, err.status);
+        refunded = true;
       } catch (refundErr) {
         console.error("[token-ledger] REFUND FAILED — manual reconciliation required", charged.txId, refundErr);
+      }
+      // Only say "refunded" when it actually happened (free actions never charge). Unexpected errors keep
+      // errorResponse's safe code/message, plus the refund note.
+      if (refunded) {
+        const base = errorResponse(err);
+        const payload = (await base.json().catch(() => null)) as { error?: { code: ErrorCode; message: string } } | null;
+        return jsonError(
+          payload?.error?.code ?? "INTERNAL",
+          `${payload?.error?.message ?? "Something went wrong."} Your tokens were refunded.`,
+          base.status,
+        );
       }
     }
     return errorResponse(err);

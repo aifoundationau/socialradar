@@ -1,6 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { adminAuth, db, isDatabaseAdmin } from "./firebase-admin";
+import { adminAuth, db, isDatabaseAdminEmail } from "./firebase-admin";
+import { normalizeUserRoles } from "./rbac";
 import {
   AD_AGENT_REDISTRIBUTION_PERCENTS,
   type AdAgentDistributionItem,
@@ -63,10 +64,15 @@ export function formatAgentLocationLabel(loc?: Partial<AdAgentLocation> | null):
  */
 export async function getAdAgents(): Promise<AdAgentProfile[]> {
   try {
-    const [snap, usersSnap, authList] = await Promise.all([
+    // Users holding the ad_agent role are found with indexed equality queries instead of reading every
+    // user document (and listing Auth users) on each call. Every path that grants the role writes it to
+    // users/{uid}, so these three queries cover them all.
+    const usersCol = db.collection("users");
+    const [snap, ...roleSnaps] = await Promise.all([
       db.collection(AD_AGENTS_COL).get(),
-      db.collection("users").get().catch(() => null),
-      adminAuth.listUsers(100).catch(() => null),
+      usersCol.where("role", "==", "ad_agent").get().catch(() => null),
+      usersCol.where("roles", "array-contains", "ad_agent").get().catch(() => null),
+      usersCol.where("isAdAgent", "==", true).get().catch(() => null),
     ]);
     const agents: AdAgentProfile[] = [];
     const seenEmails = new Set<string>();
@@ -94,42 +100,17 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
     const now = new Date().toISOString();
     const roleAgentCandidates = new Map<string, { uid: string; email: string; name: string }>();
 
-    if (usersSnap) {
-      usersSnap.forEach((doc) => {
+    for (const roleSnap of roleSnaps) {
+      roleSnap?.forEach((doc) => {
         const u = doc.data() || {};
         const email = String(u.email || "").toLowerCase().trim();
-        if (!email) return;
-        const rolesArr = Array.isArray(u.roles) ? (u.roles as string[]) : [];
-        const hasAdAgentRole =
-          u.role === "ad_agent" || rolesArr.includes("ad_agent") || u.isAdAgent === true;
-        if (hasAdAgentRole) {
-          roleAgentCandidates.set(email, {
-            uid: doc.id,
-            email,
-            name: String(u.displayName || email.split("@")[0] || "Ad Agent").trim(),
-          });
-        }
+        if (!email || roleAgentCandidates.has(email)) return;
+        roleAgentCandidates.set(email, {
+          uid: doc.id,
+          email,
+          name: String(u.displayName || email.split("@")[0] || "Ad Agent").trim(),
+        });
       });
-    }
-
-    if (authList?.users) {
-      for (const u of authList.users) {
-        const email = (u.email || "").toLowerCase().trim();
-        if (!email) continue;
-        const claims = (u.customClaims || {}) as Record<string, unknown>;
-        const claimRoles = Array.isArray(claims.roles) ? (claims.roles as string[]) : [];
-        const hasAdAgentClaim =
-          claims.role === "ad_agent" ||
-          claimRoles.includes("ad_agent") ||
-          claims.ad_agent === true;
-        if (hasAdAgentClaim && !roleAgentCandidates.has(email)) {
-          roleAgentCandidates.set(email, {
-            uid: u.uid,
-            email,
-            name: (u.displayName || email.split("@")[0] || "Ad Agent").trim(),
-          });
-        }
-      }
     }
 
     const syncPromises: Promise<unknown>[] = [];
@@ -147,7 +128,7 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
         bankOrPayIdDetails: "",
         redistributionPercentage: 30,
         status: "active",
-        isSuperAdminBuiltIn: isDatabaseAdmin(null, email),
+        isSuperAdminBuiltIn: isDatabaseAdminEmail(email),
         createdAt: now,
         updatedAt: now,
       };
@@ -234,7 +215,7 @@ export async function registerOrUpdateAdAgent(params: {
   const cleanEmail = params.email.trim().toLowerCase();
   const cleanCallerEmail = (params.callerEmail || params.email).trim().toLowerCase();
   const now = new Date().toISOString();
-  const isSuper = isDatabaseAdmin(null, cleanEmail);
+  const isSuper = isDatabaseAdminEmail(cleanEmail);
   const isSameAsCaller = cleanEmail === cleanCallerEmail;
   const isMainAdmin = isSameAsCaller && params.currentRole === "admin";
 
@@ -452,7 +433,7 @@ export async function superAdminUpsertAdAgent(params: {
     bankOrPayIdDetails: bankDetails,
     redistributionPercentage: pct,
     status: existing?.status || "active",
-    isSuperAdminBuiltIn: isDatabaseAdmin(null, cleanEmail) || existing?.isSuperAdminBuiltIn || false,
+    isSuperAdminBuiltIn: isDatabaseAdminEmail(cleanEmail) || existing?.isSuperAdminBuiltIn || false,
     ...(typeof existing?.claimedTokens === "number" ? { claimedTokens: existing.claimedTokens } : {}),
     ...(typeof existing?.claimedAudCents === "number" ? { claimedAudCents: existing.claimedAudCents } : {}),
     ...(typeof existing?.claimedUsdCents === "number" ? { claimedUsdCents: existing.claimedUsdCents } : {}),
@@ -465,21 +446,34 @@ export async function superAdminUpsertAdAgent(params: {
   await db.collection(AD_AGENTS_COL).doc(agentId).set(nextAgent, { merge: true });
 
   // If this user exists in Firebase Auth and is a supporter, grant them ad_agent role
-  if (matchedUid && !isDatabaseAdmin(null, cleanEmail)) {
+  if (matchedUid && !isDatabaseAdminEmail(cleanEmail)) {
     try {
       const authUser = await adminAuth.getUser(matchedUid);
-      const currentRole = (authUser.customClaims?.role as string) || "supporter";
+      const claims = (authUser.customClaims ?? {}) as Record<string, unknown>;
+      const currentRole = (claims.role as string) || "supporter";
       if (currentRole !== "superadmin" && currentRole !== "admin") {
+        // Add ad_agent while keeping any other roles already assigned (e.g. agency, moderator), and write
+        // the same roles to the token claims and users/{uid} so the client sees them in sync.
+        const roles = normalizeUserRoles(
+          [...(Array.isArray(claims.roles) ? claims.roles : []), "ad_agent"],
+          currentRole,
+          false,
+        );
+        const tier = roles.includes("agency") || roles.includes("admin") ? "agency" : "supporter";
         await adminAuth.setCustomUserClaims(matchedUid, {
-          role: "ad_agent",
-          tier: "supporter",
+          role: roles[0],
+          roles,
+          tier,
           isSuperAdmin: false,
-          admin: false,
+          admin: roles.includes("admin"),
+          ad_agent: true,
           superadmin: false,
         });
         await db.collection("users").doc(matchedUid).set(
           {
-            role: "ad_agent",
+            role: roles[0],
+            roles,
+            tier,
             isAdAgent: true,
             adAgentId: agentId,
             updatedAt: now,
@@ -512,10 +506,11 @@ export async function updateAdAgentRedistributionPercent(
   redistributionPercentage: number,
 ): Promise<void> {
   const pct = normalizeRedistributionPercent(redistributionPercentage);
+  // lastResetAt is deliberately left alone: clearing it would make every customization that was already
+  // paid out count as unpaid again.
   await db.collection(AD_AGENTS_COL).doc(agentId).set(
     {
       redistributionPercentage: pct,
-      lastResetAt: "",
       updatedAt: new Date().toISOString(),
     },
     { merge: true },
@@ -649,24 +644,50 @@ export async function findClosestAdAgent(
 }
 
 /**
+ * Customize requests assigned to one Ad Agent (by email, uid or agentId), fetched with indexed equality
+ * queries instead of reading the whole collection.
+ */
+export async function getAssignedCustomizeRequests(agent: {
+  email: string;
+  uid?: string;
+  agentId?: string;
+}): Promise<CustomizeRequestDoc[]> {
+  const col = db.collection(CUSTOMIZE_REQUESTS_COL);
+  const queries = [col.where("assignedAgentEmail", "==", agent.email.toLowerCase().trim())];
+  if (agent.uid) queries.push(col.where("assignedAgentUid", "==", agent.uid));
+  if (agent.agentId) queries.push(col.where("assignedAgentId", "==", agent.agentId));
+  const snaps = await Promise.all(queries.map((q) => q.get()));
+  const byId = new Map<string, CustomizeRequestDoc>();
+  for (const snap of snaps) for (const doc of snap.docs) byId.set(doc.id, doc.data() as CustomizeRequestDoc);
+  return Array.from(byId.values());
+}
+
+/**
  * Computes the complete Ad Agent Distribution Ledger for display under Owner Redistribution Breakdown.
  * Calculates the total value of all Customizations each Ad Agent has done and their redistribution amount
  * based on the Super Admin's selected dropdown percentage (10%, 20%, 30%, 40%, 50%, 60%, 70%).
+ *
+ * Pass `scope` with already-loaded agents and requests to avoid reading them again; `partial: true`
+ * means the agents are a subset (e.g. one agent's own row), so unassigned requests aren't credited.
  */
 export async function getAdAgentDistributionLedger(
   audCentsPerToken = 100,
   customizeServiceTokens = 55,
+  scope?: { agents: AdAgentProfile[]; requests: CustomizeRequestDoc[]; partial?: boolean },
 ): Promise<AdAgentDistributionItem[]> {
-  const [agents, customizeSnap] = await Promise.all([
-    getAdAgents(),
-    db.collection(CUSTOMIZE_REQUESTS_COL).get(),
-  ]);
+  const [agents, requests] = scope
+    ? [scope.agents, scope.requests]
+    : await Promise.all([
+        getAdAgents(),
+        db
+          .collection(CUSTOMIZE_REQUESTS_COL)
+          .get()
+          .then((snap) => snap.docs.map((d) => d.data() as CustomizeRequestDoc)),
+      ]);
 
-  const requests: CustomizeRequestDoc[] = customizeSnap.docs.map(
-    (d) => d.data() as CustomizeRequestDoc,
-  );
-
-  const builtInSuper = agents.find((a) => a.isSuperAdminBuiltIn) || agents[0];
+  const builtInSuper = scope?.partial
+    ? agents.find((a) => a.isSuperAdminBuiltIn)
+    : agents.find((a) => a.isSuperAdminBuiltIn) || agents[0];
   const unitTokens = Math.max(0, Math.round(Number(customizeServiceTokens ?? 55)));
 
   return agents.map((agent) => {
@@ -688,22 +709,26 @@ export async function getAdAgentDistributionLedger(
       return false;
     });
 
+    // Each customization is worth what the customer actually paid for it (tokensCharged: 0 during a free
+    // window). Only requests saved before that field existed fall back to the current Customize price.
+    const tokensOf = (r: CustomizeRequestDoc) => {
+      const charged = Number(r.tokensCharged);
+      return Number.isFinite(charged) ? Math.max(0, Math.round(charged)) : unitTokens;
+    };
+
     const customizationsCount = matchedRequests.length;
-    const effectiveTotalUnits = Math.max(1, customizationsCount);
-    const totalCustomizationsTokens = effectiveTotalUnits * unitTokens;
+    const totalCustomizationsTokens = matchedRequests.reduce((sum, r) => sum + tokensOf(r), 0);
     const totalCustomizationsAudCents = totalCustomizationsTokens * audCentsPerToken;
     const totalCustomizationsUsdCents = Math.round(totalCustomizationsAudCents * 0.65);
 
     const pct = normalizeRedistributionPercent(agent.redistributionPercentage);
 
-    // If the Ad Agent's redistribution was reset at `lastResetAt`, only Customizations created after `lastResetAt`
-    // count toward the current unpaid Redist. Amount. Otherwise use the live Professional Customize Service price.
+    // Only customizations created after the last payout reset (`lastResetAt`) are still owed.
+    // An agent with no (new) customizations is owed nothing.
     const unpaidRequests = agent.lastResetAt
       ? matchedRequests.filter((r) => r.createdAt > agent.lastResetAt!)
       : matchedRequests;
-    const isResetWithNoNewOrders = Boolean(agent.lastResetAt) && unpaidRequests.length === 0;
-    const unpaidUnits = isResetWithNoNewOrders ? 0 : Math.max(1, unpaidRequests.length);
-    const unpaidCustomizationsTokens = unpaidUnits * unitTokens;
+    const unpaidCustomizationsTokens = unpaidRequests.reduce((sum, r) => sum + tokensOf(r), 0);
     const unpaidCustomizationsAudCents = unpaidCustomizationsTokens * audCentsPerToken;
     const unpaidCustomizationsUsdCents = Math.round(unpaidCustomizationsAudCents * 0.65);
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIp } from "@/lib/request-geo";
 
 function weatherCodeToCondition(code: number): string {
   if (code === 0) return "Clear Sky";
@@ -49,10 +50,18 @@ export async function GET(req: Request) {
   let lat = headers.get("x-vercel-ip-latitude") ? parseFloat(headers.get("x-vercel-ip-latitude")!) : null;
   let lon = headers.get("x-vercel-ip-longitude") ? parseFloat(headers.get("x-vercel-ip-longitude")!) : null;
 
-  // 2. If running locally or edge headers are missing, auto-detect via IP lookup
-  if (!country || !city || lat === null || lon === null) {
+  // 2. If edge headers are missing, look up the visitor's IP. With no visitor IP, only local development
+  //    may look up "self" (the server is the visitor's machine there); in production that would be the
+  //    data centre's location, so the defaults below are used instead.
+  const visitorIp = clientIp(headers);
+  const lookupUrl = visitorIp
+    ? `https://ipwho.is/${encodeURIComponent(visitorIp)}`
+    : process.env.NODE_ENV !== "production"
+      ? "https://ipwho.is/"
+      : "";
+  if (lookupUrl && (!country || !city || lat === null || lon === null)) {
     try {
-      const ipRes = await fetch("https://ipwho.is/", {
+      const ipRes = await fetch(lookupUrl, {
         signal: AbortSignal.timeout(3000),
       });
       if (ipRes.ok) {

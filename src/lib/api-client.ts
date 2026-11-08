@@ -27,7 +27,7 @@ export async function apiFetch<T>(
   const user = clientAuth().currentUser;
   if (!user) throw new ApiClientError("UNAUTHENTICATED", "Please sign in again.", 401);
 
-  const method = opts.method ?? (opts.body !== undefined ? "POST" : "POST");
+  const method = opts.method ?? (opts.body !== undefined ? "POST" : "GET");
   const isGet = method === "GET";
 
   const headers: Record<string, string> = {

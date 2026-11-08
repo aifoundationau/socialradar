@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
 
 const extracted = JSON.parse(fs.readFileSync("./extracted_functions.json", "utf8"));
 

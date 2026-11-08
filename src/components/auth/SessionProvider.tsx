@@ -69,8 +69,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return Boolean(e && DATABASE_ADMIN_EMAILS.has(e));
   };
 
-  // The superadmin should only be the firebase database admin email. Everyone else starts at supporter level.
-  const isSuper = isSuperAdminEmail(user?.email);
+  // The superadmin should only be the firebase database admin email (verified, as the server requires).
+  // Everyone else starts at supporter level.
+  const isSuper = isSuperAdminEmail(user?.email) && user?.emailVerified === true;
   const myProfileData = user && profile?.uid === user.uid ? profile.value : null;
   const userRolesList = Array.isArray(myProfileData?.roles)
     ? myProfileData.roles
@@ -90,6 +91,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       myProfileData?.role === "ad_agent" ||
       userRolesList.includes("ad_agent"));
   const realRole: ActiveRole = isSuper ? "superadmin" : isMainAdmin ? "admin" : isAdAgentRole ? "ad_agent" : "supporter";
+
+  // users/{uid} is only written by the server, right after it changes this user's custom claims. When the
+  // roles there no longer match the ID token's claims, force-refresh the token so the API (which reads the
+  // token) agrees with the UI straight away instead of up to an hour later.
+  const rolesKey = (roles: unknown, role: unknown) =>
+    (Array.isArray(roles) && roles.length > 0 ? roles.map(String) : typeof role === "string" && role ? [role] : [])
+      .sort()
+      .join(",");
+  const profileRolesKey = myProfileData ? rolesKey(myProfileData.roles, myProfileData.role) : "";
+  const claimRolesKey = myClaims ? rolesKey(myClaims.roles, myClaims.role) : "";
+  const claimsOutOfDate = Boolean(user && myClaims && profileRolesKey && profileRolesKey !== claimRolesKey);
+
+  useEffect(() => {
+    if (!user || !claimsOutOfDate) return;
+    let cancelled = false;
+    user
+      .getIdToken(true)
+      .then(() => user.getIdTokenResult())
+      .then((res) => {
+        if (!cancelled) setClaims({ uid: user.uid, value: res.claims || {} });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user, claimsOutOfDate, profileRolesKey]);
 
   const [actingAsRole, setActingAsRoleState] = useState<ActiveRole | null>(null);
 
@@ -167,7 +194,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
 
     // Creates users/{uid} on first sign-in and immediately hydrates profile + brands
-    apiFetch<{ user?: UserDoc; brands?: BrandProfile[] }>("/api/me")
+    apiFetch<{ user?: UserDoc; brands?: BrandProfile[] }>("/api/me", { method: "POST" })
       .then((res) => {
         if (res?.user) {
           const normalizedUser: UserDoc = {

@@ -48,7 +48,7 @@ export const metadata: Metadata = {
   creator: "AI Foundation",
   publisher: "AdRadarHQ",
   category: "Marketing & Advertising Intelligence",
-  manifest: "/manifest.json",
+  // The manifest comes from app/manifest.ts (served as /manifest.webmanifest and linked automatically).
   icons: {
     icon: [
       { url: "/icon.svg", type: "image/svg+xml" },

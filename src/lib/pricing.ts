@@ -34,9 +34,11 @@ export function isMonthlySubscriber(
 ): boolean {
   if (isSuperAdmin) return true;
   if (!user) return false;
+  // past_due / canceled subscribers don't count; a record with the pack but no status at all (saved before
+  // statuses were tracked) still does.
   return (
     user.subscriptionStatus === "active" ||
-    (user.subscriptionPackId === "SUB_MONTHLY_1000" && user.subscriptionStatus !== "canceled")
+    (user.subscriptionPackId === "SUB_MONTHLY_1000" && !user.subscriptionStatus)
   );
 }
 

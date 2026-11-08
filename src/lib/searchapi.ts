@@ -40,7 +40,8 @@ export async function searchApi(engine: string, params: Record<string, string | 
   if (!res.ok || !json || typeof json.error === "string") {
     console.error("[searchapi] error response", engine, res.status, json?.error);
     if (res.status === 429 || (typeof json?.error === "string" && /used all of the searches|quota|limit/i.test(json.error))) {
-      throw new UpstreamError("SearchApi.io monthly search quota has been reached (HTTP 429). Please update SEARCHAPI_API_KEY in .env.local or upgrade your SearchApi.io plan to fetch new live ads.");
+      // Operators: the SearchApi.io quota is used up (logged above); raise the plan or rotate SEARCHAPI_API_KEY.
+      throw new UpstreamError("Live ad search is temporarily unavailable. Please try again later.");
     }
     throw new UpstreamError("The ad library search failed. Please try again.");
   }

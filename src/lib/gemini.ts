@@ -61,126 +61,7 @@ Then write exactly 3 variations for the BRAND, each with a clearly different ang
 - ctaButton: a short button label. imageGenerationPrompt: one static ad image for the variation.
 - Plain text only, no markdown.`;
 
-/** Deconstructs `ad` and writes three variations for `brand`. Throws UpstreamError on any failure. */
-function buildFallbackRemix(ad: NormalizedAd, brand: BrandProfile): AdRemixBlueprint {
-  const pain1 = brand.corePainPoints[0] || "wasting time and budget on underperforming options";
-  const pain2 = brand.corePainPoints[1] || pain1;
-  return {
-    deconstruction: {
-      hookAnalysis: `Opens with a high-contrast pattern interrupt targeting ${ad.advertiserName || ad.platform} viewers in the first 3 seconds, immediately calling out the core problem before introducing the mechanism.`,
-      pacingStructure: [
-        "0-3s · Hook · Direct visual pattern interrupt and problem callout",
-        "3-8s · Agitation · Contrast common frustration against desired outcome",
-        "8-18s · Mechanism · Demonstrate unique product mechanism and proof",
-        "18-25s · Offer & CTA · Clear risk-reversal and direct call to action",
-      ],
-      persuasionFramework: "PAS",
-      whyItWorks: `Running for ${ad.activeDaysCount} days on ${ad.platform}, this creative succeeds by pairing a fast 3-second hook with a single clear value proposition and frictionless call to action.`,
-    },
-    variations: [
-      {
-        angleName: `Direct Problem-Agitate-Solve (${brand.brandName})`,
-        headline: `${brand.brandName}: Built for ${brand.targetAudienceAvatar.slice(0, 60)}`,
-        primaryCopy: `Stop dealing with ${pain1}. ${brand.brandName} delivers ${brand.uniqueMechanismOrOffer}—designed specifically for ${brand.targetAudienceAvatar}. Experience the difference today at ${brand.destinationUrl}.`,
-        ctaButton: "Shop Now",
-        videoStoryboard: [
-          {
-            timestamp: "0:00-0:03",
-            visualAction: `Close-up shot highlighting the frustration of ${pain1}.`,
-            spokenAudio: `Still putting up with ${pain1}? Here is why that changes today.`,
-            onScreenText: `Stop ${pain1.slice(0, 40)}`,
-          },
-          {
-            timestamp: "0:03-0:10",
-            visualAction: `Reveal ${brand.brandName} in action showing ${brand.uniqueMechanismOrOffer}.`,
-            spokenAudio: `We built ${brand.brandName} with ${brand.uniqueMechanismOrOffer} so you get real results without the guesswork.`,
-            onScreenText: brand.uniqueMechanismOrOffer.slice(0, 60),
-          },
-          {
-            timestamp: "0:10-0:18",
-            visualAction: `Show happy customer outcome and product benefits side by side.`,
-            spokenAudio: `${brand.productServiceDescription.slice(0, 140)}`,
-            onScreenText: `Trusted by ${brand.brandName} customers`,
-          },
-          {
-            timestamp: "0:18-0:25",
-            visualAction: `Clean end card displaying ${brand.brandName} and website URL.`,
-            spokenAudio: `Tap below to explore ${brand.brandName} today.`,
-            onScreenText: `Visit ${brand.destinationUrl.replace(/^https?:\/\//, "")}`,
-          },
-        ],
-        imageGenerationPrompt: `High-converting commercial studio photograph for ${brand.brandName} (${brand.productServiceDescription.slice(0, 120)}), crisp lighting, modern editorial composition, tailored for ${brand.targetAudienceAvatar}.`,
-      },
-      {
-        angleName: `Us vs. Them Mechanism Contrast`,
-        headline: `Why Switch to ${brand.brandName}?`,
-        primaryCopy: `Most alternatives ignore ${pain2}. ${brand.brandName} combines ${brand.uniqueMechanismOrOffer} with ${brand.productServiceDescription.slice(0, 160)}. See why customers are making the switch.`,
-        ctaButton: "Learn More",
-        videoStoryboard: [
-          {
-            timestamp: "0:00-0:03",
-            visualAction: `Split-screen comparing old way vs. ${brand.brandName}.`,
-            spokenAudio: `Before you buy another generic option, look at the difference.`,
-            onScreenText: `Old Way vs. ${brand.brandName}`,
-          },
-          {
-            timestamp: "0:03-0:12",
-            visualAction: `Detailed demonstration of ${brand.uniqueMechanismOrOffer}.`,
-            spokenAudio: `Unlike standard options, ${brand.brandName} gives you ${brand.uniqueMechanismOrOffer}.`,
-            onScreenText: `The ${brand.brandName} Advantage`,
-          },
-          {
-            timestamp: "0:12-0:20",
-            visualAction: `Customer using ${brand.brandName} effortlessly in daily routine.`,
-            spokenAudio: `Built from the ground up for ${brand.targetAudienceAvatar}.`,
-            onScreenText: `Engineered for results`,
-          },
-          {
-            timestamp: "0:20-0:25",
-            visualAction: `Call-to-action overlay with product showcase.`,
-            spokenAudio: `Click Learn More to see the full range at ${brand.brandName}.`,
-            onScreenText: `Learn More at ${brand.brandName}`,
-          },
-        ],
-        imageGenerationPrompt: `Side-by-side comparison advertisement visual for ${brand.brandName}, showcasing ${brand.uniqueMechanismOrOffer} in sharp focus, clean minimalist aesthetic.`,
-      },
-      {
-        angleName: `UGC Creator Story & Proof Hook`,
-        headline: `Honest Review: 30 Days With ${brand.brandName}`,
-        primaryCopy: `"I used to struggle with ${pain1}—until I found ${brand.brandName}." Powered by ${brand.uniqueMechanismOrOffer}, it's the smarter choice for ${brand.targetAudienceAvatar}.`,
-        ctaButton: "Get Started",
-        videoStoryboard: [
-          {
-            timestamp: "0:00-0:03",
-            visualAction: `Creator speaking directly to camera in natural daylight setting.`,
-            spokenAudio: `I need to be honest about how I finally solved ${pain1}.`,
-            onScreenText: `My honest 30-day review`,
-          },
-          {
-            timestamp: "0:03-0:11",
-            visualAction: `Creator unboxing and demonstrating ${brand.brandName}.`,
-            spokenAudio: `I switched to ${brand.brandName} because of ${brand.uniqueMechanismOrOffer}.`,
-            onScreenText: brand.brandName,
-          },
-          {
-            timestamp: "0:11-0:19",
-            visualAction: `B-roll montage showing key features of ${brand.productServiceDescription.slice(0, 80)}.`,
-            spokenAudio: `Within days, the difference was obvious.`,
-            onScreenText: `Real results, zero hassle`,
-          },
-          {
-            timestamp: "0:19-0:25",
-            visualAction: `Creator pointing to link button below with product in hand.`,
-            spokenAudio: `Tap Get Started below to check out ${brand.brandName} for yourself.`,
-            onScreenText: `Tap Get Started`,
-          },
-        ],
-        imageGenerationPrompt: `Authentic lifestyle UGC-style photography featuring ${brand.brandName} in a bright, natural environment for ${brand.targetAudienceAvatar}, warm natural light.`,
-      },
-    ],
-  };
-}
-
+/** Deconstructs `ad` and writes three variations for `brand`. Throws UpstreamError on any failure, so the token gate refunds. */
 export async function generateRemix(ad: NormalizedAd, brand: BrandProfile): Promise<AdRemixBlueprint> {
   const source = {
     platform: ad.platform,
@@ -224,7 +105,7 @@ export async function generateRemix(ad: NormalizedAd, brand: BrandProfile): Prom
     raw = res.text;
   } catch (err) {
     console.error("[gemini] generateContent failed", ad.adId, err);
-    return buildFallbackRemix(ad, brand);
+    throw new UpstreamError("The AI remix service didn't respond. Please try again.");
   }
 
   let json: unknown;
@@ -236,7 +117,7 @@ export async function generateRemix(ad: NormalizedAd, brand: BrandProfile): Prom
   const parsed = AdRemixBlueprintSchema.safeParse(json);
   if (!parsed.success) {
     console.error("[gemini] blueprint failed validation", ad.adId, parsed.error.issues.slice(0, 5));
-    return buildFallbackRemix(ad, brand);
+    throw new UpstreamError("The AI returned an incomplete remix. Please try again.");
   }
   return parsed.data;
 }
@@ -261,8 +142,24 @@ async function download(url: string): Promise<{ mimeType: string; data: string }
     const mimeType = res.headers.get("content-type")?.split(";")[0].trim() ?? "";
     if (!res.ok || !/^(image|video)\/[\w.+-]+$/.test(mimeType)) return null;
     if (Number(res.headers.get("content-length") ?? 0) > MAX_INLINE_BYTES) return null;
-    const bytes = Buffer.from(await res.arrayBuffer());
-    return bytes.byteLength <= MAX_INLINE_BYTES ? { mimeType, data: bytes.toString("base64") } : null;
+    if (!res.body) return null;
+
+    // Read in chunks and stop as soon as the cap is passed, instead of buffering the whole body first
+    // (a video without a Content-Length header could otherwise be hundreds of MB).
+    const reader = res.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_INLINE_BYTES) {
+        await reader.cancel().catch(() => {});
+        return null;
+      }
+      chunks.push(value);
+    }
+    return { mimeType, data: Buffer.concat(chunks).toString("base64") };
   } catch {
     return null;
   }

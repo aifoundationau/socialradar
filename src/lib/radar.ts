@@ -70,11 +70,6 @@ const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 // Catalog ads carry unfilled templates such as "{{product.name}}"; those read as empty.
 const text = (v: unknown, max: number) =>
   typeof v === "string" ? sanitizeText(v.replace(/\{\{[^}]*\}\}/g, " ").replace(/[ \t]{2,}/g, " ")).slice(0, max) : "";
-/** "SHOP_NOW" → "Shop now". */
-const ctaLabel = (v: unknown) => {
-  const t = text(v, 100);
-  return /^[A-Z_]+$/.test(t) ? t.charAt(0) + t.slice(1).toLowerCase().replace(/_/g, " ") : t;
-};
 const https = (v: unknown) => (typeof v === "string" && v.length <= 2048 && /^https:\/\/[^\s<>"']+$/.test(v) ? v : "");
 const idPart = (v: unknown) => String(v ?? "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 190);
 const daysBetween = (first: string, last: string) =>
@@ -241,7 +236,7 @@ async function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
     if (realCached.length > 0) {
       return {
         drafts: realCached,
-        notice: `Serving previously cached real ${req.platform} ads matching "${req.query}" (live SearchApi.io quota reached).`,
+        notice: `Showing previously found real ${req.platform} ads matching "${req.query}" (live search is temporarily unavailable).`,
       };
     }
     throw err;
@@ -578,7 +573,7 @@ async function searchTikTok(req: RadarSearchRequest): Promise<LibraryResult> {
   const notice =
     covered || creativeCenterDrafts.length > 0
       ? ""
-      : `TikTok's Commercial Content Library covers European & UK markets, so high-reach English results are sourced from the UK (${targetCountry}) for ${req.country}. (Add APIFY_API_TOKEN in .env.local to also pull native ${req.country} TikTok Creative Center Top Ads.)`;
+      : `TikTok's Commercial Content Library covers European & UK markets, so high-reach English results are sourced from the UK (${targetCountry}) for ${req.country}.`;
   return { drafts, notice };
 }
 

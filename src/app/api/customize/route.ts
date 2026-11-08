@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { db, verifyRequest } from "@/lib/firebase-admin";
-import { errorResponse, readJson } from "@/lib/api";
+import { ApiError, errorResponse, readJson } from "@/lib/api";
 import {
+  getCustomizeRequestById,
   getSystemConfig,
   getUserCustomizeRequests,
   getUserMessages,
@@ -52,6 +54,10 @@ export async function GET(req: Request) {
   }
 }
 
+/** One Customize request per paid transaction: a replayed idempotency key maps to the same id. */
+const customizeRequestIdFor = (txId: string) =>
+  `cust_${createHash("sha256").update(txId).digest("hex").slice(0, 24)}`;
+
 export async function POST(req: Request) {
   try {
     const body = await readJson(req);
@@ -65,12 +71,29 @@ export async function POST(req: Request) {
       req,
       "CUSTOMIZE_SERVICE",
       `customize:${input.brandName.slice(0, 80)}`,
-      async ({ caller, balanceAfter }) => {
+      async ({ caller, txId, replayed, balanceAfter, cost }) => {
+        const requestId = customizeRequestIdFor(txId);
+        const existing = await getCustomizeRequestById(requestId);
+
+        if (existing) {
+          // Same idempotency key again: return the original request, never create (and route) another.
+          const [requests, messages] = await Promise.all([
+            getUserCustomizeRequests(caller.uid, 30),
+            getUserMessages(caller.email, caller.uid, 50),
+          ]);
+          return NextResponse.json({ success: true, request: existing, replayed: true, requests, messages, balanceAfter });
+        }
+        if (replayed) {
+          throw new ApiError("INVALID_INPUT", "This request is already being processed. Refresh in a moment to see it.", 409);
+        }
+
         const result = await submitCustomizeRequest({
           uid: caller.uid,
           userEmail: caller.email,
-          tokensCharged: costTokens,
+          // What the token gate actually charged (0 during a free-access window), not the list price.
+          tokensCharged: cost,
           input,
+          requestId,
         });
 
         const [requests, messages] = await Promise.all([

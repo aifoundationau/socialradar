@@ -4,6 +4,7 @@ import { db, verifyRequest } from "@/lib/firebase-admin";
 import { ApiError, errorResponse, readJson } from "@/lib/api";
 import {
   AdAgentContractorSchema,
+  ContractorPatchSchema,
   CreateContractorRequestSchema,
   type AdAgentContractor,
 } from "@/lib/contracts";
@@ -97,7 +98,8 @@ export async function POST(req: Request) {
         throw new ApiError("FORBIDDEN", "You do not have permission to update this contractor", 403);
       }
 
-      const patch = CreateContractorRequestSchema.partial().parse(body.patch || {});
+      // No defaults: fields the client didn't send keep their stored values.
+      const patch = ContractorPatchSchema.parse(body.patch || {});
       const now = new Date().toISOString();
 
       const updated: AdAgentContractor = {

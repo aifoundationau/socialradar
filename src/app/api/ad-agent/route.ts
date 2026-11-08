@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { db, isDatabaseAdmin, verifyRequest } from "@/lib/firebase-admin";
+import { db, verifyRequest, type VerifiedCaller } from "@/lib/firebase-admin";
 import { ApiError, errorResponse, readJson } from "@/lib/api";
 import {
   deleteAdAgent,
   formatAgentLocationLabel,
   getAdAgentDistributionLedger,
   getAdAgents,
+  getAssignedCustomizeRequests,
   registerOrUpdateAdAgent,
   resetAdAgentRedistributionToZero,
   superAdminUpsertAdAgent,
@@ -13,60 +14,129 @@ import {
   updateAdAgentBankDetails,
   updateAdAgentRedistributionPercent,
 } from "@/lib/ad-agents";
-import { getSystemConfig, sendSuperadminMessage } from "@/lib/admin";
+import { getCustomizeRequestById, getSystemConfig, sendSuperadminMessage } from "@/lib/admin";
 import {
   RegisterAdAgentRequestSchema,
   SuperAdminAddAdAgentRequestSchema,
   SuperAdminUpdateAdAgentBankDetailsRequestSchema,
   SuperAdminUpdateAdAgentPercentRequestSchema,
   ToggleOwnAdAgentStatusRequestSchema,
+  type AdAgentDistributionItem,
+  type AdAgentProfile,
   type CustomizeRequestDoc,
 } from "@/lib/contracts";
+
+interface Viewer {
+  uid: string;
+  email: string;
+  isSuper: boolean;
+  isMainAdmin: boolean;
+}
+
+function viewerOf(caller: VerifiedCaller): Viewer {
+  return {
+    uid: caller.uid,
+    email: caller.email.toLowerCase().trim(),
+    // verifyRequest only sets isSuperAdmin for the database admin account.
+    isSuper: caller.claims.isSuperAdmin === true,
+    isMainAdmin: caller.claims.role === "admin",
+  };
+}
+
+/** Bank / PayID details stay with Super Admin; an Ad Agent only sees their own ledger row. */
+function visibleLedger(ledger: AdAgentDistributionItem[], viewer: Viewer): AdAgentDistributionItem[] {
+  if (viewer.isSuper) return ledger;
+  if (viewer.isMainAdmin) return ledger.map((row) => ({ ...row, bankOrPayIdDetails: "" }));
+  return ledger.filter(
+    (row) => row.email.toLowerCase() === viewer.email || (!!row.uid && row.uid === viewer.uid),
+  );
+}
+
+async function ledgerFor(viewer: Viewer) {
+  const config = await getSystemConfig();
+  const ledger = visibleLedger(
+    await getAdAgentDistributionLedger(
+      config.audCentsPerToken || 100,
+      config.serviceCosts?.customizeService ?? 55,
+    ),
+    viewer,
+  );
+  return { adAgentLedger: ledger, ledger };
+}
+
+/** Every agent's full profile (bank details included) is returned to Super Admin only. */
+async function profilesFor(viewer: Viewer, agents?: AdAgentProfile[]) {
+  return viewer.isSuper ? { allAgentProfiles: agents ?? (await getAdAgents()) } : {};
+}
+
+function findOwnProfile(agents: AdAgentProfile[], viewer: Viewer): AdAgentProfile | undefined {
+  return agents.find(
+    (a) => a.email.toLowerCase() === viewer.email || (!!a.uid && a.uid === viewer.uid),
+  );
+}
+
+function isAssignedTo(r: CustomizeRequestDoc, viewer: Viewer, ownAgentId?: string): boolean {
+  return (
+    (!!r.assignedAgentEmail && r.assignedAgentEmail.toLowerCase() === viewer.email) ||
+    (!!r.assignedAgentUid && r.assignedAgentUid === viewer.uid) ||
+    (!!ownAgentId && r.assignedAgentId === ownAgentId)
+  );
+}
+
+/**
+ * True when Super Admin has approved this account as an Ad Agent. Checks the token claims, then the
+ * server-written users doc (clients can't write it), which is current even while the token is stale.
+ */
+async function isApprovedAdAgent(caller: VerifiedCaller): Promise<boolean> {
+  const claimRoles = new Set<string>([caller.claims.role, ...(caller.claims.roles ?? [])]);
+  if (claimRoles.has("ad_agent")) return true;
+  const snap = await db.collection("users").doc(caller.uid).get();
+  const roles = snap.get("roles");
+  return (
+    snap.get("role") === "ad_agent" ||
+    (Array.isArray(roles) && roles.includes("ad_agent")) ||
+    snap.get("isAdAgent") === true
+  );
+}
 
 export async function GET(req: Request) {
   try {
     const caller = await verifyRequest(req);
-    const config = await getSystemConfig();
-    const [agents, adAgentLedger, customizeSnap] = await Promise.all([
-      getAdAgents(),
-      getAdAgentDistributionLedger(
-        config.audCentsPerToken || 100,
-        config.serviceCosts?.customizeService ?? 55,
-      ),
-      db.collection("customize_requests").get(),
-    ]);
+    const viewer = viewerOf(caller);
+    // Only Super Admin may look up somebody else's Ad Agent profile.
+    const requestedEmail = (new URL(req.url).searchParams.get("email") || "").toLowerCase().trim();
+    const lookupEmail = viewer.isSuper && requestedEmail ? requestedEmail : "";
 
-    const cleanEmail = caller.email.toLowerCase().trim();
-    const url = new URL(req.url);
-    const lookupEmail = (url.searchParams.get("email") || cleanEmail).toLowerCase().trim();
-    const isSuper = isDatabaseAdmin(caller.token, cleanEmail) || caller.claims.role === "superadmin";
-    const isMainAdmin = caller.claims.role === "admin";
+    const isAdmin = viewer.isSuper || viewer.isMainAdmin;
+    const [config, agents] = await Promise.all([getSystemConfig(), getAdAgents()]);
 
-    // Strictly match Ad Agent profile by email so every email has its own distinct personal details
-    const myAgentProfile =
-      agents.find((a) => a.email.toLowerCase() === lookupEmail) || null;
+    const ownProfile = findOwnProfile(agents, viewer);
+    const myAgentProfile = lookupEmail
+      ? agents.find((a) => a.email.toLowerCase() === lookupEmail) || null
+      : ownProfile || null;
 
-    const allRequests = customizeSnap.docs
-      .map((d) => d.data() as CustomizeRequestDoc)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // Admins see every request and the whole ledger (one read of each collection). An Ad Agent only
+    // needs their own requests and ledger row, fetched with indexed queries.
+    const assignedRequests = isAdmin
+      ? (await db.collection("customize_requests").get()).docs.map((d) => d.data() as CustomizeRequestDoc)
+      : await getAssignedCustomizeRequests({ email: viewer.email, uid: viewer.uid, agentId: ownProfile?.agentId });
+    assignedRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    const assignedRequests =
-      isSuper || isMainAdmin
-        ? allRequests
-        : allRequests.filter(
-            (r) =>
-              (r.assignedAgentEmail && r.assignedAgentEmail.toLowerCase() === lookupEmail) ||
-              (r.assignedAgentEmail && r.assignedAgentEmail.toLowerCase() === cleanEmail) ||
-              (r.assignedAgentUid && r.assignedAgentUid === caller.uid) ||
-              (myAgentProfile && r.assignedAgentId === myAgentProfile.agentId),
-          );
+    const ledgerAgents = isAdmin ? agents : ownProfile ? [ownProfile] : [];
+    const fullLedger = ledgerAgents.length
+      ? await getAdAgentDistributionLedger(
+          config.audCentsPerToken || 100,
+          config.serviceCosts?.customizeService ?? 55,
+          { agents: ledgerAgents, requests: assignedRequests, partial: !isAdmin },
+        )
+      : [];
 
     const publicAgents = agents
       .filter((a) => a.status === "active")
       .map((a) => ({
         agentId: a.agentId,
         name: a.name,
-        email: a.email,
+        ...(viewer.isSuper || viewer.isMainAdmin ? { email: a.email } : {}),
         phone: a.phone,
         locationLabel: formatAgentLocationLabel(a.location),
         latitude: a.location.latitude,
@@ -74,12 +144,13 @@ export async function GET(req: Request) {
         isSuperAdminBuiltIn: a.isSuperAdminBuiltIn || false,
       }));
 
+    const ledger = visibleLedger(fullLedger, viewer);
     return NextResponse.json({
       myAgentProfile,
-      allAgentProfiles: agents,
+      ...(await profilesFor(viewer, agents)),
       assignedRequests,
-      adAgentLedger,
-      ledger: adAgentLedger,
+      adAgentLedger: ledger,
+      ledger,
       agents: publicAgents,
     });
   } catch (err) {
@@ -90,13 +161,11 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const caller = await verifyRequest(req);
+    const viewer = viewerOf(caller);
     const body = (await readJson(req)) as Record<string, unknown>;
     const action = String(body.action || "REGISTER_AD_AGENT");
-    const cleanEmail = caller.email.toLowerCase().trim();
-    const isSuper = isDatabaseAdmin(caller.token, cleanEmail) || caller.claims.role === "superadmin";
-    const isMainAdmin = caller.claims.role === "admin";
 
-    // 1. User / Main Admin / Super Admin Registration or Geolocation Update
+    // 1. Ad Agent / Main Admin / Super Admin registration or profile update
     if (action === "REGISTER_AD_AGENT") {
       const parsed = RegisterAdAgentRequestSchema.parse({
         email: body.email ? String(body.email).trim().toLowerCase() : undefined,
@@ -108,11 +177,21 @@ export async function POST(req: Request) {
         status: body.status === "inactive" || body.status === "active" ? body.status : undefined,
       });
 
-      const targetEmail = (parsed.email || cleanEmail).trim().toLowerCase();
+      const targetEmail = (parsed.email || viewer.email).trim().toLowerCase();
+      if (targetEmail !== viewer.email && !viewer.isSuper) {
+        throw new ApiError("FORBIDDEN", "You can only register or update your own Ad Agent profile.", 403);
+      }
+      if (!viewer.isSuper && !viewer.isMainAdmin && !(await isApprovedAdAgent(caller))) {
+        throw new ApiError(
+          "FORBIDDEN",
+          "Your account needs to be approved as an Ad Agent by Super Admin before you can register.",
+          403,
+        );
+      }
 
       const { agent, assignedRole, isNewRegistration } = await registerOrUpdateAdAgent({
         uid: caller.uid,
-        callerEmail: cleanEmail,
+        callerEmail: viewer.email,
         email: targetEmail,
         currentRole: caller.claims.role,
         name: parsed.name,
@@ -122,33 +201,26 @@ export async function POST(req: Request) {
         status: parsed.status,
       });
 
-      const config = await getSystemConfig();
-      const [allAgentProfiles, adAgentLedger] = await Promise.all([
-        getAdAgents(),
-        getAdAgentDistributionLedger(
-          config.audCentsPerToken || 100,
-          config.serviceCosts?.customizeService ?? 55,
-        ),
-      ]);
-
       return NextResponse.json({
         success: true,
         agent,
         assignedRole,
         isNewRegistration,
-        allAgentProfiles,
-        adAgentLedger,
-        ledger: adAgentLedger,
+        ...(await profilesFor(viewer)),
+        ...(await ledgerFor(viewer)),
       });
     }
 
-    // 1b. Ad Agent toggling their own availability status (ON = "active", OFF = "inactive")
+    // 1b. Ad Agent toggling their own availability (ON = "active", OFF = "inactive")
     if (action === "AGENT_TOGGLE_OWN_STATUS") {
       const parsed = ToggleOwnAdAgentStatusRequestSchema.parse({
         email: body.email ? String(body.email).trim().toLowerCase() : undefined,
         status: body.status,
       });
-      const targetEmail = (parsed.email || cleanEmail).trim().toLowerCase();
+      const targetEmail = (parsed.email || viewer.email).trim().toLowerCase();
+      if (targetEmail !== viewer.email && !viewer.isSuper) {
+        throw new ApiError("FORBIDDEN", "You can only change your own Ad Agent status.", 403);
+      }
       const agents = await getAdAgents();
       const myAgent = agents.find((a) => a.email.toLowerCase() === targetEmail);
       if (!myAgent) {
@@ -165,25 +237,16 @@ export async function POST(req: Request) {
         status: parsed.status,
         updatedAt: new Date().toISOString(),
       };
-      const config = await getSystemConfig();
-      const [allAgentProfiles, adAgentLedger] = await Promise.all([
-        getAdAgents(),
-        getAdAgentDistributionLedger(
-          config.audCentsPerToken || 100,
-          config.serviceCosts?.customizeService ?? 55,
-        ),
-      ]);
 
       return NextResponse.json({
         success: true,
         agent: updatedAgent,
-        allAgentProfiles,
-        adAgentLedger,
-        ledger: adAgentLedger,
+        ...(await profilesFor(viewer)),
+        ...(await ledgerFor(viewer)),
       });
     }
 
-    // 2. Ad Agent / Admin sending completed Customize Strategy back to customer
+    // 2. Ad Agent / Admin sending the completed Customize strategy back to the customer
     if (action === "SEND_AGENT_CUSTOMIZE_REPLY") {
       const requestId = String(body.customizeRequestId || "").trim();
       const recipientEmail = String(body.recipientEmail || "").trim().toLowerCase();
@@ -194,17 +257,34 @@ export async function POST(req: Request) {
         throw new ApiError("INVALID_INPUT", "Recipient email, subject, and reply body are required.", 400);
       }
 
-      const agents = await getAdAgents();
-      const myAgent = agents.find(
-        (a) => a.email.toLowerCase() === cleanEmail || a.uid === caller.uid,
-      );
-      if (!isSuper && !isMainAdmin && !myAgent && caller.claims.role !== "ad_agent") {
-        throw new ApiError("FORBIDDEN", "Only registered Ad Agents or Admins can send Customize replies.", 403);
+      const requestDoc = requestId ? await getCustomizeRequestById(requestId) : null;
+      if (requestId && !requestDoc) {
+        throw new ApiError("NOT_FOUND", "That Customize request no longer exists.", 404);
+      }
+
+      if (!viewer.isSuper && !viewer.isMainAdmin) {
+        if (!(await isApprovedAdAgent(caller))) {
+          throw new ApiError("FORBIDDEN", "Only registered Ad Agents or Admins can send Customize replies.", 403);
+        }
+        if (!requestDoc) {
+          throw new ApiError("INVALID_INPUT", "customizeRequestId is required.", 400);
+        }
+        const ownProfile = findOwnProfile(await getAdAgents(), viewer);
+        if (!isAssignedTo(requestDoc, viewer, ownProfile?.agentId)) {
+          throw new ApiError("FORBIDDEN", "This Customize request is assigned to a different Ad Agent.", 403);
+        }
+        if (recipientEmail !== requestDoc.userEmail.toLowerCase().trim()) {
+          throw new ApiError(
+            "FORBIDDEN",
+            "Customize replies can only be sent to the customer who placed the request.",
+            403,
+          );
+        }
       }
 
       const message = await sendSuperadminMessage({
         superadminUid: caller.uid,
-        superadminEmail: cleanEmail,
+        superadminEmail: viewer.email,
         recipientEmail,
         subject,
         body: replyBody,
@@ -218,8 +298,8 @@ export async function POST(req: Request) {
       });
     }
 
-    // 3. Super Admin Exclusive Actions for Ad Agent Distribution Ledger
-    if (!isSuper) {
+    // 3. Super Admin exclusive actions for the Ad Agent Distribution Ledger
+    if (!viewer.isSuper) {
       throw new ApiError("FORBIDDEN", "Only Super Admin can manage the Ad Agent Distribution Ledger.", 403);
     }
 
@@ -236,16 +316,10 @@ export async function POST(req: Request) {
         location: body.location || undefined,
       });
       const agent = await superAdminUpsertAdAgent(parsed);
-      const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(
-        config.audCentsPerToken || 100,
-        config.serviceCosts?.customizeService ?? 55,
-      );
       return NextResponse.json({
         success: true,
         agent,
-        adAgentLedger,
-        ledger: adAgentLedger,
+        ...(await ledgerFor(viewer)),
       });
     }
 
@@ -255,15 +329,9 @@ export async function POST(req: Request) {
         bankOrPayIdDetails: String(body.bankOrPayIdDetails ?? ""),
       });
       await updateAdAgentBankDetails(parsed.agentId, parsed.bankOrPayIdDetails);
-      const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(
-        config.audCentsPerToken || 100,
-        config.serviceCosts?.customizeService ?? 55,
-      );
       return NextResponse.json({
         success: true,
-        adAgentLedger,
-        ledger: adAgentLedger,
+        ...(await ledgerFor(viewer)),
       });
     }
 
@@ -275,15 +343,9 @@ export async function POST(req: Request) {
         ),
       });
       await updateAdAgentRedistributionPercent(parsed.agentId, parsed.redistributionPercentage);
-      const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(
-        config.audCentsPerToken || 100,
-        config.serviceCosts?.customizeService ?? 55,
-      );
       return NextResponse.json({
         success: true,
-        adAgentLedger,
-        ledger: adAgentLedger,
+        ...(await ledgerFor(viewer)),
       });
     }
 
@@ -294,15 +356,9 @@ export async function POST(req: Request) {
         throw new ApiError("INVALID_INPUT", "agentId is required.", 400);
       }
       await toggleAdAgentStatus(agentId, status);
-      const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(
-        config.audCentsPerToken || 100,
-        config.serviceCosts?.customizeService ?? 55,
-      );
       return NextResponse.json({
         success: true,
-        adAgentLedger,
-        ledger: adAgentLedger,
+        ...(await ledgerFor(viewer)),
       });
     }
 
@@ -311,16 +367,10 @@ export async function POST(req: Request) {
       if (!agentId) {
         throw new ApiError("INVALID_INPUT", "agentId is required.", 400);
       }
-      await resetAdAgentRedistributionToZero(agentId, cleanEmail);
-      const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(
-        config.audCentsPerToken || 100,
-        config.serviceCosts?.customizeService ?? 55,
-      );
+      await resetAdAgentRedistributionToZero(agentId, viewer.email);
       return NextResponse.json({
         success: true,
-        adAgentLedger,
-        ledger: adAgentLedger,
+        ...(await ledgerFor(viewer)),
       });
     }
 
@@ -330,15 +380,9 @@ export async function POST(req: Request) {
         throw new ApiError("INVALID_INPUT", "agentId is required.", 400);
       }
       await deleteAdAgent(agentId);
-      const config = await getSystemConfig();
-      const adAgentLedger = await getAdAgentDistributionLedger(
-        config.audCentsPerToken || 100,
-        config.serviceCosts?.customizeService ?? 55,
-      );
       return NextResponse.json({
         success: true,
-        adAgentLedger,
-        ledger: adAgentLedger,
+        ...(await ledgerFor(viewer)),
       });
     }
 

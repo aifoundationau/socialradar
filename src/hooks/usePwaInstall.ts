@@ -13,12 +13,6 @@ export interface BeforeInstallPromptEvent extends Event {
 
 export type PlatformType = "desktop_chrome" | "android" | "ios" | "other";
 
-interface PwaState {
-  isInstalled: boolean;
-  canPrompt: boolean;
-  platform: PlatformType;
-}
-
 let deferredPrompt: BeforeInstallPromptEvent | null = null;
 const listeners = new Set<() => void>();
 

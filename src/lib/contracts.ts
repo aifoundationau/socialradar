@@ -433,6 +433,64 @@ export const SystemConfigSchema = z
   .strict();
 export type SystemConfig = z.infer<typeof SystemConfigSchema>;
 
+// ---------- 6b. Admin config updates (PUT /api/admin/config) ----------
+// Patch schemas use plain optional fields with no defaults: in Zod 4, `.partial()` fills missing keys
+// with their defaults, which would silently overwrite values the admin didn't touch.
+const RESERVED_PACK_IDS = new Set(["PACK_CUSTOM", "SUB_MONTHLY_1000"]);
+const serviceCostValue = tokenInt.min(0).max(100_000);
+
+export const TokenPackConfigSchema = z.object({
+  id: TokenPackIdSchema.refine((id) => !RESERVED_PACK_IDS.has(id), {
+    message: "PACK_CUSTOM and SUB_MONTHLY_1000 are reserved pack IDs",
+  }),
+  name: z.string().trim().min(1).max(100),
+  tokens: tokenInt.min(1).max(1_000_000),
+  // Stripe's maximum single charge is AUD 999,999.99.
+  priceCents: tokenInt.min(100).max(99_999_999),
+  enabled: z.boolean().default(true),
+});
+
+/** Fields a plain config save may change. Free access, equity partners and the ledger have their own actions. */
+export const AdminConfigPatchSchema = z
+  .object({
+    isTokenSystemEnabled: z.boolean().optional(),
+    isAudEnabled: z.boolean().optional(),
+    isUsdEnabled: z.boolean().optional(),
+    audCentsPerToken: tokenInt.min(1).max(1_000_000).optional(),
+    usdCentsPerToken: tokenInt.min(1).max(1_000_000).optional(),
+    serviceCosts: z
+      .object({
+        searchStandard: serviceCostValue.optional(),
+        searchProvenWinners: serviceCostValue.optional(),
+        searchExtendedDays: serviceCostValue.optional(),
+        searchEliteScore: serviceCostValue.optional(),
+        aiRemix: serviceCostValue.optional(),
+        regenerateVariations: serviceCostValue.optional(),
+        brandClone: serviceCostValue.optional(),
+        customizeService: serviceCostValue.optional(),
+      })
+      .optional(),
+    tokenPacks: z
+      .array(TokenPackConfigSchema)
+      .max(50)
+      .refine((packs) => new Set(packs.map((p) => p.id)).size === packs.length, {
+        message: "Token pack IDs must be unique",
+      })
+      .optional(),
+    monthlySubscription: z
+      .object({
+        enabled: z.boolean().optional(),
+        priceAud: tokenInt.min(1).max(999_999).optional(),
+        searchesPerMonth: tokenInt.min(1).max(1_000_000).optional(),
+        name: z.string().trim().min(1).max(100).optional(),
+        description: z.string().trim().max(1000).optional(),
+      })
+      .optional(),
+  })
+  .strict()
+  .refine((patch) => Object.keys(patch).length > 0, { message: "Nothing to update" });
+export type AdminConfigPatch = z.infer<typeof AdminConfigPatchSchema>;
+
 // ---------- 7. Redistributive Ledger & Equity Partners ----------
 export const EquityPartnerSchema = z
   .object({
@@ -451,6 +509,29 @@ export const EquityPartnerSchema = z
   })
   .strict();
 export type EquityPartner = z.infer<typeof EquityPartnerSchema>;
+
+/** Body of ADD_EQUITY_PARTNER. */
+export const EquityPartnerInputSchema = z
+  .object({
+    name: z.string().trim().max(100).default(""),
+    email: z.string().trim().toLowerCase().email().max(254),
+    percentage: z.number().min(0.01).max(100),
+    notes: z.string().trim().max(500).default(""),
+    status: z.enum(["active", "inactive"]).default("active"),
+  })
+  .strict();
+
+/** Body of UPDATE_EQUITY_PARTNER: no defaults, so untouched fields stay as they are. */
+export const EquityPartnerPatchSchema = z
+  .object({
+    name: z.string().trim().max(100).optional(),
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
+    percentage: z.number().min(0.01).max(100).optional(),
+    notes: z.string().trim().max(500).optional(),
+    status: z.enum(["active", "inactive"]).optional(),
+  })
+  .strict();
+export const PartnerIdSchema = z.string().trim().min(1).max(64);
 
 export const StripePurchaseRecordSchema = z
   .object({
@@ -507,7 +588,12 @@ export const AdminResetRedistributiveLedgerRequestSchema = z
 export type AdminResetRedistributiveLedgerRequest = z.infer<typeof AdminResetRedistributiveLedgerRequestSchema>;
 
 // ---------- 8. Admin Messaging (7-Year Plain Text Retention) ----------
-export const LINK_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.|data:|\[[^\]]+\]\(\s*(?:https?:\/\/|ftp:\/\/|www\.)[^)]+\))/i;
+/**
+ * Plain-text policy: no links. Matches http(s):// and ftp:// URLs, "www." followed by a domain, data: URIs
+ * (data:<type>/<subtype>) and Markdown links. Ordinary text such as "Customer data: ..." or a stray "www."
+ * is not treated as a link.
+ */
+export const LINK_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|\bwww\.[a-z0-9-]+\.[a-z]{2,}|\bdata:[a-z]+\/[a-z0-9.+-]+|\[[^\]]+\]\(\s*(?:https?:\/\/|ftp:\/\/|www\.)[^)]+\))/i;
 
 export const AdminMessageSchema = z
   .object({
@@ -826,10 +912,27 @@ export type CreateContractorRequest = z.infer<typeof CreateContractorRequestSche
 export const UpdateContractorRequestSchema = z
   .object({
     contractorId: z.string().min(1).max(64),
-    patch: CreateContractorRequestSchema.partial(),
+    patch: z.lazy(() => ContractorPatchSchema),
   })
   .strict();
 export type UpdateContractorRequest = z.infer<typeof UpdateContractorRequestSchema>;
+
+/**
+ * Patch for UPDATE_CONTRACTOR. Plain optional fields with no defaults: CreateContractorRequestSchema.partial()
+ * would fill missing payIdPaymentDetails / averageRates / notes with "" and wipe them on a partial update.
+ */
+export const ContractorPatchSchema = z
+  .object({
+    name: safeText(1, 100).optional(),
+    location: safeText(1, 150).optional(),
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
+    phone: safeText(1, 50).optional(),
+    expertise: safeText(1, 100).optional(),
+    payIdPaymentDetails: z.string().trim().max(300).optional(),
+    averageRates: z.string().trim().max(300).optional(),
+    notes: z.string().trim().max(500).optional(),
+  })
+  .strict();
 
 export const SuperAdminUpdateAdAgentPercentRequestSchema = z
   .object({

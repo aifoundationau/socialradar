@@ -1,7 +1,9 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import { db } from "./firebase-admin";
+import { ApiError } from "./api";
 import { getFaqs, createFaq } from "./faqs";
-import { getRagLanguageMeta } from "./rag-languages";
+import { SUPPORTED_RAG_LANGUAGES, getRagLanguageMeta } from "./rag-languages";
 import type {
   CreateRagEntryRequest,
   FaqItem,
@@ -10,7 +12,16 @@ import type {
   UpdateRagEntryRequest,
 } from "./contracts";
 
+/** Legacy store: all custom entries in one array. Still read for existing data; no longer written to. */
 const RAG_CORPUS_DOC_PATH = "system_config/rag_corpus";
+/** One document per human-edited / admin-authored entry (avoids the 1 MiB single-document limit). */
+const RAG_ENTRIES_COL = "rag_custom_entries";
+
+/** ragIds can carry user-supplied language codes, so map them to safe Firestore document ids. */
+const ragDocId = (ragId: string) => ragId.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 150) || "rag_entry";
+
+/** Who the corpus is for. "public" never includes live user data, disabled FAQs or contributor emails. */
+export type RagAudience = "admin" | "public";
 
 const STOP_WORDS = new Set([
   "the", "and", "for", "that", "this", "with", "from", "your", "are", "you",
@@ -397,8 +408,8 @@ export async function harvestLiveAiWorksSentences(): Promise<RagSentenceItem[]> 
             keywords: extractRagKeywords(sentence, "Radar Feed Search"),
             isHumanVerified: true,
             contributorEmail: "system@adradarhq.com",
-            createdAt: typeof d.timestamp === "string" ? d.timestamp : now,
-            updatedAt: typeof d.timestamp === "string" ? d.timestamp : now,
+            createdAt: typeof d.createdAt === "string" ? d.createdAt : now,
+            updatedAt: typeof d.createdAt === "string" ? d.createdAt : now,
           });
         }
       }
@@ -409,10 +420,10 @@ export async function harvestLiveAiWorksSentences(): Promise<RagSentenceItem[]> 
     if (adsSnap && !adsSnap.empty) {
       for (const doc of adsSnap.docs) {
         const ad = doc.data();
-        const brand = typeof ad.brandName === "string" ? ad.brandName : "Advertiser";
+        const brand = typeof ad.advertiserName === "string" && ad.advertiserName.trim() ? ad.advertiserName.trim() : "Advertiser";
         const platform = typeof ad.platform === "string" ? ad.platform : "RADAR";
         const headline = typeof ad.headline === "string" ? ad.headline.trim() : "";
-        const bodyText = typeof ad.bodyText === "string" ? ad.bodyText.trim() : "";
+        const bodyText = typeof ad.primaryCopy === "string" ? ad.primaryCopy.trim() : "";
         const combined = [headline, bodyText].filter(Boolean).join(" — ");
         const firstSentence = splitIntoSentences(combined)[0] || combined.slice(0, 280);
         if (firstSentence && firstSentence.length >= 15) {
@@ -429,8 +440,8 @@ export async function harvestLiveAiWorksSentences(): Promise<RagSentenceItem[]> 
             keywords: extractRagKeywords(sentence, `${platform} ${brand}`),
             isHumanVerified: true,
             contributorEmail: "system@adradarhq.com",
-            createdAt: typeof ad.lastSeenAt === "string" ? ad.lastSeenAt : now,
-            updatedAt: typeof ad.lastSeenAt === "string" ? ad.lastSeenAt : now,
+            createdAt: typeof ad.lastSeenDate === "string" ? ad.lastSeenDate : now,
+            updatedAt: typeof ad.lastSeenDate === "string" ? ad.lastSeenDate : now,
           });
         }
       }
@@ -491,7 +502,8 @@ export async function harvestLiveAiWorksSentences(): Promise<RagSentenceItem[]> 
             translatedText: s,
             keywords: extractRagKeywords(s, `Customize Strategy ${brandName}`),
             isHumanVerified: true,
-            contributorEmail: typeof c.userEmail === "string" ? c.userEmail : "system@adradarhq.com",
+            // Never copy the customer's email into the corpus.
+            contributorEmail: "system@adradarhq.com",
             createdAt: typeof c.createdAt === "string" ? c.createdAt : now,
             updatedAt: typeof c.updatedAt === "string" ? c.updatedAt : now,
           });
@@ -506,32 +518,47 @@ export async function harvestLiveAiWorksSentences(): Promise<RagSentenceItem[]> 
 }
 
 /**
- * Loads user/admin-contributed & human-edited multilingual RAG entries from `system_config/rag_corpus`.
+ * Loads human-edited / admin-authored RAG entries: one document each in `rag_custom_entries`,
+ * merged over any entries still held in the legacy `system_config/rag_corpus` array. Newest first.
  */
 export async function getCustomRagEntries(): Promise<RagSentenceItem[]> {
   try {
-    const snap = await db.doc(RAG_CORPUS_DOC_PATH).get();
-    if (!snap.exists) return [];
-    const data = snap.data() || {};
-    return Array.isArray(data.customEntries) ? (data.customEntries as RagSentenceItem[]) : [];
+    const [legacySnap, entriesSnap] = await Promise.all([
+      db.doc(RAG_CORPUS_DOC_PATH).get(),
+      db.collection(RAG_ENTRIES_COL).get(),
+    ]);
+    const byId = new Map<string, RagSentenceItem>();
+    const legacy = legacySnap.exists ? legacySnap.get("customEntries") : null;
+    if (Array.isArray(legacy)) {
+      for (const e of legacy as RagSentenceItem[]) if (e?.ragId) byId.set(e.ragId, e);
+    }
+    for (const doc of entriesSnap.docs) {
+      const e = doc.data() as RagSentenceItem;
+      if (e?.ragId) byId.set(e.ragId, e);
+    }
+    return Array.from(byId.values()).sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
   } catch (err) {
-    console.warn("[rag-engine] failed to read customEntries from firestore", err);
+    console.warn("[rag-engine] failed to read custom RAG entries from firestore", err);
     return [];
   }
 }
 
 /**
- * Retrieves the complete unified RAG corpus combining:
+ * Retrieves the unified RAG corpus combining:
  * 1. Human-edited & multilingual custom RAG entries
- * 2. All FAQ entries and atomic FAQ sentences
- * 3. All Website UI sentences
- * 4. All AI Works sentences (Radar Feed Searches, AI Creative Remixes, Customize AI Strategy works)
+ * 2. FAQ entries and atomic FAQ sentences
+ * 3. Website UI sentences
+ * 4. Admin audience only: AI Works sentences (baseline plus live Radar searches, AI remixes and Customize briefs)
+ *
+ * The default "public" audience gets only Website UI entries and FAQ entries for enabled FAQs, with
+ * contributor emails removed, and never triggers the live harvest of user data.
  */
 export async function getFullRagCorpus(options?: {
   query?: string;
   sourceType?: string;
   faqId?: string;
   languageCode?: string;
+  audience?: RagAudience;
 }): Promise<{
   entries: RagSentenceItem[];
   stats: {
@@ -544,10 +571,11 @@ export async function getFullRagCorpus(options?: {
     multilingualCount: number;
   };
 }> {
+  const isAdminView = options?.audience === "admin";
   const [faqs, customEntries, liveAiEntries] = await Promise.all([
-    getFaqs(true),
+    getFaqs(isAdminView),
     getCustomRagEntries(),
-    harvestLiveAiWorksSentences(),
+    isAdminView ? harvestLiveAiWorksSentences() : Promise.resolve<RagSentenceItem[]>([]),
   ]);
 
   const faqEntries = buildFaqRagEntries(faqs);
@@ -562,7 +590,19 @@ export async function getFullRagCorpus(options?: {
     map.set(custom.ragId, custom);
   }
 
-  const allEntries = Array.from(map.values());
+  let allEntries = Array.from(map.values());
+  if (!isAdminView) {
+    // Custom entries can be admin overrides of live entries (copies of customer content), so the
+    // public view is limited to source types that only ever hold site content.
+    const enabledFaqIds = new Set(faqs.map((f) => f.faqId));
+    allEntries = allEntries
+      .filter(
+        (e) =>
+          e.sourceType === "WEBSITE_UI" ||
+          (e.sourceType === "FAQ" && (!e.sourceId || enabledFaqIds.has(e.sourceId))),
+      )
+      .map((e) => ({ ...e, contributorEmail: "" }));
+  }
 
   const stats = {
     total: allEntries.length,
@@ -652,6 +692,7 @@ export async function translateWithGoogleTranslator(params: {
         Accept: "application/json",
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!res.ok) {
@@ -685,24 +726,39 @@ export async function translateWithGoogleTranslator(params: {
       provider: "Google Translate",
     };
   } catch (err) {
-    console.warn("[rag-engine] Google GTX fallback triggered:", err);
-    return {
-      translatedText: `[${langMeta.nativeName}] ${params.text}`,
-      translatedQuestion: params.question ? `[${langMeta.nativeName}] ${params.question}` : undefined,
-      languageCode: langMeta.code,
-      languageName: `${langMeta.name} (${langMeta.nativeName})`,
-      provider: "Google Translate (Fallback Draft)",
-    };
+    // Fail loudly: returning the untranslated text with a "[Language]" prefix looked like a translation.
+    console.warn("[rag-engine] Google Translate failed:", err);
+    throw new ApiError("UPSTREAM_FAILURE", "Google Translate didn't respond. Please try again.", 502);
   }
 }
 
+/** True for a language code in SUPPORTED_RAG_LANGUAGES. */
+export function isSupportedRagLanguage(code: string): boolean {
+  const clean = code.trim().toLowerCase();
+  return SUPPORTED_RAG_LANGUAGES.some((l) => l.code.toLowerCase() === clean);
+}
+
+/** Per-instance cache of FAQ translations, keyed by language, FAQ id and FAQ version (updatedAt). */
+const FAQ_TRANSLATION_TTL_MS = 24 * 60 * 60 * 1000;
+const FAQ_TRANSLATION_CACHE_MAX = 2000;
+const faqTranslationCache = new Map<string, { at: number; value: { question: string; answer: string } }>();
+
+function cacheFaqTranslation(key: string, value: { question: string; answer: string }) {
+  if (faqTranslationCache.size >= FAQ_TRANSLATION_CACHE_MAX) {
+    const oldest = faqTranslationCache.keys().next().value;
+    if (oldest !== undefined) faqTranslationCache.delete(oldest);
+  }
+  faqTranslationCache.set(key, { at: Date.now(), value });
+}
+
 /**
- * Batch translates an array of FAQ Q&A items via Google Translate for the Navbar FAQ modal
- * (used as the secondary option for any FAQs not yet in the human-verified RAG corpus for targetLang).
+ * Batch translates the site's own FAQs (looked up by id on the server) via Google Translate for the
+ * Navbar FAQ modal, as the secondary option for FAQs not yet in the human-verified RAG corpus.
+ * Client-supplied text is never translated, so this can't be used as a free translation proxy.
+ * FAQs that fail to translate are left out (the modal shows them in English).
  */
 export async function batchTranslateFaqsWithGoogle(params: {
-  items: Array<{ faqId: string; question: string; answer: string }>;
-  sourceLang?: string;
+  faqIds: string[];
   targetLang: string;
 }): Promise<{
   translations: Record<string, { question: string; answer: string }>;
@@ -712,10 +768,12 @@ export async function batchTranslateFaqsWithGoogle(params: {
 }> {
   const langMeta = getRagLanguageMeta(params.targetLang);
   const translations: Record<string, { question: string; answer: string }> = {};
+  const wanted = new Set(params.faqIds);
+  const faqs = (await getFaqs(false)).filter((f) => wanted.has(f.faqId));
 
   if (params.targetLang.toLowerCase() === "en") {
-    for (const item of params.items) {
-      translations[item.faqId] = { question: item.question, answer: item.answer };
+    for (const faq of faqs) {
+      translations[faq.faqId] = { question: faq.question, answer: faq.answer };
     }
     return {
       translations,
@@ -725,22 +783,38 @@ export async function batchTranslateFaqsWithGoogle(params: {
     };
   }
 
+  const pending: FaqItem[] = [];
+  for (const faq of faqs) {
+    const hit = faqTranslationCache.get(`${langMeta.code}:${faq.faqId}:${faq.updatedAt}`);
+    if (hit && Date.now() - hit.at < FAQ_TRANSLATION_TTL_MS) {
+      translations[faq.faqId] = hit.value;
+    } else {
+      pending.push(faq);
+    }
+  }
+
   // Translate in parallel chunks of 6 to stay fast while avoiding upstream rate limits
   const chunkSize = 6;
-  for (let i = 0; i < params.items.length; i += chunkSize) {
-    const chunk = params.items.slice(i, i + chunkSize);
+  for (let i = 0; i < pending.length; i += chunkSize) {
+    const chunk = pending.slice(i, i + chunkSize);
     await Promise.all(
-      chunk.map(async (item) => {
-        const res = await translateWithGoogleTranslator({
-          question: item.question,
-          text: item.answer,
-          sourceLang: params.sourceLang || "en",
-          targetLang: params.targetLang,
-        });
-        translations[item.faqId] = {
-          question: res.translatedQuestion || item.question,
-          answer: res.translatedText || item.answer,
-        };
+      chunk.map(async (faq) => {
+        try {
+          const res = await translateWithGoogleTranslator({
+            question: faq.question,
+            text: faq.answer,
+            sourceLang: "en",
+            targetLang: params.targetLang,
+          });
+          const value = {
+            question: res.translatedQuestion || faq.question,
+            answer: res.translatedText || faq.answer,
+          };
+          translations[faq.faqId] = value;
+          cacheFaqTranslation(`${langMeta.code}:${faq.faqId}:${faq.updatedAt}`, value);
+        } catch {
+          // Leave this FAQ out; the modal falls back to English.
+        }
       })
     );
   }
@@ -760,7 +834,6 @@ export async function addHumanEditedRagEntry(
   input: CreateRagEntryRequest,
   contributorEmail: string
 ): Promise<RagSentenceItem> {
-  const customEntries = await getCustomRagEntries();
   const now = new Date().toISOString();
   const langMeta = getRagLanguageMeta(input.languageCode || "en");
 
@@ -789,10 +862,14 @@ export async function addHumanEditedRagEntry(
       ? `FAQ (${langMeta.name})`
       : `RAG Corpus (${sourceType})`);
 
+  // Random suffix so two entries saved in the same millisecond can't overwrite each other;
+  // parts are capped so the id stays within the 128-char ragId limit used by update/delete.
+  const uniqueSuffix = `${Date.now().toString(36)}${randomBytes(3).toString("hex")}`;
+  const langPart = langMeta.code.slice(0, 16);
   const ragId =
     sourceId && sourceType === "FAQ"
-      ? `rag_faq_human_${sourceId}_${langMeta.code}_${Date.now().toString(36)}`
-      : `rag_human_${sourceType.toLowerCase()}_${langMeta.code}_${Date.now().toString(36)}`;
+      ? `rag_faq_human_${sourceId.slice(0, 64)}_${langPart}_${uniqueSuffix}`
+      : `rag_human_${sourceType.toLowerCase()}_${langPart}_${uniqueSuffix}`;
 
   const newItem: RagSentenceItem = {
     ragId,
@@ -816,15 +893,7 @@ export async function addHumanEditedRagEntry(
     updatedAt: now,
   };
 
-  const next = [newItem, ...customEntries];
-  await db.doc(RAG_CORPUS_DOC_PATH).set(
-    {
-      customEntries: next,
-      updatedAt: now,
-    },
-    { merge: true }
-  );
-
+  await db.collection(RAG_ENTRIES_COL).doc(ragDocId(ragId)).set(newItem);
   return newItem;
 }
 
@@ -835,42 +904,17 @@ export async function updateHumanEditedRagEntry(
   input: UpdateRagEntryRequest,
   contributorEmail: string
 ): Promise<RagSentenceItem> {
-  const customEntries = await getCustomRagEntries();
   const now = new Date().toISOString();
-  const idx = customEntries.findIndex((e) => e.ragId === input.ragId);
-
-  if (idx !== -1) {
-    const existing = customEntries[idx];
-    const updated: RagSentenceItem = {
-      ...existing,
-      translatedText: input.translatedText.trim(),
-      ...(input.translatedQuestion !== undefined
-        ? { translatedQuestion: input.translatedQuestion.trim() }
-        : {}),
-      ...(input.section ? { section: input.section.trim() } : {}),
-      keywords: extractRagKeywords(
-        `${input.translatedQuestion ?? existing.translatedQuestion ?? ""} ${input.translatedText}`,
-        input.section ?? existing.section
-      ),
-      isHumanVerified: true,
-      contributorEmail: contributorEmail || existing.contributorEmail,
-      updatedAt: now,
-    };
-    customEntries[idx] = updated;
-    await db.doc(RAG_CORPUS_DOC_PATH).set(
-      { customEntries, updatedAt: now },
-      { merge: true }
-    );
-    return updated;
-  }
-
-  // If overriding a system-seeded RAG entry, clone it into customEntries with the human edit
-  const full = await getFullRagCorpus();
-  const target = full.entries.find((e) => e.ragId === input.ragId);
+  // A custom entry is edited in place; a system-seeded (or live) entry is copied into the custom
+  // store with the human edit, which then overrides it by ragId.
+  const target =
+    (await getCustomRagEntries()).find((e) => e.ragId === input.ragId) ??
+    (await getFullRagCorpus({ audience: "admin" })).entries.find((e) => e.ragId === input.ragId);
   if (!target) {
-    throw new Error(`RAG entry ${input.ragId} not found`);
+    throw new ApiError("NOT_FOUND", `RAG entry ${input.ragId} not found`, 404);
   }
-  const overridden: RagSentenceItem = {
+
+  const updated: RagSentenceItem = {
     ...target,
     translatedText: input.translatedText.trim(),
     ...(input.translatedQuestion !== undefined
@@ -882,26 +926,28 @@ export async function updateHumanEditedRagEntry(
       input.section ?? target.section
     ),
     isHumanVerified: true,
-    contributorEmail: contributorEmail || "admin@adradarhq.com",
+    contributorEmail: contributorEmail || target.contributorEmail || "admin@adradarhq.com",
     updatedAt: now,
   };
-  const next = [overridden, ...customEntries];
-  await db.doc(RAG_CORPUS_DOC_PATH).set(
-    { customEntries: next, updatedAt: now },
-    { merge: true }
-  );
-  return overridden;
+  await db.collection(RAG_ENTRIES_COL).doc(ragDocId(updated.ragId)).set(updated);
+  return updated;
 }
 
 /**
- * Deletes a custom RAG entry from `system_config/rag_corpus`.
+ * Deletes a custom RAG entry from `rag_custom_entries` and from the legacy array, if it is there.
  */
 export async function deleteRagEntry(ragId: string): Promise<void> {
-  const customEntries = await getCustomRagEntries();
-  const next = customEntries.filter((e) => e.ragId !== ragId);
-  await db.doc(RAG_CORPUS_DOC_PATH).set(
-    { customEntries: next, updatedAt: new Date().toISOString() },
-    { merge: true }
-  );
+  const legacyRef = db.doc(RAG_CORPUS_DOC_PATH);
+  await db.runTransaction(async (t) => {
+    const legacySnap = await t.get(legacyRef);
+    const legacy = legacySnap.exists ? legacySnap.get("customEntries") : null;
+    t.delete(db.collection(RAG_ENTRIES_COL).doc(ragDocId(ragId)));
+    if (Array.isArray(legacy) && legacy.some((e: RagSentenceItem) => e?.ragId === ragId)) {
+      t.update(legacyRef, {
+        customEntries: legacy.filter((e: RagSentenceItem) => e?.ragId !== ragId),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  });
 }
 

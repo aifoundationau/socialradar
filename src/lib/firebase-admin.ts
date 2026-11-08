@@ -79,16 +79,21 @@ export const DATABASE_ADMIN_EMAILS = new Set([
 ]);
 
 /**
- * Strictly checks whether an email belongs to the Firebase database admin.
- * Only the database admin email is granted superadmin authority.
+ * True if `email` is one of the database admin addresses. Use this only to label or protect that
+ * account (e.g. "can't change the permanent Super Admin"); it does not prove who is calling.
  */
-export function isDatabaseAdmin(
-  token?: DecodedIdToken | Record<string, unknown> | null,
-  email?: string | null,
-): boolean {
-  const normEmail = (email || (token as DecodedIdToken)?.email || "").toLowerCase().trim();
-  if (!normEmail) return false;
-  return DATABASE_ADMIN_EMAILS.has(normEmail);
+export function isDatabaseAdminEmail(email?: string | null): boolean {
+  const normEmail = (email || "").toLowerCase().trim();
+  return Boolean(normEmail) && DATABASE_ADMIN_EMAILS.has(normEmail);
+}
+
+/**
+ * True only when a verified ID token belongs to the database admin: the token's email must be on the
+ * list AND verified. An unverified address (e.g. an Email/Password sign-up using the admin's email)
+ * never gets Super Admin.
+ */
+export function isDatabaseAdmin(token: DecodedIdToken): boolean {
+  return token.email_verified === true && isDatabaseAdminEmail(token.email);
 }
 
 export interface VerifiedCaller {
@@ -141,23 +146,31 @@ export async function verifyRequest(
       throw new AuthError("UNAUTHENTICATED", "Invalid or expired session");
     }
 
-    // Ultra-reliable fallback: if revocation check fails due to server credentials or upstream network,
-    // verify the cryptographic signature and expiration via Google's public x509 certs (checkRevoked = false)
+    // Without the revocation check a revoked session (e.g. a demoted admin) would be accepted, so production
+    // fails closed. Local development may fall back to the signature-only check below (expired ADC, etc.).
+    if (process.env.NODE_ENV === "production") {
+      console.error("[auth] could not check ID token revocation", code, err);
+      throw new AuthError("UPSTREAM_FAILURE", "Couldn't verify your session right now. Please try again.");
+    }
+
+    // Development fallback: verify the cryptographic signature and expiry via Google's public x509 certs
+    // (checkRevoked = false) when the revocation check fails because of server credentials or network.
     try {
       token = await adminAuth.verifyIdToken(match[1], false);
       console.warn("[auth] verifyIdToken checkRevoked check skipped; validated via public certs", code);
     } catch {
       // The token may be fine: the server couldn't check it (expired ADC, network failure).
       console.error("[auth] could not verify ID token", err);
+      // Only reached outside production (see above), so the gcloud hint is safe to show.
       const credentialHint =
-        process.env.NODE_ENV !== "production" && /invalid-credential|invalid_grant/.test(String(code) + " " + String((err as { cause?: { message?: string } })?.cause?.message))
+        /invalid-credential|invalid_grant/.test(String(code) + " " + String((err as { cause?: { message?: string } })?.cause?.message))
           ? " Server credentials need refreshing: run `gcloud auth application-default login`, then restart the dev server."
           : "";
       throw new AuthError("UPSTREAM_FAILURE", `Couldn't verify your session right now.${credentialHint}`);
     }
   }
 
-  const isSuper = isDatabaseAdmin(token, token.email);
+  const isSuper = isDatabaseAdmin(token);
   const rawRole = (token as Record<string, unknown>)?.role;
   const rawRoles = Array.isArray((token as Record<string, unknown>)?.roles)
     ? ((token as Record<string, unknown>).roles as string[])

@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
+import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./firebase-admin";
 import { ensureUserDoc } from "./token-ledger";
 import { ApiError } from "./api";
@@ -17,6 +18,13 @@ const brandIdFromKey = (uid: string, key: string) =>
   createHash("sha256").update(`${uid}:${key}`).digest("hex").slice(0, 24);
 
 const notFound = (brandId: string) => new ApiError("NOT_FOUND", `Brand ${brandId} not found`, 404);
+
+/** The community (global_brands) copy of a brand: every signed-in user can read it, so no author email. */
+function communityCopy(brand: BrandProfile): BrandProfile {
+  const copy = { ...brand };
+  delete copy.authorEmail;
+  return copy;
+}
 
 /**
  * Creates a brand under `users/{uid}/brands`. The first brand becomes the active one.
@@ -60,7 +68,7 @@ export async function createBrand(
     t.create(ref, brand);
 
     if (isGlobal) {
-      t.set(globalBrandsCol.doc(brand.brandId), brand);
+      t.set(globalBrandsCol.doc(brand.brandId), communityCopy(brand));
     }
 
     if (!userSnap.get("activeBrandId")) {
@@ -83,29 +91,35 @@ export async function updateBrand(
   const now = new Date().toISOString();
   const isGlobal = Boolean(brand.isGlobal);
 
-  const normalizedBrand: BrandProfile = {
-    ...brand,
-    destinationUrl,
-    landingPageUrls,
-    isGlobal,
-    authorUid: brand.authorUid || uid,
-    authorEmail: brand.authorEmail || callerEmail,
-    updatedAt: now,
-  };
-
+  let saved!: BrandProfile;
   await db.runTransaction(async (t) => {
-    if (!(await t.get(ref)).exists) throw notFound(brand.brandId);
-    t.set(ref, normalizedBrand);
+    const existingSnap = await t.get(ref);
+    if (!existingSnap.exists) throw notFound(brand.brandId);
+    const existing = existingSnap.data() as Partial<BrandProfile>;
+
+    // Authorship and creation time come from the stored brand, never from the request body.
+    const authorEmail = existing.authorEmail || callerEmail || brand.authorEmail;
+    saved = {
+      ...brand,
+      destinationUrl,
+      landingPageUrls,
+      isGlobal,
+      authorUid: existing.authorUid || uid,
+      ...(authorEmail ? { authorEmail } : {}),
+      createdAt: existing.createdAt || brand.createdAt || now,
+      updatedAt: now,
+    };
+    t.set(ref, saved);
 
     const globalDocRef = globalBrandsCol.doc(brand.brandId);
     if (isGlobal) {
-      t.set(globalDocRef, normalizedBrand);
+      t.set(globalDocRef, communityCopy(saved));
     } else {
       t.delete(globalDocRef);
     }
   });
 
-  return normalizedBrand;
+  return saved;
 }
 
 /** Deletes a brand and clears it from `activeBrandId` if it was selected. Also removes from global_brands. */
@@ -141,7 +155,8 @@ export async function duplicateBrand(
   if (!source) throw notFound(brandId);
 
   const duplicateName = versionName?.trim() || `${source.brandName} (Copy)`;
-  const { brandId: _oldId, ...rest } = source;
+  const rest: Omit<BrandProfile, "brandId"> & { brandId?: string } = { ...source };
+  delete rest.brandId;
   const input: Omit<BrandProfile, "brandId"> = {
     ...rest,
     brandName: duplicateName,
@@ -165,43 +180,51 @@ export async function searchGlobalBrands(options: {
   const globalSnap = await globalBrandsCol.limit(maxLimit * 2).get();
   const byId = new Map<string, BrandProfile>();
 
+  const emailCleanups: Promise<unknown>[] = [];
   for (const docSnap of globalSnap.docs) {
     const data = docSnap.data() as BrandProfile;
     if (data && data.brandId) {
-      byId.set(data.brandId, { ...data, isGlobal: true });
+      byId.set(data.brandId, { ...communityCopy(data), isGlobal: true });
+      // One-time cleanup of copies saved before author emails were kept out of global_brands.
+      if (data.authorEmail) emailCleanups.push(docSnap.ref.update({ authorEmail: FieldValue.delete() }));
     }
   }
+  if (emailCleanups.length > 0) {
+    await Promise.allSettled(emailCleanups);
+  }
 
-  // Also scan user brand subcollections for any brands marked `isGlobal: true` that haven't synced yet
+  // Also pick up brands marked `isGlobal: true` that never synced to global_brands (created before the sync
+  // existed), with one collection-group query instead of opening every user's brands subcollection. It needs
+  // the collection-group index on brands.isGlobal in firestore.indexes.json; until that is deployed the query
+  // fails and only global_brands is returned.
   try {
-    const usersSnap = await db.collection("users").get();
+    const legacySnap = await db
+      .collectionGroup("brands")
+      .where("isGlobal", "==", true)
+      .limit(maxLimit * 2)
+      .get();
     const missingSyncs: Promise<unknown>[] = [];
-    await Promise.all(
-      usersSnap.docs.map(async (uDoc) => {
-        const uData = uDoc.data();
-        const bSnap = await uDoc.ref.collection("brands").where("isGlobal", "==", true).get();
-        for (const bDoc of bSnap.docs) {
-          const bData = bDoc.data() as BrandProfile;
-          if (!bData) continue;
-          const normalized: BrandProfile = {
-            ...bData,
-            brandId: bData.brandId || bDoc.id,
-            isGlobal: true,
-            authorUid: bData.authorUid || uDoc.id,
-            authorEmail: bData.authorEmail || uData?.email,
-          };
-          if (!byId.has(normalized.brandId)) {
-            byId.set(normalized.brandId, normalized);
-            missingSyncs.push(globalBrandsCol.doc(normalized.brandId).set(normalized, { merge: true }));
-          }
-        }
-      }),
-    );
+    for (const bDoc of legacySnap.docs) {
+      const bData = bDoc.data() as BrandProfile;
+      const ownerUid = bDoc.ref.parent.parent?.id;
+      if (!bData || !ownerUid) continue;
+      const normalized: BrandProfile = {
+        ...bData,
+        brandId: bData.brandId || bDoc.id,
+        isGlobal: true,
+        authorUid: bData.authorUid || ownerUid,
+      };
+      if (!byId.has(normalized.brandId)) {
+        const shared = communityCopy(normalized);
+        byId.set(normalized.brandId, shared);
+        missingSyncs.push(globalBrandsCol.doc(normalized.brandId).set(shared, { merge: true }));
+      }
+    }
     if (missingSyncs.length > 0) {
       await Promise.allSettled(missingSyncs);
     }
   } catch {
-    // Non-fatal fallback if user scan fails
+    // Index not deployed yet, or the query failed: global_brands alone is still returned.
   }
 
   let list = Array.from(byId.values());
@@ -227,17 +250,22 @@ export async function searchGlobalBrands(options: {
   return list.slice(0, maxLimit);
 }
 
-/** Copies a community brand from `global_brands` into the caller's personal account. */
+/**
+ * Copies a community brand from `global_brands` into the caller's personal account. With an
+ * idempotency key, a repeat call returns the copy made the first time instead of making another.
+ */
 export async function cloneGlobalBrand(
   caller: { uid: string; email: string },
   globalBrandId: string,
-): Promise<BrandProfile> {
+  idempotencyKey?: string,
+): Promise<{ brand: BrandProfile; replayed: boolean }> {
   const globalSnap = await globalBrandsCol.doc(globalBrandId).get();
   if (!globalSnap.exists) {
     throw new ApiError("NOT_FOUND", `Global brand ${globalBrandId} not found`, 404);
   }
   const source = globalSnap.data() as BrandProfile;
-  const { brandId: _oldId, ...rest } = source;
+  const rest: Omit<BrandProfile, "brandId"> & { brandId?: string } = { ...source };
+  delete rest.brandId;
 
   const input: Omit<BrandProfile, "brandId"> = {
     ...rest,
@@ -250,8 +278,7 @@ export async function cloneGlobalBrand(
     updatedAt: new Date().toISOString(),
   };
 
-  const { brand } = await createBrand(caller, input);
-  return brand;
+  return createBrand(caller, input, idempotencyKey);
 }
 
 /** Selects the brand used by Radar and Studio. `""` clears the selection. */

@@ -18,6 +18,19 @@ export interface RagStats {
   multilingualCount: number;
 }
 
+/** Response of POST /api/rag/translate (single text mode). */
+interface TranslateResult {
+  translatedText: string;
+  translatedQuestion?: string;
+  languageName: string;
+}
+
+/** Corpus returned by /api/rag (GET, and after every admin write). */
+interface CorpusResult {
+  entries?: RagSentenceItem[];
+  stats?: RagStats;
+}
+
 const SOURCE_BADGES: Record<RagSourceType, { label: string; style: string }> = {
   FAQ: {
     label: "FAQ Knowledge",
@@ -84,20 +97,15 @@ export function PerFaqRagDrawer({
     setErrorMsg(null);
     setStatusMsg(null);
     try {
-      const res = await fetch("/api/rag/translate", {
+      const data = await apiFetch<TranslateResult>("/api/rag/translate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           question: faq.question,
           text: faq.answer,
           sourceLang: "en",
           targetLang,
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error?.message ?? "Google Translate failed");
-      }
       setDraftQuestion(data.translatedQuestion || faq.question);
       setDraftAnswer(data.translatedText || faq.answer);
       setHasTranslatedDraft(true);
@@ -118,10 +126,9 @@ export function PerFaqRagDrawer({
     setStatusMsg(null);
     try {
       const langMeta = getRagLanguageMeta(targetLang);
-      const res = await fetch("/api/rag", {
+      await apiFetch("/api/rag", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           action: "ADD_ENTRY",
           sourceType: "FAQ",
           sourceId: faq.faqId,
@@ -133,12 +140,8 @@ export function PerFaqRagDrawer({
           languageName: `${langMeta.name} (${langMeta.nativeName})`,
           translatedQuestion: draftQuestion.trim() || faq.question,
           translatedText: draftAnswer.trim(),
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error?.message ?? "Failed to add human-edited FAQ to RAG");
-      }
       setStatusMsg(
         `Human-edited ${langMeta.name} (${langMeta.nativeName}) FAQ added to RAG corpus!`
       );
@@ -443,9 +446,9 @@ export function GlobalRagCorpusSection({
   const loadRagCorpus = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/rag", { method: "GET", cache: "no-store" });
-      const data = await res.json();
-      if (res.ok && Array.isArray(data.entries)) {
+      // Signed-in admin request: the server only returns the full corpus to admins.
+      const data = await apiFetch<CorpusResult>("/api/rag", { method: "GET" });
+      if (Array.isArray(data.entries)) {
         setEntries(data.entries);
         if (data.stats) setStats(data.stats);
       }
@@ -515,13 +518,10 @@ export function GlobalRagCorpusSection({
     setErrorMsg(null);
     setFeedbackMsg(null);
     try {
-      const res = await fetch("/api/rag", {
+      const data = await apiFetch<CorpusResult>("/api/rag", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "SYNC_CORPUS" }),
+        body: { action: "SYNC_CORPUS" },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message ?? "Sync failed");
       if (Array.isArray(data.entries)) setEntries(data.entries);
       if (data.stats) setStats(data.stats);
       setFeedbackMsg(
@@ -543,20 +543,15 @@ export function GlobalRagCorpusSection({
     setErrorMsg(null);
     setFeedbackMsg(null);
     try {
-      const res = await fetch("/api/rag/translate", {
+      const data = await apiFetch<TranslateResult>("/api/rag/translate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           question: sourceQuestion.trim() || undefined,
           text: sourceText.trim(),
           sourceLang: "en",
           targetLang,
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error?.message ?? "Google Translate request failed");
-      }
       setHumanEditedQuestion(data.translatedQuestion || sourceQuestion);
       setHumanEditedText(data.translatedText || sourceText);
       setFeedbackMsg(
@@ -581,10 +576,9 @@ export function GlobalRagCorpusSection({
     setFeedbackMsg(null);
     try {
       const langMeta = getRagLanguageMeta(targetLang);
-      const res = await fetch("/api/rag", {
+      const data = await apiFetch<CorpusResult>("/api/rag", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           action: "ADD_ENTRY",
           sourceType,
           sourceId: selectedTemplateFaqId || undefined,
@@ -601,12 +595,8 @@ export function GlobalRagCorpusSection({
           translatedText: finalBody,
           category: sourceCategory,
           publishAsFaq,
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error?.message ?? "Failed to save human-edited entry to RAG");
-      }
       if (Array.isArray(data.entries)) setEntries(data.entries);
       if (data.stats) setStats(data.stats);
       setFeedbackMsg(
@@ -627,17 +617,14 @@ export function GlobalRagCorpusSection({
     setSavingRag(true);
     setErrorMsg(null);
     try {
-      const res = await fetch("/api/rag", {
+      const data = await apiFetch<CorpusResult>("/api/rag", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           ragId,
           translatedQuestion: editRagQuestion.trim() || undefined,
           translatedText: editRagText.trim(),
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message ?? "Failed to update RAG entry");
       if (Array.isArray(data.entries)) setEntries(data.entries);
       if (data.stats) setStats(data.stats);
       setEditingRagId(null);

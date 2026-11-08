@@ -8,15 +8,20 @@ import {
   UpdateRolePermissionsRequestSchema,
 } from "@/lib/contracts";
 import {
+  assertPermission,
   assignUserRole,
+  getCallerPermissions,
   getRbacConfig,
   getRbacUsersList,
+  requirePermission,
   updateRolePermissions,
 } from "@/lib/rbac";
 
 export async function GET(req: Request) {
   try {
-    await verifyRequest(req, { requireRole: "admin" });
+    const caller = await verifyRequest(req, { requireRole: "admin" });
+    const permissions = await getCallerPermissions(caller);
+    if (!permissions.has("manage_users")) assertPermission(permissions, "manage_rbac");
 
     const [rbacConfig, users] = await Promise.all([
       getRbacConfig(),
@@ -58,6 +63,7 @@ export async function PUT(req: Request) {
 
     if (body.action === "ASSIGN_USER_ROLE") {
       const caller = await verifyRequest(req, { requireRole: "admin" });
+      await requirePermission(caller, "manage_rbac");
       const parsed = AssignUserRoleRequestSchema.parse(body);
       const rawTargetRoles =
         parsed.roles && parsed.roles.length > 0
@@ -97,7 +103,7 @@ export async function PUT(req: Request) {
     }
 
     return NextResponse.json(
-      { error: { code: "BAD_REQUEST", message: "Invalid action" } },
+      { error: { code: "INVALID_INPUT", message: "Invalid action" } },
       { status: 400 },
     );
   } catch (err) {

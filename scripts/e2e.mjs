@@ -1,6 +1,7 @@
 // npm run test:e2e — end-to-end check of the API route handlers without Next.js.
-// The project lives on an exFAT drive where Turbopack can't serve routes that import firebase-admin,
-// so this loads the real handlers with jiti and calls them with Web Requests. It uses the real
+// It was written when the project lived on an exFAT drive, where Turbopack couldn't serve routes that
+// import firebase-admin (the drive is NTFS now), so it loads the real handlers with jiti and calls them
+// with Web Requests instead of going through the dev server. It uses the real
 // `ad-radar` Firestore and Stripe test mode; logins come from the local Auth emulator (started by
 // `firebase emulators:exec`), so no real users are created. Everything written is deleted at the end.
 import Module, { createRequire } from "node:module";

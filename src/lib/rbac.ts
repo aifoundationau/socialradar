@@ -1,5 +1,6 @@
 import "server-only";
-import { adminAuth, db, isDatabaseAdmin } from "./firebase-admin";
+import { adminAuth, db, isDatabaseAdminEmail, type VerifiedCaller } from "./firebase-admin";
+import { ApiError } from "./api";
 import {
   RBAC_PERMISSIONS_LIST,
   RBAC_ROLES_LIST,
@@ -141,6 +142,61 @@ export async function getRbacConfig(): Promise<RbacSystemConfig> {
   }
 }
 
+const PERMISSION_LABELS: Record<RbacPermission, string> = {
+  view_analytics: "View Analytics",
+  manage_config: "System Config",
+  manage_ledger: "Redistributive Ledger",
+  flush_cache: "Flush Cache",
+  manage_messages: "Manage Messages",
+  manage_rbac: "Manage RBAC",
+  manage_users: "Manage Users",
+  search_radar: "Search AdRadarHQ",
+  ai_remix: "AI Remix Studio",
+  manage_brands: "Manage Brands",
+};
+
+/**
+ * The permissions the caller holds: everything for Super Admin, otherwise the union of what each of
+ * the caller's roles has ticked in the Role Permissions matrix (system_config/rbac). A caller whose
+ * roles aren't in the matrix (e.g. a legacy "user" role) gets the Supporter permissions.
+ *
+ * The matrix only narrows access: admin endpoints still require the admin role as well, so ticking
+ * e.g. "Manage Messages" for Ad Agents never opens the admin inbox to them.
+ */
+export async function getCallerPermissions(caller: VerifiedCaller): Promise<Set<RbacPermission>> {
+  if (caller.claims.isSuperAdmin === true) return new Set(RBAC_PERMISSIONS_LIST);
+  const { matrix } = await getRbacConfig();
+  const granted = new Set<RbacPermission>();
+  let knownRole = false;
+  for (const role of new Set<string>([caller.claims.role, ...(caller.claims.roles ?? [])])) {
+    if (role === "superadmin") continue;
+    const list = matrix[role as RbacRole];
+    if (!Array.isArray(list)) continue;
+    knownRole = true;
+    for (const p of list) if (RBAC_PERMISSIONS_LIST.includes(p)) granted.add(p);
+  }
+  if (!knownRole) {
+    for (const p of matrix.supporter ?? []) if (RBAC_PERMISSIONS_LIST.includes(p)) granted.add(p);
+  }
+  return granted;
+}
+
+/** Throws FORBIDDEN unless `permissions` contains `permission`. */
+export function assertPermission(permissions: Set<RbacPermission>, permission: RbacPermission): void {
+  if (!permissions.has(permission)) {
+    throw new ApiError(
+      "FORBIDDEN",
+      `Your role doesn't have the "${PERMISSION_LABELS[permission]}" permission. Super Admin can turn it on under Role Permissions.`,
+      403,
+    );
+  }
+}
+
+/** Throws FORBIDDEN unless the caller holds `permission` (Super Admin always does). */
+export async function requirePermission(caller: VerifiedCaller, permission: RbacPermission): Promise<void> {
+  assertPermission(await getCallerPermissions(caller), permission);
+}
+
 /** Updates permissions for a specific role in the matrix. */
 export async function updateRolePermissions(
   role: RbacRole,
@@ -148,7 +204,7 @@ export async function updateRolePermissions(
   updatedBy: string,
 ): Promise<RbacMatrix> {
   if (role === "superadmin") {
-    throw new Error("Superadmin permissions are permanently locked and cannot be modified");
+    throw new ApiError("FORBIDDEN", "Superadmin permissions are permanently locked and cannot be modified", 403);
   }
 
   const current = await getRbacConfig();
@@ -181,15 +237,17 @@ export async function assignUserRole(
 ): Promise<{ uid: string; email: string; role: RbacRole; roles: RbacRole[]; tier: string }> {
   const normEmail = email.trim().toLowerCase();
 
-  if (isDatabaseAdmin(null, normEmail)) {
-    throw new Error("Cannot modify permanent database superadmin account");
+  if (isDatabaseAdminEmail(normEmail)) {
+    throw new ApiError("FORBIDDEN", "Cannot modify permanent database superadmin account", 403);
   }
 
   const allowMainAdmin = options?.allowMainAdmin !== false;
   const inputArray = Array.isArray(targetRoleOrRoles) ? targetRoleOrRoles : [targetRoleOrRoles];
   if (!allowMainAdmin && inputArray.includes("admin")) {
-    throw new Error(
-      "Main Admin cannot make people Main Admin. Main Admin can only approve: Supporter, Ad Agent, Agency, Moderator."
+    throw new ApiError(
+      "FORBIDDEN",
+      "Main Admin cannot make people Main Admin. Main Admin can only approve: Supporter, Ad Agent, Agency, Moderator.",
+      403,
     );
   }
   const filteredInputs = allowMainAdmin
@@ -210,17 +268,29 @@ export async function assignUserRole(
   };
 
   let uid = `email:${normEmail}`;
+  let authUid: string | null = null;
+  let previousRoles: RbacRole[] = [];
   try {
     const userRecord = await adminAuth.getUserByEmail(normEmail);
     uid = userRecord.uid;
-    await adminAuth.setCustomUserClaims(userRecord.uid, newClaims);
+    authUid = userRecord.uid;
+    previousRoles = normalizeUserRoles(userRecord.customClaims?.roles, userRecord.customClaims?.role, false);
   } catch {
     // User might exist in Firestore users collection before Firebase Auth sync
     const snap = await db.collection("users").where("email", "==", normEmail).limit(1).get();
     if (!snap.empty) {
       uid = snap.docs[0].id;
     } else {
-      throw new Error(`No registered user found with email ${normEmail}`);
+      throw new ApiError("NOT_FOUND", `No registered user found with email ${normEmail}`, 404);
+    }
+  }
+
+  if (authUid) {
+    await adminAuth.setCustomUserClaims(authUid, newClaims);
+    // A removed role must stop working now, not when the user's ID token next refreshes (up to an hour):
+    // revoking makes verifyRequest (which checks revocation) reject the old token, so they sign in again.
+    if (previousRoles.some((r) => r !== "supporter" && !roles.includes(r))) {
+      await adminAuth.revokeRefreshTokens(authUid);
     }
   }
 
@@ -357,7 +427,7 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
     const combined: RbacUserItem[] = listResult.users.map((u) => {
       const email = (u.email || "").toLowerCase().trim();
       if (email) seenEmails.add(email);
-      const isSuper = isDatabaseAdmin(u.customClaims, email);
+      const isSuper = isDatabaseAdminEmail(email);
       const claimRole = u.customClaims?.role as RbacRole | undefined;
       const claimRoles = u.customClaims?.roles as RbacRole[] | undefined;
       const docRole = firestoreRoleMap.get(u.uid) || firestoreRoleMap.get(email);
@@ -390,7 +460,7 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
       const email = String(data.email || "").toLowerCase().trim();
       if (!email || seenEmails.has(email)) return;
       seenEmails.add(email);
-      const isSuper = isDatabaseAdmin(null, email);
+      const isSuper = isDatabaseAdminEmail(email);
       const rawRole = (data.role as RbacRole) || (isSuper ? "superadmin" : "supporter");
       const roles = normalizeUserRoles(data.roles, rawRole, isSuper);
       const role: RbacRole = isSuper ? "superadmin" : roles[0] || "supporter";

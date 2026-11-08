@@ -518,7 +518,7 @@ export function TopNavWallet() {
       return;
     }
     let active = true;
-    apiFetch<{ myAgentProfile: AdAgentProfile | null }>("/api/ad-agent")
+    apiFetch<{ myAgentProfile: AdAgentProfile | null }>("/api/ad-agent", { method: "GET" })
       .then((data) => {
         if (!active) return;
         const prof = data.myAgentProfile;

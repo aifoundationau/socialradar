@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
-import Link from "next/link";
 import {
   PROVEN_WINNER_DAYS,
   EXTENDED_WINNER_DAYS,
@@ -17,7 +16,6 @@ import {
   formatTokenEstimateHover,
   isChargingEnabled,
 } from "@/lib/pricing";
-import { CostTag } from "@/components/ui/CostTag";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { btnPrimary } from "@/components/ui/styles";
 import { useSession } from "@/components/auth/SessionProvider";
@@ -187,8 +185,6 @@ export function RadarFilterBar({
     userCountry
   );
   const totalCost = chargingActive ? calculateSearchCost(filters, liveServiceCosts) : 0;
-  const currentBalance = Math.max(0, profile ? profile.tokenBalance : 0);
-  const isZeroBalance = Boolean(profile && chargingActive && currentBalance <= 0);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -229,9 +225,9 @@ export function RadarFilterBar({
               onChange={(brandId) => onChange({ brandId })}
             />
           </div>
-          <div className="flex flex-wrap sm:flex-nowrap gap-2 min-w-0 lg:order-2 lg:max-w-2xl lg:flex-1">
+          <div className="flex flex-wrap sm:flex-nowrap gap-2 min-w-0 lg:order-2 lg:flex-1">
             <div className="group relative min-w-0 flex-1">
-              <Icon name="search" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-on-surface-variant" />
+              <Icon name="search" className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-on-surface-variant" />
               <input
                 ref={input}
                 type="search"
@@ -244,7 +240,7 @@ export function RadarFilterBar({
                 value={filters.query}
                 onChange={(e) => onChange({ query: e.target.value })}
                 maxLength={100}
-                className="h-11 w-full rounded-lg border border-white/10 bg-surface-container-low pr-3 pl-9 text-base text-on-surface transition placeholder:text-outline focus:border-primary-container focus:ring-1 focus:ring-primary-container focus:outline-none sm:h-9 sm:pr-16 sm:text-body"
+                className="h-11 w-full rounded-lg border border-white/10 bg-surface-container-low pr-3 pl-11 text-base text-on-surface transition placeholder:text-outline focus:border-primary-container focus:ring-1 focus:ring-primary-container focus:outline-none sm:pr-16"
               />
               <kbd className="pointer-events-none absolute top-1/2 right-2.5 hidden -translate-y-1/2 rounded bg-surface-container-highest/60 px-1.5 py-0.5 font-mono text-[10px] text-outline sm:block">
                 {apple ? "⌘K" : "Ctrl K"}
@@ -290,7 +286,7 @@ export function RadarFilterBar({
                 data-agent-id="radar-search-submit-button"
                 data-testid="radar-search-submit-button"
                 aria-describedby="radar-search-button-tooltip"
-                className={`${btnPrimary} shrink-0`}
+                className={`${btnPrimary} shrink-0 sm:h-11`}
                 disabled={searching}
                 aria-label={totalCost > 0 ? `Search (${totalCost} tokens)` : "Search (Free)"}
               >
@@ -310,19 +306,6 @@ export function RadarFilterBar({
                   </span>
                 )}
               </button>
-
-              {isZeroBalance && (
-                <Link
-                  href="/wallet#packs"
-                  data-agent-id="radar-zero-balance-buy-tokens-link"
-                  data-testid="radar-zero-balance-buy-tokens-link"
-                  aria-label="0 Tokens — Buy More Tokens"
-                  className="inline-flex h-11 sm:h-9 shrink-0 items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 font-mono text-xs font-bold text-amber-200 transition hover:bg-amber-500/25"
-                >
-                  <Icon name="zap" className="size-3.5 text-amber-300" />
-                  <span>0 Tokens · Buy More</span>
-                </Link>
-              )}
 
               {/* Hover explanation for Search button */}
               <div

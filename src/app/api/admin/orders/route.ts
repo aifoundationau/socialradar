@@ -14,10 +14,12 @@ import {
   AdminResetTokensRequestSchema,
 } from "@/lib/contracts";
 import { refundTokens } from "@/lib/token-ledger";
+import { requirePermission } from "@/lib/rbac";
 
 export async function GET(req: Request) {
   try {
-    await verifyRequest(req, { requireRole: "admin" });
+    const caller = await verifyRequest(req, { requireRole: "admin" });
+    await requirePermission(caller, "view_analytics");
     const orders = await getMasterOrderLedger(150);
     return NextResponse.json({ orders });
   } catch (err) {

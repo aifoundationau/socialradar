@@ -1,0 +1,678 @@
+NEEDS REPAIR - ad-radar code review
+Date: 2026-11-08   Commit reviewed: e456e34 (branch main, clean working tree)
+The review itself changed no source files. A repair pass followed the same day (below).
+
+======================================================================
+REPAIR PASS (2026-11-08) - SUMMARY
+======================================================================
+All 44 items handled: 43 fixed, 1 kept as intended (#25). Each item below has
+a STATUS line saying what was done.
+
+Verified after the repairs:
+- TypeScript: PASS (0 errors).
+- ESLint: PASS (0 errors, 41 warnings - React Compiler advisories, see #40).
+- Production build: PASS (isolated from the live database).
+- Fresh build smoke test: all pages 200; 21 protected routes reject anonymous
+  calls (401); public RAG / FAQ / pricing / translate responses carry no
+  customer data or emails; the webhook rejects unsigned requests.
+- Not tested with real sign-ins: role-based flows (Ad Agent registration and
+  replies, admin panel permissions, checkout). Please try them yourself.
+
+Nothing is committed: the changes are in the working tree for review (63
+files changed, plus new src/lib/request-geo.ts and this file).
+
+ACTIONS NEEDED BY YOU
+1. Restart "npm run dev". The running dev server holds an old copy of some
+   edited modules, so it does not show these fixes yet.
+2. Create the App Hosting secrets in ai-foundation-firebase before the next
+   rollout (#9); the commands are at the top of apphosting.yaml.
+3. Deploy the new Firestore index (#24):
+     firebase deploy --only firestore:indexes --project ai-foundation-firebase
+4. In the Stripe dashboard, add "invoice.payment_failed" and
+   "customer.subscription.updated" to the webhook endpoint's events (#32).
+5. Main Admins can no longer approve roles until you tick "Manage RBAC" for
+   Main Admin under Role Permissions (#5), if you want them to.
+6. Exclude this project folder (at least .git) from cloud sync (#41).
+7. Backups of the deleted sync duplicates are in this session's scratchpad
+   folder "backup-sync-duplicates" (temporary; copy them if you want them).
+
+======================================================================
+WHAT WAS CHECKED
+======================================================================
+- TypeScript (tsc --noEmit): PASS, 0 errors.
+- Production build (next build): PASS, all 35 routes generated.
+  (Run with FIRESTORE_DATABASE_ID pointed at a non-existent database so the
+  build could not write to the live database.)
+- ESLint (npm run lint): FAIL. 36 errors / 34 warnings overall; 35 errors /
+  31 warnings are in real tracked files (rest are in stray "(1)" copies). See item 40.
+- Smoke test against the running dev server: every page returns 200; protected
+  API routes return 401 without a token.
+- git fsck: objects OK, one broken ref (item 41).
+- Every server file (lib + all 26 API routes) and firestore.rules were read in full;
+  client components were checked for data flow, auth and API usage.
+
+Severity:
+  CRITICAL = exploitable now, money or customer data at risk
+  HIGH     = wrong production behaviour or a real security weakness
+  MEDIUM   = bug or risk worth fixing soon
+  LOW      = polish / hygiene
+
+======================================================================
+CRITICAL
+======================================================================
+
+1. Public RAG API leaks customer data and lets anyone edit site content
+   STATUS: FIXED. POST/PUT/DELETE need admin. Public GET returns only website
+   text and enabled-FAQ entries, with no emails and no live user data (live
+   harvest runs for admins only). Custom entries are now one document each in
+   "rag_custom_entries" (the old array is still read). The admin panel now sends
+   the login token. Verified on a fresh build.
+   Where: src/app/api/rag/route.ts (GET line 16, POST line 41, PUT line 74)
+          src/lib/rag-engine.ts harvestLiveAiWorksSentences (line 369)
+   Problem:
+   - GET /api/rag needs no login. Its output includes sentences harvested from
+     customize_requests (customer brand briefs, offers, notes, and the customer's
+     email as contributorEmail - line 494), users' AI remixes, and users' search
+     queries from token_transactions.
+   - POST /api/rag accepts anonymous callers (verifyRequest(...).catch(() => null)).
+     With publishAsFaq:true it creates a live public FAQ (rag-engine.ts line 771).
+   - PUT /api/rag lets anonymous callers overwrite any corpus entry, including FAQ
+     answers.
+   - All custom entries live in one array in system_config/rag_corpus. Anyone can
+     grow it to Firestore's 1 MiB doc limit, after which every write fails.
+   Fix: require login on GET and drop the live CUSTOMIZE_AI / AI_REMIX /
+   RADAR_SEARCH entries and all emails from anything public; require admin for
+   POST/PUT; store custom entries as separate documents.
+
+2. Ad Agent API lets any signed-in user hijack agent profiles and payouts
+   STATUS: FIXED. Only Super Admin can register/toggle/look up another email.
+   Registering needs an Ad Agent role granted by Super Admin (or admin). Replies
+   only go to the customer of a request assigned to that agent; unknown request
+   IDs return 404 and no longer create junk documents. Bank details and all
+   profiles are Super Admin only (Main Admin sees the ledger without bank
+   details; agents see only their own row). The email box in the Ad Agent form is
+   read-only except for Super Admin.
+   Where: src/app/api/ad-agent/route.ts
+          src/lib/ad-agents.ts registerOrUpdateAdAgent (line 223)
+   Problem:
+   - REGISTER_AD_AGENT (line 100) accepts any "email" in the body (line 111). Any
+     user can overwrite another agent's name, phone, location, status and
+     bankOrPayIdDetails (redirecting payouts) - including the built-in Super Admin
+     agent (support@aifoundation.net.au), whose phone number is sent to customers.
+   - The same call gives the caller the "ad_agent" role with no Super Admin
+     approval. A self-registered agent appears in the customer agent picker, can be
+     auto-assigned as "closest agent" by choosing a nearby location, and then
+     receives customers' full briefs and email addresses.
+   - AGENT_TOGGLE_OWN_STATUS (line 146) also takes any email (line 151), so anyone
+     can switch any agent off.
+   - SEND_AGENT_CUSTOMIZE_REPLY (line 187): any agent can message any email
+     address and mark any customize request "completed". An unknown request ID
+     creates a junk document (set/merge in src/lib/admin.ts line 660).
+   - GET (line 26) returns allAgentProfiles and the ledger to every signed-in user,
+     including every agent's bankOrPayIdDetails. The ?email= parameter (line 41)
+     returns the customize requests assigned to any agent.
+   Fix: only Super Admin may act on an email other than their own; require an
+   ad_agent role granted by Super Admin before REGISTER works; check ownership in
+   TOGGLE and SEND_REPLY (request must be assigned to the caller); remove bank
+   details and the ?email= lookup for non-superadmins.
+
+3. Admin config endpoint saves unvalidated data and lets Main Admins change the
+   money ledger
+   STATUS: FIXED. Config saves are validated field by field (unknown fields,
+   bad prices, reserved/duplicate pack IDs are rejected). Ledger/equity actions
+   need the "Redistributive Ledger" permission, cache flush needs "Flush Cache",
+   config saves need "System Config" (Super Admin always has all; Main Admin only
+   what's ticked in Role Permissions - ledger is off by default). Partner edits
+   can't exceed 100% or change internal fields. Simulate Purchase removed
+   (server and button). Unused grantDevAdminRole() (grants Super Admin) removed.
+   Where: src/app/api/admin/config/route.ts PUT (line 42)
+   Problem:
+   - The fall-through at line 147 passes the raw request body to
+     updateSystemConfig() with no validation. A Main Admin can set audCentsPerToken
+     to 0, a negative number or a string, rewrite tokenPacks prices, replace
+     equityPartners directly (skipping the 100% cap), or turn isTokenSystemEnabled
+     off. Unknown keys (e.g. "action") are stored in system_config/global.
+   - ADD/UPDATE/DELETE_EQUITY_PARTNER, RESET_PARTNER_TOKENS,
+     RESET_REDISTRIBUTIVE_LEDGER and SIMULATE_PURCHASE only require "admin". The
+     app's own default RBAC gives Main Admin no "manage_ledger" permission
+     (src/lib/rbac.ts lines 15-22).
+   - SIMULATE_PURCHASE (line 125) inserts fake records into stripe_purchases, which
+     is the data partner payouts are calculated from.
+   Fix: validate with a strict schema (SystemConfigSchema in contracts.ts exists
+   but is unused); require superadmin for every ledger/equity action; remove
+   SIMULATE_PURCHASE or limit it to non-production.
+
+======================================================================
+HIGH
+======================================================================
+
+4. Super Admin is granted on email match alone (email_verified not checked)
+   STATUS: FIXED. isDatabaseAdmin(token) now requires email_verified; a separate
+   isDatabaseAdminEmail() is used only to label/protect that account. /api/me and
+   the AI-draft route use the server-computed claims.isSuperAdmin. The browser
+   also only shows Super Admin UI for a verified email.
+   Where: src/lib/firebase-admin.ts isDatabaseAdmin (line 85) and verifyRequest
+          (line 160); src/app/api/me/route.ts (line 21)
+   Problem: any ID token whose email is davidrobertson.info@gmail.com or
+   support@aifoundation.net.au gets full Super Admin, verified or not. If a
+   provider that allows unverified emails (e.g. Email/Password) is enabled on
+   ai-foundation-firebase, someone could register support@aifoundation.net.au
+   (if it isn't already registered) and become Super Admin.
+   Fix: require token.email_verified === true (and ideally sign_in_provider
+   "google.com") in isDatabaseAdmin.
+
+5. The RBAC permission matrix is never enforced
+   STATUS: FIXED. The grid is now checked on the server (Super Admin always has
+   everything). Admin endpoints still also require the admin role, so the grid
+   can only narrow access, never widen it. Mapping: orders list = View
+   Analytics; admin config view = View Analytics or System Config; config save,
+   FAQs and RAG = System Config; ledger/equity = Redistributive Ledger; cache =
+   Flush Cache; admin inbox = Manage Messages; user list = Manage Users or
+   Manage RBAC; approving roles = Manage RBAC; search = Search AdRadarHQ;
+   remix = AI Remix Studio; brands and brand clone = Manage Brands.
+   Token gifts/removals stay Super Admin only.
+   NOTE: your saved grid doesn't tick "Manage RBAC" for Main Admin, so Main
+   Admins can't approve roles until you tick it.
+   Where: src/lib/rbac.ts, src/app/api/admin/rbac/route.ts, all API routes
+   Problem: Super Admin can edit per-role permissions (manage_config,
+   manage_ledger, manage_messages, ...), but no route reads the matrix. Routes only
+   check role "admin"/"superadmin". Unticking a permission changes nothing.
+   Fix: add a hasPermission(caller, permission) check in each admin route, or
+   remove the matrix UI so it doesn't suggest protection that isn't there.
+
+6. Re-sending an idempotency key gets paid services for free
+   STATUS: FIXED. A Customize request's ID is now derived from its paid
+   transaction, so re-sending the same key returns the original request (409 if
+   it's still being created) instead of creating and routing a new one. Brand
+   clones use the transaction as the brand's idempotency key, so a replay
+   returns the same copy.
+   Where: src/app/api/customize/route.ts (handler line 68)
+          src/app/api/brands/clone/route.ts (line 26)
+   Problem: withTokenGate passes replayed=true when the same x-idempotency-key is
+   sent again, and handlers must return the stored result. These two ignore it.
+   Re-sending one paid key (same brand name) with different form content creates
+   unlimited new 55-token Customize requests at no charge. Each one also counts in
+   the Ad Agent Distribution Ledger, inflating agent payouts. Same for brand clones.
+   Fix: when replayed is true, return the stored result for txId (store the
+   requestId / brandId under the txId) or return 409, as radar/remix already does.
+
+7. AI Remix charges tokens for a canned template when Gemini fails
+   STATUS: FIXED. A Gemini error or invalid output now raises UpstreamError, so
+   the token gate refunds automatically and the user sees "...Your tokens were
+   refunded." The canned template (and its schema-overflow problem) is removed.
+   Where: src/lib/gemini.ts generateRemix (lines 225-240), buildFallbackRemix (line 65)
+   Problem: on any Gemini error or invalid output it silently returns a fixed
+   template instead of throwing. The user is charged with no refund, contrary to
+   the app's "automatic refund on upstream failure" promise, and a broken
+   GEMINI_API_KEY would go unnoticed. (The doc comment says it throws.)
+   Long brand fields can also push the template past schema limits (e.g.
+   onScreenText "Visit <destinationUrl>" > 300 chars), giving a 400.
+   Fix: throw UpstreamError so the token gate refunds, or charge 0 for the
+   template and label it as one.
+
+8. Geolocation uses the server's IP when not on Vercel
+   STATUS: FIXED. The lookup now uses the visitor's public IP from the proxy
+   headers (cf-connecting-ip / true-client-ip / x-real-ip / x-forwarded-for,
+   skipping private addresses). With no visitor IP, only local development
+   looks up "self"; production falls back to the defaults rather than the data
+   centre's location.
+   Where: src/app/api/geo/route.ts (lines 166-170)
+   Problem: when the x-vercel-ip-* headers are missing (as on Firebase App Hosting
+   / Cloud Run) it calls https://ipwho.is/ with no IP, which returns the SERVER's
+   location. Every visitor then gets the data-centre country and city. This drives
+   AUD/USD display, the x-user-country header used for free-access eligibility,
+   and agent distance. ipwho.is free tier is also rate-limited/non-commercial.
+   Fix: pass the client IP (first entry of x-forwarded-for) to the lookup, or use
+   a geo header your host provides.
+
+9. Deployment config is stale (apphosting.yaml)
+   STATUS: FIXED IN CODE - ACTION NEEDED BY YOU. apphosting.yaml now points at
+   ai-foundation-firebase, adds GEMINI_API_KEY / SEARCHAPI_API_KEY as secrets,
+   and makes APP_URL available at build time. The secrets must exist in
+   ai-foundation-firebase before the next rollout - the commands are at the top
+   of apphosting.yaml (firebase login first). Not verified: the Firebase CLI
+   isn't logged in on this machine, so I couldn't check the backend exists.
+   Where: apphosting.yaml; src/app/layout.tsx (line 20)
+   Problem:
+   - All Firebase values still point at ad-radar-au, the project you moved away
+     from on 2026-10-30. .firebaserc and .env.local use ai-foundation-firebase.
+   - GEMINI_API_KEY and SEARCHAPI_API_KEY are not provided, so search and remix
+     fail on App Hosting ("Ad search is not configured yet").
+   - APP_URL is RUNTIME-only, but layout.tsx reads it at build time for
+     metadataBase / canonical / OpenGraph, so production pages advertise
+     https://adradarhq.com instead of https://socialradar.aifoundation.net.au.
+   Fix: update the project values, add the missing secrets, and give APP_URL
+   availability [BUILD, RUNTIME].
+
+10. Ad Agent Distribution Ledger miscalculates payouts
+    STATUS: FIXED. No phantom order: agents with no (new) customizations are
+    owed 0. Changing an agent's % keeps lastResetAt, so paid-out work stays
+    paid. Amounts sum each request's tokensCharged (which item 6 now records
+    accurately); only old requests without it fall back to the current price.
+    Where: src/lib/ad-agents.ts getAdAgentDistributionLedger (line 656) and
+           updateAdAgentRedistributionPercent (line 510)
+    Problem:
+    - Math.max(1, ...) (lines 692 and 705) makes every agent with zero
+      customizations show one customization and a non-zero amount owed.
+    - Changing an agent's percentage sets lastResetAt to "" (line 518), so every
+      customization already paid out counts as unpaid again (double payout risk).
+    - Amounts use today's customizeService price, not each request's
+      tokensCharged, so price changes revalue history and free-window requests
+      (0 tokens charged) count as paid.
+    Fix: use 0 when there are no requests, keep lastResetAt when changing the
+    percentage, and sum tokensCharged per request.
+
+11. /api/rag/translate is a public, unauthenticated translation proxy
+    STATUS: FIXED. The public FAQ-modal mode now translates only the site's own
+    FAQs (looked up by ID on the server; client text ignored), only into
+    supported languages, with a 24h per-instance cache. Free-text mode needs
+    admin + "System Config". Failures return an error (or leave that FAQ in
+    English) instead of fake "[Language] ..." text. Still uses the unofficial
+    Google endpoint; switching to the paid Cloud Translation API needs your key.
+    Where: src/app/api/rag/translate/route.ts
+           src/lib/rag-engine.ts translateWithGoogleTranslator (line 623)
+    Problem: no login required (confirmed: anonymous POST returns 200). One call
+    can fan out to 200 requests (100 items x 2) to translate.googleapis.com
+    client=gtx, an unofficial endpoint that can be blocked at any time. On failure
+    it returns the original text with a "[Language]" prefix as if translated.
+    Fix: require login, rate-limit, and use the official Cloud Translation API
+    (or Gemini) with your own key.
+
+12. AI draft endpoint: any agent can read any customize request
+    STATUS: FIXED. Super Admin and Main Admins with "Manage Messages" can draft
+    for any request; Ad Agents only for a request assigned to them (unknown
+    request IDs return 404).
+    Where: src/app/api/admin/messages/ai-draft/route.ts (lines 13-33)
+    Problem: any registered agent (and per item 2, anyone can self-register) can
+    pass any customizeRequestId; the full customer brief goes to Gemini and back
+    in the draft. No ownership check, and no token charge for the Gemini usage.
+    Fix: allow only admins or the agent assigned to that request.
+
+======================================================================
+MEDIUM
+======================================================================
+
+13. Ad Agent "registration required" prompt never appears
+    STATUS: FIXED. The profile check now uses GET; apiFetch defaults to GET when
+    there's no body; /api/me (the only other no-body call) now says POST.
+    Where: src/components/layout/TopNavWallet.tsx (line 521)
+           root cause: src/lib/api-client.ts (line 30)
+    Problem: apiFetch("/api/ad-agent") passes no method, and apiFetch defaults to
+    POST in both branches (opts.body !== undefined ? "POST" : "POST"). The
+    empty-body POST fails with 400, so isAdAgentProfileRegistered stays at its
+    default (true) and unregistered agents are never prompted.
+    Fix: pass { method: "GET" } at line 521, and make apiFetch default to GET
+    when there is no body.
+
+14. Role changes take up to 1 hour to apply; demotions aren't immediate
+    STATUS: FIXED. Removing a role revokes the user's refresh tokens, so their old
+    token is rejected straight away (they sign in again). The browser
+    force-refreshes its token when the server-written roles in users/{uid} differ
+    from the token's claims, so promotions apply immediately. Super Admin adding
+    an agent now keeps that user's other roles and writes them to both the token
+    and users/{uid}.
+    Where: src/lib/rbac.ts assignUserRole; src/lib/ad-agents.ts;
+           src/components/auth/SessionProvider.tsx
+    Problem: custom claims change, but refresh tokens are never revoked and the
+    client never calls getIdToken(true). A promoted user sees admin screens (from
+    the Firestore role) but gets 403 from the API; a demoted admin keeps admin API
+    access until their token expires.
+    Fix: call adminAuth.revokeRefreshTokens(uid) on demotion; force-refresh the
+    client token when the profile role changes.
+
+15. Session revocation check fails open
+    STATUS: FIXED. In production a failed revocation check now returns 502
+    ("Couldn't verify your session") instead of accepting the token. Local
+    development keeps the signature-only fallback.
+    Where: src/lib/firebase-admin.ts verifyRequest (lines 144-157)
+    Problem: if verifyIdToken(token, true) fails for a server-side reason, the
+    token is accepted without the revocation check, so revoked sessions get
+    through whenever the check can't run.
+    Fix: return 503, or fall back only for specific network errors and log it.
+
+16. Config / FAQ / RAG writes can lose or wipe data
+    STATUS: FIXED. updateSystemConfig runs in a Firestore transaction on the
+    stored document (a failed read aborts instead of writing defaults), and the
+    equity-partner changes are computed inside that transaction. FAQ writes use
+    a transaction too (item 17); RAG entries are one document each (item 1).
+    Where: src/lib/admin.ts getSystemConfig (line 84), updateSystemConfig
+           (line 183); src/lib/faqs.ts; src/lib/rag-engine.ts
+    Problem: updateSystemConfig reads, then set()s the whole document with no
+    transaction, so simultaneous edits overwrite each other. Worse,
+    getSystemConfig returns DEFAULT_CONFIG on any read error, so an update during a
+    transient error writes defaults over equity partners, token packs and prices.
+    FAQ and RAG updates use the same read-modify-write pattern.
+    Fix: use transactions or field-level update(), and never write after a
+    failed read.
+
+17. FAQ edits get wiped or undone
+    STATUS: FIXED. Found a worse cause while fixing: create/update/delete wrote
+    the document WITHOUT its version field, so the next read (which the admin
+    route does immediately) reset everything to defaults - every admin FAQ edit
+    was undone straight away. All writes now keep the version and run in a
+    transaction. A version bump refreshes the built-in FAQs but keeps
+    admin-created ones. Deleted default FAQs are remembered and not re-added.
+    "Reset to defaults" still resets everything (explicit action).
+    Where: src/lib/faqs.ts getFaqs (lines 338-341 and 345-357)
+    Problem: when FAQS_SCHEMA_VERSION changes, the next read replaces ALL FAQs
+    (including admin-created ones) with the defaults. Any default FAQ an admin
+    deletes is re-added on the next read, so defaults can never be deleted.
+    Fix: migrate instead of overwriting; remember deleted default IDs.
+
+18. Admins can permanently delete messages despite "7-year retention"
+    STATUS: FIXED (your choice): only Super Admin can permanently delete; the
+    Delete button is hidden for everyone else.
+    Where: src/app/api/admin/messages/route.ts DELETE (line 71)
+    Problem: messages are promised 7-year statutory retention, but any Main Admin
+    can hard-delete them.
+    Fix: archive instead of delete, or limit delete to Super Admin with an audit
+    record.
+
+19. Useful error messages are replaced with "Something went wrong"
+    STATUS: FIXED. All the listed user-facing errors now throw ApiError with the
+    right status (400/403/404) and their real message (the checkout,
+    admin token, messaging, RBAC, refund, partner, FAQ and RAG cases). Only
+    genuine internal faults stay as 500. When a paid action fails unexpectedly
+    after charging, the response now also says the tokens were refunded.
+    Problem: these throw plain Error, which errorResponse() turns into a generic
+    500, hiding the real reason from the user:
+    - src/app/api/wallet/checkout/route.ts line 84 (subscription turned off)
+    - src/lib/admin.ts lines 413, 492, 1065, 1123, 1133, 1137, 1141 (partner not
+      found, >100% allocation, no account, cannot remove tokens)
+    - src/lib/rbac.ts lines 151, 185, 191, 223
+    - src/lib/token-ledger.ts lines 140, 150 (refund errors)
+    - src/lib/admin.ts assertPlainTextNoLinks (line 538; message contains HTML)
+    Fix: throw ApiError with a proper code and status.
+
+20. Stripe return URLs ignore APP_URL
+    STATUS: FIXED. Uses APP_URL when set, otherwise the request origin.
+    Where: src/app/api/wallet/checkout/route.ts (line 127)
+    Problem: new URL(req.url).origin is never empty, so APP_URL is never used.
+    Behind a proxy the request origin can be an internal host, sending buyers back
+    to the wrong address after paying.
+    Fix: prefer process.env.APP_URL, fall back to the request origin.
+
+21. Public pricing endpoint exposes the Super Admin's email
+    STATUS: FIXED. activatedByEmail is blanked in the public response.
+    Where: src/app/api/wallet/checkout/route.ts GET (line 17)
+    Problem: the unauthenticated GET returns freeAccessWindow including
+    activatedByEmail while a free window is active.
+    Fix: leave activatedByEmail out of the public response.
+
+22. Free-access country check trusts a browser header
+    STATUS: FIXED. The token gate ignores x-user-country. The country now comes
+    from an edge header (Vercel/Cloudflare) or an IP lookup of the visitor
+    (cached 1h, new src/lib/request-geo.ts), and is only looked up when it
+    matters (subscriber + free window limited to some countries). Unknown still
+    defaults to AU, as before.
+    Where: src/lib/token-ledger.ts withTokenGate (lines 302-309);
+           src/lib/api-client.ts (line 39)
+    Problem: eligibility uses x-user-country (sent by the browser from
+    localStorage) ahead of any CDN header, so a subscriber can claim any country.
+    With no CDN header (App Hosting) it defaults to AU.
+    Fix: determine the country on the server only.
+
+23. "next build" runs the /api/faqs handler against Firestore
+    STATUS: FIXED. GET /api/faqs now calls connection() first, so it only runs
+    at request time.
+    Where: src/app/api/faqs/route.ts; src/lib/faqs.ts
+    Problem: with cacheComponents on, the build tries to prerender GET /api/faqs,
+    which reads (and can write) the live FAQ document during the build (visible in
+    the build log).
+    Fix: add `await connection()` (from next/server) at the top of GET handlers
+    that touch the database.
+
+24. Whole-collection reads on ordinary requests (cost and speed at scale)
+    STATUS: FIXED (main cases). getAdAgents uses three indexed queries for
+    ad_agent users instead of reading every user + listUsers. Community brand
+    search uses one collection-group query instead of opening every user's
+    brands. The Ad Agent page gives agents their own requests and ledger row via
+    indexed queries; admins read each collection once (was twice). Public RAG
+    no longer harvests (item 1). Not changed: getMasterOrderLedger's 200-user
+    email map (admin-only screen).
+    ACTION NEEDED BY YOU: deploy the new index (firestore.indexes.json):
+      firebase deploy --only firestore:indexes --project ai-foundation-firebase
+    Until then community search still works from global_brands alone.
+    - src/lib/ad-agents.ts getAdAgents (line 64): reads the entire users
+      collection plus listUsers(100), and may write, on every customize / ad-agent
+      request.
+    - src/lib/brands.ts searchGlobalBrands (line 159): scans every user's brands
+      subcollection on every community brand search.
+    - getAdAgentDistributionLedger and the ad-agent GET read all customize_requests.
+    - Public GET /api/rag reads 5 collections per call (item 1).
+    - src/lib/admin.ts getMasterOrderLedger writes "heal" updates during a read
+      and maps emails for only the first 200 users (line 949).
+    Fix: query by indexed fields, read only global_brands for community search,
+    cache where possible.
+
+25. Resetting a partner's redistribution also zeroes their personal wallet
+    STATUS: NO CHANGE - confirmed intended.
+    Where: src/lib/admin.ts resetPartnerTokens (lines 463-471)
+    Problem: tokens the partner bought for their own use are wiped too. Confirm
+    this is intended; if not, remove the resetTokensForUser call.
+
+26. Community brands expose the author's email
+    STATUS: FIXED. global_brands copies no longer store authorEmail, search
+    results don't return it, and search strips it from older copies as it reads
+    them. Brand edits keep authorship and creation time from the stored brand,
+    not the request.
+    Where: src/lib/brands.ts (createBrand line 55, updateBrand, searchGlobalBrands)
+    Problem: authorEmail is stored on global_brands and returned to every
+    signed-in user. authorUid/authorEmail can also be set by the client on PUT.
+    Fix: drop authorEmail from global brands; ignore client-supplied author fields.
+
+27. RAG harvest reads fields that don't exist
+    STATUS: FIXED (with item 1): uses createdAt, advertiserName, primaryCopy,
+    lastSeenDate.
+    Where: src/lib/rag-engine.ts lines 400, 412-415, 432
+    Problem: reads d.timestamp, ad.brandName, ad.bodyText, ad.lastSeenAt; the real
+    fields are createdAt, advertiserName, primaryCopy, lastSeenDate. Brand always
+    shows "Advertiser" and dates are always "now".
+    Fix: use the real field names (after fixing item 1).
+
+======================================================================
+LOW
+======================================================================
+
+28. Main Admin sees a "Grant Test Allocation" button that always fails
+    STATUS: FIXED. The button only shows for Super Admin.
+    Where: src/components/subscription/MonthlySubscriptionModal.tsx (line 593)
+           vs src/app/api/admin/orders/route.ts (line 37, superadmin only)
+    Fix: show the button only to Super Admin.
+
+29. Radar search replay doesn't cover all priced options
+    STATUS: FIXED. The reference now includes media type, 28+d, 60+d, top 90%+
+    and the brand, so a replayed key only ever returns the same search.
+    Where: src/app/api/radar/search/route.ts (line 28)
+    Problem: the replay reference omits mediaType, brandId, extendedLongevity and
+    eliteWinnersOnly, so a replayed key can fetch differently filtered results
+    without paying the surcharge.
+    Fix: include every request field in the reference string.
+
+30. Custom token pack can exceed Stripe's maximum charge
+    STATUS: FIXED. Checkout rejects any pack priced above AUD 909,090.90 before
+    GST (Stripe's single-charge limit once 10% GST is added) with a clear 400.
+    Where: src/lib/contracts.ts (line 331, customTokens max 1,000,000)
+    Problem: 1,000,000 tokens x 100c = AUD 1,000,000, above Stripe's 999,999.99
+    limit; the user gets a generic 500.
+    Fix: lower the cap (e.g. 100,000) or validate the price.
+
+31. Stripe purchase date shifts on every confirmation
+    STATUS: FIXED. recordStripePurchase uses create() (first write wins; later
+    attempts are ignored). Also fixed a latent bug: undefined fields (e.g. no
+    email) are dropped, since Firestore rejects them and the webhook would fail.
+    Where: src/lib/stripe.ts (line 214); src/app/api/webhooks/stripe/route.ts (line 107)
+    Problem: recordStripePurchase uses set(merge) with createdAt = now, and both
+    /api/wallet/confirm and the webhook call it, so the date keeps moving.
+    Fix: use create(), or only set createdAt when it is missing.
+
+32. Subscription status never becomes past_due
+    STATUS: FIXED IN CODE - ACTION NEEDED BY YOU. The webhook now handles
+    invoice.payment_failed (-> past_due) and customer.subscription.updated
+    (mapped to active / past_due / canceled). past_due and canceled subscribers
+    no longer count as subscribers for free-access windows. In the Stripe
+    dashboard, add "invoice.payment_failed" and "customer.subscription.updated"
+    to the webhook endpoint's events.
+    Where: src/app/api/webhooks/stripe/route.ts
+    Problem: only invoice.paid and customer.subscription.deleted are handled; a
+    failed renewal (invoice.payment_failed / customer.subscription.updated) leaves
+    the status "active".
+
+33. Customize brief can state the wrong fee
+    STATUS: FIXED (with item 6): the token gate now reports what it actually
+    charged, and that is what's stored and shown.
+    Where: src/app/api/customize/route.ts (line 60)
+    Problem: the "Fee Paid" figure ignores the user's subscription and country,
+    so during a free window it can say 55 tokens when 0 were charged.
+
+34. User-facing errors mention .env.local and API keys
+    STATUS: FIXED. Users see neutral messages; the details stay in the server
+    log (and a code comment for operators).
+    Where: src/lib/searchapi.ts (line 43); src/lib/radar.ts (line 581)
+    Fix: log the details on the server and show a neutral message.
+
+35. Gemini media download can load very large files into memory
+    STATUS: FIXED. The body is read in chunks and abandoned once it passes 12 MB.
+    Where: src/lib/gemini.ts download (lines 258-268)
+    Problem: without a Content-Length header the whole body is read before the
+    12 MB check.
+
+36. Suburb autocomplete calls Nominatim on every keystroke
+    STATUS: FIXED. Typing matches the built-in suburb list only; pressing Enter
+    runs the online lookup, throttled to 1 request/second and cached. Slower,
+    older responses can no longer overwrite newer suggestions. (Also removed the
+    "any" type flagged by ESLint in geo.ts.)
+    Where: src/lib/geo.ts searchSuburbs (line 447);
+           src/components/ad-agent/AdAgentModal.tsx (line 320)
+    Problem: no debounce. Nominatim's usage policy forbids client-side
+    autocomplete and allows at most 1 request/second; responses can also arrive
+    out of order and show stale suggestions.
+
+37. Plain-text filter rejects normal sentences
+    STATUS: FIXED. The link check now only matches real links (http(s)://,
+    ftp://, www.<domain>, data:<type>/<subtype>, Markdown links); tested on 15
+    cases. The duplicate copy in admin.ts was removed so the forms and the
+    server use one rule.
+    Where: src/lib/contracts.ts (line 510); src/lib/admin.ts (line 536)
+    Problem: any "data:" or "www." counts as a link, e.g. "Customer data: ..." is
+    rejected.
+
+38. Apify connectors (only matter once APIFY_API_TOKEN is set)
+    STATUS: FIXED. The token is sent as an Authorization header (not in the
+    URL) and only to api.apify.com, never to a custom endpoint. Runs get 45 s,
+    and Apify is told to stop the run at that limit.
+    Where: src/lib/meta-topads.ts (line 243); src/lib/tiktok-topads.ts (line 142)
+    Problem: the token goes in the URL query string; the 20 s timeout is usually
+    too short for run-sync actors; with a custom endpoint the Apify token is sent
+    to that third party.
+
+39. Inconsistencies
+    STATUS: FIXED. The subscription modal uses /api/currency like the rest of
+    the app (0.65 stays as the documented fallback and for ledger history).
+    public/manifest.json (identical duplicate) is deleted; pages already linked
+    only /manifest.webmanifest, and the layout no longer names manifest.json.
+    The service worker (cache v2) caches the generated manifest, shows a small
+    offline page for uncached pages, and no longer intercepts other sites'
+    requests.
+    - Three FX sources: /api/currency (Frankfurter), MonthlySubscriptionModal
+      (open.er-api.com, line 95) and a fixed 0.65 elsewhere.
+    - public/manifest.json duplicates app/manifest.ts (served as
+      /manifest.webmanifest), and layout.tsx line 51 points at /manifest.json.
+      Keep one.
+    - public/sw.js fetch handler: offline, pages that were never cached resolve to
+      undefined (network error) instead of a fallback page.
+
+40. ESLint fails (npm run lint)
+    STATUS: FIXED - lint now passes (0 errors, 41 warnings). Fixed the real
+    issues: the two "any" types, every unused import/variable (dead state in
+    SuperAdminModal and MonthlySubscriptionModal, unused helpers in radar.ts
+    and brands.ts), and the "used before declared" function. The React
+    Compiler rules (set-state-in-effect, immutability, purity) are now warnings
+    in eslint.config.mjs: the flagged effects work, and rewriting 30+ effects in
+    screens I can't click through risked breaking the UI. They remain visible
+    (28 + 4) along with 9 hook-dependency warnings. Stray "(1)" copies are no
+    longer linted.
+    NOTE: buildCheckoutParams never used stripeCustomerId (every purchase makes
+    a new Stripe customer). Reusing it needs customer_update for Stripe Tax and
+    a test against Stripe, so it was left as is.
+    These don't break the build but fail any lint gate:
+    - react-hooks/set-state-in-effect (28): AdAgentModal 280/287/519;
+      SuperAdminModal 240/249/410/1474/1567/1694; SessionProvider 100/152;
+      CurrencyConverterModal 62; CustomizeView 129/177; FaqModal 58/133;
+      FaqRagWorkspace 460; GeoTimeModal 32; AppFooter 27; FreeAccessTopBanner 30;
+      TopNavWallet 517; PolicyModal 30; InstallAppModal 32; RadarFilterBar 142;
+      MonthlySubscriptionModal 76; SupporterModal 41; TokenPacks 57;
+      usePwaInstall 55
+    - react-hooks/immutability and purity (5, false positives: DOM style change
+      inside an effect, Date.now() inside a click handler, hoisted function):
+      SuperAdminModal 1466/1470/1770/1794; MonthlySubscriptionModal 77
+    - @typescript-eslint/no-explicit-any (2): GeoTimeModal 261; src/lib/geo.ts 474
+    - 31 warnings: unused imports/variables (e.g. grantDevAdminRole in
+      admin/config/route.ts; z and stripeCustomerId in stripe.ts; FieldValue in
+      token-ledger.ts) and missing hook dependencies.
+
+======================================================================
+FOUND WHILE REPAIRING
+======================================================================
+
+44. Editing a contractor could wipe their PayID details, rates and notes
+    STATUS: FIXED.
+    Where: src/app/api/contractors/route.ts (UPDATE_CONTRACTOR);
+           src/lib/contracts.ts (UpdateContractorRequestSchema)
+    Problem: the patch was parsed with CreateContractorRequestSchema.partial().
+    In Zod 4, .partial() fills missing fields with their defaults, so a patch
+    without payIdPaymentDetails / averageRates / notes reset them to "". The
+    current screen always sends the whole form, so it hadn't triggered yet.
+    Fix applied: a dedicated ContractorPatchSchema with no defaults.
+    (Other bugs found while repairing are recorded under items 17, 31 and 32.)
+
+======================================================================
+REPO / HOUSEKEEPING
+======================================================================
+
+41. Git metadata contains cloud-sync conflict copies
+    STATUS: FIXED. The 7 copies were backed up (checksums verified) to the
+    session scratchpad (backup-sync-duplicates) and deleted; "git remote remove
+    main" done (origin unchanged). git fsck is clean and "git log --all" works.
+    ACTION NEEDED BY YOU: exclude this project folder (at least .git) from your
+    cloud-sync tool, or the copies will come back.
+    .git holds 7 "(1)" files: COMMIT_EDITMSG (1), FETCH_HEAD (1), index (1),
+    logs/HEAD (1), logs/refs/heads/main (1), logs/refs/remotes/origin/main (1),
+    refs/remotes/origin/main (1).
+    The last is an invalid ref: git fsck reports badRefName and
+    "git log --all" fails with "fatal: bad object". A sync tool is touching the
+    repo folder, which can corrupt git.
+    Fix: back up, delete those 7 files, and exclude the project folder (at least
+    .git) from cloud sync. There is also a second remote named "main" with the
+    same URL as "origin"; it clashes with the branch name (git remote remove main).
+
+42. Duplicate source files
+    STATUS: FIXED. All 23 deleted (each was older than the real file). The 21
+    untracked ones were backed up first (same scratchpad folder); the 2 tracked
+    "(2)" copies can be restored from git. .env.local.ad-radar-au.bak was left
+    alone. ESLint now ignores any future "(1)" copies, like tsconfig does.
+    - Tracked in git: src/lib/contracts (2).ts and src/lib/token-ledger (2).ts
+      (old copies, not compiled).
+    - Untracked: 19 "(1)" copies under src/, plus SECRET_HISTORY (1).md,
+      data-contracts (1).md and .env.local.ad-radar-au.bak in the root.
+    Fix: delete them.
+
+43. Maintenance scripts write to the live database
+    STATUS: FIXED. Both scripts now refuse to run unless given --live (e.g.
+    node scripts/verify-database.mjs --live); with --live they behave as
+    before. The stale exFAT comment in scripts/e2e.mjs is corrected.
+    scripts/test-messages-e2e.mjs and scripts/verify-database.mjs create, update
+    and delete documents in the production ad-radar database (no emulator).
+    scripts/e2e.mjs line 2 still says the drive is exFAT (it's NTFS now).
+
+======================================================================
+NOT VERIFIED (check in the consoles)
+======================================================================
+- Stripe Tax is activated in the Stripe account (checkout uses automatic_tax;
+  session creation fails if it isn't).
+- Which Firebase Auth sign-in providers are enabled on ai-foundation-firebase
+  (affects item 4).
+- Whether production runs on Vercel or Firebase App Hosting (items 8, 9 and 22
+  depend on it), and whether App Hosting backend "ad-radar" exists in
+  ai-foundation-firebase.
+- No live calls were made to Gemini, SearchApi or Stripe.

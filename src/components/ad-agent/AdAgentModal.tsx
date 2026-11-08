@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "@/components/auth/SessionProvider";
 import { Icon } from "@/components/ui/Icon";
@@ -317,18 +317,29 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
     notes: "",
   });
 
+  // Bumped on every lookup so a slower, older response can't overwrite newer suggestions.
+  const suburbLookupSeq = useRef(0);
+
+  async function lookupContractorSuburbs(val: string, allowNetwork: boolean) {
+    const seq = ++suburbLookupSeq.current;
+    try {
+      const results = await searchSuburbs(val, { allowNetwork });
+      if (seq !== suburbLookupSeq.current) return;
+      setContractorSuburbSuggestions(results);
+      setShowContractorSuburbDropdown(results.length > 0);
+    } catch {
+      if (seq === suburbLookupSeq.current) setShowContractorSuburbDropdown(false);
+    }
+  }
+
   async function handleContractorLocationChange(val: string) {
     setContractorForm((prev) => ({ ...prev, location: val }));
     setContractorGeoNotice(null);
     if (val.trim().length >= 2) {
-      try {
-        const results = await searchSuburbs(val);
-        setContractorSuburbSuggestions(results);
-        setShowContractorSuburbDropdown(results.length > 0);
-      } catch {
-        setShowContractorSuburbDropdown(false);
-      }
+      // Typing only matches the built-in suburb list; pressing Enter runs the online lookup (see the input).
+      await lookupContractorSuburbs(val, false);
     } else {
+      suburbLookupSeq.current++;
       setContractorSuburbSuggestions([]);
       setShowContractorSuburbDropdown(false);
     }
@@ -1257,7 +1268,9 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                             setStateRegion("");
                             setCountry("AU");
                             setStatusMsg(
-                              "Personal details cleared. Enter the new Ad Agent's email, full name, phone, geolocation, and bank/PayID details below.",
+                              isSuper
+                                ? "Personal details cleared. Enter the new Ad Agent's email, full name, phone, geolocation, and bank/PayID details below."
+                                : "Personal details cleared. Enter your full name, phone, geolocation, and bank/PayID details below.",
                             );
                           }}
                           data-agent-id="ad-agent-clear-personal-details-btn"
@@ -1281,14 +1294,18 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                             placeholder="agent@example.com"
                             value={agentEmail}
                             onChange={(e) => handleAgentEmailChange(e.target.value)}
-                            className={`${field} font-mono text-xs`}
+                            readOnly={!isSuper}
+                            aria-readonly={!isSuper}
+                            className={`${field} font-mono text-xs ${!isSuper ? "cursor-not-allowed opacity-80" : ""}`}
                             data-agent-id="ad-agent-email-input"
                             data-testid="ad-agent-email-input"
                           />
                           <p className="mt-1 text-[11px] font-mono text-outline">
-                            {myAgentProfile
-                              ? "Existing Ad Agent found for this email"
-                              : "Not registered before — enter your own new personal details"}
+                            {!isSuper
+                              ? "Your sign-in email. Only Super Admin can register other people."
+                              : myAgentProfile
+                                ? "Existing Ad Agent found for this email"
+                                : "Not registered before — enter your own new personal details"}
                           </p>
                         </div>
 
@@ -2428,12 +2445,19 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                               required
                               value={contractorForm.location}
                               onChange={(e) => handleContractorLocationChange(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && contractorForm.location.trim().length >= 2) {
+                                  // Look the suburb up online instead of submitting the form.
+                                  e.preventDefault();
+                                  void lookupContractorSuburbs(contractorForm.location, true);
+                                }
+                              }}
                               onFocus={() => {
                                 if (contractorSuburbSuggestions.length > 0) {
                                   setShowContractorSuburbDropdown(true);
                                 }
                               }}
-                              placeholder="Type suburb e.g. Sydney, Bondi, Surry Hills, Brisbane, Gold Coast, Melbourne..."
+                              placeholder="Type suburb e.g. Sydney, Bondi, Brisbane (press Enter to search all suburbs)"
                               className={field}
                               data-agent-id="contractor-location-input"
                               data-testid="contractor-location-input"

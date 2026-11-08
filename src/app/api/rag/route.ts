@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorResponse, readJson } from "@/lib/api";
 import { verifyRequest } from "@/lib/firebase-admin";
+import { requirePermission } from "@/lib/rbac";
 import {
   CreateRagEntryRequestSchema,
   DeleteRagEntryRequestSchema,
@@ -11,21 +12,39 @@ import {
   deleteRagEntry,
   getFullRagCorpus,
   updateHumanEditedRagEntry,
+  type RagAudience,
 } from "@/lib/rag-engine";
+
+/** RAG / FAQ content is site configuration: admins with the "System Config" permission. */
+async function verifyRagAdmin(req: Request) {
+  const caller = await verifyRequest(req, { requireRole: "admin" });
+  await requirePermission(caller, "manage_config");
+  return caller;
+}
+
+/**
+ * Admins get the whole corpus (including live AI works). Everyone else, including signed-out FAQ
+ * visitors, gets the public view: Website UI and enabled-FAQ entries only, without contributor emails.
+ */
+async function audienceFor(req: Request): Promise<RagAudience> {
+  if (!req.headers.get("authorization")) return "public";
+  try {
+    await verifyRagAdmin(req);
+    return "admin";
+  } catch {
+    return "public";
+  }
+}
 
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const query = url.searchParams.get("q") || undefined;
-    const sourceType = url.searchParams.get("sourceType") || undefined;
-    const faqId = url.searchParams.get("faqId") || undefined;
-    const languageCode = url.searchParams.get("lang") || undefined;
-
     const corpus = await getFullRagCorpus({
-      query,
-      sourceType,
-      faqId,
-      languageCode,
+      query: url.searchParams.get("q") || undefined,
+      sourceType: url.searchParams.get("sourceType") || undefined,
+      faqId: url.searchParams.get("faqId") || undefined,
+      languageCode: url.searchParams.get("lang") || undefined,
+      audience: await audienceFor(req),
     });
 
     return NextResponse.json({
@@ -38,17 +57,14 @@ export async function GET(req: Request) {
   }
 }
 
+/** Adds a human-edited entry (optionally publishing it as a FAQ) or re-syncs the corpus. Admin only. */
 export async function POST(req: Request) {
   try {
-    // Allow all users (authenticated or public FAQ contributors) to submit human-edited translations to RAG
-    const caller = await verifyRequest(req).catch(() => null);
-    const contributorEmail = caller?.email || "community-contributor@adradarhq.com";
-
-    const body = await readJson(req);
-    const parsed = CreateRagEntryRequestSchema.parse(body);
+    const caller = await verifyRagAdmin(req);
+    const parsed = CreateRagEntryRequestSchema.parse(await readJson(req));
 
     if (parsed.action === "SYNC_CORPUS") {
-      const corpus = await getFullRagCorpus();
+      const corpus = await getFullRagCorpus({ audience: "admin" });
       return NextResponse.json({
         success: true,
         message: "Synchronized all Website UI, FAQs, Radar Feed Searches, and AI Works into RAG corpus.",
@@ -57,8 +73,8 @@ export async function POST(req: Request) {
       });
     }
 
-    const item = await addHumanEditedRagEntry(parsed, contributorEmail);
-    const corpus = await getFullRagCorpus();
+    const item = await addHumanEditedRagEntry(parsed, caller.email);
+    const corpus = await getFullRagCorpus({ audience: "admin" });
 
     return NextResponse.json({
       success: true,
@@ -71,15 +87,13 @@ export async function POST(req: Request) {
   }
 }
 
+/** Human-edits an entry; system entries are copied into the custom store with the edit. Admin only. */
 export async function PUT(req: Request) {
   try {
-    const caller = await verifyRequest(req).catch(() => null);
-    const contributorEmail = caller?.email || "community-contributor@adradarhq.com";
-
-    const body = await readJson(req);
-    const parsed = UpdateRagEntryRequestSchema.parse(body);
-    const item = await updateHumanEditedRagEntry(parsed, contributorEmail);
-    const corpus = await getFullRagCorpus();
+    const caller = await verifyRagAdmin(req);
+    const parsed = UpdateRagEntryRequestSchema.parse(await readJson(req));
+    const item = await updateHumanEditedRagEntry(parsed, caller.email);
+    const corpus = await getFullRagCorpus({ audience: "admin" });
 
     return NextResponse.json({
       success: true,
@@ -94,11 +108,10 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    await verifyRequest(req, { requireRole: "admin" });
-    const body = await readJson(req);
-    const { ragId } = DeleteRagEntryRequestSchema.parse(body);
+    await verifyRagAdmin(req);
+    const { ragId } = DeleteRagEntryRequestSchema.parse(await readJson(req));
     await deleteRagEntry(ragId);
-    const corpus = await getFullRagCorpus();
+    const corpus = await getFullRagCorpus({ audience: "admin" });
 
     return NextResponse.json({
       success: true,
@@ -110,4 +123,3 @@ export async function DELETE(req: Request) {
     return errorResponse(err);
   }
 }
-

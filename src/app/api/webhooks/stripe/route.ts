@@ -7,12 +7,30 @@ import { jsonError } from "@/lib/api";
 import { TopupMetadataSchema } from "@/lib/contracts";
 import { fulfillCheckoutSession, getStripe } from "@/lib/stripe";
 
+type SubscriptionStatus = "active" | "past_due" | "canceled";
+
+/** Stripe subscription status -> the app's subscriptionStatus. */
+function toSubscriptionStatus(status: Stripe.Subscription.Status): SubscriptionStatus {
+  if (status === "active" || status === "trialing") return "active";
+  if (status === "canceled" || status === "incomplete_expired") return "canceled";
+  return "past_due"; // past_due, unpaid, incomplete, paused
+}
+
+async function setSubscriptionStatus(uid: string, subscriptionStatus: SubscriptionStatus) {
+  await db
+    .collection("users")
+    .doc(uid)
+    .set({ subscriptionStatus, updatedAt: new Date().toISOString() }, { merge: true });
+}
+
 /**
  * Credits token packs and Monthly Search Subscriptions from:
  * - `checkout.session.completed` (card payments & initial subscription checkout)
  * - `checkout.session.async_payment_succeeded` (delayed payment methods)
  * - `invoice.paid` (`subscription_cycle` renewals for recurring monthly 1,000-search allocations)
- * - `customer.subscription.deleted` (marks subscription canceled on user profile)
+ * - `invoice.payment_failed` (a failed renewal marks the subscription past_due)
+ * - `customer.subscription.updated` / `customer.subscription.deleted` (keeps the status in sync)
+ * The Stripe webhook endpoint must be subscribed to all of these events.
  *
  * The Checkout Session id (or Invoice id for recurring renewals) is the ledger `txId`,
  * so Stripe's retries and duplicate deliveries never double-credit.
@@ -114,20 +132,24 @@ export async function POST(req: Request) {
       });
     }
 
-    if (event.type === "customer.subscription.deleted") {
+    if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subDetails = invoice.parent?.subscription_details;
+      const uid = subDetails?.metadata?.uid;
+      if (subDetails && uid) {
+        await setSubscriptionStatus(uid, "past_due");
+      }
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
       const subscription = event.data.object as Stripe.Subscription;
       const uid = subscription.metadata?.uid;
       if (uid) {
-        await db
-          .collection("users")
-          .doc(uid)
-          .set(
-            {
-              subscriptionStatus: "canceled",
-              updatedAt: new Date().toISOString(),
-            },
-            { merge: true }
-          );
+        await setSubscriptionStatus(
+          uid,
+          event.type === "customer.subscription.deleted" ? "canceled" : toSubscriptionStatus(subscription.status),
+        );
       }
       return NextResponse.json({ received: true });
     }

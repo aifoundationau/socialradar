@@ -258,7 +258,7 @@ export function GeoTimeModal({ isOpen, onClose, config, onSave }: GeoTimeModalPr
               data-testid="geo-date-format-select"
               aria-label="Date Format"
               value={formData.dateFormat}
-              onChange={(e) => setFormData({ ...formData, dateFormat: e.target.value as any })}
+              onChange={(e) => setFormData({ ...formData, dateFormat: e.target.value as typeof formData.dateFormat })}
               className={field}
             >
               <option value="DD MMM YYYY">DD MMM YYYY (e.g. 01 Nov 2026)</option>
