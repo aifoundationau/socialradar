@@ -1,0 +1,709 @@
+================================================================================
+ABOUT ADRADAR (ADRADARHQ / SOCIAL RADAR)
+================================================================================
+What it is, everything it does, how tokens and roles work, the marketing and
+promotion plan, and why it beats big agencies and "buy my book" ad gurus.
+
+Prepared: 8 November 2026. Describes the current build of the app. Prices and
+costs shown are the defaults in the code; Super Admin can change them, and
+the app always shows the live price before anything is spent.
+Sections 9 and 10 (marketing and promotion) are recommendations, not
+existing features.
+
+CONTENTS
+  1.  AdRadar in one minute
+  2.  Who it is for
+  3.  Everything AdRadar does (all functions)
+  4.  How tokens work
+  5.  Roles: who can do what
+  6.  How roles are allocated
+  7.  Money flows: the two redistribution ledgers
+  8.  Why AdRadar beats huge agencies and "buy my book" ad gurus
+  9.  Marketing plan
+  10. Promotion plan
+  11. Honest limits (what not to promise)
+  12. Rules and policies in brief
+  13. Glossary
+
+
+================================================================================
+1. ADRADAR IN ONE MINUTE
+================================================================================
+AdRadar finds the ads that are already winning, shows you why they work, and
+rewrites them for your brand.
+
+- SEARCH real ads from the official ad libraries of Meta (Facebook and
+  Instagram), TikTok and Google (Search, Shopping, Display and YouTube).
+- FILTER to "proven winners": ads that have kept running for 28 days or more
+  (or 60+ days), because advertisers don't keep paying for ads that lose money.
+- SCORE every ad from 0 to 100 on how well it fits your brand, how strong its
+  hook is, and how long and widely it has run.
+- REMIX: AI breaks a winning ad down (hook, pacing, persuasion framework, why
+  it works) and writes three ready-to-test versions for YOUR brand, each with
+  a headline, call to action, ad copy, a shot-by-shot video storyboard and an
+  image prompt.
+- GET HUMAN HELP when you want it: the "Customize" service sends your brief to
+  a real Ad Agent near you, who sends back a full brand and ad strategy.
+- PAY AS YOU GO with tokens (default 1 token = AUD $1). No retainer, no
+  lock-in contract, and tokens never expire.
+
+AdRadar is built by AI Foundation Australia. Its mission, in the founder's
+words: "to level the playing field for ambitious entrepreneurs, agency
+operators, and businesses across Australia, New Zealand, and globally."
+
+
+================================================================================
+2. WHO IT IS FOR
+================================================================================
+- Small and medium business owners who run (or want to run) their own ads on
+  Facebook, Instagram, TikTok or Google.
+- E-commerce and Shopify-style store owners who need fresh creative ideas
+  every week.
+- Local service businesses (trades, clinics, gyms, salons, real estate) that
+  can't afford an agency retainer.
+- Creators, coaches and personal brands launching offers.
+- Freelance media buyers, social media managers, videographers and small
+  agencies that manage several client brands.
+- Marketers across Australia, New Zealand and South-East Asia (the help and
+  FAQ section works in more than 30 languages, including the main ASEAN
+  languages).
+
+
+================================================================================
+3. EVERYTHING ADRADAR DOES (ALL FUNCTIONS)
+================================================================================
+
+3.1 RADAR SEARCH (find winning ads)
+--------------------------------------------------------------------------------
+- Search by competitor brand, product or niche keyword, or a hook/phrase used
+  in ads (2 to 100 characters).
+    * Meta and TikTok search the words in the ads and the advertiser's name.
+      Phrases of several words are searched as an exact phrase first, then
+      broadened when few ads come back.
+    * Google is searched by advertiser: a brand name or website (for example
+      nike.com) works best. Common categories (cars, pets, skincare,
+      supplements, running shoes and activewear, teeth whitening) are
+      recognised and mapped to the leading advertisers in that category. Live
+      Google sponsored search and Shopping ads are included too.
+- Choose the ad library: Meta, TikTok or Google. Results never mix
+  platforms ("strict platform isolation").
+- Choose the country (each library is searched for that market).
+- Choose the format: all, video or image.
+- Winner filters:
+    * Proven (28+ days): only ads that have run 28 days or longer.
+    * Extended (60+ days): evergreen ads running two months or longer.
+    * Top Winners (90%+): only ads scoring 90 or more out of 100.
+- Pick one of your brands so results are scored for fit with that brand.
+- Winner Matrix score (0-100) for every ad: 40% brand fit, 30% hook strength,
+  30% longevity and scale (days running, duplicate ad sets, estimated views).
+  Each card shows the score, why the ad resonates, and highlighted keywords.
+- Ad cards show the creative (image, video or carousel), copy, headline, call
+  to action, landing page link, days running and estimated views/likes.
+- Results are kept for 24 hours, so repeat searches come back instantly.
+- Clear on-screen notices when a library has limits (see section 11).
+
+3.2 AI CREATIVE REMIX STUDIO
+--------------------------------------------------------------------------------
+- "Model this ad": the AI (Google Gemini) watches or reads the winning ad and
+  produces a DECONSTRUCTION:
+    * Hook analysis: the pattern interrupt in the first 0-3 seconds.
+    * Pacing structure: beat by beat, with timings.
+    * Persuasion framework: PAS (problem-agitate-solve), AIDA, UGC story,
+      us-vs-them, or social proof stack.
+    * Why it works: the psychology in plain words.
+- Then THREE VARIATIONS written for your brand profile, each with a different
+  angle: name of the angle, headline, call-to-action button, primary ad copy,
+  a 4-6 beat video storyboard (shot, voiceover line, on-screen text) and an
+  image-generation prompt for a static ad.
+- Platform-aware writing: TikTok-native UGC hooks, Google search/YouTube
+  pre-skip hooks, or Meta Reels/Feed/Stories structure.
+- It never copies the source ad's brand names, claims or wording, and it
+  doesn't invent prices, statistics, reviews or guarantees your brand profile
+  doesn't state.
+- Regenerate fresh variations, edit them, copy the full script in one click,
+  or export a CSV spreadsheet for editors and UGC creators.
+- If the AI fails, the tokens are automatically re-credited.
+
+3.3 MY BRANDS AND THE COMMUNITY BRAND LIBRARY
+--------------------------------------------------------------------------------
+- Up to 25 brand profiles per account: brand name, product or service,
+  target customer avatar, core pain points, unique mechanism or offer, tone
+  of voice (direct response, authoritative, UGC casual or urgent), main
+  website and landing pages.
+- Duplicate a brand to test a new version or positioning.
+- Choose the active brand that Radar scoring and the Remix Studio use.
+- Publish a brand to the Community Brand Library (optional), or keep it
+  private.
+- Browse and search community brands by keyword or tone, and clone one into
+  your own account as a starting point.
+
+3.4 CUSTOMIZE BRAND STRATEGY (human experts)
+--------------------------------------------------------------------------------
+- For when you want a professional to do it: fill in a brief (brand,
+  product, audience, pain points, offer, tone, landing pages and your own
+  extra notes).
+- The brief is routed to the closest active Ad Agent by location (worked out
+  by distance), or to an agent you choose.
+- You get an instant confirmation in your Message Panel naming your Ad Agent,
+  their phone number, their location and the distance from you.
+- Your Ad Agent reviews your positioning, audience, pain points and notes and
+  delivers a customized brand and ad strategy back to your Message Panel.
+  Agents have an AI draft assistant that structures replies in four parts:
+  positioning and offer refinement, audience and pain-point hooks, three
+  custom ad creative blueprints, and an implementation checklist.
+- Fixed fee per request (default 55 tokens), not a retainer.
+
+3.5 AD AGENT PANEL (for approved agents)
+--------------------------------------------------------------------------------
+- Register and maintain an Ad Agent profile: name, phone, operating location
+  (with "use my location" and suburb finder), and bank or PayID details for
+  payouts.
+- Switch availability ON or OFF (OFF = no new Customize orders).
+- See the Customize orders assigned to you, draft replies with AI, and send
+  the finished strategy to the customer.
+- Contractors directory: keep your own list of trusted contractors (graphic
+  design, video production, copywriting and scripts, media buying and
+  strategy, and more) with contact details, rates and PayID notes, and pick
+  one for a job.
+- See your own line in the Ad Agent Distribution Ledger (what you've earned).
+
+3.6 WALLET AND PAYMENTS
+--------------------------------------------------------------------------------
+- Live token balance and full history: every search, remix, clone,
+  Customize order, purchase, gift and refund, each with the balance after it.
+- Buy token packs (10, 50, 100 tokens, a custom amount, or packs Super Admin
+  creates) through Stripe's secure hosted checkout. AdRadar never sees or
+  stores card details.
+- Prices in Australian dollars. Stripe adds 10% GST for Australian buyers
+  automatically; New Zealand and international buyers pay no GST. Buyers
+  outside Australia and New Zealand also see a US-dollar estimate.
+- Tax invoices for token-pack purchases.
+- Built-in currency converter (European Central Bank rates).
+- Optional "reset my balance to 0" (unused tokens are forfeited; for people
+  who want to close out an account).
+
+3.7 MESSAGES AND SUPPORT
+--------------------------------------------------------------------------------
+- Message Super Admin from inside the app; read replies and Customize
+  deliveries in your Message Panel.
+- Plain text only (no links or attachments), for safety and record keeping.
+- Every message is kept for 7 years (statutory record keeping).
+
+3.8 HELP, FAQ AND LANGUAGES
+--------------------------------------------------------------------------------
+- Searchable FAQ with categories, written from the customer's point of view.
+- FAQ available in more than 30 languages (English plus Indonesian, Malay,
+  Vietnamese, Thai, Filipino/Tagalog, Burmese, Khmer and other ASEAN and
+  major world languages). Human-checked translations are used first; Google
+  Translate fills any gaps.
+- Admins keep a "knowledge corpus" of FAQ and website sentences and can add
+  human-edited translations.
+
+3.9 SUPER ADMIN AND MAIN ADMIN CONTROL PANEL
+--------------------------------------------------------------------------------
+- Token economy: switch the token system on or off, set the token price,
+  turn AUD and USD display on or off, set the cost of every action, and
+  create, edit or retire token packs.
+- Monthly Search Subscription settings (price, searches per month, on/off).
+- Timed Free Access Windows: Super Admin can make the app free for 15, 30 or
+  60 minutes for Monthly Subscribers, in all countries or chosen countries.
+- Redistributive Equity Ledger: equity partners, their percentages, the live
+  split of every Stripe sale, payout resets with a 7-year archive.
+- Ad Agent Distribution Ledger: each agent's customizations, redistribution
+  percentage (10-70%), amount owed, bank/PayID details, payout reset.
+- Master order ledger: every transaction on the platform. Super Admin can add
+  (gift), remove or reset tokens for any user and refund a charge.
+- Users and roles: assign roles (several per person), and edit the Role
+  Permissions grid (see section 5).
+- Inbox: read and answer user messages, with an AI draft helper for
+  Customize replies.
+- FAQ management, knowledge-corpus management, and search-cache flush.
+- "Act as" preview: Super Admin can view the app as a Main Admin, Ad Agent or
+  Supporter to check what they see.
+
+3.10 APP EXTRAS
+--------------------------------------------------------------------------------
+- Install AdRadar as an app on desktop Chrome, Android or iPhone (PWA).
+- Footer with your suburb, local weather, time and the currency converter.
+- Terms of Service, Privacy and About pages inside the app.
+- Every button carries stable labels so AI assistants and accessibility tools
+  can operate the app reliably.
+
+
+================================================================================
+4. HOW TOKENS WORK
+================================================================================
+
+4.1 BUYING TOKENS
+--------------------------------------------------------------------------------
+- Default price: 1 token = AUD $1 (set by Super Admin).
+- Packs: 10 (AUD $10), 50 (AUD $50), 100 (AUD $100), any custom amount, or
+  special packs Super Admin creates (which can carry their own price).
+- GST: 10% added at checkout for Australian buyers (Stripe Tax). No GST for
+  New Zealand and international buyers. Everything settles in AUD.
+- Tokens land in your wallet as soon as Stripe confirms the payment.
+- Monthly Search Subscription: 1,000 search tokens every month for a fixed
+  monthly fee (default AUD $500, set by Super Admin). It is switched off by
+  default, and in the current version only Super Admin and Main Admin
+  accounts can buy it.
+
+4.2 WHAT THINGS COST (defaults)
+--------------------------------------------------------------------------------
+  Action                                         Tokens
+  ---------------------------------------------  ------
+  Radar search (base)                                 1
+    + Proven winners (28+ days) filter               +1
+    + Extended (60+ days) filter                     +1
+    + Top Winners (90%+) filter                      +1
+  A standard search (Proven filter on, as default)    2
+  A search with every filter on                       4
+  AI Remix (deconstruction + 3 variations)            1
+  Regenerate variations                               1
+  Clone a Community Library brand                     1
+  Customize Brand Strategy (human Ad Agent)          55
+  Create/edit/duplicate your own brands            free
+  Messages, FAQ, wallet, currency converter        free
+
+The price is shown on each button before you spend anything. Super Admin can
+change every cost, or switch the whole token system off (making everything
+free).
+
+4.3 THE TOKEN RULES
+--------------------------------------------------------------------------------
+- Tokens never expire.
+- Nobody can go below zero: if your balance is too low, the action is blocked
+  and you're asked to top up. No debt, no surprise bills.
+- No double charging: if your connection drops and the app retries, the same
+  request is only charged once.
+- Automatic re-credit: if a search, remix or Customize request fails because
+  of a technical or upstream problem, the exact tokens go straight back into
+  your wallet.
+- Every token movement is recorded in your wallet history.
+- Purchases are final: token purchases and subscription fees are not refunded
+  once payment is confirmed (tokens are delivered instantly and never
+  expire).
+- A search that runs but finds no ads still costs its tokens (the search was
+  done). See section 11.
+
+4.4 FREE ACCESS WINDOWS
+--------------------------------------------------------------------------------
+- Super Admin can open a 15, 30 or 60-minute window in which everything is
+  free for Monthly Subscribers, in every country or only selected countries.
+- A banner across the top shows when a window is live and where it applies.
+- The country is worked out on the server, so it can't be faked by changing
+  browser settings.
+
+
+================================================================================
+5. ROLES: WHO CAN DO WHAT
+================================================================================
+Every account has one or more roles. A person can hold several at once (for
+example Supporter + Ad Agent + Agency); they then get everything each role
+allows. Their main displayed role follows this order: Super Admin > Main Admin
+> Ad Agent > Moderator > Agency > Supporter.
+
+SUPPORTER (everyone starts here)
+  - Search the Radar, use the AI Remix Studio, manage brands, clone community
+    brands, order Customize, buy tokens, see wallet history, message support.
+
+AGENCY
+  - Same tools as Supporter, set up for teams managing several client brands
+    (account tier "agency"). Often combined with Ad Agent.
+
+AD AGENT (independent contractor)
+  - Everything a Supporter can do, plus the Ad Agent Panel: profile and
+    availability, assigned Customize orders, AI draft replies, sending
+    strategies to customers, contractors directory, own ledger line.
+  - Earns a redistribution percentage on the customizations they handle.
+  - Ad Agents are independent contractors, not employees, partners or legal
+    representatives of AdRadar; their advice is their own.
+
+MODERATOR
+  - Searches and remixes for quality checks; helps with support
+    communication, FAQ accuracy and Community Library quality. Cannot change
+    prices, tokens, ledgers or roles.
+
+MAIN ADMIN
+  - The Admin Control Panel, within what the Role Permissions grid allows:
+    pricing and token packs, FAQs, messages, analytics, the user list and
+    (if allowed) approving roles.
+  - Can approve Supporter, Ad Agent, Agency and Moderator. Cannot make
+    anyone Main Admin or Super Admin, cannot change the permissions grid,
+    and cannot gift or remove tokens or run the free-access windows.
+
+SUPER ADMIN (the platform owner; permanent)
+  - Everything, always. The only role that can: assign Main Admin, edit the
+    permissions grid, gift/remove/reset tokens and refund charges, run Timed
+    Free Access Windows, manage the Ad Agent Distribution Ledger and payouts,
+    and permanently delete messages.
+  - The Super Admin account is fixed to the database owner's verified email
+    and can't be changed or demoted by anyone.
+
+THE ROLE PERMISSIONS GRID
+  Super Admin decides, per role, which of these 10 permissions it has:
+    View Analytics . System Config . Redistributive Ledger . Flush Cache .
+    Manage Messages . Manage RBAC (approve roles) . Manage Users .
+    Search AdRadarHQ . AI Remix Studio . Manage Brands
+  The server enforces the grid. It can only narrow what a role can do: it
+  never opens admin screens to non-admin roles. For example, unticking
+  "Search AdRadarHQ" for Supporters stops Supporters searching; ticking
+  "Manage Messages" for Ad Agents does NOT give them the admin inbox.
+
+
+================================================================================
+6. HOW ROLES ARE ALLOCATED
+================================================================================
+1. Sign in with Google. Every new account is a SUPPORTER automatically.
+2. SUPER ADMIN is not assigned: it belongs permanently to the platform
+   owner's verified account.
+3. Super Admin (or a Main Admin who has the "Manage RBAC" permission) opens
+   Users and Roles, finds the person by email, and ticks the roles they
+   should have. Several roles can be ticked at once.
+4. Becoming an AD AGENT is a two-step process:
+     a) Approval: Super Admin (or an authorised Main Admin) gives the person
+        the Ad Agent role. Supporters can't make themselves agents.
+     b) Registration: the new agent fills in the Ad Agent profile (name,
+        phone, location, bank/PayID). Until then the app keeps prompting
+        them. Once saved and switched ON, they appear in the agent directory
+        and start receiving nearby Customize orders.
+   Super Admin can also add an agent directly in the ledger, with their
+   redistribution percentage (10%, 20% ... 70%; default 30%).
+5. Changes apply fast:
+     - A promotion takes effect within seconds (the app refreshes the
+       person's login automatically).
+     - A demotion takes effect immediately: the person is signed out and
+       signs back in with the reduced role.
+6. Main Admin can never create another Main Admin; only Super Admin can.
+
+
+================================================================================
+7. MONEY FLOWS: THE TWO REDISTRIBUTION LEDGERS
+================================================================================
+AdRadar shares what it earns, and shows it openly.
+
+7.1 REDISTRIBUTIVE EQUITY LEDGER (partners)
+--------------------------------------------------------------------------------
+- Every Stripe purchase adds its tokens and money (AUD, with a USD view) to
+  the pool, in real time.
+- Super Admin lists equity partners (co-founders, investors, team members)
+  and each one's percentage. Active partners can't add up to more than 100%.
+- Each partner's share is calculated instantly; whatever isn't allocated
+  stays in the Treasury (the platform reserve for servers, APIs, marketing and
+  savings).
+- Example: AUD $1,000 of sales with partners at 15% and 10% gives AUD $150,
+  AUD $100, and AUD $750 to the Treasury.
+- "Refresh Ledger to 0" starts a new payout period. Past purchases are
+  archived for 7 years, not deleted.
+- Tokens Super Admin gifts never count as revenue in this ledger.
+
+7.2 AD AGENT DISTRIBUTION LEDGER (agents)
+--------------------------------------------------------------------------------
+- Every Customize order handled by an agent adds what the customer paid for
+  it to that agent's total.
+- The agent earns their redistribution percentage (10-70%, default 30%) of
+  what's owed since their last payout.
+- Super Admin pays agents (bank or PayID) and resets their amount to 0. That
+  marks everything up to that moment as paid, even if the agent's percentage
+  changes later.
+
+Why this matters for marketing: Ad Agents earn more when they bring in and
+serve Customize customers, so every agent is also a local promoter.
+
+
+================================================================================
+8. WHY ADRADAR BEATS HUGE AGENCIES AND "BUY MY BOOK" AD GURUS
+================================================================================
+
+8.1 THE PROBLEM WITH THE USUAL OPTIONS
+--------------------------------------------------------------------------------
+Big agencies:
+  - Monthly retainers, minimum terms and management fees, before a single
+    ad is tested.
+  - Slow briefs and approval loops; small accounts get junior staff.
+  - Their research and swipe files stay theirs; when you leave, so does the
+    knowledge.
+Facebook-ad gurus and "marketing agencies" that sell books, courses and
+coaching:
+  - You pay for opinions and frameworks written months or years ago, for a
+    platform that changes every week.
+  - The real product is often the next upsell (course, mastermind, "done for
+    you" package).
+  - Generic advice, not built around your product, audience or offer.
+
+8.2 WHAT ADRADAR DOES DIFFERENTLY
+--------------------------------------------------------------------------------
+1. Evidence, not opinion. AdRadar shows real ads from the official ad
+   libraries. The Proven (28+ days) and Extended (60+ days) filters keep only
+   ads advertisers have kept paying for. That is the market's own verdict on
+   what works.
+2. Current, not out of date. You see what is running now, in your country,
+   on each platform, not a case study from a book.
+3. It teaches as it works. Every remix explains the hook, pacing, persuasion
+   framework and psychology of the winning ad. You learn the skill by using
+   it; no book required.
+4. Built for your brand. Variations are written from your own brand profile
+   (audience, pain points, offer, tone), never a generic template.
+5. Minutes, not weeks. Search, deconstruct and get three ready-to-test
+   scripts with storyboards in a few minutes.
+6. Pay only for what you use. From AUD $1 a token, no retainer, no lock-in,
+   no cancellation penalties, and tokens never expire.
+7. Every cent is visible. Your wallet history shows each token you spend;
+   failed actions are re-credited automatically.
+8. Human experts when you want them, at a fixed price. A Customize request
+   goes to a real Ad Agent near you for a set fee (default 55 tokens), not a
+   monthly contract.
+9. All the main platforms in one place: Meta, TikTok and Google/YouTube.
+10. You keep everything: copy the scripts or export them to CSV and use them
+    anywhere.
+11. Local and fair. Australian pricing in AUD with GST handled correctly,
+    help in 30+ languages, and a model that shares revenue openly with its
+    partners and agents.
+
+8.3 SIDE-BY-SIDE
+--------------------------------------------------------------------------------
+                       AdRadar              Big agency           Guru book/course
+  Cost to start        From AUD $1          Monthly retainer     Book/course fee
+  Lock-in              None                 Often minimum term   Upsell funnel
+  Based on             Live ads running     Agency experience    Author's past
+                       28-60+ days                               campaigns
+  Personal to you      Yes (brand profile)  Yes, at a price      No
+  Speed                Minutes              Days to weeks        Self-study
+  Human help           Optional, fixed fee  Included, retainer   Coaching upsell
+  Platforms            Meta, TikTok, Google Varies               Usually one
+  Transparency         Every token logged   Monthly report       None
+
+8.4 WHAT TO SAY CAREFULLY
+--------------------------------------------------------------------------------
+AdRadar shows what is working for others and helps you make your own
+versions. It doesn't run your ads, and no tool can guarantee results: you
+still test. Saying so builds trust, and it keeps marketing within Australian
+Consumer Law.
+
+
+================================================================================
+9. MARKETING PLAN (recommended)
+================================================================================
+
+9.1 POSITIONING
+--------------------------------------------------------------------------------
+One-liner: "See the ads that are already winning, and make them yours."
+Statement: For small businesses and lean marketing teams who can't afford an
+agency or don't trust another guru, AdRadar shows the ads that have proven
+themselves in the market and turns them into ready-to-test ads for your own
+brand, pay as you go, from AUD $1.
+
+9.2 TARGET SEGMENTS (in priority order)
+--------------------------------------------------------------------------------
+1. Australian e-commerce and product brands spending their own money on Meta
+   and TikTok ads.
+2. Local service businesses (trades, health, fitness, beauty, real estate).
+3. Freelancers and small agencies (media buyers, social media managers,
+   videographers) who need research and scripts for several clients; offer
+   the Agency role.
+4. Creators and coaches launching offers.
+5. Next: New Zealand, then South-East Asia (help in local languages is
+   already built).
+
+9.3 KEY MESSAGES
+--------------------------------------------------------------------------------
+- "Stop guessing. Copy what's already working, the right way."
+- "Ads that ran 28+ days are ads that make money."
+- "Three ready-to-test ads for your brand in minutes."
+- "No retainer. No lock-in. Tokens never expire."
+- "Want a pro? A local Ad Agent builds your strategy for a fixed fee."
+
+9.4 CHANNELS
+--------------------------------------------------------------------------------
+Content (use AdRadar to market AdRadar):
+  - Weekly "Ad Teardown" posts and short videos: take one winning ad found
+    with AdRadar, show the hook, pacing and framework, then show the remix.
+    Post on TikTok, Instagram Reels, YouTube Shorts, Facebook and LinkedIn.
+  - Monthly "What's Winning in Australia" report by category (skincare,
+    supplements, pets, fitness, home services), as a blog post and email.
+  - SEO pages for searches people already make: "Meta ad library search",
+    "TikTok top ads", "winning Facebook ads examples", "ad spy tool
+    Australia", "ad hooks that work" (each page ends with a free sign-in).
+Community and partners:
+  - Ad Agents as local ambassadors: give each agent teardown content and a
+    talk deck for local business groups (they earn on Customize orders).
+  - Business chambers, coworking spaces, small-business networks,
+    university and TAFE entrepreneur programs: free 45-minute "Find your
+    winning ad" workshops run with AI Foundation Australia.
+  - Online communities for e-commerce store owners and Australian small
+    business owners: share teardowns and answer ad questions; don't spam
+    links.
+Paid (small, tested budgets):
+  - Meta and TikTok ads built from AdRadar's own research. Advertise the
+    method: "This ad has run 63 days. Here's why it works."
+  - Google search ads on high-intent terms ("Facebook ad library", "ad spy
+    tool").
+  - Retarget site visitors with a teardown video and the starter pack.
+Email:
+  - Welcome sequence: day 0 how to search, day 2 remix your first ad,
+    day 5 teardown example, day 10 the Customize service.
+
+9.5 FUNNEL AND WHAT TO MEASURE
+--------------------------------------------------------------------------------
+  Visit -> Google sign-in -> first search -> first remix -> first pack
+  purchase -> repeat purchase -> Customize order
+Measure every month:
+  - Sign-ups and sign-up-to-first-search rate (activation).
+  - First-purchase rate and average first pack size.
+  - Searches and remixes per active user; repeat-purchase rate.
+  - Customize orders and their share of revenue.
+  - Cost per sign-up and per paying customer, by channel.
+  - Most-searched categories (feeds the next month's content).
+Sources: Stripe dashboard, the master order ledger, the redistributive
+ledger, and your site analytics.
+
+9.6 FIRST 90 DAYS
+--------------------------------------------------------------------------------
+Days 1-30   Foundations: finish the deployment actions in needsrepair.txt;
+            add clear example searches under the search box; write 10
+            teardown pieces; set up the welcome emails; recruit and train
+            the first Ad Agents in Brisbane and Sydney.
+Days 31-60  Launch: founding-member offer (section 10); two workshops a
+            month; start small paid tests on Meta and TikTok; publish the
+            first "What's Winning" report.
+Days 61-90  Scale what works: double the best channel, pause the worst;
+            launch agency outreach with an Agency pack; publish first
+            customer case studies (with permission); prepare the New Zealand
+            push.
+
+9.7 MARKETING RULES (Australia)
+--------------------------------------------------------------------------------
+- Australian Consumer Law: no promises of results, no fake scarcity, show
+  prices clearly (GST applies to Australian buyers).
+- Spam Act 2003: email only people who opted in; every email has an
+  unsubscribe.
+- Privacy: never publish customer briefs, ads or data without written
+  permission.
+- Teardowns: show and discuss public ads for commentary and education;
+  don't present someone else's ad as your own.
+
+
+================================================================================
+10. PROMOTION PLAN (recommended)
+================================================================================
+
+10.1 TOOLS ALREADY IN THE APP
+--------------------------------------------------------------------------------
+- Gift tokens (Super Admin): bonus tokens to any account, e.g. welcome
+  bonuses, competition prizes, workshop attendees, apology credits. Gifts
+  don't count as revenue in the partner ledger.
+- Custom token packs (Super Admin): create named packs with their own price,
+  e.g. a "Workshop Starter Pack" or an "Agency 500" bundle.
+- Timed Free Access Windows: 15/30/60-minute free sessions for Monthly
+  Subscribers in chosen countries, e.g. a live "Free Search Hour" during a
+  webinar.
+- Community Brand Library: publish example brand profiles people can clone
+  and remix straight away.
+- Ad Agent network: local agents promoting the Customize service in their
+  area.
+
+10.2 NEEDS A SMALL BUILD FIRST
+--------------------------------------------------------------------------------
+- Discount codes at checkout (Stripe promotion codes are not switched on
+  yet).
+- Automatic referral rewards (for now, reward referrals with gifted tokens
+  by hand).
+- Selling the Monthly Subscription to ordinary customers (currently limited
+  to admin accounts).
+- A first free search for new sign-ups (could also be done with a small
+  welcome gift).
+
+10.3 LAUNCH OFFERS
+--------------------------------------------------------------------------------
+- Founding Members: the first 200 sign-ups who buy any pack get bonus tokens
+  (gifted by hand or in batches).
+- Workshop offer: attendees get a code word; after the session, gift them a
+  starter amount.
+- Agency trial: for agencies with three or more client brands, a discounted
+  first Agency pack (custom pack) and the Agency role.
+- Customize intro: in the first month, the first Customize order includes a
+  free 20-minute call with the Ad Agent (agreed with the agents).
+
+10.4 SEASONAL CALENDAR (Australia)
+--------------------------------------------------------------------------------
+  Jan-Feb    Back to school / new year goals: fitness and education ad
+             teardowns.
+  May        Mother's Day; mid-year Click Frenzy: "What's winning for gift
+             sales".
+  June       End of financial year (EOFY): "EOFY sale ads that work"; push
+             larger packs before 30 June.
+  Sep        Father's Day; spring launches.
+  Nov        Click Frenzy, Black Friday, Cyber Monday: the biggest month
+             for e-commerce teardowns and paid tests.
+  Dec        Christmas and Boxing Day ads; year-in-review report: "The
+             longest-running ads of the year".
+
+10.5 ONGOING PROMOTIONS
+--------------------------------------------------------------------------------
+- "Teardown Tuesday": one winning ad broken down every week, everywhere.
+- "Remix Challenge": a monthly public challenge where the best remix of a
+  chosen ad wins tokens.
+- Case studies: before/after stories from customers and agents (with
+  permission and real numbers only).
+- Agent spotlights: feature one Ad Agent a month in their local area.
+
+10.6 BUDGET GUIDANCE
+--------------------------------------------------------------------------------
+Start small and test: a modest monthly paid budget split between Meta,
+TikTok and Google search, with every ad built from AdRadar research. Keep
+the top performer each fortnight and replace the rest. Watch cost per
+paying customer, not just clicks.
+
+
+================================================================================
+11. HONEST LIMITS (WHAT NOT TO PROMISE)
+================================================================================
+- TikTok: TikTok's official ad library only covers Europe and the UK. For
+  Australia, the US and other countries, TikTok results come from UK ads (the
+  app says so on screen).
+- Google: the Transparency Center is searched by advertiser, so brand names
+  and websites work best; random keywords may find nothing.
+- Views and likes on Meta and Google ads are estimates.
+- A search that runs but finds no ads still costs its tokens. Encourage good
+  searches (brand names, product keywords, real hook phrases).
+- The AI writes ready-to-test drafts, not guaranteed winners; always test
+  and check claims before publishing.
+- AdRadar shows other advertisers' public ads for research. Customers must
+  create their own ads and not copy logos, trademarks or exact wording.
+- The Monthly Subscription is off by default and currently admin-only.
+
+
+================================================================================
+12. RULES AND POLICIES IN BRIEF
+================================================================================
+- Tokens never expire.
+- Purchases of tokens and subscriptions are final and non-refundable after
+  payment; technical failures re-credit tokens automatically.
+- Nobody can have a negative balance.
+- Prices in AUD; 10% GST for Australian buyers; none for New Zealand and
+  international buyers.
+- Messages are plain text and kept for 7 years.
+- Ad Agents are independent contractors; their advice is their own.
+- Card payments are handled entirely by Stripe.
+- Built and operated in Australia by AI Foundation Australia, following the
+  Australian Privacy Principles.
+
+
+================================================================================
+13. GLOSSARY
+================================================================================
+Proven winner      An ad that has run 28 days or longer.
+Extended winner    An ad that has run 60 days or longer.
+Top Winner         An ad scoring 90 or more out of 100.
+Winner Matrix      The 0-100 score: brand fit 40%, hook 30%, longevity and
+                   scale 30%.
+Remix              The AI deconstruction plus three variations for your brand.
+Brand profile      Your saved brand details used for scoring and remixes.
+Community Library  Brand profiles users chose to share; clone for 1 token.
+Customize          The human strategy service delivered by an Ad Agent.
+Ad Agent           An approved independent contractor who handles Customize
+                   orders and earns a redistribution share.
+Token              AdRadar's unit of credit (default AUD $1); never expires.
+Free Access Window A 15/30/60-minute free period for Monthly Subscribers.
+Treasury           The share of revenue not allocated to equity partners.
+Role Permissions   The grid where Super Admin sets what each role can do.
+================================================================================
