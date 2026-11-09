@@ -682,7 +682,7 @@ paying customer, not just clicks.
 - Prices in AUD; 10% GST for Australian buyers; none for New Zealand and
   international buyers.
 - Messages are plain text and kept for 7 years.
-- Ad Agents are independent contractors; their advice is their own.
+- Ad Agents are independent contractors with no official employment by Ad Radar; their job is purely in an outsourced capacity with no long-term contractual arrangement, and their advice and opinions are their own.
 - Card payments are handled entirely by Stripe.
 - Sole proprietary ownership: all development remains the sole proprietary ownership of AI Foundation, ABN 36 339 516 584; no part of this web app can be used without express written prior consent of the developer.
 - Built and operated in Australia by AI Foundation Australia, following the

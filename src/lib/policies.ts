@@ -126,13 +126,14 @@ export const POLICIES: Record<string, PolicyDoc> = {
       {
         heading: "7. Independent Contractor Status of Ad Agents & Disclaimer of Representation",
         paragraphs: [
+          "Ad Agents are independent contractors, with no official employment by Ad Radar or AI Foundation. Their role and engagement is purely in an outsourced capacity, and has no long-term contractual arrangement.",
           "Ad Agents are outsourced independent contractors who are only associated with Ad Radar HQ by the way of independent contractors. Ad Agents are neither employees, partners, agents, joint venturers, nor authorized legal representatives of Ad Radar HQ or AI Foundation.",
           "All advice, campaign strategies, creative directions, contractor recommendations, and opinions expressed or provided by Ad Agents (and their registered subcontractors) are strictly their own independent views and do not represent Ad Radar HQ, AI Foundation, or its officers.",
           "Ad Radar HQ acts solely as a software technology platform provider, delivering public ad library search indexing, creative workflow tools, and order coordination mechanisms. Ad Radar HQ does not endorse, guarantee, or assume legal liability for any specific third-party advice, contractor performance, creative deliverables, or commercial outcomes resulting from communications or engagements with independent Ad Agents.",
         ],
         bullets: [
-          "Outsourced Independent Contractors: Ad Agents are independent contractors solely associated with Ad Radar HQ by way of independent contractor relationships.",
-          "No Employment or Agency: Ad Agents are not employees, partners, or legal agents of Ad Radar HQ or AI Foundation.",
+          "Independent Contractors & No Employment: Ad Agents are independent contractors with no official employment by Ad Radar; their engagement is purely in an outsourced capacity with no long-term contractual arrangement.",
+          "Outsourced Capacity: Ad Agents are associated with Ad Radar HQ solely by way of independent contractor relationships.",
           "Independent Advice & Opinions: All advice, recommendations, strategies, and opinions provided by Ad Agents are strictly their own and do not represent Ad Radar HQ.",
           "Independent Subcontractors: Any contractors or third-party service providers listed or recommended by Ad Agents operate under their own independent commercial arrangements.",
         ],
