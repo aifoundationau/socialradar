@@ -326,6 +326,17 @@ export const DEFAULT_FAQS: FaqItem[] = [
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-07T00:00:00.000Z",
   },
+  {
+    faqId: "faq_intellectual_property_ownership",
+    question: "Who owns the Ad Radar software, code, and intellectual property?",
+    answer:
+      "All development, software architecture, code, algorithms, and design assets remain the sole proprietary ownership of AI Foundation, ABN 36 339 516 584. No part of this web app may be used, reproduced, copied, distributed, modified, or exploited without the express written prior consent of the developer and AI Foundation.",
+    category: "Refunds & Support",
+    order: 29,
+    enabled: true,
+    createdAt: "2026-11-09T00:00:00.000Z",
+    updatedAt: "2026-11-09T00:00:00.000Z",
+  },
 ];
 
 /** Stored shape of system_config/faqs. */

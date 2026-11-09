@@ -137,6 +137,18 @@ export const POLICIES: Record<string, PolicyDoc> = {
           "Independent Subcontractors: Any contractors or third-party service providers listed or recommended by Ad Agents operate under their own independent commercial arrangements.",
         ],
       },
+      {
+        heading: "8. Intellectual Property & Sole Proprietary Ownership",
+        paragraphs: [
+          "All development, source code, software architecture, user interface designs, algorithms, databases, documentation, and proprietary technology comprising or related to AdRadarHQ remain the sole proprietary ownership of AI Foundation, ABN 36 339 516 584.",
+          "No part of this web app, software, codebase, or associated materials may be used, reproduced, copied, distributed, modified, sublicensed, scraped, decompiled, reverse-engineered, or exploited in any form or by any means without the express written prior consent of the developer and AI Foundation.",
+        ],
+        bullets: [
+          "Sole Proprietary Ownership: All development and software assets remain the exclusive proprietary property of AI Foundation, ABN 36 339 516 584.",
+          "Express Prior Written Consent Required: No part of this web app may be used, reproduced, or exploited without express written prior consent from the developer.",
+          "Strict Prohibition on Extraction: Reverse engineering, decompilation, unauthorized framing, scraping, and unauthorized reproduction are strictly prohibited.",
+        ],
+      },
     ],
   },
 

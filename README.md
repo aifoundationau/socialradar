@@ -1,41 +1,285 @@
-# Ad Radar (Social Radar)
+# Ad Radar (Social Radar) — Complete System Documentation
 
-> Competitive Advertising Intelligence, 4-Pillar Longevity Scoring, and AI Creative Remix Studio for Direct-Response Marketers and Digital Agencies.
+> Enterprise-grade competitive advertising intelligence, creative deconstruction, 4-pillar longevity scoring, and AI remix studio for direct-response performance marketers, digital agencies, and independent creators.
 
-[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](mitlicence.txt)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16.4.3-black)](https://nextjs.org/)
 [![React 19](https://img.shields.io/badge/React-19.3.0-blue)](https://react.dev/)
 [![Firebase](https://img.shields.io/badge/Firebase-13.1.0-orange)](https://firebase.google.com/)
 [![Gemini 2.5 Flash](https://img.shields.io/badge/Google%20GenAI-Gemini%202.5%20Flash-green)](https://deepmind.google/technologies/gemini/)
 [![Stripe](https://img.shields.io/badge/Stripe-SDK%2023.0.1-blueviolet)](https://stripe.com/)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](MemorandumOfAgreement.txt)
 
 ---
 
-## Complete Documentation
-
-For the full, detailed system documentation, technical architecture, and operations manual, see **[`readme.txt`](readme.txt)**.
+## Table of Contents
+1. [System Overview & Mission](#1-system-overview--mission)
+2. [Tech Stack & Architecture Topology](#2-tech-stack--architecture-topology)
+3. [Core Feature Modules](#3-core-feature-modules)
+   - 3.1 [Ad Radar Winner Intelligence Engine](#31-ad-radar-winner-intelligence-engine-meta-tiktok-google)
+   - 3.2 [Multi-Factor Winner Matrix & Longevity Scoring Algorithm](#32-multi-factor-winner-matrix--longevity-scoring-algorithm)
+   - 3.3 [Strict Platform Isolation Gate](#33-strict-platform-isolation-gate)
+   - 3.4 [AI Creative Remix Studio (Gemini 2.5 Flash)](#34-ai-creative-remix-studio-gemini-25-flash)
+   - 3.5 [Brand Strategy Portfolio & Avatar Management](#35-brand-strategy-portfolio--avatar-management)
+   - 3.6 [Professional Customize Brand Strategy Service](#36-professional-customize-brand-strategy-service)
+   - 3.7 [Democratic Token Economy & Integer Pricing](#37-democratic-token-economy--integer-pricing)
+   - 3.8 [Stripe Payments & Australian GST Compliance](#38-stripe-payments--australian-gst-compliance)
+   - 3.9 [Monthly Search Subscription (1,000 Searches / Month)](#39-monthly-search-subscription-1000-searches--month)
+   - 3.10 [SuperAdmin & Main Admin Governance Suite](#310-superadmin--main-admin-governance-suite)
+   - 3.11 [Compliance Messaging (7-Year Statutory Retention & Anti-Tamper)](#311-compliance-messaging-7-year-statutory-retention--anti-tamper)
+   - 3.12 [Interactive Knowledge Base & FAQ Engine](#312-interactive-knowledge-base--faq-engine)
+   - 3.13 [Geolocation, Weather & Time Footer Bar](#313-geolocation-weather--time-footer-bar)
+   - 3.14 [100% DOM Automation & Assistant Bridge](#314-100-dom-automation--assistant-bridge)
+   - 3.15 [Multi-Platform Progressive Web App (PWA)](#315-multi-platform-progressive-web-app-pwa)
+   - 3.16 [High-Quality SEO Optimization Suite](#316-high-quality-seo-optimization-suite)
+4. [Specialized AI Agent Skills](#4-specialized-ai-agent-skills)
+5. [Data Contracts & Firestore Architecture](#5-data-contracts--firestore-architecture)
+6. [Environment Variables & Configuration](#6-environment-variables--configuration)
+7. [Local Development & Verification](#7-local-development--verification)
+8. [Production Pipeline & Deployment](#8-production-pipeline--deployment)
+9. [Licensing, Legal & Statutory Compliance](#9-licensing-legal--statutory-compliance)
 
 ---
 
-## Key Highlights
+## 1. System Overview & Mission
 
-- **Multi-Platform Winner Intelligence:** Live scraping and ranking across **Meta (Facebook/Instagram)**, **TikTok (Top Ads + Commercial Content Library)**, and **Google Ads (Search, YouTube, Display)** with strict platform isolation.
-- **4-Pillar Longevity Matrix:** Objective Composite Scoring (0–100) based on continuous runtime (**Proven 28+d**, **Extended 60+d**, **Top Winners 90%+**), view velocity, scale, and direct-response copy structure.
-- **AI Creative Remix Studio:** Powered by Google Gemini 2.5 Flash (`@google/genai`) to deconstruct the persuasion DNA of any winning ad and output 3 production-ready UGC script variations with scene-by-scene storyboards, voiceover, and text overlays.
-- **Brand Strategy Portfolio:** Store up to 25 detailed brand profiles (target audience avatars, visceral pain points, unique mechanisms, landing page funnels, tone of voice, and versioning).
-- **Customize Brand Strategy Service:** Direct routing to strategy team with 200+ word brief input, 55 token fee, and 10,000-character multi-angle strategy delivery with 1-click Copy Text.
-- **Democratic Token Economy:** Strict integer tokens (`Math.round`), AUD platform pricing with exclusive Australian GST (10%) and $0 tax for international/NZ buyers via native Stripe Automatic Tax.
-- **Monthly Search Subscription:** 1,000 monthly search tokens for AUD $700/month (configurable by SuperAdmin).
-- **Redistributive Equity Ledger:** Automated dividend distribution pool allocating token revenue to registered equity partners under Australian statutory standards.
-- **SuperAdmin & Main Admin Governance Suite:** Role-governed administration (5 tabs for Main Admin, full suite for SuperAdmin including messages, RBAC, ledger, pricing, and diagnostics).
-- **7-Year Statutory Retention Messaging:** Plain-text anti-tamper compliance archive with Gemini-assisted AI Work Reply Designer and two-step permanent deletion (`Delete` → `Confirm Delete`).
-- **Interactive Knowledge Base:** 27 customer-perspective FAQs with instant search, category filtering, and live admin CRUD.
-- **100% DOM Automation Bridge:** Deterministic `data-agent-id`, `data-testid`, and `aria-label` attributes on every interactive control (`window.__AD_RADAR_AGENT__`).
+**Ad Radar (Social Radar)** is an enterprise-grade competitive advertising intelligence, creative deconstruction, and AI remixing platform built for modern performance marketers, digital agencies, and independent creators.
+
+The platform scrapes, aggregates, and scores active top-performing direct-response ad campaigns across **Meta (Facebook & Instagram)**, **TikTok**, and **Google Ads (Search, YouTube, and Display)**. Rather than showing raw unranked ads, Ad Radar isolates battle-tested, scalable ads that have demonstrated multi-week conversion longevity.
+
+### Key Operational Pillars
+- **Democratic Token Economy:** Pay-as-you-go integer tokens with zero lock-in contracts or subscriptions for basic access, plus an optional 1,000 search/mo subscription. Tokens never expire.
+- **Redistributive Equity Pool:** Revenue from token purchases is transparently tracked in an automated equity ledger, distributing dividends to registered partners.
+- **Compliance & Safety:** Complete adherence to the Australian Privacy Act and statutory record-keeping standards (including 7-year immutable message archives).
+- **100% DOM Automation Ready:** Every interactive control is tagged with deterministic `data-agent-id`, `data-testid`, and `aria-label` attributes (`window.__AD_RADAR_AGENT__`).
 
 ---
 
-## Quick Start
+## 2. Tech Stack & Architecture Topology
 
+### Core Framework & Language
+- **Next.js 16.4.3:** App Router architecture with Turbopack bundler for rapid HMR.
+- **React 19.3.0 & React DOM 19.3.0:** Modern concurrent rendering, Server Components, and native form actions.
+- **TypeScript 5:** Strict type-checking with zero any-leakage.
+- **Tailwind CSS v4 (`@tailwindcss/turbopack`):** High-performance utility styling with fluid responsive geometry.
+
+### Backend, Database & Storage
+- **Firebase Client SDK 13.1.0:** Real-time listeners for brand profiles, wallets, and user transactions.
+- **Firebase Admin SDK 14.5.0:** Server-side privileged operations, Firestore multi-db support (`ad-radar` database), RBAC custom claims, and secure session verification.
+- **Zod 4.6.7:** Strict runtime schema validation (`additionalProperties: false`) across all API endpoints and data contracts.
+
+### Generative AI & Search APIs
+- **Google GenAI SDK (`@google/genai` 2.32.0):** Direct integration with Gemini 2.5 Flash (`gemini-2.5-flash`) for structured JSON creative remixing and AI strategy drafting.
+- **SearchAPI.io:** Upstream search aggregator for Meta Ad Library, TikTok Commercial Content Library, and Google Ads Transparency Center.
+- **Apify REST API:** High-volume scraping pipelines for TikTok Creative Center Top Ads.
+
+### Payments, Tax & Billing
+- **Stripe Node SDK 23.0.1:** Native Automatic Tax calculations, exclusive Australian GST (10%), zero-tax international transactions, and dynamic `price_data` checkout.
+
+---
+
+## 3. Core Feature Modules
+
+### 3.1 Ad Radar Winner Intelligence Engine (Meta, TikTok, Google)
+The search engine orchestrates 3 distinct ad intelligence platforms:
+- **Meta Ads Engine:** Queries Meta Ad Library with multi-level filtering, format classification (Direct-Response Video UGC, Static Graphic, Dynamic Carousel), longevity estimation, and dynamic thumbnail extraction.
+- **TikTok Viral Ads Engine:** Ingestion merging TikTok Creative Center Top Ads with TikTok Commercial Content Library. Tracks view velocity (views/day), CTR percentile ranks (Top 1%, Top 5%), and engagement metrics.
+- **Google Ads Engine:** Search tracking Google Search paid text ads, YouTube in-stream video ads, and Google Display Network creatives via the Google Ads Transparency Center with advertiser resolution.
+
+### 3.2 Multi-Factor Winner Matrix & Longevity Scoring Algorithm
+Every ad processed by Ad Radar is assigned an objective Composite Score (0-100) based on a 4-pillar algorithmic evaluation:
+1. **Longevity Pillar (30% weight):** Continuous active runtime.
+   - Base threshold: 7–14 days.
+   - Proven threshold: 28+ days (high conversion confidence).
+   - Extended threshold: 60+ days (evergreen fatigue-resistant winners).
+2. **Creative Quality & Copy Strategy (30% weight):** Structural direct-response elements including 3-second hook strength, problem/solution framing, social proof markers, and high-urgency calls to action.
+3. **Scale & Collation Velocity (20% weight):** Number of duplicate ad sets, multiple creative aspect ratios, and horizontal publisher network distribution.
+4. **Social Proof & Engagement Velocity (20% weight):** View velocity (views/day), impressions per day, and like/comment engagement ratios.
+5. **Elite Winners Filter (90%+):** Isolates the top 1% of profitable campaigns.
+
+### 3.3 Strict Platform Isolation Gate
+Enforces hard platform isolation across search results:
+- Selecting **Meta** returns exclusively Meta (Facebook/Instagram) creatives.
+- Selecting **TikTok** returns exclusively TikTok viral video creatives.
+- Selecting **Google** returns exclusively Google Search, Display, and YouTube creatives.
+Cross-platform pollution is strictly filtered out via `enforcePlatformIsolation`.
+
+### 3.4 AI Creative Remix Studio (Gemini 2.5 Flash)
+Allows users to click "Model this ad" on any winning ad card to open the Creative Remix Studio modal:
+- Analyzes the original creative's persuasion DNA, emotional hook, and pacing.
+- Synthesizes the creative against the user's active Brand Profile.
+- Generates 3 complete production-ready direct-response script variations:
+  - **Variation A:** Direct Pain-Point Aggravation & Instant Solution.
+  - **Variation B:** Contrast / Us vs. Them & Unfair Advantage.
+  - **Variation C:** Curious Story / Social Proof UGC Testimonial.
+- Each variation includes a 0–3s hook, scene-by-scene visual action, spoken audio, on-screen text overlay, and call to action.
+- Supports 1-click clipboard export and CSV download for video editors.
+
+### 3.5 Brand Strategy Portfolio & Avatar Management
+Users can store and manage up to 25 detailed Brand Profiles:
+- **Target Audience Avatar:** Demographics, psychographics, core desires.
+- **Core Pain Points:** Line-by-line breakdown of visceral customer frustrations.
+- **Unique Mechanism / Offer:** Distinct proprietary method or pricing advantage.
+- **Tone of Voice:** Direct-Response Aggressive, Friendly UGC, Premium Authority, etc.
+- **Multi-Landing Page Matrix:** Primary and secondary landing page destination URLs.
+- **Iterative Versioning:** Version tags (e.g., v1.0, v2.1) and 1-click brand cloning.
+
+### 3.6 Professional Customize Brand Strategy Service
+A bespoke service where users submit their brand profile and a 200+ word brief of extra details and competitor angles to receive a customized multi-angle strategy:
+- **Dedicated Route:** `/customize` with real-time status tracking.
+- **Cost:** 45–55 tokens per customize brief submission.
+- **Extra Details & Notes:** Rich textarea for seasonal angles, objections, and notes.
+- **Admin Delivery:** Strategy package (up to 10,000 characters) delivered directly to the user's Message Panel with 1-click complete text copying.
+
+### 3.7 Democratic Token Economy & Integer Pricing
+- **Integer Invariant:** Strict integers only (`Math.round`). Zero decimal tokens.
+- **Action Rates:** Base Search (1 token), Proven Filter (1 token), Extended Filter (1 token), Top Winners Filter (1 token), AI Remix (1 token), Customize (45 tokens). Standard paid rates are 1 token each and customizable in the Super Admin panel.
+- **Currency Hover Display:** AUD price is rendered in Australia via IP geolocation; USD is rendered for international users. Values display on hover.
+- **Admin Controls:** Independent master toggles for `isTokenSystemEnabled`, `isAudEnabled`, and `isUsdEnabled`.
+
+### 3.8 Stripe Payments & Australian GST Compliance
+- **Currency:** Settled strictly in Australian Dollars (`aud`).
+- **Dynamic Price Data:** Zero pre-created Stripe products; unit_amount and product names are generated dynamically on checkout creation.
+- **Native Automatic Tax (`automatic_tax: { enabled: true }`, `tax_behavior: "exclusive"`):**
+  - Australian buyers (`country === "AU"`) automatically pay 10% exclusive GST.
+  - New Zealand & International buyers pay strictly 0% GST / $0 additional tax.
+- **Token Packs:** PACK_10 ($19 AUD), PACK_50 ($79 AUD), PACK_100 ($139 AUD), plus dynamic custom token packs.
+- **Atomic Ledger:** Payments trigger fulfillment crediting tokens to the user's wallet and recording to `token_transactions`.
+
+### 3.9 Monthly Search Subscription (1,000 Searches / Month)
+- High-volume subscription package providing 1,000 monthly search tokens for $500 AUD / month (dynamic price configurable in SuperAdmin panel). Default status is off.
+- Dynamic Stripe Subscription checkout with recurring monthly billing.
+- Prominently featured in the navigation header for eligible tiers.
+
+### 3.10 SuperAdmin & Main Admin Governance Suite
+A role-governed modal interface offering deep operational controls:
+- **Main Admin Scope (`role === "admin"`):** 5 dedicated tabs:
+  1. *CURRENCY:* Master currency toggles, base exchange rates, and token switches.
+  2. *PRICING:* Live token fee adjustments across all platform features.
+  3. *PACKS:* Token pack configuration and custom pricing.
+  4. *MESSAGES:* Customer message inbox, AI reply designer, and statutory archive.
+  5. *FAQS:* Knowledge base article CRUD and visibility toggles.
+- **SuperAdmin Scope (`role === "superadmin"`):** All 5 Main Admin tabs PLUS:
+  6. *LEDGER:* Redistributive pool summary, master transaction ledger, token refunds, gift tokens, and token resets.
+  7. *RBAC:* Role-based access control matrix mutations and user tier assignment.
+  8. *DIAGNOSTICS:* Developer diagnostics, system cache flush, and health telemetry.
+
+### 3.11 Compliance Messaging (7-Year Statutory Retention & Anti-Tamper)
+- **Strict Anti-Tamper Protocol:** Plain text only. Forbidden HTML tags and link/URL patterns are blocked.
+- **7-Year Statutory Retention:** In compliance with the Australian Corporations Act, all communications are tagged with an immutable `retentionUntil` date (+7 years).
+- **AI Work Reply Designer:** SuperAdmins can generate structured responses using Gemini 2.5 Flash.
+- **Deletion Safeguard:** Permanent message deletion requires two-step confirmation (`Delete` &rarr; `Confirm Delete`) with immediate database removal.
+- **One-Click Copy:** Prominent "Copy Text" / "Copied ✓" buttons on all message cards.
+
+### 3.12 Interactive Knowledge Base & FAQ Engine
+- Accessible via top header "FAQs" button.
+- Features real-time search, categorization chips (Radar, Brands, Pricing, General, Refunds & Support), and accessible accordion expansion.
+- Full admin CRUD with live order re-indexing and draft visibility toggles.
+
+### 3.13 Geolocation, Weather & Time Footer Bar
+- Thin, non-intrusive status bar fixed to the bottom of the viewport.
+- Displays user's detected Australian suburb, state, real-time local clock, and current weather conditions.
+- Clicking opens a centered popup to manually override suburb, state, or 12h/24h time formats without disruptive page scrollbars.
+
+### 3.14 100% DOM Automation & Assistant Bridge
+- Every interactive button, input, tab, link, and modal carries synchronized `data-agent-id`, `data-testid`, and `aria-label` attributes.
+- `AgentDomBridge` maintains a non-visual runtime bridge (`window.__AD_RADAR_AGENT__`) with pre-check element validation, layout stability checks, and post-action DOM mutation verification for autonomous AI pairing.
+
+### 3.15 Multi-Platform Progressive Web App (PWA)
+- Full installation support across:
+  - **Google Chrome on Laptop / Desktop** (macOS, Windows, Linux, ChromeOS): 1-click install via `beforeinstallprompt`, standalone window display mode.
+  - **Android Devices:** 1-click Web App install prompt and home-screen shortcut.
+  - **Apple iPhone & iPad (iOS):** `apple-touch-icon`, `apple-mobile-web-app-capable`, and guided 3-step visual modal (Share `⎋` &rarr; Add to Home Screen `⊕` &rarr; Add).
+- Offline-capable service worker registered at `/sw.js`.
+
+### 3.16 High-Quality SEO Optimization Suite
+- Optimized page titles, openGraph cards, Twitter summaries, canonical URLs, and structured meta descriptions across all core routes:
+  - Homepage / Radar Feed: *"Ad Radar | Winning Direct-Response Ads & Creative Intelligence"*
+  - Brands Strategy: *"My Brands | Direct-Response Avatar & Creative Portfolio"*
+  - Customize Strategy: *"Customize Brand Strategy | Bespoke Creative Direction"*
+  - Token Wallet: *"Wallet & Token Packs | Democratic Competitive Intelligence"*
+
+---
+
+## 4. Specialized AI Agent Skills
+
+Ad Radar includes specialized AI agent skill definitions located in the `skills/` directory:
+
+1. `brand-matrix-radar-engine`: Coordinates multi-platform ad retrieval, algorithmic scoring, and deduplication.
+2. `custom-brand-strategist-reply`: Guides professional strategists and Gemini in drafting comprehensive 10,000-char creative briefs with direct-response angles, UGC hooks, and objections.
+3. `google-ads-winner-intelligence`: Scrapes, normalizes, and classifies Google Search, Display, and YouTube ad units.
+4. `meta-ads-winner-intelligence`: Specialized extractor for Meta Ad Library creatives, collations, and runtimes.
+5. `semantic-ad-search-relevance`: Enforces keyword relevance, platform isolation, and intent-based ad matching.
+6. `tiktok-viral-ad-intelligence`: Evaluates view velocity, CTR percentiles, and sound/UGC pacing for TikTok ads.
+7. `website-user-assistant`: Automates slot-filling workflows, UI navigation, and user assistance.
+
+---
+
+## 5. Data Contracts & Firestore Architecture
+
+All Firestore collections operate under the `ad-radar` named database with strict security rules (`firestore.rules`) and Zod data contracts (`data-contracts.md`):
+
+### Primary Collections
+- `users/{uid}`: User profile, email, role, tokenBalance, subscriptionStatus.
+- `brands/{brandId}`: User-owned brand portfolios (scoped to `uid`).
+- `normalized_ads/{adId}`: Normalized ad intelligence cache with TTL timestamps.
+- `remixes/{remixId}`: Saved AI Creative Remix scripts and scene breakdowns.
+- `customize_requests/{requestId}`: Submitted custom brand strategy requests.
+- `admin_messages/{messageId}`: 7-year statutory retention messages (bidirectional).
+- `token_transactions/{txId}`: Immutable ledger of token credits, debits, and gifts.
+- `stripe_purchases/{purchaseId}`: Stripe payment audit records with GST breakdown.
+- `system_config/global`: Master system settings, currencies, and service costs.
+- `system_config/faqs`: Knowledge base articles and order hierarchy.
+- `system_config/rbac`: Role permissions matrix and user role mappings.
+- `redistributive_ledger/summary`: Aggregate dividend pool and partner allocations.
+
+---
+
+## 6. Environment Variables & Configuration
+
+Ad Radar strictly enforces zero hardcoded credentials. All configuration is loaded via environment variables (`.env.local` for local development, Vercel/Hostinger for production):
+
+```env
+# Firebase Client
+NEXT_PUBLIC_FIREBASE_API_KEY="..."
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="..."
+NEXT_PUBLIC_FIREBASE_PROJECT_ID="ad-radar"
+NEXT_PUBLIC_FIREBASE_DATABASE_ID="ad-radar"
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="..."
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="..."
+NEXT_PUBLIC_FIREBASE_APP_ID="..."
+
+# Firebase Admin Service Account
+FIREBASE_PROJECT_ID="ad-radar"
+FIREBASE_DATABASE_ID="ad-radar"
+FIREBASE_CLIENT_EMAIL="..."
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
+FIREBASE_SERVICE_ACCOUNT_BASE64="..."
+
+# Google Gemini API
+GEMINI_API_KEY="..."
+GEMINI_MODEL="gemini-2.5-flash"
+
+# Stripe Sandbox / Production
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_..."
+STRIPE_SECRET_KEY="sk_test_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."
+
+# Ad Intelligence Upstream APIs
+SEARCHAPI_API_KEY="..."
+APIFY_API_TOKEN="..."
+APIFY_TIKTOK_TOPADS_ACTOR_ID="..."
+```
+
+---
+
+## 7. Local Development & Verification
+
+### Prerequisites
+- Node.js 20.x or 22.x LTS (compatible with Node 24)
+- npm 10+
+- Firebase CLI installed (`firebase-tools`)
+
+### Step-by-Step Local Setup
 ```bash
 # 1. Clone repository
 git clone https://github.com/aifoundationau/socialradar.git
@@ -48,18 +292,15 @@ npm install
 cp .env.example .env.local
 # Set Firebase, Gemini API, SearchAPI, and Stripe credentials
 
-# 4. Run local development server
-npm run dev -- -p 3005
+# 4. Start development server
+npm run dev
 
-# 5. Open http://localhost:3005
+# 5. Open http://localhost:3000
 ```
 
----
-
-## Verification & Quality Gates
-
+### Verification & Quality Gates
 ```bash
-# Type-checking
+# Type check
 npx tsc --noEmit
 
 # Linting
@@ -68,14 +309,34 @@ npm run lint
 # Production build test
 npm run build
 
-# Firestore security rules audit
+# Firestore security rules audit (71 test cases)
 npm run test:rules
 ```
 
 ---
 
-## License & Copyright
+## 8. Production Pipeline & Deployment
 
-- **License:** MIT License — see [`mitlicence.txt`](mitlicence.txt) for details.
-- **Memorandum of Agreement:** See [`MemorandumOfAgreement.txt`](MemorandumOfAgreement.txt).
+### Topology
+- **Source Control:** GitHub (`https://github.com/aifoundationau/socialradar.git`)
+- **Frontend & Serverless Edge:** Vercel Production Environment
+- **Hostinger:** Static assets, DNS management, and reverse proxy routing
+- **Database & Identity:** Google Cloud Firebase (`ad-radar` named database)
+
+### Deployment Protocol
+1. Ensure working tree is clean: `git status`
+2. Run full local build verification: `npm run build`
+3. Push changes to origin main: `git push origin main`
+4. Vercel automatically deploys serverless edge functions upon commit push.
+5. Verify production endpoints and confirm Stripe webhook delivery.
+
+---
+
+## 9. Licensing, Legal & Statutory Compliance
+
+- **Sole Proprietary Ownership:** All development, source code, software architecture, algorithms, user interface designs, databases, documentation, and proprietary technology comprising or related to Ad Radar (Social Radar) remain the sole proprietary ownership of **AI Foundation, ABN 36 339 516 584**. No part of this web app, software, codebase, or associated materials may be used, reproduced, copied, distributed, modified, sublicensed, scraped, decompiled, reverse-engineered, or exploited in any form or by any means without the express written prior consent of the developer and AI Foundation.
+- **Memorandum of Agreement:** Detailed stakeholder governance and equity rights outlined in [`MemorandumOfAgreement.txt`](MemorandumOfAgreement.txt).
+- **Australian Corporations Act:** Strict 7-year retention on financial records, token transactions, and user communication logs.
+- **Australian Privacy Act (1988):** Complete data protection, explicit customer consent, and zero unauthorized data dissemination under the Australian Privacy Principles (APPs).
+- **Australian Consumer Law (ACL):** Statutory consumer guarantees and refund rules under the Competition and Consumer Act 2010 (Cth).
 - **Copyright:** &copy; 2026 AI Foundation Australia. All rights reserved.
