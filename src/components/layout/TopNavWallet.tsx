@@ -662,7 +662,7 @@ export function TopNavWallet() {
                 onClick={() => setIsSubscriptionOpen(true)}
                 data-agent-id="nav-link-subscription"
                 data-testid="nav-link-subscription"
-                aria-label="Monthly Search Subscription (1,000 searches)"
+                aria-label="Monthly Search Subscription (1,000 tokens)"
                 className="flex items-center gap-1.5 rounded border border-primary/30 bg-primary/10 px-2.5 py-1 font-mono text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
               >
                 <Icon name="sparkles" className="size-3.5" />
@@ -679,7 +679,7 @@ export function TopNavWallet() {
                   <span>Monthly Search Subscription</span>
                 </div>
                 <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant font-normal">
-                  SuperAdmin &amp; MainAdmin search tier: 1,000 monthly search allowance with custom billing.
+                  SuperAdmin &amp; MainAdmin subscription tier: 1,000 monthly token allowance with custom billing.
                 </p>
                 <div className="absolute -top-1 left-1/2 -translate-x-1/2 size-2 rotate-45 border-t border-l border-primary/30 bg-surface-container-highest" />
               </div>
@@ -735,7 +735,7 @@ export function TopNavWallet() {
                   <span>Monthly Search Subscription</span>
                 </div>
                 <p className="mt-1 text-[11px] leading-snug text-on-surface-variant font-normal">
-                  Privileged search tier: 1,000 monthly search allowance.
+                  Privileged subscription tier: 1,000 monthly token allowance.
                 </p>
               </div>
             </div>

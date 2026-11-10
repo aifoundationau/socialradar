@@ -750,11 +750,11 @@ export const AGENT_TASK_DEFINITIONS: Record<AgentTaskId, AgentTaskDefinition> = 
 
   BUY_MONTHLY_SUBSCRIPTION: {
     taskId: "BUY_MONTHLY_SUBSCRIPTION",
-    title: "Subscribe to 1,000 Monthly Searches (SuperAdmin & MainAdmin)",
+    title: "Subscribe to 1,000 Monthly Tokens (SuperAdmin & MainAdmin)",
     route: "/radar",
     description:
-      "Open the Monthly Search Subscription dialog advertised next to FAQs in the top header and subscribe to 1,000 monthly searches for AUD $500/month.",
-    tokenCostNote: "AUD $500/month (1,000 monthly searches / tokens).",
+      "Open the Monthly Search Subscription dialog advertised next to FAQs in the top header and subscribe to 1,000 monthly tokens for AUD $500/month.",
+    tokenCostNote: "AUD $500/month (1,000 monthly tokens).",
     confirmationRequiredBeforeFinalClick: true,
     slots: [],
     steps: [
@@ -997,7 +997,7 @@ export function detectUserIntent(utterance: string): AgentTaskId | null {
   if (/\b(customize|done-with-you|concierge|strategy brief|strategist)\b/.test(q)) {
     return "SUBMIT_CUSTOMIZE_BRIEF";
   }
-  if (/\b(monthly subscription|1000 searches|1,000 searches|500 subscription|sub 1k)\b/.test(q)) {
+  if (/\b(monthly subscription|1000 tokens|1,000 tokens|1000 searches|1,000 searches|500 subscription|sub 1k)\b/.test(q)) {
     return "BUY_MONTHLY_SUBSCRIPTION";
   }
   if (/\b(buy token|top up|top-up|purchase token|add token|stripe|more tokens)\b/.test(q)) {

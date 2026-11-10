@@ -78,7 +78,7 @@ export function buildCheckoutParams(opts: {
             },
             product_data: {
               name: subscriptionName || "Monthly Search Subscription",
-              description: `Allocate ${tokensFormatted} Searches / Month ($${priceFormatted} AUD / mo)`,
+              description: `Allocate ${tokensFormatted} Tokens / Month ($${priceFormatted} AUD / mo)`,
             },
           },
         },
@@ -177,7 +177,7 @@ export async function fulfillCheckoutSession(
     ? `$${exGstDollarsStr} + $${gstDollarsStr} GST = $${totalDollarsStr} AUD`
     : `$${totalDollarsStr} AUD (No Tax · ${buyerCountry})`;
   const referenceId = isSubscription
-    ? `Stripe Monthly Subscription (${meta.data.tokens.toLocaleString("en-AU")} searches · ${taxNote}) [${session.id}]`
+    ? `Stripe Monthly Subscription (${meta.data.tokens.toLocaleString("en-AU")} tokens · ${taxNote}) [${session.id}]`
     : `Stripe Token Pack (${meta.data.tokens.toLocaleString("en-AU")} tokens · ${taxNote}) [${session.id}]`;
 
   const result = await creditTokens({

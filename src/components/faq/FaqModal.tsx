@@ -321,7 +321,7 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev, onOpenSubscription }: 
                   className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/20 px-3 py-1 font-mono text-xs font-semibold text-primary transition-colors hover:bg-primary/30"
                 >
                   <Icon name="sparkles" className="size-3.5" />
-                  <span>1,000 Searches / mo Subscription</span>
+                  <span>1,000 Tokens / mo Subscription</span>
                 </button>
               )}
               <button

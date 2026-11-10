@@ -27,7 +27,7 @@ async function setSubscriptionStatus(uid: string, subscriptionStatus: Subscripti
  * Credits token packs and Monthly Search Subscriptions from:
  * - `checkout.session.completed` (card payments & initial subscription checkout)
  * - `checkout.session.async_payment_succeeded` (delayed payment methods)
- * - `invoice.paid` (`subscription_cycle` renewals for recurring monthly 1,000-search allocations)
+ * - `invoice.paid` (`subscription_cycle` renewals for recurring monthly 1,000-token allocations)
  * - `invoice.payment_failed` (a failed renewal marks the subscription past_due)
  * - `customer.subscription.updated` / `customer.subscription.deleted` (keeps the status in sync)
  * The Stripe webhook endpoint must be subscribed to all of these events.
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
         uid: meta.data.uid,
         email: invoice.customer_email ?? undefined,
         amount: meta.data.tokens,
-        referenceId: `Stripe Monthly Subscription Renewal (${meta.data.tokens.toLocaleString("en-AU")} searches · $${audDollars} AUD ${renewalTaxLabel}) [${invoice.id}]`,
+        referenceId: `Stripe Monthly Subscription Renewal (${meta.data.tokens.toLocaleString("en-AU")} tokens · $${audDollars} AUD ${renewalTaxLabel}) [${invoice.id}]`,
         txId: invoice.id,
         stripeCustomerId,
         subscription: {

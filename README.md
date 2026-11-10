@@ -23,7 +23,7 @@
    - 3.6 [Professional Customize Brand Strategy Service](#36-professional-customize-brand-strategy-service)
    - 3.7 [Democratic Token Economy & Integer Pricing](#37-democratic-token-economy--integer-pricing)
    - 3.8 [Stripe Payments & Australian GST Compliance](#38-stripe-payments--australian-gst-compliance)
-   - 3.9 [Monthly Search Subscription (1,000 Searches / Month)](#39-monthly-search-subscription-1000-searches--month)
+   - 3.9 [Monthly Search Subscription (1,000 Tokens / Month)](#39-monthly-search-subscription-1000-tokens--month)
    - 3.10 [SuperAdmin & Main Admin Governance Suite](#310-superadmin--main-admin-governance-suite)
    - 3.11 [Compliance Messaging (7-Year Statutory Retention & Anti-Tamper)](#311-compliance-messaging-7-year-statutory-retention--anti-tamper)
    - 3.12 [Interactive Knowledge Base & FAQ Engine](#312-interactive-knowledge-base--faq-engine)
@@ -47,7 +47,7 @@
 The platform scrapes, aggregates, and scores active top-performing direct-response ad campaigns across **Meta (Facebook & Instagram)**, **TikTok**, and **Google Ads (Search, YouTube, and Display)**. Rather than showing raw unranked ads, Ad Radar isolates battle-tested, scalable ads that have demonstrated multi-week conversion longevity.
 
 ### Key Operational Pillars
-- **Democratic Token Economy:** Pay-as-you-go integer tokens with zero lock-in contracts or subscriptions for basic access, plus an optional 1,000 search/mo subscription. Tokens never expire.
+- **Democratic Token Economy:** Pay-as-you-go integer tokens with zero lock-in contracts or subscriptions for basic access, plus an optional 1,000 tokens/mo subscription. Tokens never expire.
 - **Redistributive Equity Pool:** Revenue from token purchases is transparently tracked in an automated equity ledger, distributing dividends to registered partners.
 - **Compliance & Safety:** Complete adherence to the Australian Privacy Act and statutory record-keeping standards (including 7-year immutable message archives).
 - **100% DOM Automation Ready:** Every interactive control is tagged with deterministic `data-agent-id`, `data-testid`, and `aria-label` attributes (`window.__AD_RADAR_AGENT__`).
@@ -145,8 +145,8 @@ A bespoke service where users submit their brand profile and a 200+ word brief o
 - **Token Packs:** PACK_10 ($19 AUD), PACK_50 ($79 AUD), PACK_100 ($139 AUD), plus dynamic custom token packs.
 - **Atomic Ledger:** Payments trigger fulfillment crediting tokens to the user's wallet and recording to `token_transactions`.
 
-### 3.9 Monthly Search Subscription (1,000 Searches / Month)
-- High-volume subscription package providing 1,000 monthly search tokens for $500 AUD / month (dynamic price configurable in SuperAdmin panel). Default status is off.
+### 3.9 Monthly Search Subscription (1,000 Tokens / Month)
+- High-volume subscription package providing 1,000 monthly tokens for $500 AUD / month (dynamic price configurable in SuperAdmin panel). Default status is off.
 - Dynamic Stripe Subscription checkout with recurring monthly billing.
 - Prominently featured in the navigation header for eligible tiers.
 

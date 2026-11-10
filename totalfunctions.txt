@@ -310,8 +310,8 @@ SUITE 2: SERVICE & PRODUCT PRICING CONTROLS (10 Controls)
 SUITE 3: MONTHLY SEARCH SUBSCRIPTION (1K) CONTROLS (4 Controls)
 16. Subscription (1K) Status Toggle:
     - How it works: Master on/off toggle. When OFF (default), Subscription 1K is hidden from top nav, mobile nav, and checkout. When ON, surfaces in navigation and enables Stripe recurring subscription.
-17. Monthly Search Token Allocation:
-    - How it works: Sets monthly recurring search tokens credited to subscriber ledger (default: 1,000 tokens).
+17. Monthly Token Allocation:
+    - How it works: Sets monthly recurring tokens credited to subscriber ledger (default: 1,000 tokens).
 18. Subscription Price Cents:
     - How it works: Sets monthly recurring AUD fee ($29 AUD/month).
 19. Subscriber Country Filter:

@@ -182,7 +182,7 @@ export const WEBSITE_UI_SENTENCES: Array<{
   {
     id: "web_wallet_03",
     section: "Website UI: Wallet, Tokens & Stripe Tax",
-    sentence: "The 1,000 Monthly Searches Subscription provides high-volume agencies and enterprise teams with 1,000 searches per month at AUD $500/month.",
+    sentence: "The Monthly Search Subscription provides high-volume agencies and enterprise teams with 1,000 tokens per month at AUD $500/month.",
   },
   {
     id: "web_wallet_04",

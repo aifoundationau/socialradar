@@ -3275,11 +3275,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             {config.monthlySubscription?.enabled ? "● ON (Visible)" : "○ OFF (Hidden)"}
                           </span>
                           <span className="rounded-full bg-surface-container-lowest/80 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-primary border border-white/10">
-                            1,000 Searches / mo · {formatAud(Math.round((config.monthlySubscription?.priceAud ?? 500) * 100))} AUD
+                            1,000 Tokens / mo · {formatAud(Math.round((config.monthlySubscription?.priceAud ?? 500) * 100))} AUD
                           </span>
                         </div>
                         <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                          1,000 monthly searches advertised next to FAQs in the top header (SuperAdmin &amp; MainAdmin view only).
+                          1,000 monthly tokens advertised next to FAQs in the top header (SuperAdmin &amp; MainAdmin view only).
                         </p>
                       </button>
                       <button
@@ -3331,7 +3331,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               </div>
                               <p className="text-xs text-on-surface-variant leading-relaxed">
                                 {config.monthlySubscription?.enabled
-                                  ? "Subscription (1K) is currently ON and visible in the top header nav. Users can view and purchase the 1,000 monthly search plan."
+                                  ? "Subscription (1K) is currently ON and visible in the top header nav. Users can view and purchase the 1,000 monthly token plan."
                                   : "Subscription (1K) is currently OFF and hidden from the top header nav. Turn ON to make Subscription (1K) visible and available."}
                               </p>
                             </div>
@@ -3508,8 +3508,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 </span>
                               </div>
                               <div className="flex items-center justify-between text-outline pt-1 border-t border-white/[0.06]">
-                                <span>Searches Allowance:</span>
-                                <span className="font-bold text-on-surface">1,000 searches/mo</span>
+                                <span>Tokens Allowance:</span>
+                                <span className="font-bold text-on-surface">1,000 tokens/mo</span>
                               </div>
                             </div>
                           </div>

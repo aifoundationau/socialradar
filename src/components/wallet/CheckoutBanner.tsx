@@ -58,7 +58,7 @@ export function CheckoutBanner() {
             ? ` (+ $${(result.taxCents / 100).toFixed(2)} AUD 10% GST)`
             : " (+ 10% GST)";
       if (result.isSubscription) {
-        bannerText = `Monthly Search Subscription active! Payment confirmed in AUD${taxStr} and +${(result.tokens ?? 1000).toLocaleString("en-AU")} monthly searches/tokens have been distributed to your account (Balance: ${(result.balanceAfter ?? 0).toLocaleString("en-AU")} tokens).`;
+        bannerText = `Monthly Search Subscription active! Payment confirmed in AUD${taxStr} and +${(result.tokens ?? 1000).toLocaleString("en-AU")} monthly tokens have been distributed to your account (Balance: ${(result.balanceAfter ?? 0).toLocaleString("en-AU")} tokens).`;
       } else {
         bannerText = `Payment confirmed in AUD${taxStr}! +${(result.tokens ?? 0).toLocaleString("en-AU")} tokens have been distributed to your account (Balance: ${(result.balanceAfter ?? 0).toLocaleString("en-AU")} tokens).`;
       }

@@ -204,7 +204,7 @@ operators, and businesses across Australia, New Zealand, and globally."
 - Token economy: switch the token system on or off, set the token price,
   turn AUD and USD display on or off, set the cost of every action, and
   create, edit or retire token packs.
-- Monthly Search Subscription settings (price, searches per month, on/off).
+- Monthly Search Subscription settings (price, tokens per month, on/off).
 - Timed Free Access Windows: Super Admin can make the app free for 15, 30 or
   60 minutes for Monthly Subscribers, in all countries or chosen countries.
 - Redistributive Equity Ledger: equity partners, their percentages, the live
@@ -242,7 +242,7 @@ operators, and businesses across Australia, New Zealand, and globally."
 - GST: 10% added at checkout for Australian buyers (Stripe Tax). No GST for
   New Zealand and international buyers. Everything settles in AUD.
 - Tokens land in your wallet as soon as Stripe confirms the payment.
-- Monthly Search Subscription: 1,000 search tokens every month for a fixed
+- Monthly Search Subscription: 1,000 tokens every month for a fixed
   monthly fee (default AUD $500, set by Super Admin). It is switched off by
   default, and in the current version only Super Admin and Main Admin
   accounts can buy it.

@@ -39,7 +39,7 @@ export function MonthlySubscriptionModal({
     searchesPerMonth: 1000,
     name: "Monthly Search Subscription",
     description:
-      "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those. Get Access to 'Free to Use' Times.",
+      "1,000 monthly tokens for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those. Get Access to 'Free to Use' Times.",
   });
   const [loading, setLoading] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
@@ -153,14 +153,14 @@ export function MonthlySubscriptionModal({
           action: "GIFT_TOKENS",
           recipientEmail: user.email,
           tokens: subConfig.searchesPerMonth,
-          note: `Monthly Search Subscription allocation (${subConfig.searchesPerMonth} searches / $${subConfig.priceAud} AUD${geo.country === "AU" ? " + GST" : ""})`,
+          note: `Monthly Search Subscription allocation (${subConfig.searchesPerMonth} tokens / $${subConfig.priceAud} AUD${geo.country === "AU" ? " + GST" : ""})`,
         },
       });
       const credited = res.creditedTokens ?? res.giftResult?.tokens ?? subConfig.searchesPerMonth;
       const balanceAfter = res.balanceAfter ?? res.giftResult?.balanceAfter ?? 0;
       setMessage({
         type: "success",
-        text: `Allocated ${credited.toLocaleString()} subscription searches to ${user.email}. New balance: ${balanceAfter.toLocaleString()} tokens.`,
+        text: `Allocated ${credited.toLocaleString()} subscription tokens to ${user.email}. New balance: ${balanceAfter.toLocaleString()} tokens.`,
       });
     } catch (err) {
       setMessage({ type: "error", text: errorMessage(err) });
@@ -213,7 +213,7 @@ export function MonthlySubscriptionModal({
                 </span>
               </div>
               <p className="text-[11px] sm:text-compact text-on-surface-variant">
-                1,000 monthly searches for competitive intelligence &amp; creative scaling
+                1,000 monthly tokens for competitive intelligence &amp; creative scaling
               </p>
             </div>
           </div>
@@ -249,10 +249,10 @@ export function MonthlySubscriptionModal({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <span className="font-mono text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-primary">
-                  Privileged Search Tier
+                  Privileged Subscription Tier
                 </span>
                 <h3 className="text-title-md sm:text-title-lg font-bold text-on-surface mt-0.5">
-                  {searchesCount.toLocaleString()} Monthly Searches
+                  {searchesCount.toLocaleString()} Monthly Tokens
                 </h3>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">
                   {isAu
@@ -587,7 +587,7 @@ export function MonthlySubscriptionModal({
                 disabled={granting || subscribing}
                 data-agent-id="admin-grant-subscription-button"
                 data-testid="admin-grant-subscription-button"
-                aria-label={`Allocate ${searchesCount} subscription searches to ${user?.email}`}
+                aria-label={`Allocate ${searchesCount} subscription tokens to ${user?.email}`}
                 className={`${btnSecondary} text-xs font-mono py-1.5`}
                 title="SuperAdmin / MainAdmin allocation"
               >
@@ -596,7 +596,7 @@ export function MonthlySubscriptionModal({
                 ) : (
                   <Icon name="zap" className="size-3.5 text-primary" />
                 )}
-                <span>Allocate {searchesCount.toLocaleString()} Searches</span>
+                <span>Allocate {searchesCount.toLocaleString()} Tokens</span>
               </button>
             )}
 

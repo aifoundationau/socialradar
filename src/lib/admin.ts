@@ -76,7 +76,7 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
     priceAud: 500,
     searchesPerMonth: 1000,
     name: "Monthly Search Subscription",
-    description: "1,000 monthly searches for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those. Get Access to 'Free to Use' Times.",
+    description: "1,000 monthly tokens for AUD $500/month. Options for every search: Every option is one token. This gives you 1,000 of those. Get Access to 'Free to Use' Times.",
   },
   freeAccessWindow: DEFAULT_FREE_ACCESS_WINDOW,
   equityPartners: [],
