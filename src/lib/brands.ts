@@ -5,6 +5,7 @@ import { db } from "./firebase-admin";
 import { ensureUserDoc } from "./token-ledger";
 import { ApiError } from "./api";
 import type { BrandProfile } from "./contracts";
+import { buildBrandTextFileContent, getBrandTextFileName } from "./brand-text-file";
 
 /** Abuse cap, not a plan limit. */
 export const MAX_BRANDS_PER_USER = 25;
@@ -19,11 +20,20 @@ const brandIdFromKey = (uid: string, key: string) =>
 
 const notFound = (brandId: string) => new ApiError("NOT_FOUND", `Brand ${brandId} not found`, 404);
 
+/** Attaches the generated `<Brand Name> - <Date>.txt` file name and content to a BrandProfile. */
+function withBrandTextAttachment(brand: BrandProfile): BrandProfile {
+  return {
+    ...brand,
+    brandTextFileName: getBrandTextFileName(brand),
+    brandTextFileContent: buildBrandTextFileContent(brand),
+  };
+}
+
 /** The community (global_brands) copy of a brand: every signed-in user can read it, so no author email. */
 function communityCopy(brand: BrandProfile): BrandProfile {
   const copy = { ...brand };
   delete copy.authorEmail;
-  return copy;
+  return withBrandTextAttachment(copy);
 }
 
 /**
@@ -53,7 +63,7 @@ export async function createBrand(
     const destinationUrl = input.destinationUrl || landingPageUrls[0];
     const isGlobal = Boolean(input.isGlobal);
 
-    const brand: BrandProfile = {
+    const brand = withBrandTextAttachment({
       brandId: ref.id,
       ...input,
       destinationUrl,
@@ -63,7 +73,7 @@ export async function createBrand(
       authorEmail: caller.email,
       createdAt: input.createdAt || now,
       updatedAt: now,
-    };
+    });
 
     t.create(ref, brand);
 
@@ -99,7 +109,7 @@ export async function updateBrand(
 
     // Authorship and creation time come from the stored brand, never from the request body.
     const authorEmail = existing.authorEmail || callerEmail || brand.authorEmail;
-    saved = {
+    saved = withBrandTextAttachment({
       ...brand,
       destinationUrl,
       landingPageUrls,
@@ -108,7 +118,7 @@ export async function updateBrand(
       ...(authorEmail ? { authorEmail } : {}),
       createdAt: existing.createdAt || brand.createdAt || now,
       updatedAt: now,
-    };
+    });
     t.set(ref, saved);
 
     const globalDocRef = globalBrandsCol.doc(brand.brandId);
@@ -143,6 +153,31 @@ export async function getBrand(uid: string, brandId: string): Promise<BrandProfi
   if (!brandId) return null;
   const snap = await brandsCol(uid).doc(brandId).get();
   return snap.exists ? (snap.data() as BrandProfile) : null;
+}
+
+/**
+ * Fetches a brand profile by ID from the user's personal brands or from `global_brands`
+ * for generating/downloading the attached `<Brand Name> - <Date>.txt` file.
+ */
+export async function getBrandForTxtDownload(
+  uid: string,
+  brandId: string,
+  isGlobalSource?: boolean,
+): Promise<BrandProfile> {
+  if (!brandId) throw notFound(brandId);
+  if (!isGlobalSource) {
+    const personal = await getBrand(uid, brandId);
+    if (personal) return withBrandTextAttachment(personal);
+  }
+  const globalSnap = await globalBrandsCol.doc(brandId).get();
+  if (globalSnap.exists) {
+    return communityCopy(globalSnap.data() as BrandProfile);
+  }
+  if (isGlobalSource) {
+    const personalFallback = await getBrand(uid, brandId);
+    if (personalFallback) return withBrandTextAttachment(personalFallback);
+  }
+  throw notFound(brandId);
 }
 
 /** Duplicates an existing personal brand card to create a new version. */

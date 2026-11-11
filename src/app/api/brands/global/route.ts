@@ -40,13 +40,18 @@ async function handleGlobalBrands(req: Request) {
     ]);
 
     const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
-    const brandCloneFee = isChargingEnabled(config, Date.now(), userData, caller.claims.isSuperAdmin)
+    const charging = isChargingEnabled(config, Date.now(), userData, caller.claims.isSuperAdmin);
+    const brandCloneFee = charging
       ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 1))
+      : 0;
+    const brandTxtDownloadFee = charging
+      ? Math.max(0, Math.round(config.serviceCosts?.brandTxtDownload ?? 1))
       : 0;
 
     return NextResponse.json({
       brands,
       brandCloneFee,
+      brandTxtDownloadFee,
       audCentsPerToken: config.audCentsPerToken ?? 100,
     });
   } catch (err) {

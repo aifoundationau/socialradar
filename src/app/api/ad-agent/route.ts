@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db, verifyRequest, type VerifiedCaller } from "@/lib/firebase-admin";
 import { ApiError, errorResponse, readJson } from "@/lib/api";
 import {
+  DEFAULT_SUPERADMIN_LOCATION,
+  activateAdAgentInLedger,
   deleteAdAgent,
   formatAgentLocationLabel,
   getAdAgentDistributionLedger,
@@ -17,11 +19,14 @@ import {
 import { getCustomizeRequestById, getSystemConfig, sendSuperadminMessage } from "@/lib/admin";
 import {
   RegisterAdAgentRequestSchema,
+  SuperAdminActivateAdAgentRequestSchema,
   SuperAdminAddAdAgentRequestSchema,
+  SuperAdminRemoveAdAgentFromActiveRequestSchema,
   SuperAdminUpdateAdAgentBankDetailsRequestSchema,
   SuperAdminUpdateAdAgentPercentRequestSchema,
   ToggleOwnAdAgentStatusRequestSchema,
   type AdAgentDistributionItem,
+  type AdAgentDistributionPricingMeta,
   type AdAgentProfile,
   type CustomizeRequestDoc,
 } from "@/lib/contracts";
@@ -52,16 +57,27 @@ function visibleLedger(ledger: AdAgentDistributionItem[], viewer: Viewer): AdAge
   );
 }
 
+function buildPricingMeta(config: Awaited<ReturnType<typeof getSystemConfig>>): AdAgentDistributionPricingMeta {
+  return {
+    audCentsPerToken: Math.max(1, Math.round(Number(config.audCentsPerToken || 100))),
+    customizeServiceTokens: Math.max(0, Math.round(Number(config.serviceCosts?.customizeService ?? 55))),
+    isTokenSystemEnabled: config.isTokenSystemEnabled !== false,
+    isAudEnabled: config.isAudEnabled !== false,
+    isUsdEnabled: config.isUsdEnabled !== false,
+  };
+}
+
 async function ledgerFor(viewer: Viewer) {
   const config = await getSystemConfig();
+  const pricingMeta = buildPricingMeta(config);
   const ledger = visibleLedger(
     await getAdAgentDistributionLedger(
-      config.audCentsPerToken || 100,
-      config.serviceCosts?.customizeService ?? 55,
+      pricingMeta.audCentsPerToken,
+      pricingMeta.customizeServiceTokens,
     ),
     viewer,
   );
-  return { adAgentLedger: ledger, ledger };
+  return { adAgentLedger: ledger, ledger, pricingMeta };
 }
 
 /** Every agent's full profile (bank details included) is returned to Super Admin only. */
@@ -70,8 +86,10 @@ async function profilesFor(viewer: Viewer, agents?: AdAgentProfile[]) {
 }
 
 function findOwnProfile(agents: AdAgentProfile[], viewer: Viewer): AdAgentProfile | undefined {
-  return agents.find(
-    (a) => a.email.toLowerCase() === viewer.email || (!!a.uid && a.uid === viewer.uid),
+  return (
+    agents.find(
+      (a) => a.email.toLowerCase() === viewer.email || (!!a.uid && a.uid === viewer.uid),
+    ) || (viewer.isSuper ? agents.find((a) => a.isSuperAdminBuiltIn) : undefined)
   );
 }
 
@@ -109,8 +127,29 @@ export async function GET(req: Request) {
 
     const isAdmin = viewer.isSuper || viewer.isMainAdmin;
     const [config, agents] = await Promise.all([getSystemConfig(), getAdAgents()]);
+    const pricingMeta = buildPricingMeta(config);
 
-    const ownProfile = findOwnProfile(agents, viewer);
+    let ownProfile = findOwnProfile(agents, viewer);
+    if (!ownProfile && !isAdmin && viewer.email && (await isApprovedAdAgent(caller))) {
+      const now = new Date().toISOString();
+      const cleanUid = caller.uid.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 16) || "agent";
+      ownProfile = {
+        agentId: `agent_rbac_${cleanUid}`,
+        uid: caller.uid,
+        name: viewer.email.split("@")[0] || "Ad Agent",
+        phone: "Not specified",
+        email: viewer.email,
+        location: DEFAULT_SUPERADMIN_LOCATION,
+        bankOrPayIdDetails: "",
+        redistributionPercentage: 30,
+        status: "inactive",
+        inActiveLedger: false,
+        isSuperAdminBuiltIn: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+    }
+
     const myAgentProfile = lookupEmail
       ? agents.find((a) => a.email.toLowerCase() === lookupEmail) || null
       : ownProfile || null;
@@ -125,14 +164,14 @@ export async function GET(req: Request) {
     const ledgerAgents = isAdmin ? agents : ownProfile ? [ownProfile] : [];
     const fullLedger = ledgerAgents.length
       ? await getAdAgentDistributionLedger(
-          config.audCentsPerToken || 100,
-          config.serviceCosts?.customizeService ?? 55,
+          pricingMeta.audCentsPerToken,
+          pricingMeta.customizeServiceTokens,
           { agents: ledgerAgents, requests: assignedRequests, partial: !isAdmin },
         )
       : [];
 
     const publicAgents = agents
-      .filter((a) => a.status === "active")
+      .filter((a) => a.status === "active" && a.inActiveLedger !== false)
       .map((a) => ({
         agentId: a.agentId,
         name: a.name,
@@ -151,6 +190,7 @@ export async function GET(req: Request) {
       assignedRequests,
       adAgentLedger: ledger,
       ledger,
+      pricingMeta,
       agents: publicAgents,
     });
   } catch (err) {
@@ -228,6 +268,13 @@ export async function POST(req: Request) {
           "NOT_FOUND",
           "Please save your Ad Agent profile first before toggling your Ad Agent status.",
           404,
+        );
+      }
+      if (!viewer.isSuper && myAgent.inActiveLedger === false && parsed.status === "active") {
+        throw new ApiError(
+          "FORBIDDEN",
+          "Your Ad Agent record is saved on file. Super Admin will activate your profile in the Ad Agent panel when required.",
+          403,
         );
       }
 
@@ -319,6 +366,22 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         agent,
+        ...(await profilesFor(viewer)),
+        ...(await ledgerFor(viewer)),
+      });
+    }
+
+    if (action === "SUPERADMIN_ACTIVATE_AGENT") {
+      const parsed = SuperAdminActivateAdAgentRequestSchema.parse({
+        agentId: String(body.agentId || "").trim(),
+        email: body.email ? String(body.email).trim().toLowerCase() : undefined,
+        name: body.name ? String(body.name).trim() : undefined,
+      });
+      const agent = await activateAdAgentInLedger(parsed);
+      return NextResponse.json({
+        success: true,
+        agent,
+        ...(await profilesFor(viewer)),
         ...(await ledgerFor(viewer)),
       });
     }
@@ -331,6 +394,7 @@ export async function POST(req: Request) {
       await updateAdAgentBankDetails(parsed.agentId, parsed.bankOrPayIdDetails);
       return NextResponse.json({
         success: true,
+        ...(await profilesFor(viewer)),
         ...(await ledgerFor(viewer)),
       });
     }
@@ -345,6 +409,7 @@ export async function POST(req: Request) {
       await updateAdAgentRedistributionPercent(parsed.agentId, parsed.redistributionPercentage);
       return NextResponse.json({
         success: true,
+        ...(await profilesFor(viewer)),
         ...(await ledgerFor(viewer)),
       });
     }
@@ -358,6 +423,7 @@ export async function POST(req: Request) {
       await toggleAdAgentStatus(agentId, status);
       return NextResponse.json({
         success: true,
+        ...(await profilesFor(viewer)),
         ...(await ledgerFor(viewer)),
       });
     }
@@ -370,18 +436,20 @@ export async function POST(req: Request) {
       await resetAdAgentRedistributionToZero(agentId, viewer.email);
       return NextResponse.json({
         success: true,
+        ...(await profilesFor(viewer)),
         ...(await ledgerFor(viewer)),
       });
     }
 
     if (action === "SUPERADMIN_DELETE_AGENT") {
-      const agentId = String(body.agentId || "").trim();
-      if (!agentId) {
-        throw new ApiError("INVALID_INPUT", "agentId is required.", 400);
-      }
-      await deleteAdAgent(agentId);
+      const parsed = SuperAdminRemoveAdAgentFromActiveRequestSchema.parse({
+        agentId: String(body.agentId || "").trim(),
+        email: body.email ? String(body.email).trim().toLowerCase() : undefined,
+      });
+      await deleteAdAgent(parsed.agentId, parsed.email);
       return NextResponse.json({
         success: true,
+        ...(await profilesFor(viewer)),
         ...(await ledgerFor(viewer)),
       });
     }

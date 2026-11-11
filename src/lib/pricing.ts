@@ -106,11 +106,24 @@ export function isChargingEnabled(
  * Server-authoritative action costs (integers only). 0 makes an action free: it still needs a
  * signed-in user but writes nothing to the ledger. Customizable via SuperAdmin Control Panel.
  */
-export const ACTION_COSTS: Record<"RADAR_SEARCH" | "AI_REMIX" | "REGENERATE_VARIATIONS" | "BRAND_CLONE" | "CUSTOMIZE_SERVICE", number> = {
+export const ACTION_COSTS: Record<
+  | "RADAR_SEARCH"
+  | "AI_REMIX"
+  | "REGENERATE_VARIATIONS"
+  | "BRAND_CLONE"
+  | "BRAND_TXT_DOWNLOAD"
+  | "SEARCHMIX_DOWNLOAD"
+  | "DECONSTRUCT_DOWNLOAD"
+  | "CUSTOMIZE_SERVICE",
+  number
+> = {
   RADAR_SEARCH: 1,
   AI_REMIX: 1,
   REGENERATE_VARIATIONS: 1,
   BRAND_CLONE: 1,
+  BRAND_TXT_DOWNLOAD: 1,
+  SEARCHMIX_DOWNLOAD: 1,
+  DECONSTRUCT_DOWNLOAD: 0,
   CUSTOMIZE_SERVICE: 55,
 };
 export type ChargeableAction = keyof typeof ACTION_COSTS;

@@ -319,12 +319,12 @@ export const DEFAULT_FAQS: FaqItem[] = [
     faqId: "faq_ad_agent_status_disclaimer",
     question: "What is the relationship between Ad Agents and Ad Radar HQ?",
     answer:
-      "Ad Agents are independent contractors, with no official employment by Ad Radar or AI Foundation. Their role is purely in an outsourced capacity and has no long-term contractual arrangement. All advice, strategies, recommendations, and opinions expressed by Ad Agents are strictly their own independent views and do not represent Ad Radar HQ.",
+      "Ad Agents are independent contractors, with no official employment by Ad Radar or AI Foundation. Their role is purely in an outsourced capacity and has no long-term contractual arrangement. Their individual pricing structure is theirs alone, and Ad Radar HQ does not have any control over their specialization and expert services. All advice, strategies, recommendations, and opinions expressed by Ad Agents are strictly their own independent views and do not represent Ad Radar HQ.",
     category: "Refunds & Support",
     order: 28,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
-    updatedAt: "2026-11-09T00:00:00.000Z",
+    updatedAt: "2026-11-11T00:00:00.000Z",
   },
   {
     faqId: "faq_intellectual_property_ownership",

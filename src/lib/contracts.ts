@@ -69,6 +69,9 @@ export const TokenTxTypeSchema = z.enum([
   "REGENERATE_VARIATIONS",
   "REFUND",
   "BRAND_CLONE",
+  "BRAND_TXT_DOWNLOAD",
+  "SEARCHMIX_DOWNLOAD",
+  "DECONSTRUCT_DOWNLOAD",
   "CUSTOMIZE_SERVICE",
   "ADMIN_DEDUCT",
   "ADMIN_RESET",
@@ -155,6 +158,8 @@ export const BrandProfileInputSchema = z
     clonedFromBrandId: z.string().optional(),
     createdAt: isoDate.optional(),
     updatedAt: isoDate.optional(),
+    brandTextFileName: z.string().max(260).optional(),
+    brandTextFileContent: z.string().max(50000).optional(),
   })
   .strict();
 export const BrandIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/);
@@ -175,6 +180,14 @@ export const BrandCloneRequestSchema = z
   })
   .strict();
 export type BrandCloneRequest = z.infer<typeof BrandCloneRequestSchema>;
+
+export const BrandTxtDownloadRequestSchema = z
+  .object({
+    brandId: BrandIdSchema,
+    isGlobalSource: z.boolean().optional(),
+  })
+  .strict();
+export type BrandTxtDownloadRequest = z.infer<typeof BrandTxtDownloadRequestSchema>;
 
 export const GlobalBrandSearchQuerySchema = z
   .object({
@@ -297,6 +310,27 @@ export const RemixRequestSchema = z
   .strict();
 export type RemixRequest = z.infer<typeof RemixRequestSchema>;
 
+export const SearchMixDownloadRequestSchema = z
+  .object({
+    adId: NormalizedAdSchema.shape.adId,
+    query: z.string().max(100).optional(),
+    fetchedAt: z.string().max(64).optional(),
+    rank: tokenInt.min(1).max(1000).optional(),
+    adSnapshot: NormalizedAdSchema.optional(),
+  })
+  .strict();
+export type SearchMixDownloadRequest = z.infer<typeof SearchMixDownloadRequestSchema>;
+
+export const DeconstructDownloadRequestSchema = z
+  .object({
+    remixId: z.string().min(1).max(160),
+    brandName: z.string().max(100).optional(),
+    remixSnapshot: RemixDocSchema.optional(),
+    adSnapshot: NormalizedAdSchema.optional(),
+  })
+  .strict();
+export type DeconstructDownloadRequest = z.infer<typeof DeconstructDownloadRequestSchema>;
+
 export interface RemixResponse {
   remix: RemixDoc;
   /** The source ad as remixed (Google ads gain their creative and copy here). Absent on replays. */
@@ -381,6 +415,9 @@ export const ServiceCostsSchema = z
     aiRemix: tokenInt.min(0).default(1),
     regenerateVariations: tokenInt.min(0).default(1),
     brandClone: tokenInt.min(0).default(1),
+    brandTxtDownload: tokenInt.min(0).default(1),
+    searchMixDownload: tokenInt.min(0).default(1),
+    deconstructDownload: tokenInt.min(0).default(0),
     customizeService: tokenInt.min(0).default(55),
   })
   .strict();
@@ -467,6 +504,9 @@ export const AdminConfigPatchSchema = z
         aiRemix: serviceCostValue.optional(),
         regenerateVariations: serviceCostValue.optional(),
         brandClone: serviceCostValue.optional(),
+        brandTxtDownload: serviceCostValue.optional(),
+        searchMixDownload: serviceCostValue.optional(),
+        deconstructDownload: serviceCostValue.optional(),
         customizeService: serviceCostValue.optional(),
       })
       .optional(),
@@ -755,6 +795,17 @@ export const AssignUserRoleRequestSchema = z
   });
 export type AssignUserRoleRequest = z.infer<typeof AssignUserRoleRequestSchema>;
 
+export const DeleteUserRequestSchema = z
+  .object({
+    action: z.literal("DELETE_USER"),
+    uid: z.string().trim().min(1).max(128),
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
+    confirmDelete: z.literal(true),
+    actingRole: z.enum(["superadmin", "admin"]).optional(),
+  })
+  .strict();
+export type DeleteUserRequest = z.infer<typeof DeleteUserRequestSchema>;
+
 // ---------- 10. Frequently Asked Questions (FAQs) ----------
 export const FaqItemSchema = z
   .object({
@@ -831,7 +882,9 @@ export const AdAgentProfileSchema = z
     bankOrPayIdDetails: z.string().trim().max(500).optional(),
     redistributionPercentage: z.number().int().min(10).max(70).default(30),
     status: z.enum(["active", "inactive"]).default("active"),
+    inActiveLedger: z.boolean().default(true).optional(),
     isSuperAdminBuiltIn: z.boolean().default(false).optional(),
+    claimedCustomizationsTokens: z.number().int().nonnegative().optional(),
     claimedTokens: z.number().int().nonnegative().optional(),
     claimedAudCents: z.number().int().nonnegative().optional(),
     claimedUsdCents: z.number().int().nonnegative().optional(),
@@ -948,6 +1001,65 @@ export const SuperAdminUpdateAdAgentBankDetailsRequestSchema = z
   })
   .strict();
 
+export const SuperAdminActivateAdAgentRequestSchema = z
+  .object({
+    agentId: z.string().trim().min(1).max(128),
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
+    name: safeText(1, 100).optional(),
+  })
+  .strict();
+export type SuperAdminActivateAdAgentRequest = z.infer<typeof SuperAdminActivateAdAgentRequestSchema>;
+
+export const SuperAdminRemoveAdAgentFromActiveRequestSchema = z
+  .object({
+    agentId: z.string().trim().min(1).max(128),
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
+  })
+  .strict();
+export type SuperAdminRemoveAdAgentFromActiveRequest = z.infer<
+  typeof SuperAdminRemoveAdAgentFromActiveRequestSchema
+>;
+
+export const AdAgentDistributionPricingMetaSchema = z
+  .object({
+    audCentsPerToken: z.number().int().min(1).max(1_000_000),
+    customizeServiceTokens: z.number().int().min(0).max(1_000_000),
+    isTokenSystemEnabled: z.boolean(),
+    isAudEnabled: z.boolean(),
+    isUsdEnabled: z.boolean(),
+  })
+  .strict();
+export type AdAgentDistributionPricingMeta = z.infer<typeof AdAgentDistributionPricingMetaSchema>;
+
+export const AdAgentDistributionItemSchema = z
+  .object({
+    agentId: z.string().min(1).max(128),
+    uid: z.string().min(1).max(128).optional(),
+    name: z.string().min(1).max(120),
+    phone: z.string().min(1).max(60),
+    email: z.string().email().max(254),
+    suburb: z.string().max(120).optional(),
+    state: z.string().max(120).optional(),
+    country: z.string().max(8).optional(),
+    locationLabel: z.string().max(240),
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+    bankOrPayIdDetails: z.string().max(500).optional(),
+    status: z.enum(["active", "inactive"]),
+    inActiveLedger: z.boolean().optional(),
+    isSuperAdminBuiltIn: z.boolean().optional(),
+    customizationsCount: z.number().int().min(0),
+    totalCustomizationsTokens: z.number().int().min(0),
+    totalCustomizationsAudCents: z.number().int().min(0),
+    totalCustomizationsUsdCents: z.number().int().min(0),
+    redistributionPercentage: z.number().int().min(10).max(70),
+    redistributionTokens: z.number().int().min(0),
+    redistributionAudCents: z.number().int().min(0),
+    redistributionUsdCents: z.number().int().min(0),
+    lastResetAt: z.string().max(64).optional(),
+  })
+  .strict();
+
 export interface AdAgentDistributionItem {
   agentId: string;
   uid?: string;
@@ -962,6 +1074,7 @@ export interface AdAgentDistributionItem {
   longitude: number;
   bankOrPayIdDetails?: string;
   status: "active" | "inactive";
+  inActiveLedger?: boolean;
   isSuperAdminBuiltIn?: boolean;
   customizationsCount: number;
   totalCustomizationsTokens: number;

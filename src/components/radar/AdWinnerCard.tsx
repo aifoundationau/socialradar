@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { PROVEN_WINNER_DAYS, type NormalizedAd } from "@/lib/contracts";
+import { formatTokenEstimateHover } from "@/lib/pricing";
+import { getSearchMixFileName } from "@/lib/searchmix-text-file";
 import { Icon } from "@/components/ui/Icon";
 import { PLATFORMS } from "./options";
 
@@ -185,11 +187,23 @@ export function AdWinnerCard({
   rank,
   selected,
   onModel,
+  searchQuery,
+  fetchedAt,
+  searchMixFee = 1,
+  audRate = 100,
+  isDownloadingTxt = false,
+  onDownloadSearchMix,
 }: {
   ad: NormalizedAd;
   rank: number;
   selected: boolean;
   onModel: () => void;
+  searchQuery?: string;
+  fetchedAt?: string;
+  searchMixFee?: number;
+  audRate?: number;
+  isDownloadingTxt?: boolean;
+  onDownloadSearchMix?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const platform = PLATFORMS[ad.platform];
@@ -197,6 +211,14 @@ export function AdWinnerCard({
   const views = ad.totalViews ?? ad.matrixScore?.totalViews ?? 0;
   const likes = ad.totalLikes ?? ad.matrixScore?.totalLikes ?? Math.round(views * 0.042);
   const keywords = ad.matrixScore?.highlightKeywords ?? ad.highlightKeywords ?? [];
+  const searchMixFileName = getSearchMixFileName(ad, {
+    searchQuery,
+    dateIso: fetchedAt,
+  });
+  const downloadHoverTitle =
+    searchMixFee === 0
+      ? "Free to download SearchMix .txt"
+      : formatTokenEstimateHover(searchMixFee, false, audRate);
 
   return (
     <article
@@ -350,6 +372,53 @@ export function AdWinnerCard({
                 {ad.matrixScore.resonanceReason}
               </p>
             )}
+          </div>
+        )}
+
+        {/* SearchMix .txt File Attachment & Download */}
+        {onDownloadSearchMix && (
+          <div
+            data-agent-id={`ad-searchmix-box-${ad.adId}`}
+            data-testid={`ad-searchmix-box-${ad.adId}`}
+            className="flex items-center justify-between gap-2 rounded-lg border border-primary/25 bg-primary/[0.06] px-2.5 py-2"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded border border-primary/30 bg-primary/15 text-primary">
+                <Icon name="fileText" className="size-3.5" />
+              </span>
+              <span
+                data-agent-id={`ad-searchmix-filename-${ad.adId}`}
+                data-testid={`ad-searchmix-filename-${ad.adId}`}
+                className="truncate font-mono text-[11px] font-semibold text-on-surface"
+                title={searchMixFileName}
+              >
+                {searchMixFileName}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={onDownloadSearchMix}
+              disabled={isDownloadingTxt}
+              title={downloadHoverTitle}
+              data-agent-id={`ad-searchmix-download-${ad.adId}`}
+              data-testid={`ad-searchmix-download-${ad.adId}`}
+              aria-label={`Download SearchMix .txt file ${searchMixFileName}`}
+              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-primary/40 bg-primary/20 px-2.5 py-1 font-mono text-[11px] font-semibold text-primary transition hover:bg-primary/30 disabled:opacity-50 cursor-pointer"
+            >
+              <Icon name="download" className="size-3" />
+              <span>{isDownloadingTxt ? "Downloading…" : "SearchMix .txt"}</span>
+              {searchMixFee > 0 ? (
+                <span className="ml-0.5 inline-flex items-center gap-0.5 rounded-full bg-black/30 px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary">
+                  <Icon name="zap" className="size-2.5" />
+                  {searchMixFee}
+                </span>
+              ) : (
+                <span className="ml-0.5 rounded-full bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
+                  Free
+                </span>
+              )}
+            </button>
           </div>
         )}
 

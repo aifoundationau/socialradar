@@ -76,14 +76,28 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
     ]);
     const agents: AdAgentProfile[] = [];
     const seenEmails = new Set<string>();
-    for (const doc of snap.docs) {
+    const sortedDocs = [...snap.docs].sort((a, b) => {
+      const aData = a.data() as Partial<AdAgentProfile>;
+      const bData = b.data() as Partial<AdAgentProfile>;
+      const aHasBank = Boolean(aData.bankOrPayIdDetails && aData.bankOrPayIdDetails.trim());
+      const bHasBank = Boolean(bData.bankOrPayIdDetails && bData.bankOrPayIdDetails.trim());
+      if (aHasBank !== bHasBank) return aHasBank ? -1 : 1;
+      const aIsRbacSeed = a.id.startsWith("agent_rbac_");
+      const bIsRbacSeed = b.id.startsWith("agent_rbac_");
+      if (aIsRbacSeed !== bIsRbacSeed) return aIsRbacSeed ? 1 : -1;
+      return String(bData.updatedAt || "").localeCompare(String(aData.updatedAt || ""));
+    });
+
+    for (const doc of sortedDocs) {
       const d = doc.data() as AdAgentProfile;
       const cleanEmail = (d.email || "").toLowerCase().trim();
+      if (cleanEmail && seenEmails.has(cleanEmail)) continue;
       if (cleanEmail) seenEmails.add(cleanEmail);
       agents.push({
         ...d,
         agentId: d.agentId || doc.id,
         email: cleanEmail,
+        inActiveLedger: d.inActiveLedger !== false,
         redistributionPercentage: normalizeRedistributionPercent(d.redistributionPercentage),
         location: {
           suburb: d.location?.suburb || "Sydney",
@@ -96,7 +110,8 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
       });
     }
 
-    // Ensure every user registered with the RBAC role of "ad_agent" appears in the Ad Agent Distribution Ledger
+    // Ensure every user approved with the RBAC role of "ad_agent" is stored in `ad_agents` records
+    // so they can be activated one-by-one from the Ad Agent Distribution Ledger panel when required.
     const now = new Date().toISOString();
     const roleAgentCandidates = new Map<string, { uid: string; email: string; name: string }>();
 
@@ -117,6 +132,7 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
     for (const [email, candidate] of roleAgentCandidates.entries()) {
       if (seenEmails.has(email)) continue;
       seenEmails.add(email);
+      const isSuperEmail = isDatabaseAdminEmail(email);
       const cleanUid = candidate.uid.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 16) || randomBytes(4).toString("hex");
       const newRoleAgent: AdAgentProfile = {
         agentId: `agent_rbac_${cleanUid}`,
@@ -127,8 +143,9 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
         location: DEFAULT_SUPERADMIN_LOCATION,
         bankOrPayIdDetails: "",
         redistributionPercentage: 30,
-        status: "active",
-        isSuperAdminBuiltIn: isDatabaseAdminEmail(email),
+        status: isSuperEmail ? "active" : "inactive",
+        inActiveLedger: isSuperEmail,
+        isSuperAdminBuiltIn: isSuperEmail,
         createdAt: now,
         updatedAt: now,
       };
@@ -145,7 +162,7 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
       await Promise.all(syncPromises);
     }
 
-    // Ensure Super Admin built-in Ad Agent exists (no registration required)
+    // Ensure Super Admin built-in Ad Agent record exists (no registration required)
     const superEmail = "support@aifoundation.net.au";
     const hasSuperAgent = agents.some(
       (a) => a.email === superEmail || a.email === "davidrobertson.info@gmail.com" || a.isSuperAdminBuiltIn,
@@ -161,6 +178,7 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
         location: DEFAULT_SUPERADMIN_LOCATION,
         redistributionPercentage: 30,
         status: "active",
+        inActiveLedger: true,
         isSuperAdminBuiltIn: true,
         createdAt: now,
         updatedAt: now,
@@ -186,6 +204,7 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
         location: DEFAULT_SUPERADMIN_LOCATION,
         redistributionPercentage: 30,
         status: "active",
+        inActiveLedger: true,
         isSuperAdminBuiltIn: true,
         createdAt: now,
         updatedAt: now,
@@ -260,8 +279,13 @@ export async function registerOrUpdateAdAgent(params: {
       ? params.bankOrPayIdDetails.trim()
       : existing?.bankOrPayIdDetails || "";
 
-  const resolvedStatus: "active" | "inactive" =
-    params.status === "inactive" || params.status === "active"
+  const resolvedInActiveLedger: boolean = existing
+    ? existing.inActiveLedger !== false
+    : isSuper;
+
+  const resolvedStatus: "active" | "inactive" = !resolvedInActiveLedger
+    ? "inactive"
+    : params.status === "inactive" || params.status === "active"
       ? params.status
       : existing?.status || "active";
 
@@ -277,7 +301,11 @@ export async function registerOrUpdateAdAgent(params: {
       ? normalizeRedistributionPercent(existing.redistributionPercentage)
       : 30,
     status: resolvedStatus,
+    inActiveLedger: resolvedInActiveLedger,
     isSuperAdminBuiltIn: isSuper || existing?.isSuperAdminBuiltIn || false,
+    ...(typeof existing?.claimedCustomizationsTokens === "number"
+      ? { claimedCustomizationsTokens: existing.claimedCustomizationsTokens }
+      : {}),
     ...(typeof existing?.claimedTokens === "number" ? { claimedTokens: existing.claimedTokens } : {}),
     ...(typeof existing?.claimedAudCents === "number" ? { claimedAudCents: existing.claimedAudCents } : {}),
     ...(typeof existing?.claimedUsdCents === "number" ? { claimedUsdCents: existing.claimedUsdCents } : {}),
@@ -432,8 +460,12 @@ export async function superAdminUpsertAdAgent(params: {
     },
     bankOrPayIdDetails: bankDetails,
     redistributionPercentage: pct,
-    status: existing?.status || "active",
+    status: existing?.inActiveLedger === false ? "active" : existing?.status || "active",
+    inActiveLedger: true,
     isSuperAdminBuiltIn: isDatabaseAdminEmail(cleanEmail) || existing?.isSuperAdminBuiltIn || false,
+    ...(typeof existing?.claimedCustomizationsTokens === "number"
+      ? { claimedCustomizationsTokens: existing.claimedCustomizationsTokens }
+      : {}),
     ...(typeof existing?.claimedTokens === "number" ? { claimedTokens: existing.claimedTokens } : {}),
     ...(typeof existing?.claimedAudCents === "number" ? { claimedAudCents: existing.claimedAudCents } : {}),
     ...(typeof existing?.claimedUsdCents === "number" ? { claimedUsdCents: existing.claimedUsdCents } : {}),
@@ -550,10 +582,104 @@ export async function toggleAdAgentStatus(
 }
 
 /**
- *Deletes an Ad Agent from `ad_agents` (after Super Admin Confirm Delete).
+ * Activates a saved/approved Ad Agent record one-by-one into the active
+ * `Ad Agent & Customizations Value` distribution ledger list, preserving all saved records.
  */
-export async function deleteAdAgent(agentId: string): Promise<void> {
-  await db.collection(AD_AGENTS_COL).doc(agentId).delete();
+export async function activateAdAgentInLedger(params: {
+  agentId: string;
+  email?: string;
+  name?: string;
+}): Promise<AdAgentProfile> {
+  const cleanEmail = (params.email || "").trim().toLowerCase();
+  const now = new Date().toISOString();
+  const agents = await getAdAgents();
+  const matched =
+    agents.find((a) => a.agentId === params.agentId) ||
+    (cleanEmail ? agents.find((a) => a.email.toLowerCase() === cleanEmail) : undefined);
+
+  if (!matched) {
+    if (cleanEmail) {
+      return superAdminUpsertAdAgent({
+        name: params.name?.trim() || cleanEmail.split("@")[0] || "Ad Agent",
+        email: cleanEmail,
+        redistributionPercentage: 30,
+      });
+    }
+    throw new Error(`Ad Agent record "${params.agentId}" not found.`);
+  }
+
+  const targetEmail = matched.email.toLowerCase().trim();
+  const patch = {
+    inActiveLedger: true,
+    status: "active" as const,
+    updatedAt: now,
+  };
+
+  await db.collection(AD_AGENTS_COL).doc(matched.agentId).set(patch, { merge: true });
+
+  if (targetEmail) {
+    const dupSnap = await db.collection(AD_AGENTS_COL).where("email", "==", targetEmail).get();
+    await Promise.all(
+      dupSnap.docs
+        .filter((d) => d.id !== matched.agentId)
+        .map((d) => d.ref.set(patch, { merge: true })),
+    );
+  }
+
+  return {
+    ...matched,
+    inActiveLedger: true,
+    status: "active",
+    updatedAt: now,
+  };
+}
+
+/**
+ * Removes an Ad Agent one-by-one from the active `Ad Agent & Customizations Value` list
+ * (after Super Admin Confirm Delete) while keeping ALL of their saved records permanently
+ * in `ad_agents` so they can be re-activated back into the active list whenever required.
+ */
+export async function deleteAdAgent(agentId: string, email?: string): Promise<void> {
+  const cleanEmail = (email || "").trim().toLowerCase();
+  const now = new Date().toISOString();
+  const agents = await getAdAgents();
+  const matched =
+    agents.find((a) => a.agentId === agentId) ||
+    (cleanEmail ? agents.find((a) => a.email.toLowerCase() === cleanEmail) : undefined);
+
+  const targetAgentId = matched?.agentId || agentId;
+  const targetEmail = (matched?.email || cleanEmail).toLowerCase().trim();
+
+  const deactivatePatch = {
+    ...(matched ? matched : {}),
+    agentId: targetAgentId,
+    inActiveLedger: false,
+    status: "inactive" as const,
+    updatedAt: now,
+  };
+
+  await db.collection(AD_AGENTS_COL).doc(targetAgentId).set(deactivatePatch, { merge: true });
+
+  if (targetEmail) {
+    const sameEmailSnap = await db
+      .collection(AD_AGENTS_COL)
+      .where("email", "==", targetEmail)
+      .get();
+    await Promise.all(
+      sameEmailSnap.docs
+        .filter((d) => d.id !== targetAgentId)
+        .map((d) =>
+          d.ref.set(
+            {
+              inActiveLedger: false,
+              status: "inactive",
+              updatedAt: now,
+            },
+            { merge: true },
+          ),
+        ),
+    );
+  }
 }
 
 /**
@@ -595,8 +721,9 @@ export async function findClosestAdAgent(
   selectedAgentId?: string | null,
 ): Promise<{ agent: AdAgentProfile; distanceKm: number }> {
   const agents = await getAdAgents();
-  const activeAgents = agents.filter((a) => a.status === "active");
-  const pool = activeAgents.length > 0 ? activeAgents : agents;
+  const activeAgents = agents.filter((a) => a.status === "active" && a.inActiveLedger !== false);
+  const fallbackAgent = agents.find((a) => a.isSuperAdminBuiltIn) || agents[0];
+  const pool = activeAgents.length > 0 ? activeAgents : [fallbackAgent];
 
   const custLat = Number.isFinite(Number(customerLocation?.latitude))
     ? Number(customerLocation!.latitude)
@@ -750,6 +877,7 @@ export async function getAdAgentDistributionLedger(
       longitude: agent.location.longitude,
       bankOrPayIdDetails: agent.bankOrPayIdDetails || "",
       status: agent.status,
+      inActiveLedger: agent.inActiveLedger !== false,
       isSuperAdminBuiltIn: agent.isSuperAdminBuiltIn,
       customizationsCount,
       totalCustomizationsTokens,

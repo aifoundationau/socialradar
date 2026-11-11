@@ -6,16 +6,20 @@ import { useSession } from "@/components/auth/SessionProvider";
 import { ApiClientError, apiFetch, errorMessage } from "@/lib/api-client";
 import {
   PROVEN_WINNER_DAYS,
+  type FreeAccessWindow,
   type NormalizedAd,
   type RadarSearchResponse,
   type RemixDoc,
   type RemixResponse,
+  type ServiceCosts,
 } from "@/lib/contracts";
-import { ACTION_COSTS } from "@/lib/pricing";
+import { ACTION_COSTS, isChargingEnabled } from "@/lib/pricing";
+import { triggerSearchMixFileDownload } from "@/lib/searchmix-text-file";
+import { loadDetectedGeoCountry } from "@/lib/geo";
 import { CostTag } from "@/components/ui/CostTag";
 import { AmbientGlow } from "@/components/ui/AmbientGlow";
 import { Icon } from "@/components/ui/Icon";
-import { alertError, alertInfo, btnSecondary } from "@/components/ui/styles";
+import { alertError, alertInfo, alertSuccess, btnSecondary } from "@/components/ui/styles";
 import { AdWinnerCard } from "./AdWinnerCard";
 import { RadarFilterBar, type RadarFilters } from "./RadarFilterBar";
 import { RemixStudio, type RemixError, type RemixState } from "./RemixStudio";
@@ -159,7 +163,7 @@ function SkeletonGrid() {
 
 /** Radar Feed: search one ad library, browse the winners, then model one in the Remix Studio. */
 export function RadarView() {
-  const { user, activeBrand, brands } = useSession();
+  const { user, profile, isSuperAdmin, activeBrand, brands } = useSession();
   const uid = user?.uid ?? "";
   const [saved] = useState(() => (uid ? loadSaved(uid) : null));
   const [filters, setFilters] = useState<RadarFilters>(saved?.filters ?? DEFAULT_FILTERS);
@@ -172,8 +176,63 @@ export function RadarView() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<RemixError | null>(null);
   const [remixJob, setRemixJob] = useState<{ adId: string; loading: boolean; error: RemixError | null } | null>(null);
+  const [downloadingAdId, setDownloadingAdId] = useState<string | null>(null);
+  const [downloadSuccessMsg, setDownloadSuccessMsg] = useState<string | null>(null);
+  const [liveServiceCosts, setLiveServiceCosts] = useState<ServiceCosts | undefined>(undefined);
+  const [audRate, setAudRate] = useState<number>(100);
+  const [isTokenSystemEnabled, setIsTokenSystemEnabled] = useState<boolean>(true);
+  const [freeAccessWindow, setFreeAccessWindow] = useState<FreeAccessWindow | null>(null);
+  const [userCountry, setUserCountry] = useState<string>("AU");
   const studio = useRef<HTMLElement>(null);
   const resultsTop = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    function syncPricing() {
+      try {
+        const code = loadDetectedGeoCountry();
+        if (code) setUserCountry(code.trim().toUpperCase());
+      } catch {
+        // Fallback to AU
+      }
+      fetch("/api/wallet/checkout", { headers: { accept: "application/json" }, cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!data || !active) return;
+          if (data.serviceCosts) setLiveServiceCosts(data.serviceCosts);
+          if (typeof data.audCentsPerToken === "number" && data.audCentsPerToken >= 1) {
+            setAudRate(data.audCentsPerToken);
+          }
+          if (typeof data.isTokenSystemEnabled === "boolean") {
+            setIsTokenSystemEnabled(data.isTokenSystemEnabled);
+          }
+          setFreeAccessWindow(data.freeAccessWindow ?? null);
+        })
+        .catch(() => {});
+    }
+    syncPricing();
+    window.addEventListener("adradar:config-updated", syncPricing);
+    window.addEventListener("adradar:geo-updated", syncPricing);
+    return () => {
+      active = false;
+      window.removeEventListener("adradar:config-updated", syncPricing);
+      window.removeEventListener("adradar:geo-updated", syncPricing);
+    };
+  }, []);
+
+  const chargingActive = isChargingEnabled(
+    { isTokenSystemEnabled, freeAccessWindow },
+    Date.now(),
+    profile,
+    isSuperAdmin,
+    userCountry
+  );
+  const searchMixFee = chargingActive
+    ? Math.max(0, Math.round(liveServiceCosts?.searchMixDownload ?? ACTION_COSTS.SEARCHMIX_DOWNLOAD))
+    : 0;
+  const deconstructFee = chargingActive
+    ? Math.max(0, Math.round(liveServiceCosts?.deconstructDownload ?? ACTION_COSTS.DECONSTRUCT_DOWNLOAD))
+    : 0;
 
   useEffect(() => {
     if (!uid) return;
@@ -235,6 +294,42 @@ export function RadarView() {
   function model(adId: string) {
     setSelectedAdId(adId);
     requestAnimationFrame(() => studio.current?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }));
+  }
+
+  async function handleDownloadSearchMix(ad: NormalizedAd, rank: number) {
+    setDownloadingAdId(ad.adId);
+    setSearchError(null);
+    setDownloadSuccessMsg(null);
+    try {
+      const res = await apiFetch<{
+        adId: string;
+        fileName: string;
+        savedDate: string;
+        content: string;
+        balanceAfter: number;
+      }>("/api/radar/download-txt", {
+        method: "POST",
+        body: {
+          adId: ad.adId,
+          query: searched?.query,
+          fetchedAt: result?.fetchedAt,
+          rank: Number.isFinite(rank) ? rank : undefined,
+          adSnapshot: ad,
+        },
+      });
+      triggerSearchMixFileDownload(res.fileName, res.content);
+      setDownloadSuccessMsg(
+        `Downloaded "${res.fileName}"${
+          searchMixFee > 0 && !isSuperAdmin
+            ? ` (-${searchMixFee} ${searchMixFee === 1 ? "token" : "tokens"})`
+            : ""
+        }!`
+      );
+    } catch (err) {
+      setSearchError(toError(err));
+    } finally {
+      setDownloadingAdId(null);
+    }
   }
 
   async function generate(ad: NormalizedAd, isRegenerate = false) {
@@ -329,6 +424,11 @@ export function RadarView() {
               </p>
             </div>
             {result.notice && <p className={alertInfo}>{result.notice}</p>}
+            {downloadSuccessMsg && (
+              <p className={alertSuccess} data-agent-id="radar-searchmix-success" data-testid="radar-searchmix-success">
+                {downloadSuccessMsg}
+              </p>
+            )}
 
             {ads.length > 0 ? (
               <>
@@ -340,6 +440,14 @@ export function RadarView() {
                         rank={ranks.get(ad.adId) ?? Infinity}
                         selected={ad.adId === selected?.adId}
                         onModel={() => model(ad.adId)}
+                        searchQuery={searched.query}
+                        fetchedAt={result.fetchedAt}
+                        searchMixFee={searchMixFee}
+                        audRate={audRate}
+                        isDownloadingTxt={downloadingAdId === ad.adId}
+                        onDownloadSearchMix={() =>
+                          void handleDownloadSearchMix(ad, ranks.get(ad.adId) ?? 1)
+                        }
                       />
                     </li>
                   ))}
@@ -394,6 +502,8 @@ export function RadarView() {
                 error={job?.error ?? null}
                 brand={activeBrand}
                 remixBrandName={remixBrandName}
+                deconstructFee={deconstructFee}
+                audRate={audRate}
                 onGenerate={(isRegenerate) => generate(selected, isRegenerate)}
               />
             )}

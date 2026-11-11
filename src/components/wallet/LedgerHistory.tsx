@@ -16,6 +16,9 @@ const TYPE_LABELS: Record<TokenTxType, string> = {
   REGENERATE_VARIATIONS: "Regenerate variations",
   REFUND: "Refund",
   BRAND_CLONE: "Global brand copy",
+  BRAND_TXT_DOWNLOAD: "Brand .txt file download",
+  SEARCHMIX_DOWNLOAD: "SearchMix download (.txt)",
+  DECONSTRUCT_DOWNLOAD: "Deconstructed Anatomy download (.txt)",
   CUSTOMIZE_SERVICE: "Professional customize service",
 };
 

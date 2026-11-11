@@ -22,6 +22,9 @@ const ACTION_PERMISSIONS: Partial<Record<ChargeableAction, RbacPermission>> = {
   AI_REMIX: "ai_remix",
   REGENERATE_VARIATIONS: "ai_remix",
   BRAND_CLONE: "manage_brands",
+  BRAND_TXT_DOWNLOAD: "manage_brands",
+  SEARCHMIX_DOWNLOAD: "search_radar",
+  DECONSTRUCT_DOWNLOAD: "ai_remix",
 };
 
 const usersCol = () => db.collection("users");

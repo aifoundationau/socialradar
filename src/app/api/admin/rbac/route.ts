@@ -3,6 +3,7 @@ import { verifyRequest } from "@/lib/firebase-admin";
 import { errorResponse, readJson } from "@/lib/api";
 import {
   AssignUserRoleRequestSchema,
+  DeleteUserRequestSchema,
   RBAC_PERMISSIONS_LIST,
   RBAC_ROLES_LIST,
   UpdateRolePermissionsRequestSchema,
@@ -10,6 +11,7 @@ import {
 import {
   assertPermission,
   assignUserRole,
+  deleteRegisteredUser,
   getCallerPermissions,
   getRbacConfig,
   getRbacUsersList,
@@ -106,6 +108,42 @@ export async function PUT(req: Request) {
       { error: { code: "INVALID_INPUT", message: "Invalid action" } },
       { status: 400 },
     );
+  } catch (err) {
+    return errorResponse(err);
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const caller = await verifyRequest(req, { requireRole: "admin" });
+    const permissions = await getCallerPermissions(caller);
+    if (!permissions.has("manage_users")) {
+      assertPermission(permissions, "manage_rbac");
+    }
+
+    const body = (await readJson(req)) as Record<string, unknown>;
+    const parsed = DeleteUserRequestSchema.parse(body);
+
+    const isEffectiveSuperAdmin =
+      (caller.claims.role === "superadmin" || caller.claims.isSuperAdmin === true) &&
+      parsed.actingRole !== "admin";
+
+    const deleted = await deleteRegisteredUser(
+      { uid: parsed.uid, email: parsed.email },
+      {
+        uid: caller.uid,
+        email: caller.email,
+        allowDeleteAdmin: isEffectiveSuperAdmin,
+      },
+    );
+
+    const users = await getRbacUsersList(100);
+    return NextResponse.json({
+      success: true,
+      message: `Deleted user ${deleted.deletedEmail}`,
+      deleted,
+      users,
+    });
   } catch (err) {
     return errorResponse(err);
   }

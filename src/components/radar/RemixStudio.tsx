@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState, type Ref } from "react";
 import Link from "next/link";
 import type { BrandProfile, NormalizedAd, RemixDoc } from "@/lib/contracts";
+import { apiFetch, errorMessage } from "@/lib/api-client";
+import {
+  getDeconstructFileName,
+  triggerDeconstructFileDownload,
+} from "@/lib/deconstruct-text-file";
+import { formatTokenEstimateHover } from "@/lib/pricing";
 import { TONE_LABELS } from "@/components/brands/BrandForm";
 import { CostTag } from "@/components/ui/CostTag";
 import { Icon } from "@/components/ui/Icon";
@@ -84,6 +90,8 @@ export function RemixStudio({
   error,
   brand,
   remixBrandName,
+  deconstructFee = 0,
+  audRate = 100,
   onGenerate,
 }: {
   ref?: Ref<HTMLElement>;
@@ -94,10 +102,14 @@ export function RemixStudio({
   brand: BrandProfile | null;
   /** Brand the shown remix was written for (it may differ from the active brand). */
   remixBrandName: string | null;
+  deconstructFee?: number;
+  audRate?: number;
   onGenerate: (isRegenerate?: boolean) => void;
 }) {
   const [tab, setTab] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
+  const [downloadingDeconstruct, setDownloadingDeconstruct] = useState(false);
+  const [deconstructError, setDeconstructError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -110,6 +122,43 @@ export function RemixStudio({
   const remix = state.status === "ready" ? state.remix : null;
   const active = remix ? Math.min(tab, remix.variations.length - 1) : 0;
   const forBrand = remixBrandName ?? brand?.brandName ?? "your brand";
+  const deconstructFileName = getDeconstructFileName(forBrand);
+  const deconstructHoverTitle =
+    deconstructFee === 0
+      ? "Free to download (0 tokens)"
+      : formatTokenEstimateHover(deconstructFee, false, audRate);
+
+  async function handleDownloadDeconstruct() {
+    if (!remix) return;
+    setDownloadingDeconstruct(true);
+    setDeconstructError(null);
+    try {
+      const res = await apiFetch<{
+        remixId: string;
+        fileName: string;
+        content: string;
+        balanceAfter: number;
+      }>("/api/radar/download-deconstruct", {
+        method: "POST",
+        body: {
+          remixId: remix.remixId,
+          brandName: forBrand,
+          remixSnapshot: remix,
+          adSnapshot: ad,
+        },
+      });
+      triggerDeconstructFileDownload(res.fileName, res.content);
+      notify(
+        `Downloaded ${res.fileName}${
+          deconstructFee > 0 ? ` (-${deconstructFee} ${deconstructFee === 1 ? "token" : "tokens"})` : ""
+        }`
+      );
+    } catch (err) {
+      setDeconstructError(errorMessage(err));
+    } finally {
+      setDownloadingDeconstruct(false);
+    }
+  }
 
   async function copyScript() {
     if (!remix) return;
@@ -234,12 +283,60 @@ export function RemixStudio({
             />
           </div>
           {error && <ErrorNote error={error} className="mx-3 mt-3 sm:mx-5" />}
-          <footer className="flex flex-col gap-2 border-t border-white/[0.06] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-            <p className="text-compact text-outline">
-              {brand && remixBrandName !== brand.brandName
-                ? `Written for ${forBrand}. Generate again to write it for ${brand.brandName}.`
-                : "Not quite right? Generate a fresh set of angles."}
+          {deconstructError && (
+            <p className={`${alertError} mx-3 mt-3 sm:mx-5`} role="alert">
+              {deconstructError}
             </p>
+          )}
+          <footer className="flex flex-col gap-3 border-t border-white/[0.06] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Deconstructed Anatomy .txt file on the left next to Regenerate Variations */}
+              <div
+                data-agent-id="deconstruct-txt-attachment"
+                data-testid="deconstruct-txt-attachment"
+                className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-primary/25 bg-primary/[0.06] px-3 py-1.5"
+              >
+                <span className="flex size-6 shrink-0 items-center justify-center rounded border border-primary/30 bg-primary/15 text-primary">
+                  <Icon name="fileText" className="size-3.5" />
+                </span>
+                <span
+                  data-agent-id="deconstruct-txt-filename"
+                  data-testid="deconstruct-txt-filename"
+                  className="font-mono text-xs font-semibold text-on-surface"
+                  title={deconstructFileName}
+                >
+                  {deconstructFileName}
+                </span>
+                <button
+                  type="button"
+                  disabled={downloadingDeconstruct}
+                  onClick={() => void handleDownloadDeconstruct()}
+                  title={deconstructHoverTitle}
+                  data-agent-id="download-deconstruct-txt-button"
+                  data-testid="download-deconstruct-txt-button"
+                  aria-label={`Download Deconstructed Anatomy file ${deconstructFileName}`}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/20 px-2.5 py-1 font-mono text-[11px] font-semibold text-primary transition hover:bg-primary/30 disabled:opacity-50 cursor-pointer"
+                >
+                  <Icon name="download" className="size-3" />
+                  <span>{downloadingDeconstruct ? "Downloading…" : "Download .txt"}</span>
+                  {deconstructFee > 0 ? (
+                    <span className="ml-0.5 inline-flex items-center gap-0.5 rounded-full bg-black/30 px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary">
+                      <Icon name="zap" className="size-2.5" />
+                      {deconstructFee}
+                    </span>
+                  ) : (
+                    <span className="ml-0.5 rounded-full bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
+                      Free (0)
+                    </span>
+                  )}
+                </button>
+              </div>
+              <p className="text-compact text-outline">
+                {brand && remixBrandName !== brand.brandName
+                  ? `Written for ${forBrand}. Generate again to write it for ${brand.brandName}.`
+                  : "Not quite right? Generate a fresh set of angles."}
+              </p>
+            </div>
             {brand && (
               <button
                 type="button"
@@ -247,7 +344,7 @@ export function RemixStudio({
                 data-testid="remix-regenerate-variations-button"
                 aria-label="Regenerate ad variations"
                 onClick={() => onGenerate(true)}
-                className={btnPrimary}
+                className={`${btnPrimary} shrink-0`}
               >
                 <Icon name="refresh" />
                 Regenerate variations

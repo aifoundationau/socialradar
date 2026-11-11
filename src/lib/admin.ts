@@ -64,6 +64,9 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
     aiRemix: 1,
     regenerateVariations: 1,
     brandClone: 1,
+    brandTxtDownload: 1,
+    searchMixDownload: 1,
+    deconstructDownload: 0,
     customizeService: 55,
   },
   tokenPacks: [

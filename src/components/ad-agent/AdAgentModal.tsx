@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/styles";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { autofindUserLocation, loadGeoConfig, searchSuburbs, type SuburbSuggestion } from "@/lib/geo";
+import { AdAgentDistributionsPanel } from "./AdAgentDistributionsPanel";
 import type {
   AdAgentContractor,
   AdAgentLocation,
@@ -69,7 +70,7 @@ export type AdAgentSectionKey =
 export interface AdAgentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: "REGISTRATION" | "ORDERS" | "CONTRACTORS";
+  initialTab?: "REGISTRATION" | "ORDERS" | "CONTRACTORS" | "DISTRIBUTIONS";
 }
 
 export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: AdAgentModalProps) {
@@ -79,7 +80,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
   const isSuper = role === "superadmin" || isSuperAdmin;
   const isMainAdmin = role === "admin";
 
-  const [tab, setTab] = useState<"REGISTRATION" | "ORDERS" | "CONTRACTORS">(initialTab);
+  const [tab, setTab] = useState<"REGISTRATION" | "ORDERS" | "CONTRACTORS" | "DISTRIBUTIONS">(initialTab);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [detectingGeo, setDetectingGeo] = useState(false);
@@ -670,9 +671,11 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
         );
       }
       setStatusMsg(
-        res.agent.status === "active"
-          ? `Ad Agent profile saved and status is ON (Active) for ${res.agent.name} (${res.agent.email}) at ${res.agent.location.label}. Your personal details are now updated in the Ad Agent Distribution Ledger.`
-          : `Ad Agent profile saved for ${res.agent.name} (${res.agent.email}). Your Ad Agent status is currently OFF (Paused) — turn it ON anytime to receive Customize orders.`,
+        res.agent.inActiveLedger === false
+          ? `Ad Agent profile and records saved for ${res.agent.name} (${res.agent.email}) at ${res.agent.location.label}. Your record is stored in the Ad Agent panel and can be activated to the active list when required.`
+          : res.agent.status === "active"
+            ? `Ad Agent profile saved and status is ON (Active) for ${res.agent.name} (${res.agent.email}) at ${res.agent.location.label}. Your personal details are now updated in the Ad Agent Distribution Ledger.`
+            : `Ad Agent profile saved for ${res.agent.name} (${res.agent.email}). Your Ad Agent status is currently OFF (Paused) — turn it ON anytime to receive Customize orders.`,
       );
     } catch (err) {
       setErrorMsg(errorMessage(err));
@@ -935,6 +938,21 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
             >
               <Icon name="users" className="size-3.5" />
               <span>Contractors Directory ({contractors.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("DISTRIBUTIONS")}
+              aria-pressed={tab === "DISTRIBUTIONS"}
+              aria-label="Distributions"
+              data-agent-id="ad-agent-tab-distributions"
+              data-testid="ad-agent-tab-distributions"
+              className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 font-mono text-xs font-semibold transition ${tab === "DISTRIBUTIONS"
+                  ? "border-tertiary/50 bg-tertiary/15 text-tertiary shadow-sm"
+                  : "border-white/[0.06] bg-surface-container-high/60 text-on-surface-variant hover:text-on-surface"
+                }`}
+            >
+              <Icon name="layers" className="size-3.5" />
+              <span>Distributions</span>
             </button>
           </div>
 
@@ -2908,6 +2926,10 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                 )}
               </div>
             </div>
+          )}
+
+          {tab === "DISTRIBUTIONS" && (
+            <AdAgentDistributionsPanel targetEmail={isSuper && agentEmail ? agentEmail : undefined} />
           )}
         </div>
       </div>

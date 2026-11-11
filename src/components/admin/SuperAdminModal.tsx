@@ -42,6 +42,7 @@ import {
   LINK_URL_PATTERN,
   RBAC_PERMISSIONS_LIST,
 } from "@/lib/contracts";
+import { computeAdAgentDisplayItem } from "@/lib/ad-agent-display";
 import { GlobalRagCorpusSection, PerFaqRagDrawer } from "@/components/faq/FaqRagWorkspace";
 import { autofindUserLocation, loadDetectedGeoCountry, loadGeoConfig } from "@/lib/geo";
 
@@ -155,6 +156,9 @@ interface ServiceCosts {
   aiRemix: number;
   regenerateVariations?: number;
   brandClone?: number;
+  brandTxtDownload?: number;
+  searchMixDownload?: number;
+  deconstructDownload?: number;
   customizeService?: number;
 }
 
@@ -199,7 +203,6 @@ type AdminFeatureKey =
   | "ledger_owners"
   | "ledger_stripe"
   | "ledger_ad_agents"
-  | "ledger_token_controls"
   | "users_quick_assign"
   | "users_directory"
   | "messages_retention"
@@ -214,7 +217,7 @@ type AdminFeatureKey =
 
 export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModalProps) {
   const isClient = useIsClient();
-  const { role, isSuperAdmin, setActingRole } = useSession();
+  const { user: currentSessionUser, role, isSuperAdmin, setActingRole } = useSession();
   const isSuper = role === "superadmin";
   const isMainAdmin = role === "admin";
   const canApproveRoles = isSuper || isMainAdmin;
@@ -255,16 +258,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [orderSearch, setOrderSearch] = useState("");
   const [confirmRefundTxId, setConfirmRefundTxId] = useState<string | null>(null);
   const [refundingTxId, setRefundingTxId] = useState<string | null>(null);
-  const [giftEmail, setGiftEmail] = useState("");
-  const [giftTokensInput, setGiftTokensInput] = useState("0");
-  const [giftNote, setGiftNote] = useState("");
-  const [gifting, setGifting] = useState(false);
-  const [tokenActionMode, setTokenActionMode] = useState<"GIFT" | "DEDUCT" | "REFUND">("GIFT");
-  const [confirmDeductOpen, setConfirmDeductOpen] = useState(false);
-  const [selectedRefundTxId, setSelectedRefundTxId] = useState("");
-  const [confirmTopRefundOpen, setConfirmTopRefundOpen] = useState(false);
   const [isMasterLedgerExpanded, setIsMasterLedgerExpanded] = useState(false);
-  const [isUserBalancesExpanded, setIsUserBalancesExpanded] = useState(false);
   // All features under Admin Panel categories start collapsed (false)
   const [expandedFeatures, setExpandedFeatures] = useState<Partial<Record<AdminFeatureKey, boolean>>>({});
 
@@ -285,7 +279,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       [key]: open,
     }));
   }
-  const [userBalanceSearch, setUserBalanceSearch] = useState("");
   const [userRowAction, setUserRowAction] = useState<{
     uid: string;
     email: string;
@@ -401,6 +394,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [pendingUserRoles, setPendingUserRoles] = useState<Record<string, AssignableRbacRole[]>>({});
   const [confirmingRoleUid, setConfirmingRoleUid] = useState<string | null>(null);
   const [confirmResetRoleUid, setConfirmResetRoleUid] = useState<string | null>(null);
+  const [confirmDeleteUserUid, setConfirmDeleteUserUid] = useState<string | null>(null);
+  const [deletingUserUid, setDeletingUserUid] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isSuper) {
@@ -555,6 +550,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     longitude: 151.2093,
   });
   const [adAgentSaving, setAdAgentSaving] = useState(false);
+  const [activatingAdAgentId, setActivatingAdAgentId] = useState<string | null>(null);
   const [confirmDeleteAdAgentId, setConfirmDeleteAdAgentId] = useState<string | null>(null);
   const [confirmResetAdAgentId, setConfirmResetAdAgentId] = useState<string | null>(null);
   const [resettingAdAgentId, setResettingAdAgentId] = useState<string | null>(null);
@@ -570,10 +566,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const customizeServiceAudCents = Math.round(customizeServiceUnitTokens * audCentsPerTokenUnit);
   const customizeServiceUsdCents = audToUsdCents(customizeServiceAudCents, liveEcbRate?.rate);
 
-  const liveAdAgentLedger = useMemo<AdAgentDistributionItem[]>(() => {
+  const allAdAgentRecords = useMemo<AdAgentDistributionItem[]>(() => {
     const combinedLedger: AdAgentDistributionItem[] = [...adAgentLedger];
     const seenEmails = new Set(combinedLedger.map((a) => a.email.trim().toLowerCase()));
 
+    // Every registered user approved with the "ad_agent" RBAC role is preserved in Ad Agent records
+    // and available to be activated one-by-one from this panel (without auto-inserting into active rows).
     for (const u of rbacUsers) {
       const cleanEmail = (u.email || "").trim().toLowerCase();
       if (!cleanEmail || seenEmails.has(cleanEmail)) continue;
@@ -582,6 +580,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         const cleanUid = (u.uid || cleanEmail).replace(/[^a-zA-Z0-9_-]/g, "_");
         combinedLedger.push({
           agentId: `agent_rbac_${cleanUid}`,
+          uid: u.uid,
           name: (u.displayName || cleanEmail.split("@")[0] || "Ad Agent").trim(),
           email: cleanEmail,
           phone: "Not specified",
@@ -589,47 +588,31 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           locationLabel: "Sydney, NSW, AU",
           latitude: -33.8688,
           longitude: 151.2093,
-          customizationsCount: 1,
+          customizationsCount: 0,
           totalCustomizationsTokens: customizeServiceUnitTokens,
           totalCustomizationsAudCents: customizeServiceAudCents,
           totalCustomizationsUsdCents: customizeServiceUsdCents,
           redistributionPercentage: 30,
           redistributionTokens: Math.round((customizeServiceUnitTokens * 30) / 100),
           redistributionAudCents: Math.round((customizeServiceAudCents * 30) / 100),
-          redistributionUsdCents: audToUsdCents(Math.round((customizeServiceAudCents * 30) / 100), liveEcbRate?.rate),
-          status: "active",
+          redistributionUsdCents: audToUsdCents(
+            Math.round((customizeServiceAudCents * 30) / 100),
+            liveEcbRate?.rate
+          ),
+          status: "inactive",
+          inActiveLedger: false,
           isSuperAdminBuiltIn: false,
         });
       }
     }
 
-    return combinedLedger.map((agent) => {
-      const effectiveOrdersCount = Math.max(1, Math.round(Number(agent.customizationsCount || 1)));
-      const totalCustomizationsTokens = Math.round(effectiveOrdersCount * customizeServiceUnitTokens);
-      const totalCustomizationsAudCents = Math.round(totalCustomizationsTokens * audCentsPerTokenUnit);
-      const totalCustomizationsUsdCents = audToUsdCents(totalCustomizationsAudCents, liveEcbRate?.rate);
-
-      const isResetToZero = Boolean(agent.lastResetAt) && agent.redistributionTokens === 0;
-      const redistributionTokens = isResetToZero
-        ? 0
-        : Math.round((totalCustomizationsTokens * agent.redistributionPercentage) / 100);
-      const redistributionAudCents = isResetToZero
-        ? 0
-        : Math.round((totalCustomizationsAudCents * agent.redistributionPercentage) / 100);
-      const redistributionUsdCents = isResetToZero
-        ? 0
-        : audToUsdCents(redistributionAudCents, liveEcbRate?.rate);
-
-      return {
-        ...agent,
-        totalCustomizationsTokens,
-        totalCustomizationsAudCents,
-        totalCustomizationsUsdCents,
-        redistributionTokens,
-        redistributionAudCents,
-        redistributionUsdCents,
-      };
-    });
+    return combinedLedger.map((agent) =>
+      computeAdAgentDisplayItem(agent, {
+        customizeServiceUnitTokens,
+        audCentsPerTokenUnit,
+        ecbRate: liveEcbRate?.rate,
+      }),
+    );
   }, [
     adAgentLedger,
     rbacUsers,
@@ -640,7 +623,20 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     liveEcbRate?.rate,
   ]);
 
-  function selectAndAutofillAdAgent(agentKey: string, ledgerList: AdAgentDistributionItem[] = liveAdAgentLedger) {
+  const liveAdAgentLedger = useMemo<AdAgentDistributionItem[]>(
+    () => allAdAgentRecords.filter((a) => a.inActiveLedger !== false),
+    [allAdAgentRecords]
+  );
+
+  const savedInactiveAdAgentRecords = useMemo<AdAgentDistributionItem[]>(
+    () => allAdAgentRecords.filter((a) => a.inActiveLedger === false),
+    [allAdAgentRecords]
+  );
+
+  function selectAndAutofillAdAgent(
+    agentKey: string,
+    ledgerList: AdAgentDistributionItem[] = allAdAgentRecords
+  ) {
     setSelectedRegisteredAgentKey(agentKey);
     if (!agentKey || agentKey === "__NEW__") {
       setNewAdAgent({
@@ -657,7 +653,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       return;
     }
 
-    // 1. Check if in adAgentLedger by agentId or email
+    // 1. Check if in Ad Agent records (active or inactive saved record) by agentId or email
     const matchedLedger = ledgerList.find(
       (a) => a.agentId === agentKey || a.email.toLowerCase() === agentKey.toLowerCase()
     );
@@ -708,7 +704,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       if (data.ledger) {
         setAdAgentLedger(data.ledger);
         if (!selectedRegisteredAgentKey && data.ledger.length > 0) {
-          selectAndAutofillAdAgent(data.ledger[0].agentId, data.ledger);
+          const firstActive = data.ledger.find((a) => a.inActiveLedger !== false) || data.ledger[0];
+          selectAndAutofillAdAgent(firstActive.agentId, data.ledger);
         } else if (selectedRegisteredAgentKey && selectedRegisteredAgentKey !== "__NEW__") {
           const matchedInLedger = data.ledger.find(
             (a) =>
@@ -762,6 +759,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       });
       if (data.ledger) {
         setAdAgentLedger(data.ledger);
+        window.dispatchEvent(new CustomEvent("ad-agent-ledger-updated", { detail: { ledger: data.ledger } }));
         const saved = data.ledger.find((a) => a.email.toLowerCase() === cleanEmail);
         if (saved) {
           selectAndAutofillAdAgent(saved.agentId, data.ledger);
@@ -798,7 +796,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           redistributionPercent,
         },
       });
-      if (data.ledger) setAdAgentLedger(data.ledger);
+      if (data.ledger) {
+        setAdAgentLedger(data.ledger);
+        window.dispatchEvent(new CustomEvent("ad-agent-ledger-updated", { detail: { ledger: data.ledger } }));
+      }
       setStatusMsg(`Updated Ad Agent "${agentName}" redistribution to ${redistributionPercent}%.`);
     } catch (err) {
       setErrorMsg(errorMessage(err));
@@ -823,7 +824,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           status: currentStatus === "active" ? "inactive" : "active",
         },
       });
-      if (data.ledger) setAdAgentLedger(data.ledger);
+      if (data.ledger) {
+        setAdAgentLedger(data.ledger);
+        window.dispatchEvent(new CustomEvent("ad-agent-ledger-updated", { detail: { ledger: data.ledger } }));
+      }
       setStatusMsg("Updated Ad Agent status.");
     } catch (err) {
       setErrorMsg(errorMessage(err));
@@ -921,7 +925,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           agentId,
         },
       });
-      if (data.ledger) setAdAgentLedger(data.ledger);
+      if (data.ledger) {
+        setAdAgentLedger(data.ledger);
+        window.dispatchEvent(new CustomEvent("ad-agent-ledger-updated", { detail: { ledger: data.ledger } }));
+      }
       setConfirmResetAdAgentId(null);
       setStatusMsg(`Reset Ad Agent ${email} customizations redistribution balance to 0 ⚡.`);
     } catch (err) {
@@ -931,7 +938,47 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     }
   }
 
-  async function handleDeleteAdAgent(agentId: string) {
+  async function handleActivateAdAgent(agent: { agentId: string; email: string; name: string }) {
+    setActivatingAdAgentId(agent.agentId);
+    setAdAgentSaving(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{
+        success: boolean;
+        ledger: AdAgentDistributionItem[];
+      }>("/api/ad-agent", {
+        method: "POST",
+        body: {
+          action: "SUPERADMIN_ACTIVATE_AGENT",
+          agentId: agent.agentId,
+          email: agent.email,
+          name: agent.name,
+        },
+      });
+      if (data.ledger) {
+        setAdAgentLedger(data.ledger);
+        window.dispatchEvent(new CustomEvent("ad-agent-ledger-updated", { detail: { ledger: data.ledger } }));
+        const activated = data.ledger.find(
+          (a) => a.agentId === agent.agentId || a.email.toLowerCase() === agent.email.toLowerCase()
+        );
+        if (activated) {
+          selectAndAutofillAdAgent(activated.agentId, data.ledger);
+        }
+      }
+      setStatusMsg(
+        `Activated "${agent.name}" (${agent.email}) and added them to the active Ad Agent & Customizations Value list.`
+      );
+      reloadRbac();
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setActivatingAdAgentId(null);
+      setAdAgentSaving(false);
+    }
+  }
+
+  async function handleDeleteAdAgent(agentId: string, agentEmail?: string, agentName?: string) {
     setAdAgentSaving(true);
     setErrorMsg(null);
     setStatusMsg(null);
@@ -944,11 +991,17 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         body: {
           action: "SUPERADMIN_DELETE_AGENT",
           agentId,
+          ...(agentEmail ? { email: agentEmail } : {}),
         },
       });
-      if (data.ledger) setAdAgentLedger(data.ledger);
+      if (data.ledger) {
+        setAdAgentLedger(data.ledger);
+        window.dispatchEvent(new CustomEvent("ad-agent-ledger-updated", { detail: { ledger: data.ledger } }));
+      }
       setConfirmDeleteAdAgentId(null);
-      setStatusMsg("Ad Agent removed from the Ad Agent Distribution Ledger.");
+      setStatusMsg(
+        `Removed "${agentName || agentEmail || "Ad Agent"}" from the active Ad Agent & Customizations Value list. All records remain saved and can be re-activated anytime.`
+      );
       reloadRbac();
     } catch (err) {
       setErrorMsg(errorMessage(err));
@@ -1067,6 +1120,50 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     }
   }
 
+  async function handleDeleteUser(targetUser: RbacUserItem) {
+    if (targetUser.isPermanentSuperAdmin) {
+      setErrorMsg("Cannot delete the permanent Super Admin account.");
+      return;
+    }
+    setDeletingUserUid(targetUser.uid);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{
+        success: boolean;
+        deleted?: { deletedUid: string; deletedEmail: string };
+        users?: RbacUserItem[];
+      }>("/api/admin/rbac", {
+        method: "DELETE",
+        body: {
+          action: "DELETE_USER",
+          uid: targetUser.uid,
+          ...(targetUser.email ? { email: targetUser.email } : {}),
+          confirmDelete: true,
+          actingRole: isSuper ? "superadmin" : "admin",
+        },
+      });
+      if (data.users) {
+        setRbacUsers(data.users);
+      } else {
+        setRbacUsers((prev) => prev.filter((u) => u.uid !== targetUser.uid));
+      }
+      setConfirmDeleteUserUid(null);
+      setUserRowAction((prev) => (prev?.uid === targetUser.uid ? null : prev));
+      setPendingUserRoles((prev) => {
+        const next = { ...prev };
+        delete next[targetUser.uid];
+        return next;
+      });
+      reloadAdAgents();
+      setStatusMsg(`Deleted user ${targetUser.email || targetUser.uid}.`);
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setDeletingUserUid(null);
+    }
+  }
+
   async function reloadFaqs() {
     setFaqsLoading(true);
     try {
@@ -1176,107 +1273,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     }
   }
 
-  async function handleGiftTokens(e: React.FormEvent) {
-    e.preventDefault();
-    const recipientEmail = giftEmail.trim().toLowerCase();
-    const tokens = Math.round(Number(giftTokensInput) || 0);
-    if (!recipientEmail) {
-      setErrorMsg("Enter a customer email address to add tokens.");
-      return;
-    }
-    if (tokens <= 0) {
-      setErrorMsg("Token amount to add must be a positive integer (1 or more).");
-      return;
-    }
-
-    setGifting(true);
-    setErrorMsg(null);
-    setStatusMsg(null);
-    try {
-      const data = await apiFetch<{
-        success: boolean;
-        recipientEmail: string;
-        tokens: number;
-        newBalance: number;
-        orders: TokenTransactionDoc[];
-      }>("/api/admin/orders", {
-        method: "POST",
-        body: {
-          action: "GIFT_TOKENS",
-          recipientEmail,
-          tokens,
-          note: giftNote.trim() || undefined,
-        },
-      });
-      if (data.orders) setOrderLedger(data.orders);
-      setGiftNote("");
-      setGiftTokensInput("0");
-      const gifted = data.tokens ?? (data as Record<string, unknown>).creditedTokens ?? tokens;
-      const bal = data.newBalance ?? (data as Record<string, unknown>).balanceAfter ?? 0;
-      setStatusMsg(
-        `Added +${Number(gifted).toLocaleString("en-AU")} tokens to ${recipientEmail} (new balance: ${Number(bal).toLocaleString("en-AU")} ⚡).`
-      );
-      setRbacUsers((prev) =>
-        prev.map((u) => (u.email.toLowerCase() === recipientEmail ? { ...u, tokenBalance: Number(bal) } : u))
-      );
-      window.dispatchEvent(new CustomEvent("wallet-updated"));
-    } catch (err) {
-      setErrorMsg(errorMessage(err));
-    } finally {
-      setGifting(false);
-    }
-  }
-
-  async function handleDeductTokens() {
-    const recipientEmail = giftEmail.trim().toLowerCase();
-    const tokens = Math.round(Number(giftTokensInput) || 0);
-    if (!recipientEmail) {
-      setErrorMsg("Enter a customer email address to remove tokens.");
-      return;
-    }
-    if (tokens <= 0) {
-      setErrorMsg("Token amount to remove must be a positive integer (1 or more).");
-      return;
-    }
-
-    setGifting(true);
-    setErrorMsg(null);
-    setStatusMsg(null);
-    try {
-      const data = await apiFetch<{
-        success: boolean;
-        deductedTokens?: number;
-        balanceAfter?: number;
-        orders: TokenTransactionDoc[];
-      }>("/api/admin/orders", {
-        method: "POST",
-        body: {
-          action: "DEDUCT_TOKENS",
-          recipientEmail,
-          tokens,
-          note: giftNote.trim() || undefined,
-        },
-      });
-      if (data.orders) setOrderLedger(data.orders);
-      setConfirmDeductOpen(false);
-      setGiftNote("");
-      setGiftTokensInput("0");
-      const deducted = data.deductedTokens ?? tokens;
-      const balance = data.balanceAfter ?? 0;
-      setStatusMsg(
-        `Removed -${deducted.toLocaleString("en-AU")} tokens from ${recipientEmail}. New balance: ${balance.toLocaleString("en-AU")} ⚡.`
-      );
-      setRbacUsers((prev) =>
-        prev.map((u) => (u.email.toLowerCase() === recipientEmail ? { ...u, tokenBalance: balance } : u))
-      );
-      window.dispatchEvent(new CustomEvent("wallet-updated"));
-    } catch (err) {
-      setErrorMsg(errorMessage(err));
-    } finally {
-      setGifting(false);
-    }
-  }
-
   async function handleRefundOrder(txId: string) {
     setRefundingTxId(txId);
     setErrorMsg(null);
@@ -1297,8 +1293,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       });
       if (data.orders) setOrderLedger(data.orders);
       setConfirmRefundTxId(null);
-      setConfirmTopRefundOpen(false);
-      setSelectedRefundTxId("");
       const refundedAmt = Number(data.refundedTokens ?? 0);
       const balAfter = Number(data.newBalance ?? data.refundResult?.balanceAfter ?? 0);
       setStatusMsg(
@@ -1341,7 +1335,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
             action: "GIFT_TOKENS",
             recipientEmail: cleanEmail,
             tokens,
-            note: "Added by Super Admin in User Token Balances table",
+            note: "Added by Super Admin in All Users & Multi-Role RBAC Directory Table",
           },
         });
         const newBal = Math.max(0, Math.round(Number(data.newBalance ?? data.balanceAfter ?? currentBal + tokens)));
@@ -1355,7 +1349,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       } else if (mode === "MINUS") {
         const tokens = Math.round(Number(amountInput) || 0);
         if (tokens <= 0) {
-          setErrorMsg("Enter a positive integer of tokens to minus (1 or more).");
+          setErrorMsg("Enter a positive integer of tokens to remove (1 or more).");
           return;
         }
         if (currentBal <= 0) {
@@ -1364,7 +1358,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         }
         if (tokens > currentBal) {
           setErrorMsg(
-            `Cannot minus ${tokens.toLocaleString("en-AU")} tokens from "${cleanEmail}" (current balance: ${currentBal.toLocaleString("en-AU")} tokens). Nobody can have negative tokens.`
+            `Cannot remove ${tokens.toLocaleString("en-AU")} tokens from "${cleanEmail}" (current balance: ${currentBal.toLocaleString("en-AU")} tokens). Nobody can have negative tokens.`
           );
           return;
         }
@@ -1379,7 +1373,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
             action: "DEDUCT_TOKENS",
             recipientEmail: cleanEmail,
             tokens,
-            note: "Minused by Super Admin in User Token Balances table",
+            note: "Removed by Super Admin in All Users & Multi-Role RBAC Directory Table",
           },
         });
         const newBal = Math.max(0, Math.round(Number(data.balanceAfter ?? currentBal - tokens)));
@@ -1388,7 +1382,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           prev.map((u) => (u.uid === uid || u.email.toLowerCase() === cleanEmail ? { ...u, tokenBalance: newBal } : u))
         );
         setStatusMsg(
-          `Minused -${tokens.toLocaleString("en-AU")} tokens from ${cleanEmail} (new balance: ${newBal.toLocaleString("en-AU")} ⚡).`
+          `Removed -${tokens.toLocaleString("en-AU")} tokens from ${cleanEmail} (new balance: ${newBal.toLocaleString("en-AU")} ⚡).`
         );
       } else if (mode === "RESET") {
         const data = await apiFetch<{
@@ -1401,7 +1395,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           body: {
             action: "RESET_TOKENS",
             recipientEmail: cleanEmail,
-            note: "Reset to 0 by Super Admin in User Token Balances table",
+            note: "Reset to zero by Super Admin in All Users & Multi-Role RBAC Directory Table",
           },
         });
         if (data.orders) setOrderLedger(data.orders);
@@ -2994,6 +2988,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                           aiRemix: 0,
                                           regenerateVariations: 0,
                                           brandClone: 0,
+                                          brandTxtDownload: 0,
+                                          searchMixDownload: 0,
+                                          deconstructDownload: 0,
                                           customizeService: 0,
                                         }
                                       : {
@@ -3004,6 +3001,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                           aiRemix: 1,
                                           regenerateVariations: 1,
                                           brandClone: 1,
+                                          brandTxtDownload: 1,
+                                          searchMixDownload: 1,
+                                          deconstructDownload: 0,
                                           customizeService: 55,
                                         },
                                   });
@@ -3086,6 +3086,21 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               key: "brandClone" as const,
                               label: "Global Brand Card Copy",
                               desc: "Token fee to copy a community brand card from the Global Library into personal account",
+                            },
+                            {
+                              key: "brandTxtDownload" as const,
+                              label: "Download Brand Text File (.txt)",
+                              desc: "Token fee to download the attached <Brand Name> - <Date>.txt brand file from a Brand Postcard",
+                            },
+                            {
+                              key: "searchMixDownload" as const,
+                              label: "SearchMix Download",
+                              desc: "Token fee to download a search postcard (.txt file based on title and date)",
+                            },
+                            {
+                              key: "deconstructDownload" as const,
+                              label: "Deconstructed Anatomy (.txt) Download",
+                              desc: "Token fee to download the <brandname>deconstruct.txt file next to Regenerate Variations (Default: 0 tokens / Free)",
                             },
                             {
                               key: "customizeService" as const,
@@ -3739,7 +3754,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     <div className="min-w-0">
                       <h3 className="text-title-sm font-semibold text-on-surface">Token Controls &amp; Ledger</h3>
                       <p className="mt-0.5 text-[12px] text-on-surface-variant">
-                        All features start collapsed. Click any feature below to expand and inspect equity splits, Ad Agents, token controls, orders, and user balances.
+                        All features start collapsed. Click any feature below to expand and inspect equity splits, platform owners, Stripe purchases, Ad Agents, and orders.
                       </p>
                     </div>
                     <button
@@ -3750,16 +3765,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           isFeatureExpanded("ledger_owners") &&
                           isFeatureExpanded("ledger_stripe") &&
                           isFeatureExpanded("ledger_ad_agents") &&
-                          (!isSuper || isFeatureExpanded("ledger_token_controls")) &&
-                          isMasterLedgerExpanded &&
-                          isUserBalancesExpanded;
+                          isMasterLedgerExpanded;
                         setFeatureExpanded("ledger_equity", !allOpen);
                         setFeatureExpanded("ledger_owners", !allOpen);
                         setFeatureExpanded("ledger_stripe", !allOpen);
                         setFeatureExpanded("ledger_ad_agents", !allOpen);
-                        if (isSuper) setFeatureExpanded("ledger_token_controls", !allOpen);
                         setIsMasterLedgerExpanded(!allOpen);
-                        setIsUserBalancesExpanded(!allOpen);
                       }}
                       data-agent-id="ledger-expand-all-btn"
                       data-testid="ledger-expand-all-btn"
@@ -3772,9 +3783,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           isFeatureExpanded("ledger_owners") &&
                           isFeatureExpanded("ledger_stripe") &&
                           isFeatureExpanded("ledger_ad_agents") &&
-                          (!isSuper || isFeatureExpanded("ledger_token_controls")) &&
-                          isMasterLedgerExpanded &&
-                          isUserBalancesExpanded
+                          isMasterLedgerExpanded
                             ? "rotate-180"
                             : ""
                         }`}
@@ -3784,9 +3793,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         isFeatureExpanded("ledger_owners") &&
                         isFeatureExpanded("ledger_stripe") &&
                         isFeatureExpanded("ledger_ad_agents") &&
-                        (!isSuper || isFeatureExpanded("ledger_token_controls")) &&
-                        isMasterLedgerExpanded &&
-                        isUserBalancesExpanded
+                        isMasterLedgerExpanded
                           ? "Collapse All"
                           : "Expand All"}
                       </span>
@@ -4377,7 +4384,16 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               Ad Agent Distribution Ledger
                             </h4>
                             <span className="rounded-full border border-tertiary/40 bg-tertiary/15 px-2 py-0.5 font-mono text-[10px] font-bold text-tertiary">
-                              {liveAdAgentLedger.length} Ad Agent{liveAdAgentLedger.length === 1 ? "" : "s"}
+                              {liveAdAgentLedger.length} Active
+                            </span>
+                            <span
+                              className="rounded-full border border-white/15 bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] font-semibold text-on-surface-variant"
+                              title="Total registered and approved Ad Agent records preserved on file"
+                            >
+                              {allAdAgentRecords.length} In Records
+                              {savedInactiveAdAgentRecords.length > 0
+                                ? ` (${savedInactiveAdAgentRecords.length} Inactive)`
+                                : ""}
                             </span>
                           </button>
                           <button
@@ -4403,21 +4419,37 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         </div>
                         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
                           {isSuper && isFeatureExpanded("ledger_ad_agents") && (
-                            <button
-                              type="button"
-                              onClick={() => setShowAddAdAgent((prev) => !prev)}
-                              data-agent-id="toggle-add-ad-agent-btn"
-                              data-testid="toggle-add-ad-agent-btn"
-                              aria-label="Toggle Ad Agent Auto-Fill & Bank/PayID Form"
-                              className="inline-flex flex-1 sm:flex-initial shrink-0 items-center justify-center gap-1 rounded-lg border border-tertiary/40 bg-tertiary/15 px-2.5 py-1.5 sm:py-1 font-mono text-[10px] font-bold text-tertiary hover:bg-tertiary/25 transition"
-                            >
-                              <Icon name={showAddAdAgent ? "chevronDown" : "plus"} className="size-3" />
-                              <span>
-                                {showAddAdAgent
-                                  ? "Hide Agent Auto-Fill & Bank/PayID"
-                                  : "Open Agent Dropdown & Bank/PayID"}
-                              </span>
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  selectAndAutofillAdAgent("__NEW__");
+                                  setShowAddAdAgent(true);
+                                }}
+                                data-agent-id="quick-new-ad-agent-btn"
+                                data-testid="quick-new-ad-agent-btn"
+                                aria-label="Add a new Ad Agent one by one"
+                                className="inline-flex flex-1 sm:flex-initial shrink-0 items-center justify-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 py-1.5 sm:py-1 font-mono text-[10px] font-bold text-primary hover:bg-primary/25 transition"
+                              >
+                                <Icon name="plus" className="size-3" />
+                                <span>+ Add Agent</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowAddAdAgent((prev) => !prev)}
+                                data-agent-id="toggle-add-ad-agent-btn"
+                                data-testid="toggle-add-ad-agent-btn"
+                                aria-label="Toggle Ad Agent Auto-Fill & Bank/PayID Form"
+                                className="inline-flex flex-1 sm:flex-initial shrink-0 items-center justify-center gap-1 rounded-lg border border-tertiary/40 bg-tertiary/15 px-2.5 py-1.5 sm:py-1 font-mono text-[10px] font-bold text-tertiary hover:bg-tertiary/25 transition"
+                              >
+                                <Icon name={showAddAdAgent ? "chevronDown" : "plus"} className="size-3" />
+                                <span>
+                                  {showAddAdAgent
+                                    ? "Hide Agent Form"
+                                    : "Open Agent Dropdown & Bank/PayID"}
+                                </span>
+                              </button>
+                            </>
                           )}
                           <button
                             type="button"
@@ -4442,11 +4474,15 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         <>
 
                       {showAddAdAgent && isSuper && (() => {
-                        const selectedLedgerItem = liveAdAgentLedger.find(
+                        const selectedRecordItem = allAdAgentRecords.find(
                           (a) =>
                             a.agentId === selectedRegisteredAgentKey ||
                             (newAdAgent.email && a.email.toLowerCase() === newAdAgent.email.trim().toLowerCase())
                         );
+                        const selectedLedgerItem =
+                          selectedRecordItem && selectedRecordItem.inActiveLedger !== false
+                            ? selectedRecordItem
+                            : undefined;
                         const unlinkedRbacAgents = rbacUsers.filter((u) => {
                           const roles = getUserRolesList(u);
                           const hasAgentRole =
@@ -4455,7 +4491,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             roles.includes("superadmin");
                           return (
                             hasAgentRole &&
-                            !liveAdAgentLedger.some((a) => a.email.toLowerCase() === u.email.toLowerCase())
+                            !allAdAgentRecords.some((a) => a.email.toLowerCase() === u.email.toLowerCase())
                           );
                         });
                         const compactInput =
@@ -4481,7 +4517,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   htmlFor="select-registered-ad-agent-dropdown"
                                   className="shrink-0 font-mono text-[10px] font-bold uppercase tracking-wider text-tertiary"
                                 >
-                                  Registered Ad Agent:
+                                  Ad Agent Records:
                                 </label>
                                 <select
                                   id="select-registered-ad-agent-dropdown"
@@ -4489,22 +4525,40 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   onChange={(e) => selectAndAutofillAdAgent(e.target.value)}
                                   data-agent-id="select-registered-ad-agent-dropdown"
                                   data-testid="select-registered-ad-agent-dropdown"
-                                  aria-label="Select a registered Ad Agent to auto-fill details"
+                                  aria-label="Select a registered or approved Ad Agent record to auto-fill or activate"
                                   className={`${compactInput} flex-1 font-mono text-[11px] border-tertiary/40`}
                                 >
-                                  <option value="__NEW__">+ Enter / Register New Ad Agent Manually…</option>
-                                  <optgroup label={`Registered Ad Agents in Ledger (${liveAdAgentLedger.length})`}>
-                                    {liveAdAgentLedger.map((agent) => (
-                                      <option key={agent.agentId} value={agent.agentId}>
-                                        {agent.name} — {agent.email} | 📍 {agent.locationLabel} | ⚡{" "}
-                                        {agent.totalCustomizationsTokens} Tokens (
-                                        {formatAud(agent.totalCustomizationsAudCents)}) | {agent.redistributionPercentage}%
-                                        {agent.bankOrPayIdDetails ? " | 🏦 Bank/PayID Saved" : ""}
-                                      </option>
-                                    ))}
-                                  </optgroup>
+                                  <option value="__NEW__">+ Add New Ad Agent One-by-One…</option>
+                                  {savedInactiveAdAgentRecords.length > 0 && (
+                                    <optgroup
+                                      label={`Saved & Approved Ad Agent Records — Available to Activate (${savedInactiveAdAgentRecords.length})`}
+                                    >
+                                      {savedInactiveAdAgentRecords.map((agent) => (
+                                        <option key={agent.agentId} value={agent.agentId}>
+                                          [SAVED RECORD] {agent.name} — {agent.email} | 📍 {agent.locationLabel} | ⚡{" "}
+                                          {agent.totalCustomizationsTokens} Tokens (
+                                          {formatAud(agent.totalCustomizationsAudCents)}) | {agent.redistributionPercentage}%
+                                          {agent.bankOrPayIdDetails ? " | 🏦 Bank/PayID Saved" : ""}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                  )}
+                                  {liveAdAgentLedger.length > 0 && (
+                                    <optgroup
+                                      label={`Active List — Ad Agent & Customizations Value (${liveAdAgentLedger.length})`}
+                                    >
+                                      {liveAdAgentLedger.map((agent) => (
+                                        <option key={agent.agentId} value={agent.agentId}>
+                                          [ACTIVE] {agent.name} — {agent.email} | 📍 {agent.locationLabel} | ⚡{" "}
+                                          {agent.totalCustomizationsTokens} Tokens (
+                                          {formatAud(agent.totalCustomizationsAudCents)}) | {agent.redistributionPercentage}%
+                                          {agent.bankOrPayIdDetails ? " | 🏦 Bank/PayID Saved" : ""}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                  )}
                                   {unlinkedRbacAgents.length > 0 && (
-                                    <optgroup label="Other Registered Ad Agent / Admin Accounts">
+                                    <optgroup label="Other Registered Admin Accounts">
                                       {unlinkedRbacAgents.map((u) => (
                                         <option key={u.uid} value={u.email}>
                                           {u.displayName || u.email.split("@")[0]} — {u.email} ({u.role})
@@ -4515,20 +4569,45 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 </select>
                               </div>
 
-                              {selectedLedgerItem && (
+                              {selectedRecordItem && selectedRecordItem.inActiveLedger === false && (
+                                <button
+                                  type="button"
+                                  disabled={adAgentSaving}
+                                  onClick={() =>
+                                    handleActivateAdAgent({
+                                      agentId: selectedRecordItem.agentId,
+                                      email: selectedRecordItem.email,
+                                      name: selectedRecordItem.name,
+                                    })
+                                  }
+                                  data-agent-id="quick-activate-selected-ad-agent-btn"
+                                  data-testid="quick-activate-selected-ad-agent-btn"
+                                  aria-label={`Activate ${selectedRecordItem.name} to the active Ad Agent list`}
+                                  className="inline-flex shrink-0 items-center gap-1 rounded border border-primary/50 bg-primary/20 px-2.5 py-1 font-mono text-[10px] font-bold text-primary hover:bg-primary/30 disabled:opacity-50 transition"
+                                >
+                                  <Icon name="plus" className="size-3" />
+                                  <span>
+                                    {activatingAdAgentId === selectedRecordItem.agentId
+                                      ? "Activating…"
+                                      : "+ Activate to Active List"}
+                                  </span>
+                                </button>
+                              )}
+
+                              {selectedRecordItem && (
                                 <div className="inline-flex shrink-0 flex-wrap items-center gap-1.5 rounded border border-primary/40 bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
                                   <span>
                                     Customizations Total: ⚡{" "}
-                                    {selectedLedgerItem.totalCustomizationsTokens.toLocaleString("en-AU")} ·{" "}
-                                    {formatAud(selectedLedgerItem.totalCustomizationsAudCents)} (
-                                    {Math.max(1, selectedLedgerItem.customizationsCount)} × ⚡{" "}
+                                    {selectedRecordItem.totalCustomizationsTokens.toLocaleString("en-AU")} ·{" "}
+                                    {formatAud(selectedRecordItem.totalCustomizationsAudCents)} (
+                                    {Math.max(1, selectedRecordItem.customizationsCount)} × ⚡{" "}
                                     {customizeServiceUnitTokens})
                                   </span>
                                   <span className="opacity-50">|</span>
                                   <span className="text-tertiary">
-                                    Redist. Amount ({selectedLedgerItem.redistributionPercentage}%):{" "}
-                                    ⚡ {selectedLedgerItem.redistributionTokens.toLocaleString("en-AU")} ·{" "}
-                                    {formatAud(selectedLedgerItem.redistributionAudCents)}
+                                    Redist. Amount ({selectedRecordItem.redistributionPercentage}%):{" "}
+                                    ⚡ {selectedRecordItem.redistributionTokens.toLocaleString("en-AU")} ·{" "}
+                                    {formatAud(selectedRecordItem.redistributionAudCents)}
                                   </span>
                                 </div>
                               )}
@@ -4743,7 +4822,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                       ? "Saving…"
                                       : selectedLedgerItem
                                         ? "Update Agent & Bank / PayID"
-                                        : "Save Ad Agent"}
+                                        : selectedRecordItem
+                                          ? "+ Activate & Add to Active List"
+                                          : "+ Add Ad Agent to Active List"}
                                   </button>
                                 </div>
                               </div>
@@ -4752,12 +4833,121 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         );
                       })()}
 
+                      {/* SAVED & APPROVED AD AGENT RECORDS POOL (Available to Activate One-by-One) */}
+                      {isSuper && (
+                        <div
+                          className="rounded-xl border border-white/10 bg-surface-container-highest/40 p-2.5 space-y-2"
+                          data-agent-id="ad-agent-saved-records-panel"
+                          data-testid="ad-agent-saved-records-panel"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Icon name="users" className="size-3.5 text-primary shrink-0" />
+                              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface">
+                                Registered &amp; Approved Ad Agent Records
+                              </span>
+                              <span className="rounded-full border border-primary/35 bg-primary/15 px-2 py-0.5 font-mono text-[9px] font-bold text-primary">
+                                {savedInactiveAdAgentRecords.length} Available to Activate · {allAdAgentRecords.length} Total Kept on File
+                              </span>
+                            </div>
+                            <span className="font-mono text-[9px] text-on-surface-variant">
+                              Deleting an agent from the active table below keeps all their records here for instant activation.
+                            </span>
+                          </div>
+
+                          {savedInactiveAdAgentRecords.length === 0 ? (
+                            <p className="font-mono text-[10px] text-on-surface-variant">
+                              All {allAdAgentRecords.length} registered/approved Ad Agent record
+                              {allAdAgentRecords.length === 1 ? " is" : "s are"} currently in the active{" "}
+                              <strong className="text-on-surface">Ad Agent &amp; Customizations Value</strong> list below.
+                            </p>
+                          ) : (
+                            <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2">
+                              {savedInactiveAdAgentRecords.map((record) => (
+                                <div
+                                  key={record.agentId}
+                                  data-agent-id={`saved-ad-agent-record-${record.agentId}`}
+                                  data-testid={`saved-ad-agent-record-${record.agentId}`}
+                                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-white/10 bg-surface-container-lowest px-2.5 py-2"
+                                >
+                                  <div className="min-w-0 space-y-0.5">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <span className="font-semibold text-on-surface text-[11px] truncate">
+                                        {record.name}
+                                      </span>
+                                      <span className="rounded border border-white/15 bg-surface-container-highest px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase text-on-surface-variant">
+                                        Saved Record
+                                      </span>
+                                      <span className="rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[8px] font-bold text-primary">
+                                        ⚡ {record.totalCustomizationsTokens.toLocaleString("en-AU")} ({record.customizationsCount}) · {record.redistributionPercentage}%
+                                      </span>
+                                      {record.bankOrPayIdDetails && (
+                                        <span className="rounded border border-tertiary/30 bg-tertiary/10 px-1.5 py-0.5 font-mono text-[8px] font-semibold text-tertiary">
+                                          🏦 Bank/PayID Saved
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="font-mono text-[10px] text-on-surface-variant break-all sm:truncate">
+                                      {record.email}
+                                      {record.phone && record.phone !== "Not specified" ? ` · ${record.phone}` : ""} · 📍{" "}
+                                      {record.locationLabel}
+                                    </div>
+                                  </div>
+                                  <div className="flex shrink-0 items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        selectAndAutofillAdAgent(record.agentId);
+                                        setShowAddAdAgent(true);
+                                      }}
+                                      data-agent-id={`edit-saved-ad-agent-${record.agentId}`}
+                                      data-testid={`edit-saved-ad-agent-${record.agentId}`}
+                                      aria-label={`Load saved record details for ${record.name}`}
+                                      className={`${btnSecondary} px-2 py-1 text-[9px] font-mono`}
+                                    >
+                                      Edit / View
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={adAgentSaving}
+                                      onClick={() =>
+                                        handleActivateAdAgent({
+                                          agentId: record.agentId,
+                                          email: record.email,
+                                          name: record.name,
+                                        })
+                                      }
+                                      data-agent-id={`activate-saved-ad-agent-${record.agentId}`}
+                                      data-testid={`activate-saved-ad-agent-${record.agentId}`}
+                                      aria-label={`Activate ${record.name} into active Ad Agent and Customizations Value list`}
+                                      className="inline-flex items-center gap-1 rounded-md border border-primary/50 bg-primary/20 px-2 py-1 font-mono text-[9px] font-bold text-primary hover:bg-primary/30 disabled:opacity-50 transition"
+                                    >
+                                      <Icon name="plus" className="size-2.5" />
+                                      <span>
+                                        {activatingAdAgentId === record.agentId ? "Activating…" : "+ Activate"}
+                                      </span>
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {liveAdAgentLedger.length === 0 ? (
                         <div className={`${card} p-3.5 text-center text-on-surface-variant`}>
-                          <p className="text-xs italic">No Ad Agents in the distribution ledger yet.</p>
+                          <p className="text-xs italic">
+                            No active Ad Agents in the Ad Agent &amp; Customizations Value list right now. Activate a saved record above or add a new Ad Agent one by one.
+                          </p>
                         </div>
                       ) : (
-                        <div className="overflow-x-auto lg:overflow-visible rounded-xl border border-white/[0.08] bg-surface-container">
+                        <div
+                          role="region"
+                          tabIndex={0}
+                          aria-label="Active Ad Agent and Customizations Value distribution ledger"
+                          className="overflow-x-auto lg:overflow-visible rounded-xl border border-white/[0.08] bg-surface-container"
+                        >
                           <table
                             className="w-full block md:table table-auto text-left text-[11px]"
                             data-agent-id="ad-agent-distribution-ledger-table"
@@ -5125,44 +5315,50 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                             </button>
                                           )}
 
-                                          {!agent.isSuperAdminBuiltIn && (
-                                            <>
-                                              {confirmDeleteAdAgentId === agent.agentId ? (
-                                                <div className="flex items-center gap-1 animate-fadeIn">
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => handleDeleteAdAgent(agent.agentId)}
-                                                    data-agent-id={`confirm-delete-ad-agent-${agent.agentId}`}
-                                                    data-testid={`confirm-delete-ad-agent-${agent.agentId}`}
-                                                    aria-label={`Confirm delete Ad Agent ${agent.email}`}
-                                                    className={`${btnDanger} px-1.5 py-0.5 text-[9px]`}
-                                                  >
-                                                    Confirm
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => setConfirmDeleteAdAgentId(null)}
-                                                    className={`${btnSecondary} px-1 py-0.5 text-[9px]`}
-                                                  >
-                                                    Cancel
-                                                  </button>
-                                                </div>
-                                              ) : (
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    setConfirmDeleteAdAgentId(agent.agentId);
-                                                    setConfirmResetAdAgentId(null);
-                                                  }}
-                                                  data-agent-id={`delete-ad-agent-${agent.agentId}`}
-                                                  data-testid={`delete-ad-agent-${agent.agentId}`}
-                                                  aria-label={`Delete Ad Agent ${agent.email}`}
-                                                  className="text-error hover:text-error/80 font-mono text-[9px] underline ml-0.5"
-                                                >
-                                                  Delete
-                                                </button>
-                                              )}
-                                            </>
+                                          {confirmDeleteAdAgentId === agent.agentId ? (
+                                            <div className="flex items-center gap-1 animate-fadeIn">
+                                              <button
+                                                type="button"
+                                                disabled={adAgentSaving}
+                                                onClick={() =>
+                                                  handleDeleteAdAgent(
+                                                    agent.agentId,
+                                                    agent.email,
+                                                    agent.name
+                                                  )
+                                                }
+                                                data-agent-id={`confirm-delete-ad-agent-${agent.agentId}`}
+                                                data-testid={`confirm-delete-ad-agent-${agent.agentId}`}
+                                                aria-label={`Confirm remove Ad Agent ${agent.email} from active list while keeping records`}
+                                                className={`${btnDanger} px-1.5 py-0.5 text-[9px]`}
+                                              >
+                                                Confirm
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setConfirmDeleteAdAgentId(null)}
+                                                data-agent-id={`cancel-delete-ad-agent-${agent.agentId}`}
+                                                data-testid={`cancel-delete-ad-agent-${agent.agentId}`}
+                                                aria-label={`Cancel removing Ad Agent ${agent.email}`}
+                                                className={`${btnSecondary} px-1 py-0.5 text-[9px]`}
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setConfirmDeleteAdAgentId(agent.agentId);
+                                                setConfirmResetAdAgentId(null);
+                                              }}
+                                              data-agent-id={`delete-ad-agent-${agent.agentId}`}
+                                              data-testid={`delete-ad-agent-${agent.agentId}`}
+                                              aria-label={`Delete Ad Agent ${agent.email} from active list`}
+                                              className="text-error hover:text-error/80 font-mono text-[9px] underline ml-0.5"
+                                            >
+                                              Delete
+                                            </button>
                                           )}
                                         </div>
                                       )}
@@ -5178,494 +5374,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       )}
                     </div>
                   </div>
-
-              {/* SUPER ADMIN TOKEN CONTROLS: ADD TOKENS, REMOVE TOKENS & REFUND TOKENS ONLY */}
-              {isSuper && (
-                <div
-                  className={`${card} p-3 sm:p-4 border border-primary/30 bg-primary/[0.03] space-y-3.5 min-w-0`}
-                  data-agent-id="user-token-management-card"
-                  data-testid="user-token-management-card"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 min-w-0">
-                    <button
-                      type="button"
-                      onClick={() => toggleFeatureExpanded("ledger_token_controls")}
-                      aria-expanded={isFeatureExpanded("ledger_token_controls")}
-                      data-agent-id="toggle-feature-ledger-token-controls-header"
-                      data-testid="toggle-feature-ledger-token-controls-header"
-                      className="flex-1 text-left group cursor-pointer min-w-0"
-                    >
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Icon
-                          name="chevronDown"
-                          className={`size-4 text-primary transition-transform duration-200 ${
-                            isFeatureExpanded("ledger_token_controls") ? "rotate-180" : "-rotate-90"
-                          }`}
-                        />
-                        <Icon name="sparkles" className="size-4 text-primary shrink-0" />
-                        <h4 className="text-compact font-bold text-on-surface group-hover:text-primary transition-colors">
-                          Super Admin Token Controls (Add Tokens, Remove Tokens &amp; Refund Tokens Only)
-                        </h4>
-                        <span className="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
-                          Super Admin Only
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                        Super Admin exclusive controls: Add tokens, remove tokens, or refund tokens on any deduction order.
-                      </p>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => toggleFeatureExpanded("ledger_token_controls")}
-                      aria-expanded={isFeatureExpanded("ledger_token_controls")}
-                      data-agent-id="toggle-feature-ledger-token-controls-btn"
-                      data-testid="toggle-feature-ledger-token-controls-btn"
-                      className={`${btnSecondary} font-mono text-xs shrink-0`}
-                    >
-                      <Icon
-                        name="chevronDown"
-                        className={`size-3.5 transition-transform duration-200 ${
-                          isFeatureExpanded("ledger_token_controls") ? "rotate-180" : ""
-                        }`}
-                      />
-                      <span>{isFeatureExpanded("ledger_token_controls") ? "Collapse" : "Expand"}</span>
-                    </button>
-                  </div>
-
-                  {isFeatureExpanded("ledger_token_controls") && (
-                    <div className="space-y-3.5 pt-2 border-t border-white/[0.06]">
-                      {/* Action Mode Toggle: Add Tokens | Remove Tokens | Refund Tokens ONLY */}
-                      <div className="grid grid-cols-3 sm:flex items-center gap-1 rounded-xl border border-white/10 bg-surface-container-high/60 p-1 w-full sm:w-auto shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTokenActionMode("GIFT");
-                            setConfirmDeductOpen(false);
-                            setConfirmTopRefundOpen(false);
-                          }}
-                          data-agent-id="token-mode-gift-btn"
-                          data-testid="token-mode-gift-btn"
-                          aria-label="Add Tokens Mode"
-                          className={`flex items-center justify-center gap-1 rounded-lg px-1.5 sm:px-2.5 py-1.5 sm:py-1 font-mono text-[10px] sm:text-[11px] font-semibold transition ${
-                            tokenActionMode === "GIFT"
-                              ? "bg-primary text-on-primary shadow-sm"
-                              : "text-on-surface-variant hover:text-on-surface"
-                          }`}
-                        >
-                          <Icon name="plus" className="size-3 shrink-0" />
-                          <span className="truncate">Add Tokens</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTokenActionMode("DEDUCT");
-                            setConfirmDeductOpen(false);
-                            setConfirmTopRefundOpen(false);
-                          }}
-                          data-agent-id="token-mode-deduct-btn"
-                          data-testid="token-mode-deduct-btn"
-                          aria-label="Remove Tokens Mode"
-                          className={`flex items-center justify-center gap-1 rounded-lg px-1.5 sm:px-2.5 py-1.5 sm:py-1 font-mono text-[10px] sm:text-[11px] font-semibold transition ${
-                            tokenActionMode === "DEDUCT"
-                              ? "bg-warning text-black shadow-sm font-bold"
-                              : "text-on-surface-variant hover:text-on-surface"
-                          }`}
-                        >
-                          <Icon name="trash" className="size-3 shrink-0" />
-                          <span className="truncate">Remove Tokens</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTokenActionMode("REFUND");
-                            setConfirmDeductOpen(false);
-                            setConfirmTopRefundOpen(false);
-                          }}
-                          data-agent-id="token-mode-refund-btn"
-                          data-testid="token-mode-refund-btn"
-                          aria-label="Refund Tokens Mode"
-                          className={`flex items-center justify-center gap-1 rounded-lg px-1.5 sm:px-2.5 py-1.5 sm:py-1 font-mono text-[10px] sm:text-[11px] font-semibold transition ${
-                            tokenActionMode === "REFUND"
-                              ? "bg-amber-400 text-black shadow-sm font-bold"
-                              : "text-on-surface-variant hover:text-on-surface"
-                          }`}
-                        >
-                          <Icon name="refresh" className="size-3 shrink-0" />
-                          <span className="truncate">Refund Tokens</span>
-                        </button>
-                      </div>
-
-                      {/* Quick Presets */}
-                      {tokenActionMode === "GIFT" && (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11px] font-mono text-outline">Quick Add Presets:</span>
-                          {[10, 45, 100, 500, 1000].map((preset) => (
-                            <button
-                              key={preset}
-                              type="button"
-                              onClick={() => setGiftTokensInput(String(preset))}
-                              className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
-                                Math.round(Number(giftTokensInput) || 0) === preset
-                                  ? "border-primary bg-primary/20 text-primary"
-                                  : "border-white/10 bg-surface-container-highest text-on-surface-variant hover:border-primary/40 hover:text-on-surface"
-                              }`}
-                              data-testid={`gift-preset-${preset}`}
-                            >
-                              +{preset} ⚡
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {tokenActionMode === "DEDUCT" && (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11px] font-mono text-outline">Quick Remove Presets:</span>
-                          {[5, 10, 25, 50, 100].map((preset) => (
-                            <button
-                              key={preset}
-                              type="button"
-                              onClick={() => setGiftTokensInput(String(preset))}
-                              className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
-                                Math.round(Number(giftTokensInput) || 0) === preset
-                                  ? "border-warning bg-warning/20 text-warning"
-                                  : "border-white/10 bg-surface-container-highest text-on-surface-variant hover:border-warning/40 hover:text-on-surface"
-                              }`}
-                              data-testid={`deduct-preset-${preset}`}
-                            >
-                              -{preset} ⚡
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Target User Peek */}
-                      {giftEmail && (
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-white/[0.08] bg-surface-container-high/50 px-3 py-1.5 font-mono text-xs break-all">
-                          <span className="text-on-surface-variant">Target User:</span>
-                          <span className="font-semibold text-on-surface">{giftEmail}</span>
-                          <span className="text-white/20">•</span>
-                          <span className="text-on-surface-variant">Current Balance:</span>
-                          <span className="font-bold text-primary">
-                            ⚡ {(rbacUsers.find((u) => u.email.toLowerCase() === giftEmail.trim().toLowerCase())?.tokenBalance ?? 0).toLocaleString("en-AU")} tokens
-                          </span>
-                        </div>
-                      )}
-
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          if (tokenActionMode === "GIFT") {
-                            handleGiftTokens(e);
-                          } else if (tokenActionMode === "DEDUCT") {
-                            setConfirmDeductOpen(true);
-                          } else if (tokenActionMode === "REFUND") {
-                            if (!selectedRefundTxId) {
-                              setErrorMsg("Select a deduction order to refund tokens.");
-                              return;
-                            }
-                            setConfirmTopRefundOpen(true);
-                          }
-                        }}
-                        className="space-y-3"
-                      >
-                        {tokenActionMode !== "REFUND" ? (
-                          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12 items-end">
-                            <div className="sm:col-span-4">
-                              <label className={label}>Customer Email *</label>
-                              <input
-                                type="email"
-                                required
-                                list="gift-registered-users-list"
-                                placeholder="customer@example.com"
-                                value={giftEmail}
-                                onChange={(e) => {
-                                  setGiftEmail(e.target.value);
-                                  setConfirmDeductOpen(false);
-                                }}
-                                className={field}
-                                data-agent-id="gift-recipient-email-input"
-                                data-testid="gift-recipient-email-input"
-                              />
-                              <datalist id="gift-registered-users-list">
-                                {rbacUsers.map((u) => (
-                                  <option key={u.uid} value={u.email}>
-                                    {u.email} (Balance: {u.tokenBalance ?? 0} ⚡)
-                                  </option>
-                                ))}
-                              </datalist>
-                            </div>
-
-                            <div className="sm:col-span-2">
-                              <label className={label}>
-                                {tokenActionMode === "GIFT" ? "Tokens to Add *" : "Tokens to Remove *"}
-                              </label>
-                              <input
-                                id="gift-tokens-amount-input"
-                                type="text"
-                                inputMode="numeric"
-                                pattern="[0-9]*"
-                                required
-                                value={giftTokensInput}
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) => {
-                                  setGiftTokensInput(e.target.value.replace(/[^0-9]/g, ""));
-                                  setConfirmDeductOpen(false);
-                                }}
-                                className={`${field} font-mono text-center`}
-                                data-agent-id="gift-tokens-amount-input"
-                                data-testid="gift-tokens-amount-input"
-                              />
-                            </div>
-
-                            <div className="sm:col-span-4">
-                              <label className={label}>Reason / Audit Note (Optional)</label>
-                              <input
-                                type="text"
-                                maxLength={200}
-                                placeholder={
-                                  tokenActionMode === "GIFT"
-                                    ? "e.g. VIP onboarding credit / promo bonus"
-                                    : "e.g. Manual adjustment / token removal"
-                                }
-                                value={giftNote}
-                                onChange={(e) => setGiftNote(e.target.value)}
-                                className={field}
-                                data-agent-id="gift-tokens-note-input"
-                                data-testid="gift-tokens-note-input"
-                              />
-                            </div>
-
-                            <div className="sm:col-span-2">
-                              {tokenActionMode === "GIFT" && (
-                                <button
-                                  type="submit"
-                                  disabled={gifting}
-                                  className={`${btnPrimary} w-full justify-center`}
-                                  data-agent-id="submit-gift-tokens-button"
-                                  data-testid="submit-gift-tokens-button"
-                                >
-                                  <Icon name="plus" className="size-3.5" />
-                                  {gifting ? "Adding..." : "Add Tokens"}
-                                </button>
-                              )}
-
-                              {tokenActionMode === "DEDUCT" && !confirmDeductOpen && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (!giftEmail.trim()) {
-                                      setErrorMsg("Enter a customer email to remove tokens.");
-                                      return;
-                                    }
-                                    const amt = Number(giftTokensInput);
-                                    if (isNaN(amt) || amt <= 0) {
-                                      setErrorMsg("Enter a valid number of tokens to remove (1 or more).");
-                                      return;
-                                    }
-                                    const targetUser = rbacUsers.find(
-                                      (u) => u.email.toLowerCase() === giftEmail.trim().toLowerCase()
-                                    );
-                                    const targetBalance = Math.max(0, targetUser?.tokenBalance ?? 0);
-                                    if (targetUser && targetBalance <= 0) {
-                                      setErrorMsg(
-                                        `Account "${giftEmail.trim()}" has 0 tokens. Nobody can have negative tokens — all users at 0 tokens must buy more tokens.`
-                                      );
-                                      return;
-                                    }
-                                    if (targetUser && amt > targetBalance) {
-                                      setErrorMsg(
-                                        `Cannot remove ${amt.toLocaleString("en-AU")} tokens from "${giftEmail.trim()}" (current balance: ${targetBalance.toLocaleString("en-AU")} tokens). Nobody can have negative tokens.`
-                                      );
-                                      return;
-                                    }
-                                    setConfirmDeductOpen(true);
-                                  }}
-                                  disabled={gifting}
-                                  className={`${btnSecondary} w-full justify-center text-warning hover:border-warning/50`}
-                                  data-agent-id="trigger-deduct-tokens-button"
-                                  data-testid="trigger-deduct-tokens-button"
-                                >
-                                  <Icon name="trash" className="size-3.5" />
-                                  Remove Tokens
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          /* REFUND TOKENS MODE */
-                          (() => {
-                            const emailQ = giftEmail.trim().toLowerCase();
-                            const refundableOrders = orderLedger.filter(
-                              (tx) =>
-                                tx.delta < 0 &&
-                                !tx.refunded &&
-                                (!emailQ || (tx.email || "").toLowerCase().includes(emailQ))
-                            );
-                            const selectedOrder = refundableOrders.find((tx) => tx.txId === selectedRefundTxId);
-
-                            return (
-                              <div className="space-y-3">
-                                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12 items-end">
-                                  <div className="sm:col-span-4">
-                                    <label className={label}>Filter by Customer Email (Optional)</label>
-                                    <input
-                                      type="text"
-                                      list="gift-registered-users-list"
-                                      placeholder="All customers or filter email..."
-                                      value={giftEmail}
-                                      onChange={(e) => {
-                                        setGiftEmail(e.target.value);
-                                        setConfirmTopRefundOpen(false);
-                                      }}
-                                      className={field}
-                                      data-agent-id="refund-filter-email-input"
-                                      data-testid="refund-filter-email-input"
-                                    />
-                                  </div>
-
-                                  <div className="sm:col-span-6">
-                                    <label className={label}>
-                                      Select Deduction Order to Refund ({refundableOrders.length} eligible) *
-                                    </label>
-                                    <select
-                                      value={selectedRefundTxId}
-                                      onChange={(e) => {
-                                        setSelectedRefundTxId(e.target.value);
-                                        setConfirmTopRefundOpen(false);
-                                      }}
-                                      className={`${field} font-mono text-xs`}
-                                      data-agent-id="refund-order-select"
-                                      data-testid="refund-order-select"
-                                    >
-                                      <option value="">-- Choose a deduction order to refund tokens --</option>
-                                      {refundableOrders.map((tx) => (
-                                        <option key={tx.txId} value={tx.txId}>
-                                          {new Date(tx.createdAt).toLocaleDateString("en-AU", {
-                                            day: "2-digit",
-                                            month: "short",
-                                          })}{" "}
-                                          • {tx.email || tx.uid} • {tx.type} ({tx.delta} ⚡) — {tx.referenceId.slice(0, 50)}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-
-                                  <div className="sm:col-span-2">
-                                    {!confirmTopRefundOpen && (
-                                      <button
-                                        type="button"
-                                        disabled={!selectedOrder || refundingTxId === selectedOrder?.txId}
-                                        onClick={() => {
-                                          if (!selectedOrder) {
-                                            setErrorMsg("Select a deduction order to refund tokens.");
-                                            return;
-                                          }
-                                          setConfirmTopRefundOpen(true);
-                                        }}
-                                        className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-400/40 bg-amber-500/15 px-3 py-2 font-mono text-xs font-bold text-amber-300 hover:bg-amber-500/25 disabled:opacity-40 transition"
-                                        data-agent-id="trigger-top-refund-tokens-button"
-                                        data-testid="trigger-top-refund-tokens-button"
-                                      >
-                                        <Icon name="refresh" className="size-3.5" />
-                                        Refund Tokens
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {confirmTopRefundOpen && selectedOrder && (
-                                  <div
-                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-amber-400/50 bg-amber-500/10 p-3"
-                                    data-agent-id="confirm-top-refund-dialog"
-                                    data-testid="confirm-top-refund-dialog"
-                                  >
-                                    <div className="flex items-center gap-2.5">
-                                      <Icon name="alert" className="size-4 text-amber-300 shrink-0" />
-                                      <p className="font-mono text-xs text-on-surface">
-                                        Confirm refunding{" "}
-                                        <strong className="text-amber-300 font-bold">
-                                          +{Math.abs(selectedOrder.delta).toLocaleString("en-AU")} tokens
-                                        </strong>{" "}
-                                        to <strong className="text-on-surface">{selectedOrder.email || selectedOrder.uid}</strong> for{" "}
-                                        <span className="text-on-surface-variant">{selectedOrder.referenceId}</span>?
-                                      </p>
-                                    </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      <button
-                                        type="button"
-                                        onClick={() => setConfirmTopRefundOpen(false)}
-                                        className={`${btnSecondary} text-xs py-1 px-2.5`}
-                                        data-agent-id="cancel-top-refund-button"
-                                        data-testid="cancel-top-refund-button"
-                                      >
-                                        Cancel
-                                      </button>
-                                      <button
-                                        type="button"
-                                        disabled={refundingTxId === selectedOrder.txId}
-                                        onClick={() => handleRefundOrder(selectedOrder.txId)}
-                                        className={`${btnDanger} text-xs py-1 px-3 bg-amber-400 hover:bg-amber-300 text-black font-bold`}
-                                        data-agent-id="confirm-top-refund-tokens-button"
-                                        data-testid="confirm-top-refund-tokens-button"
-                                      >
-                                        {refundingTxId === selectedOrder.txId
-                                          ? "Refunding..."
-                                          : `Confirm Refund (+${Math.abs(selectedOrder.delta)} ⚡)`}
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()
-                        )}
-
-                        {/* CONFIRMATION BANNER FOR REMOVE TOKENS */}
-                        {confirmDeductOpen && tokenActionMode === "DEDUCT" && (
-                          <div
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3"
-                            data-agent-id="confirm-deduct-dialog"
-                            data-testid="confirm-deduct-dialog"
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <Icon name="alert" className="size-4 text-warning shrink-0" />
-                              <p className="font-mono text-xs text-on-surface">
-                                Confirm removing{" "}
-                                <strong className="text-warning font-bold">
-                                  {Number(giftTokensInput).toLocaleString("en-AU")} tokens
-                                </strong>{" "}
-                                from <strong className="text-on-surface">{giftEmail}</strong>?
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => setConfirmDeductOpen(false)}
-                                className={`${btnSecondary} text-xs py-1 px-2.5`}
-                                data-agent-id="cancel-deduct-button"
-                                data-testid="cancel-deduct-button"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleDeductTokens}
-                                disabled={gifting}
-                                className={`${btnDanger} text-xs py-1 px-3 bg-warning hover:bg-warning/90 text-black font-bold`}
-                                data-agent-id="confirm-deduct-tokens-button"
-                                data-testid="confirm-deduct-tokens-button"
-                              >
-                                {gifting ? "Removing..." : "Confirm Remove Tokens"}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </form>
-                    </div>
-                  )}
-                </div>
-              )}
 
                   {/* MASTER ORDER LEDGER: ALL TRANSACTIONS, STRIPE PURCHASES, SEARCH ORDERS & REFUNDS */}
                   <div
@@ -5697,15 +5405,15 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           </span>
                           {isSuper && (
                             <span className="rounded-full bg-primary/15 border border-primary/30 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
-                              Super Admin: Add, Remove &amp; Refund Tokens Only
+                              Super Admin: Order Refunds
                             </span>
                           )}
                         </div>
                         <p className="mt-0.5 text-[11px] text-on-surface-variant">
                           Complete chronological audit of every Stripe purchase, AdRadarHQ search order, AI Remix, Customize brief, Gift credit, and Token Refund.{" "}
                           {isSuper
-                            ? "Super Admin can Add Tokens, Remove Tokens, or click “Refund Tokens” on any deduction order to restore tokens to the customer wallet."
-                            : "Token adjustments (Add, Remove, Refund) are restricted to Super Admin only."}
+                            ? "Super Admin can click “Refund Tokens” on any deduction order to restore tokens to the customer wallet."
+                            : "Order refunds are restricted to Super Admin only."}
                         </p>
                       </button>
 
@@ -5790,7 +5498,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           tx.type !== "CUSTOMIZE_SERVICE" &&
                           tx.type !== "AI_REMIX" &&
                           tx.type !== "REGENERATE_VARIATIONS" &&
-                          tx.type !== "BRAND_CLONE"
+                          tx.type !== "BRAND_CLONE" &&
+                          tx.type !== "BRAND_TXT_DOWNLOAD" &&
+                          tx.type !== "SEARCHMIX_DOWNLOAD" &&
+                          tx.type !== "DECONSTRUCT_DOWNLOAD"
                         ) {
                           return false;
                         }
@@ -5832,7 +5543,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 <th className="px-2.5 py-2 text-right">Tokens</th>
                                 <th className="px-2.5 py-2 text-right">Balance</th>
                                 <th className="px-3 py-2 text-right">
-                                  {isSuper ? "Super Admin (Add / Remove / Refund)" : "Refund Status"}
+                                  {isSuper ? "Super Admin (Refund)" : "Refund Status"}
                                 </th>
                               </tr>
                             </thead>
@@ -5896,52 +5607,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     <td className="px-3 py-2 text-right whitespace-nowrap">
                                       {isSuper ? (
                                         <div className="inline-flex items-center justify-end gap-1.5">
-                                          {tx.email && (
-                                            <>
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setFeatureExpanded("ledger_token_controls", true);
-                                                  setGiftEmail(tx.email || "");
-                                                  setTokenActionMode("GIFT");
-                                                  setConfirmDeductOpen(false);
-                                                  setConfirmTopRefundOpen(false);
-                                                  if (Number(giftTokensInput) <= 0) setGiftTokensInput("100");
-                                                  setTimeout(() => {
-                                                    document.getElementById("gift-tokens-amount-input")?.focus();
-                                                  }, 50);
-                                                }}
-                                                title={`Add tokens to ${tx.email}`}
-                                                aria-label={`Add tokens to ${tx.email}`}
-                                                data-agent-id={`ledger-add-tokens-${tx.txId}`}
-                                                data-testid={`ledger-add-tokens-${tx.txId}`}
-                                                className="rounded-lg border border-primary/30 bg-primary/10 px-2 py-1 font-mono text-[10px] font-semibold text-primary hover:bg-primary/20 transition"
-                                              >
-                                                + Add
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setFeatureExpanded("ledger_token_controls", true);
-                                                  setGiftEmail(tx.email || "");
-                                                  setTokenActionMode("DEDUCT");
-                                                  setConfirmDeductOpen(false);
-                                                  setConfirmTopRefundOpen(false);
-                                                  if (Number(giftTokensInput) <= 0) setGiftTokensInput("25");
-                                                  setTimeout(() => {
-                                                    document.getElementById("gift-tokens-amount-input")?.focus();
-                                                  }, 50);
-                                                }}
-                                                title={`Remove tokens from ${tx.email}`}
-                                                aria-label={`Remove tokens from ${tx.email}`}
-                                                data-agent-id={`ledger-remove-tokens-${tx.txId}`}
-                                                data-testid={`ledger-remove-tokens-${tx.txId}`}
-                                                className="rounded-lg border border-warning/30 bg-warning/10 px-2 py-1 font-mono text-[10px] font-semibold text-warning hover:bg-warning/20 transition"
-                                              >
-                                                - Remove
-                                              </button>
-                                            </>
-                                          )}
                                           {tx.refunded ? (
                                             <span
                                               className="rounded bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300"
@@ -5983,7 +5648,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                                 Refund Tokens
                                               </button>
                                             )
-                                          ) : null}
+                                          ) : (
+                                            <span className="text-[10px] text-outline">—</span>
+                                          )}
                                         </div>
                                       ) : tx.refunded ? (
                                         <span
@@ -6006,401 +5673,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     })()}
                       </>
                     )}
-                  </div>
-
-                  {/* ALL USERS TOKEN BALANCES (UNDER MASTER ORDER LEDGER) */}
-                  <div
-                    className={`${card} p-4 space-y-3 border border-primary/25`}
-                    data-agent-id="all-users-token-balances-section"
-                    data-testid="all-users-token-balances-section"
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => setIsUserBalancesExpanded((prev) => !prev)}
-                        aria-expanded={isUserBalancesExpanded}
-                        data-agent-id="toggle-user-token-balances-header-btn"
-                        data-testid="toggle-user-token-balances-header-btn"
-                        className="flex-1 text-left group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Icon
-                            name="chevronDown"
-                            className={`size-4 text-primary transition-transform duration-200 ${
-                              isUserBalancesExpanded ? "rotate-180" : "-rotate-90"
-                            }`}
-                          />
-                          <Icon name="wallet" className="size-4 text-primary" />
-                          <h4 className="text-compact font-bold text-on-surface group-hover:text-primary transition-colors">
-                            All Users Token Balances
-                          </h4>
-                          <span className="rounded-full bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
-                            {rbacUsers.filter((u) => Boolean(u.email)).length} Registered Users
-                          </span>
-                          {isSuper && (
-                            <span className="rounded-full bg-primary/15 border border-primary/30 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
-                              Super Admin: Add Tokens, Minus Tokens &amp; Reset Tokens to 0 (Confirm Required)
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                          Live token balance directory for every registered user account. Hard rule: nobody can have negative tokens — accounts at 0 must buy more tokens.
-                        </p>
-                      </button>
-
-                      <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto shrink-0">
-                        <input
-                          type="text"
-                          placeholder="Search user email or role..."
-                          value={userBalanceSearch}
-                          onChange={(e) => {
-                            setUserBalanceSearch(e.target.value);
-                            if (e.target.value.trim()) {
-                              setIsUserBalancesExpanded(true);
-                            }
-                          }}
-                          className={`${field} !py-1.5 !text-[12px] w-full sm:w-60`}
-                          data-agent-id="user-token-balances-search"
-                          data-testid="user-token-balances-search"
-                        />
-                        <button
-                          type="button"
-                          onClick={reloadRbac}
-                          disabled={rbacLoading}
-                          className={`${btnSecondary} flex-1 sm:flex-initial justify-center`}
-                          data-agent-id="refresh-user-token-balances-btn"
-                          data-testid="refresh-user-token-balances-btn"
-                        >
-                          <Icon name="refresh" className={`size-3.5 ${rbacLoading ? "animate-spin" : ""}`} />
-                          Refresh Balances
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setIsUserBalancesExpanded((prev) => !prev)}
-                          aria-expanded={isUserBalancesExpanded}
-                          data-agent-id="toggle-user-token-balances-btn"
-                          data-testid="toggle-user-token-balances-btn"
-                          className={`${btnSecondary} font-mono text-xs flex-1 sm:flex-initial justify-center`}
-                        >
-                          <Icon
-                            name="chevronDown"
-                            className={`size-3.5 transition-transform duration-200 ${
-                              isUserBalancesExpanded ? "rotate-180" : ""
-                            }`}
-                          />
-                          <span>{isUserBalancesExpanded ? "Collapse Balances" : "Expand Balances"}</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {isUserBalancesExpanded &&
-                      (() => {
-                      const q = userBalanceSearch.trim().toLowerCase();
-                      const registeredUsers = rbacUsers
-                        .filter((u) => Boolean(u.email))
-                        .filter((u) => {
-                          if (!q) return true;
-                          return (
-                            u.email.toLowerCase().includes(q) ||
-                            (u.displayName || "").toLowerCase().includes(q) ||
-                            u.role.toLowerCase().includes(q)
-                          );
-                        });
-
-                      if (registeredUsers.length === 0) {
-                        return (
-                          <div className="rounded-xl border border-white/[0.06] bg-surface-container-low p-6 text-center text-on-surface-variant">
-                            <p className="text-sm">No user accounts match the current search.</p>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-surface-container-low max-h-[420px] overflow-y-auto">
-                          <table className="w-full block md:table text-left text-[11px]">
-                            <thead className="hidden md:table-header-group border-b border-white/[0.08] bg-surface-container-high/80 font-mono text-mono-label text-on-surface-variant sticky top-0 z-10 backdrop-blur-sm">
-                              <tr>
-                                <th className="px-3 py-2">User / Email</th>
-                                <th className="px-2.5 py-2">Role</th>
-                                <th className="px-3 py-2 text-right">Token Balance</th>
-                                <th className="px-3 py-2 text-right">
-                                  {isSuper
-                                    ? "Super Admin Controls (Add Tokens / Minus Tokens / Reset to 0)"
-                                    : "Status"}
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="block md:table-row-group divide-y divide-white/[0.08] md:divide-white/[0.04] font-mono">
-                              {registeredUsers.map((u) => {
-                                const bal = Math.max(0, Math.round(Number(u.tokenBalance ?? 0)));
-                                const isActiveRow = userRowAction?.uid === u.uid;
-                                const isBusy = userRowBusyUid === u.uid;
-
-                                return (
-                                  <tr key={u.uid} className="block md:table-row p-3 md:p-0 space-y-2 md:space-y-0 hover:bg-white/[0.02] transition">
-                                    <td className="flex items-center justify-between gap-2 md:table-cell md:px-3 md:py-2.5">
-                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">User</span>
-                                      <div className="min-w-0 text-right md:text-left">
-                                        <div className="font-semibold text-on-surface truncate max-w-[210px] sm:max-w-[220px]" title={u.email}>
-                                          {u.email}
-                                        </div>
-                                        {u.displayName && u.displayName !== u.email && (
-                                          <div className="text-[10px] font-sans text-on-surface-variant truncate max-w-[210px]">
-                                            {u.displayName}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </td>
-                                    <td className="flex items-center justify-between gap-2 md:table-cell md:px-2.5 md:py-2.5 whitespace-nowrap">
-                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Role</span>
-                                      <span
-                                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
-                                          u.role === "superadmin"
-                                            ? "bg-primary/20 text-primary"
-                                            : u.role === "admin"
-                                              ? "bg-secondary/20 text-secondary"
-                                              : "bg-surface-container-highest text-on-surface-variant"
-                                        }`}
-                                      >
-                                        {u.role}
-                                      </span>
-                                    </td>
-                                    <td className="flex items-center justify-between gap-2 md:table-cell md:px-3 md:py-2.5 text-right whitespace-nowrap">
-                                      <span className="md:hidden font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Balance</span>
-                                      <span
-                                        className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-extrabold ${
-                                          bal > 0
-                                            ? "bg-primary/15 text-primary"
-                                            : "bg-surface-container-highest text-on-surface-variant"
-                                        }`}
-                                        data-testid={`user-balance-value-${u.uid}`}
-                                      >
-                                        ⚡ {bal.toLocaleString("en-AU")} Tokens
-                                      </span>
-                                    </td>
-                                    <td className="block md:table-cell pt-1 md:pt-0 border-t border-white/[0.06] md:border-0 md:px-3 md:py-2.5 text-right whitespace-nowrap">
-                                      {!isSuper ? (
-                                        <span className="text-[10px] text-outline">Super Admin Only</span>
-                                      ) : !isActiveRow ? (
-                                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setErrorMsg(null);
-                                              setUserRowAction({
-                                                uid: u.uid,
-                                                email: u.email,
-                                                mode: "ADD",
-                                                amountInput: "100",
-                                                confirmOpen: true,
-                                              });
-                                            }}
-                                            data-agent-id={`user-bal-add-btn-${u.uid}`}
-                                            data-testid={`user-bal-add-btn-${u.uid}`}
-                                            aria-label={`Add tokens to ${u.email}`}
-                                            className="inline-flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 font-mono text-[10px] font-semibold text-primary hover:bg-primary/20 transition"
-                                          >
-                                            <Icon name="plus" className="size-3" />
-                                            <span>Add Tokens</span>
-                                          </button>
-
-                                          <button
-                                            type="button"
-                                            disabled={bal <= 0}
-                                            onClick={() => {
-                                              setErrorMsg(null);
-                                              setUserRowAction({
-                                                uid: u.uid,
-                                                email: u.email,
-                                                mode: "MINUS",
-                                                amountInput: String(Math.min(10, Math.max(1, bal))),
-                                                confirmOpen: true,
-                                              });
-                                            }}
-                                            data-agent-id={`user-bal-minus-btn-${u.uid}`}
-                                            data-testid={`user-bal-minus-btn-${u.uid}`}
-                                            aria-label={`Minus tokens from ${u.email}`}
-                                            className="inline-flex items-center gap-1 rounded-lg border border-warning/40 bg-warning/10 px-2.5 py-1 font-mono text-[10px] font-semibold text-warning hover:bg-warning/20 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                                          >
-                                            <span>- Minus Tokens</span>
-                                          </button>
-
-                                          <button
-                                            type="button"
-                                            disabled={bal <= 0}
-                                            onClick={() => {
-                                              setErrorMsg(null);
-                                              setUserRowAction({
-                                                uid: u.uid,
-                                                email: u.email,
-                                                mode: "RESET",
-                                                amountInput: "0",
-                                                confirmOpen: true,
-                                              });
-                                            }}
-                                            data-agent-id={`user-bal-reset-btn-${u.uid}`}
-                                            data-testid={`user-bal-reset-btn-${u.uid}`}
-                                            aria-label={`Reset ${u.email} tokens to 0`}
-                                            className="inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 font-mono text-[10px] font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                                          >
-                                            <Icon name="refresh" className="size-2.5" />
-                                            <span>Reset to 0</span>
-                                          </button>
-                                        </div>
-                                      ) : userRowAction.mode === "ADD" ? (
-                                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-2.5 py-1.5">
-                                          <span className="text-[10px] font-bold text-primary">Add:</span>
-                                          {[10, 50, 100].map((p) => (
-                                            <button
-                                              key={p}
-                                              type="button"
-                                              onClick={() =>
-                                                setUserRowAction((prev) =>
-                                                  prev ? { ...prev, amountInput: String(p) } : null
-                                                )
-                                              }
-                                              className="rounded border border-primary/30 bg-surface-container-highest px-1.5 py-0.5 text-[10px] text-primary hover:bg-primary/20"
-                                            >
-                                              +{p}
-                                            </button>
-                                          ))}
-                                          <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            value={userRowAction.amountInput}
-                                            onChange={(e) =>
-                                              setUserRowAction((prev) =>
-                                                prev
-                                                  ? { ...prev, amountInput: e.target.value.replace(/[^0-9]/g, "") }
-                                                  : null
-                                              )
-                                            }
-                                            aria-label={`Tokens to add to ${u.email}`}
-                                            data-agent-id={`user-bal-add-input-${u.uid}`}
-                                            data-testid={`user-bal-add-input-${u.uid}`}
-                                            className="w-16 rounded border border-primary/40 bg-surface-container-highest px-2 py-0.5 text-center font-mono text-[11px] font-bold text-on-surface"
-                                          />
-                                          <button
-                                            type="button"
-                                            disabled={isBusy || (Number(userRowAction.amountInput) || 0) <= 0}
-                                            onClick={handleUserRowConfirmAction}
-                                            data-agent-id={`user-bal-confirm-add-btn-${u.uid}`}
-                                            data-testid={`user-bal-confirm-add-btn-${u.uid}`}
-                                            className="rounded-lg bg-primary px-2.5 py-1 font-mono text-[10px] font-bold text-on-primary hover:bg-primary/90 disabled:opacity-40 transition"
-                                          >
-                                            {isBusy
-                                              ? "Adding..."
-                                              : `Confirm Add (+${Math.round(Number(userRowAction.amountInput) || 0)} ⚡)`}
-                                          </button>
-                                          <button
-                                            type="button"
-                                            disabled={isBusy}
-                                            onClick={() => setUserRowAction(null)}
-                                            data-agent-id={`user-bal-cancel-btn-${u.uid}`}
-                                            data-testid={`user-bal-cancel-btn-${u.uid}`}
-                                            className="rounded-lg border border-white/15 bg-surface-container-highest px-2 py-1 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
-                                          >
-                                            Cancel
-                                          </button>
-                                        </div>
-                                      ) : userRowAction.mode === "MINUS" ? (
-                                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5 rounded-xl border border-warning/40 bg-warning/10 px-2.5 py-1.5">
-                                          <span className="text-[10px] font-bold text-warning">Minus (max {bal}):</span>
-                                          {[5, 10, 25]
-                                            .filter((p) => p <= bal)
-                                            .map((p) => (
-                                              <button
-                                                key={p}
-                                                type="button"
-                                                onClick={() =>
-                                                  setUserRowAction((prev) =>
-                                                    prev ? { ...prev, amountInput: String(p) } : null
-                                                  )
-                                                }
-                                                className="rounded border border-warning/30 bg-surface-container-highest px-1.5 py-0.5 text-[10px] text-warning hover:bg-warning/20"
-                                              >
-                                                -{p}
-                                              </button>
-                                            ))}
-                                          <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            value={userRowAction.amountInput}
-                                            onChange={(e) =>
-                                              setUserRowAction((prev) =>
-                                                prev
-                                                  ? { ...prev, amountInput: e.target.value.replace(/[^0-9]/g, "") }
-                                                  : null
-                                              )
-                                            }
-                                            aria-label={`Tokens to minus from ${u.email}`}
-                                            data-agent-id={`user-bal-minus-input-${u.uid}`}
-                                            data-testid={`user-bal-minus-input-${u.uid}`}
-                                            className="w-16 rounded border border-warning/40 bg-surface-container-highest px-2 py-0.5 text-center font-mono text-[11px] font-bold text-on-surface"
-                                          />
-                                          <button
-                                            type="button"
-                                            disabled={
-                                              isBusy ||
-                                              (Number(userRowAction.amountInput) || 0) <= 0 ||
-                                              (Number(userRowAction.amountInput) || 0) > bal
-                                            }
-                                            onClick={handleUserRowConfirmAction}
-                                            data-agent-id={`user-bal-confirm-minus-btn-${u.uid}`}
-                                            data-testid={`user-bal-confirm-minus-btn-${u.uid}`}
-                                            className="rounded-lg bg-warning px-2.5 py-1 font-mono text-[10px] font-bold text-black hover:bg-warning/90 disabled:opacity-40 transition"
-                                          >
-                                            {isBusy
-                                              ? "Minusing..."
-                                              : `Confirm Minus (-${Math.round(Number(userRowAction.amountInput) || 0)} ⚡)`}
-                                          </button>
-                                          <button
-                                            type="button"
-                                            disabled={isBusy}
-                                            onClick={() => setUserRowAction(null)}
-                                            data-agent-id={`user-bal-cancel-btn-${u.uid}`}
-                                            data-testid={`user-bal-cancel-btn-${u.uid}`}
-                                            className="rounded-lg border border-white/15 bg-surface-container-highest px-2 py-1 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
-                                          >
-                                            Cancel
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5">
-                                          <span className="text-[10px] font-semibold text-rose-200">
-                                            Reset {bal.toLocaleString("en-AU")} ⚡ to 0?
-                                          </span>
-                                          <button
-                                            type="button"
-                                            disabled={isBusy}
-                                            onClick={handleUserRowConfirmAction}
-                                            data-agent-id={`user-bal-confirm-reset-btn-${u.uid}`}
-                                            data-testid={`user-bal-confirm-reset-btn-${u.uid}`}
-                                            className="rounded-lg bg-rose-500 px-2.5 py-1 font-mono text-[10px] font-bold text-white hover:bg-rose-400 disabled:opacity-40 transition"
-                                          >
-                                            {isBusy ? "Resetting..." : "Confirm Reset to 0 ⚡"}
-                                          </button>
-                                          <button
-                                            type="button"
-                                            disabled={isBusy}
-                                            onClick={() => setUserRowAction(null)}
-                                            data-agent-id={`user-bal-cancel-btn-${u.uid}`}
-                                            data-testid={`user-bal-cancel-btn-${u.uid}`}
-                                            className="rounded-lg border border-white/15 bg-surface-container-highest px-2 py-1 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
-                                          >
-                                            Cancel
-                                          </button>
-                                        </div>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      );
-                    })()}
                   </div>
                 </div>
               )}
@@ -7121,7 +6393,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       <p className="mt-1 text-compact text-on-surface-variant">
                         {isSuper ? (
                           <>
-                            View all registered users across AdRadarHQ. Super Admin can toggle{" "}
+                            View all registered users across AdRadarHQ. Super Admin can manage user token balances (<strong>+ Add Tokens</strong>, <strong>- Tokens</strong>, <strong>Reset to Zero</strong>) and toggle{" "}
                             <strong>multiple RBAC roles</strong> (Supporter, Ad Agent, Agency, Moderator, Main Admin) for any user and click <strong>Confirm</strong> to update their roles.
                           </>
                         ) : (
@@ -7468,7 +6740,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             <thead>
                               <tr className="border-b border-white/[0.08] bg-surface-container-high/60 font-mono text-[11px] text-on-surface-variant">
                                 <th className="px-3.5 py-2.5 font-semibold text-on-surface">User Account</th>
-                                <th className="px-3 py-2.5">Token Balance</th>
+                                <th className="px-3 py-2.5">
+                                  {isSuper ? "Token Balance & Controls" : "Token Balance"}
+                                </th>
                                 <th className="px-3 py-2.5">Current RBAC Roles</th>
                                 <th className="px-3 py-2.5 hidden xl:table-cell">Tier</th>
                                 <th className="px-3.5 py-2.5 text-right">
@@ -7498,6 +6772,25 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     selectedRoles.some((r) => !currentRoles.includes(r));
                                   const isRowSaving = rbacSaving && confirmingRoleUid === user.uid;
                                   const displayRoles = getUserRolesList(user);
+                                  const bal = Math.max(0, Math.round(Number(user.tokenBalance ?? 0)));
+                                  const isActiveTokenRow = userRowAction?.uid === user.uid;
+                                  const isTokenBusy = userRowBusyUid === user.uid;
+                                  const isSelfUser = Boolean(
+                                    currentSessionUser &&
+                                      (user.uid === currentSessionUser.uid ||
+                                        (user.email &&
+                                          currentSessionUser.email &&
+                                          user.email.toLowerCase() === currentSessionUser.email.toLowerCase()))
+                                  );
+                                  const canDeleteThisUser =
+                                    !user.isPermanentSuperAdmin &&
+                                    !isSelfUser &&
+                                    (isSuper ||
+                                      (isMainAdmin &&
+                                        !displayRoles.includes("admin") &&
+                                        !displayRoles.includes("superadmin") &&
+                                        ((rbacMatrix?.admin ?? []).includes("manage_users") ||
+                                          (rbacMatrix?.admin ?? []).includes("manage_rbac"))));
 
                                   return (
                                     <tr
@@ -7521,8 +6814,251 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                         </div>
                                       </td>
 
-                                      <td className="px-3 py-2.5 font-mono text-xs font-semibold text-primary whitespace-nowrap">
-                                        ⚡ {Math.max(0, Math.round(user.tokenBalance ?? 0)).toLocaleString("en-AU")}
+                                      <td className="px-3 py-2.5 font-mono text-xs">
+                                        <div className="flex flex-col gap-1.5 min-w-[215px]">
+                                          <div className="flex items-center gap-1.5">
+                                            <span
+                                              className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-extrabold whitespace-nowrap ${
+                                                bal > 0
+                                                  ? "bg-primary/15 text-primary"
+                                                  : "bg-surface-container-highest text-on-surface-variant"
+                                              }`}
+                                              data-agent-id={`user-balance-value-${user.uid}`}
+                                              data-testid={`user-balance-value-${user.uid}`}
+                                            >
+                                              ⚡ {bal.toLocaleString("en-AU")}
+                                            </span>
+                                          </div>
+
+                                          {isSuper && (
+                                            !isActiveTokenRow ? (
+                                              <div className="flex flex-wrap items-center gap-1">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setErrorMsg(null);
+                                                    setUserRowAction({
+                                                      uid: user.uid,
+                                                      email: user.email,
+                                                      mode: "ADD",
+                                                      amountInput: "100",
+                                                      confirmOpen: true,
+                                                    });
+                                                  }}
+                                                  data-agent-id={`user-bal-add-btn-${user.uid}`}
+                                                  data-testid={`user-bal-add-btn-${user.uid}`}
+                                                  aria-label={`Add tokens to ${user.email}`}
+                                                  className="inline-flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary hover:bg-primary/20 transition whitespace-nowrap"
+                                                >
+                                                  <span>+ Add Tokens</span>
+                                                </button>
+
+                                                <button
+                                                  type="button"
+                                                  disabled={bal <= 0}
+                                                  title={bal <= 0 ? "Account already has 0 tokens" : `Remove tokens from ${user.email}`}
+                                                  onClick={() => {
+                                                    setErrorMsg(null);
+                                                    setUserRowAction({
+                                                      uid: user.uid,
+                                                      email: user.email,
+                                                      mode: "MINUS",
+                                                      amountInput: String(Math.min(10, Math.max(1, bal))),
+                                                      confirmOpen: true,
+                                                    });
+                                                  }}
+                                                  data-agent-id={`user-bal-minus-btn-${user.uid}`}
+                                                  data-testid={`user-bal-minus-btn-${user.uid}`}
+                                                  aria-label={`Remove tokens from ${user.email}`}
+                                                  className="inline-flex items-center gap-1 rounded-lg border border-warning/40 bg-warning/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-warning hover:bg-warning/20 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
+                                                >
+                                                  <span>- Tokens</span>
+                                                </button>
+
+                                                <button
+                                                  type="button"
+                                                  disabled={bal <= 0}
+                                                  title={bal <= 0 ? "Account already has 0 tokens" : `Reset ${user.email} tokens to zero`}
+                                                  onClick={() => {
+                                                    setErrorMsg(null);
+                                                    setUserRowAction({
+                                                      uid: user.uid,
+                                                      email: user.email,
+                                                      mode: "RESET",
+                                                      amountInput: "0",
+                                                      confirmOpen: true,
+                                                    });
+                                                  }}
+                                                  data-agent-id={`user-bal-reset-btn-${user.uid}`}
+                                                  data-testid={`user-bal-reset-btn-${user.uid}`}
+                                                  aria-label={`Reset ${user.email} tokens to zero`}
+                                                  className="inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
+                                                >
+                                                  <Icon name="refresh" className="size-2.5" />
+                                                  <span>Reset to Zero</span>
+                                                </button>
+                                              </div>
+                                            ) : userRowAction.mode === "ADD" ? (
+                                              <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-2 py-1.5">
+                                                <span className="text-[10px] font-bold text-primary">+ Add:</span>
+                                                {[10, 50, 100, 500].map((p) => (
+                                                  <button
+                                                    key={p}
+                                                    type="button"
+                                                    onClick={() =>
+                                                      setUserRowAction((prev) =>
+                                                        prev ? { ...prev, amountInput: String(p) } : null
+                                                      )
+                                                    }
+                                                    data-agent-id={`user-bal-add-preset-${user.uid}-${p}`}
+                                                    data-testid={`user-bal-add-preset-${user.uid}-${p}`}
+                                                    aria-label={`Set add tokens preset +${p} for ${user.email}`}
+                                                    className="rounded border border-primary/30 bg-surface-container-highest px-1.5 py-0.5 text-[10px] text-primary hover:bg-primary/20"
+                                                  >
+                                                    +{p}
+                                                  </button>
+                                                ))}
+                                                <input
+                                                  type="text"
+                                                  inputMode="numeric"
+                                                  value={userRowAction.amountInput}
+                                                  onChange={(e) =>
+                                                    setUserRowAction((prev) =>
+                                                      prev
+                                                        ? { ...prev, amountInput: e.target.value.replace(/[^0-9]/g, "") }
+                                                        : null
+                                                    )
+                                                  }
+                                                  aria-label={`Tokens to add to ${user.email}`}
+                                                  data-agent-id={`user-bal-add-input-${user.uid}`}
+                                                  data-testid={`user-bal-add-input-${user.uid}`}
+                                                  className="w-16 rounded border border-primary/40 bg-surface-container-highest px-2 py-0.5 text-center font-mono text-[11px] font-bold text-on-surface"
+                                                />
+                                                <button
+                                                  type="button"
+                                                  disabled={isTokenBusy || (Number(userRowAction.amountInput) || 0) <= 0}
+                                                  onClick={handleUserRowConfirmAction}
+                                                  aria-label={`Confirm adding tokens to ${user.email}`}
+                                                  data-agent-id={`user-bal-confirm-add-btn-${user.uid}`}
+                                                  data-testid={`user-bal-confirm-add-btn-${user.uid}`}
+                                                  className="rounded-lg bg-primary px-2 py-0.5 font-mono text-[10px] font-bold text-on-primary hover:bg-primary/90 disabled:opacity-40 transition whitespace-nowrap"
+                                                >
+                                                  {isTokenBusy
+                                                    ? "Adding..."
+                                                    : `Confirm Add (+${Math.round(Number(userRowAction.amountInput) || 0)} ⚡)`}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  disabled={isTokenBusy}
+                                                  onClick={() => setUserRowAction(null)}
+                                                  aria-label={`Cancel token action for ${user.email}`}
+                                                  data-agent-id={`user-bal-cancel-btn-${user.uid}`}
+                                                  data-testid={`user-bal-cancel-btn-${user.uid}`}
+                                                  className="rounded-lg border border-white/15 bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
+                                                >
+                                                  Cancel
+                                                </button>
+                                              </div>
+                                            ) : userRowAction.mode === "MINUS" ? (
+                                              <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-warning/40 bg-warning/10 px-2 py-1.5">
+                                                <span className="text-[10px] font-bold text-warning">
+                                                  - Tokens (max {bal}):
+                                                </span>
+                                                {[5, 10, 25]
+                                                  .filter((p) => p <= bal)
+                                                  .map((p) => (
+                                                    <button
+                                                      key={p}
+                                                      type="button"
+                                                      onClick={() =>
+                                                        setUserRowAction((prev) =>
+                                                          prev ? { ...prev, amountInput: String(p) } : null
+                                                        )
+                                                      }
+                                                      data-agent-id={`user-bal-minus-preset-${user.uid}-${p}`}
+                                                      data-testid={`user-bal-minus-preset-${user.uid}-${p}`}
+                                                      aria-label={`Set remove tokens preset -${p} for ${user.email}`}
+                                                      className="rounded border border-warning/30 bg-surface-container-highest px-1.5 py-0.5 text-[10px] text-warning hover:bg-warning/20"
+                                                    >
+                                                      -{p}
+                                                    </button>
+                                                  ))}
+                                                <input
+                                                  type="text"
+                                                  inputMode="numeric"
+                                                  value={userRowAction.amountInput}
+                                                  onChange={(e) =>
+                                                    setUserRowAction((prev) =>
+                                                      prev
+                                                        ? { ...prev, amountInput: e.target.value.replace(/[^0-9]/g, "") }
+                                                        : null
+                                                    )
+                                                  }
+                                                  aria-label={`Tokens to remove from ${user.email}`}
+                                                  data-agent-id={`user-bal-minus-input-${user.uid}`}
+                                                  data-testid={`user-bal-minus-input-${user.uid}`}
+                                                  className="w-16 rounded border border-warning/40 bg-surface-container-highest px-2 py-0.5 text-center font-mono text-[11px] font-bold text-on-surface"
+                                                />
+                                                <button
+                                                  type="button"
+                                                  disabled={
+                                                    isTokenBusy ||
+                                                    (Number(userRowAction.amountInput) || 0) <= 0 ||
+                                                    (Number(userRowAction.amountInput) || 0) > bal
+                                                  }
+                                                  onClick={handleUserRowConfirmAction}
+                                                  aria-label={`Confirm removing tokens from ${user.email}`}
+                                                  data-agent-id={`user-bal-confirm-minus-btn-${user.uid}`}
+                                                  data-testid={`user-bal-confirm-minus-btn-${user.uid}`}
+                                                  className="rounded-lg bg-warning px-2 py-0.5 font-mono text-[10px] font-bold text-black hover:bg-warning/90 disabled:opacity-40 transition whitespace-nowrap"
+                                                >
+                                                  {isTokenBusy
+                                                    ? "Removing..."
+                                                    : `Confirm (-${Math.round(Number(userRowAction.amountInput) || 0)} ⚡)`}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  disabled={isTokenBusy}
+                                                  onClick={() => setUserRowAction(null)}
+                                                  aria-label={`Cancel token action for ${user.email}`}
+                                                  data-agent-id={`user-bal-cancel-btn-${user.uid}`}
+                                                  data-testid={`user-bal-cancel-btn-${user.uid}`}
+                                                  className="rounded-lg border border-white/15 bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
+                                                >
+                                                  Cancel
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-2 py-1.5">
+                                                <span className="text-[10px] font-semibold text-rose-200 whitespace-nowrap">
+                                                  Reset {bal.toLocaleString("en-AU")} ⚡ to 0?
+                                                </span>
+                                                <button
+                                                  type="button"
+                                                  disabled={isTokenBusy}
+                                                  onClick={handleUserRowConfirmAction}
+                                                  aria-label={`Confirm resetting ${user.email} tokens to zero`}
+                                                  data-agent-id={`user-bal-confirm-reset-btn-${user.uid}`}
+                                                  data-testid={`user-bal-confirm-reset-btn-${user.uid}`}
+                                                  className="rounded-lg bg-rose-500 px-2 py-0.5 font-mono text-[10px] font-bold text-white hover:bg-rose-400 disabled:opacity-40 transition whitespace-nowrap"
+                                                >
+                                                  {isTokenBusy ? "Resetting..." : "Confirm Reset to Zero"}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  disabled={isTokenBusy}
+                                                  onClick={() => setUserRowAction(null)}
+                                                  aria-label={`Cancel token reset for ${user.email}`}
+                                                  data-agent-id={`user-bal-cancel-btn-${user.uid}`}
+                                                  data-testid={`user-bal-cancel-btn-${user.uid}`}
+                                                  className="rounded-lg border border-white/15 bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
+                                                >
+                                                  Cancel
+                                                </button>
+                                              </div>
+                                            )
+                                          )}
+                                        </div>
                                       </td>
 
                                       <td className="px-3 py-2.5">
@@ -7662,7 +7198,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                                 <button
                                                   type="button"
                                                   disabled={rbacSaving}
-                                                  onClick={() => setConfirmResetRoleUid(user.uid)}
+                                                  onClick={() => {
+                                                    setConfirmDeleteUserUid(null);
+                                                    setConfirmResetRoleUid(user.uid);
+                                                  }}
                                                   data-agent-id={`reset-user-role-btn-${user.uid}`}
                                                   data-testid={`reset-user-role-btn-${user.uid}`}
                                                   aria-label={`Reset ${user.email} role to Supporter`}
@@ -7671,6 +7210,54 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                                   Reset
                                                 </button>
                                               )}
+                                              {canDeleteThisUser &&
+                                                (confirmDeleteUserUid === user.uid ? (
+                                                  <div className="inline-flex items-center gap-1">
+                                                    <button
+                                                      type="button"
+                                                      disabled={deletingUserUid === user.uid}
+                                                      onClick={() => handleDeleteUser(user)}
+                                                      data-agent-id={`confirm-delete-user-btn-${user.uid}`}
+                                                      data-testid={`confirm-delete-user-btn-${user.uid}`}
+                                                      aria-label={`Confirm delete user ${user.email || user.uid}`}
+                                                      className="inline-flex items-center gap-1 rounded-lg bg-rose-500 px-2.5 py-1 font-mono text-[10px] font-bold text-white hover:bg-rose-400 disabled:opacity-50 transition whitespace-nowrap"
+                                                    >
+                                                      <Icon name="trash" className="size-2.5" />
+                                                      <span>
+                                                        {deletingUserUid === user.uid
+                                                          ? "Deleting…"
+                                                          : "Confirm Delete"}
+                                                      </span>
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      disabled={deletingUserUid === user.uid}
+                                                      onClick={() => setConfirmDeleteUserUid(null)}
+                                                      data-agent-id={`cancel-delete-user-btn-${user.uid}`}
+                                                      data-testid={`cancel-delete-user-btn-${user.uid}`}
+                                                      aria-label={`Cancel deleting user ${user.email || user.uid}`}
+                                                      className="rounded-lg border border-white/15 bg-surface-container-highest px-2 py-1 font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
+                                                    >
+                                                      Cancel
+                                                    </button>
+                                                  </div>
+                                                ) : (
+                                                  <button
+                                                    type="button"
+                                                    disabled={deletingUserUid === user.uid || rbacSaving}
+                                                    onClick={() => {
+                                                      setConfirmResetRoleUid(null);
+                                                      setConfirmDeleteUserUid(user.uid);
+                                                    }}
+                                                    data-agent-id={`delete-user-btn-${user.uid}`}
+                                                    data-testid={`delete-user-btn-${user.uid}`}
+                                                    aria-label={`Delete user ${user.email || user.uid}`}
+                                                    className="inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 font-mono text-[10px] font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 transition whitespace-nowrap"
+                                                  >
+                                                    <Icon name="trash" className="size-3" />
+                                                    <span>Delete</span>
+                                                  </button>
+                                                ))}
                                             </div>
                                           ) : (
                                             <span className="font-mono text-[11px] text-on-surface-variant">

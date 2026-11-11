@@ -62,7 +62,7 @@
 |---|---|---|
 | `txId` | string | idempotency key / deterministic id |
 | `uid` | string | |
-| `type` | enum | `"TOPUP" \| "RADAR_SEARCH" \| "AI_REMIX" \| "REGENERATE_VARIATIONS" \| "REFUND" \| "BRAND_CLONE"` |
+| `type` | enum | `"TOPUP" \| "RADAR_SEARCH" \| "AI_REMIX" \| "REGENERATE_VARIATIONS" \| "REFUND" \| "BRAND_CLONE" \| "BRAND_TXT_DOWNLOAD" \| "SEARCHMIX_DOWNLOAD" \| "DECONSTRUCT_DOWNLOAD"` |
 | `delta` | integer | non-zero (e.g. `-2`, `-5`, `+100`) |
 | `balanceAfter` | integer | `>= 0` |
 | `referenceId` | string | queryHash, adId, stripeSessionId, globalBrandId, or refunded txId; max 256 |
@@ -71,7 +71,7 @@
 ### Token packs (server constants, `src/lib/pricing.ts`)
 One-off Stripe Checkout purchases. Tokens never expire.
 - **Default Currency & Base Rate:** The default platform currency is **AUD** (`aud`), and the default token price is **1 Token = AUD $1** (`100 cents AUD`, stored in `audCentsPerToken`).
-- **SuperAdmin Customization:** From the SuperAdmin Control Panel (`system_config/global`), both `audCentsPerToken` and the token amounts for each product and service (`serviceCosts`: `searchStandard`, `searchProvenWinners`, `searchExtendedDays`, `searchEliteScore`, `aiRemix`, `regenerateVariations`, `brandClone`) are fully customizable.
+- **SuperAdmin Customization:** From the SuperAdmin Control Panel (`system_config/global`), both `audCentsPerToken` and the token amounts for each product and service (`serviceCosts`: `searchStandard`, `searchProvenWinners`, `searchExtendedDays`, `searchEliteScore`, `aiRemix`, `regenerateVariations`, `brandClone`, `brandTxtDownload`, `searchMixDownload`, `deconstructDownload`) are fully customizable.
 - **Base Currency & Invoicing:** All platform token fees and Stripe invoices operate strictly in Australian Dollars (**AUD**) with whole numbers.
 - **Geolocation & International Currency Conversion:**
   - If geolocation is in Australia or New Zealand (`AU` or `NZ`), users strictly see **AUD** prices (`$1 AUD` per token) with no currency conversion display.
@@ -107,6 +107,9 @@ Standard Paid Rates for all services, products, and surcharges across the platfo
 | `aiRemix` (AI Creative Remix) | 1 token | Multimodal AI remix deconstruction & script generation |
 | `regenerateVariations` (Regenerate Variations) | 1 token | Regenerate fresh angles & 3 script variations in Remix Studio |
 | `brandClone` (Global Brand Copy) | 1 token | Copying global brand card into personal workspace |
+| `brandTxtDownload` (Download Brand Text File `.txt`) | 1 token | Downloading the attached `<Brand Name> - <YYYY-MM-DD>.txt` file from a Brand Postcard |
+| `searchMixDownload` (SearchMix Download) | 1 token | Downloading a SearchMix postcard `.txt` file (`<Title> - <YYYY-MM-DD>.txt`) from Radar search results |
+| `deconstructDownload` (Deconstructed Anatomy `.txt` Download) | 0 tokens (Free default) | Downloading `<brandname>deconstruct.txt` positioned on the left next to `Regenerate variations` in Remix Studio |
 
 From the SuperAdmin Control Panel, all rates can be dynamically set to free (`0 tokens`) using the "Set All Free (0)" preset or customized individually. A cost of `0` makes the action free: the caller must still be signed in and send an idempotency key, but nothing is written to the ledger and no balance check is made.
 
@@ -232,11 +235,24 @@ Every interactive pill binds `data-agent-id="radar-example-<item>"`, `data-testi
 | `clonedFromBrandId` | string | optional ID of source brand if cloned from community or duplicated |
 | `createdAt` | ISO-8601 | creation timestamp |
 | `updatedAt` | ISO-8601 | last updated timestamp |
+| `brandTextFileName` | string | optional attached `.txt` file name (`<Brand Name> - <YYYY-MM-DD>.txt`, max 260 chars) |
+| `brandTextFileContent` | string | optional complete plain-text file containing all brand profile fields (max 50000 chars) |
 
-### Global Brands & Duplication Endpoints
+### Attached Brand Text File Specification (`src/lib/brand-text-file.ts`)
+- Every built brand postcard attaches a plain-text file containing all brand information (Brand Name, Version, Brand ID, Date Saved, Visibility, Author, Tone of Voice, Product/Service Description, Target Customer Avatar, Core Customer Pain Points, Unique Mechanism/Offer, Primary Destination URL, and all Landing Page URLs).
+- **File Name Format:** `<Brand Name> - <Date Saved (YYYY-MM-DD)>.txt` (e.g., `Acme Coffee Co. - 2026-11-11.txt`).
+- **Interactive Postcard Controls:**
+  - `data-agent-id="brand-txt-attachment-<brandId>"` / `data-testid="brand-txt-attachment-<brandId>"`
+  - `data-agent-id="brand-txt-filename-<brandId>"` / `data-testid="brand-txt-filename-<brandId>"`
+  - `data-agent-id="view-brand-txt-btn-<brandId>"` / `data-testid="view-brand-txt-btn-<brandId>"` (toggles inline `<pre>` file preview)
+  - `data-agent-id="copy-brand-txt-btn-<brandId>"` / `data-testid="copy-brand-txt-btn-<brandId>"` (copies complete `.txt` content to clipboard)
+  - `data-agent-id="download-brand-txt-btn-<brandId>"` / `data-testid="download-brand-txt-btn-<brandId>"` (downloads `<Brand Name> - <YYYY-MM-DD>.txt`)
+
+### Global Brands, Duplication & Brand `.txt` Download Endpoints
 - `POST /api/brands/duplicate`: `{ "brandId": string, "versionName"?: string }` clones a personal brand into a new version.
-- `GET /api/brands/global`: `?q=...&tone=...&limit=...` searches public community brands in `global_brands`.
+- `GET /api/brands/global`: `?q=...&tone=...&limit=...` searches public community brands in `global_brands` and returns `{ brands, brandCloneFee, brandTxtDownloadFee, audCentsPerToken }`.
 - `POST /api/brands/clone`: `{ "globalBrandId": string }` copies a global brand into the caller's personal `users/{uid}/brands`.
+- `POST /api/brands/download-txt`: `{ "brandId": string, "isGlobalSource"?: boolean }` (token-gated with action `"BRAND_TXT_DOWNLOAD"`, fee configured via `serviceCosts.brandTxtDownload`, default `1` token) returns `{ brandId, brandName, fileName, savedDate, content, balanceAfter }` and triggers the download of `<Brand Name> - <YYYY-MM-DD>.txt`.
 
 ## 4. AI Deconstruction & Remix Contract (`remixes/{remixId}`)
 
@@ -267,6 +283,18 @@ Returns `{ ads: NormalizedAd[], unfilteredCount, cached, queryHash, fetchedAt, n
 { "adId": "meta_123", "brandId": "string" }
 ```
 Requires `x-idempotency-key`. Sends the stored ad (with its creative inline, or a YouTube link by reference) and the brand profile to Gemini (`GEMINI_MODEL`, default `gemini-flash-latest`) with `responseMimeType: "application/json"` and the `AdRemixBlueprint` schema, validates the reply, and stores it at `remixes/{txId}`. Returns `{ remix: RemixDoc, ad?: NormalizedAd, balanceAfter }` (`ad` is the source ad as remixed, so the client can show a Google ad's newly loaded creative). Upstream failures return `502 UPSTREAM_FAILURE` and refund any charge.
+
+### `POST /api/radar/download-txt` (SearchMix Download)
+```json
+{ "adId": "meta_123", "query": "optional keyword", "fetchedAt": "optional ISO-8601", "rank": 1, "adSnapshot": NormalizedAd }
+```
+Requires `x-idempotency-key` and is token-gated via `withTokenGate` (`SEARCHMIX_DOWNLOAD`) at the SuperAdmin-configured `serviceCosts.searchMixDownload` rate (default `1` token). Generates and returns `{ adId, fileName, savedDate, content, balanceAfter }` where `fileName` is `<Title> - <YYYY-MM-DD>.txt` (`src/lib/searchmix-text-file.ts`), containing all search postcard metrics, copy, destination links, and any generated AI remix variations.
+
+### `POST /api/radar/download-deconstruct` (Deconstructed Anatomy `.txt` Download)
+```json
+{ "remixId": "string", "brandName": "string", "remixSnapshot": RemixDoc, "adSnapshot": NormalizedAd }
+```
+Requires `x-idempotency-key` and is token-gated via `withTokenGate` (`DECONSTRUCT_DOWNLOAD`) at the SuperAdmin-configured `serviceCosts.deconstructDownload` rate (default `0` tokens / Free). Generates and returns `{ remixId, fileName, content, balanceAfter }` where `fileName` is `<brandname>deconstruct.txt` (`src/lib/deconstruct-text-file.ts`), positioned on the left next to `Regenerate variations` in `RemixStudio.tsx`.
 
 ### `POST|PUT|DELETE|PATCH /api/brands`
 Body for POST: Brand Profile without `brandId` (→ `201 { brand }`; replaying the same `x-idempotency-key` returns `200` with the same brand). PUT: full Brand Profile (`404 NOT_FOUND` if missing). DELETE: `{ "brandId": "string" }`. PATCH: `{ "activeBrandId": "" | brandId }` selects the active brand. Max 25 brands per user. The first brand created becomes active; deleting the active brand clears `activeBrandId`. Reads use the client's Firestore listener, so there is no GET.
@@ -479,7 +507,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 - **Copyright Button:** Interactive link button `2026 AI Foundation` navigating to `https://aifoundation.net.au/` (new tab, `rel="noopener noreferrer"`) with `· All rights reserved.`
 - **Founder Welcome:** David Robertson welcome briefing detailing democratic access and redistributive token economics.
 - **Privacy Policy:** Australian Privacy Principles (APPs) and Privacy Act 1988 (Cth) compliance, 7-year statutory data retention on financial logs, zero selling of personal data.
-- **Terms of Service:** Commercial contract specifying that all invoices are in Australian Dollars (AUD), the default currency is AUD, the default token price is 1 Token = AUD $1 (with product & service token amounts customizable by SuperAdmin), that the business never uses decimals, operating strictly on whole numbers, and that currency conversion can show up to 2 decimal places. Explains what tokens are: *"You exchange money for a token, tokens mean more flexible payment options, as a payment may be distributed to multiple service providers."* Specifies strict No Refunds policy on digital tokens and subscriptions (with automatic technical failure token refunds and Australian Consumer Law non-excludable guarantees). Explains independent contractor status of Ad Agents: Ad Agents are independent contractors with no official employment by Ad Radar; their role is purely in an outsourced capacity with no long-term contractual arrangement, and their advice, recommendations, strategies, and opinions are strictly their own and do not represent Ad Radar HQ. Enforces sole proprietary ownership: all development, source code, and assets remain the sole proprietary ownership of AI Foundation, ABN 36 339 516 584, and no part of this web app can be used without express written prior consent of the developer. Nations outside Australia and New Zealand view an AUD to USD currency conversion.
+- **Terms of Service:** Commercial contract specifying that all invoices are in Australian Dollars (AUD), the default currency is AUD, **contains zero references to any specific token price**, explicitly states that *"The price of Tokens can change at any time without notice"* (with product & service token requirements customizable by SuperAdmin), that the business never uses decimals, operating strictly on whole numbers, and that currency conversion can show up to 2 decimal places. Explains what tokens are: *"You exchange money for a token; tokens mean more flexible payment options, as a payment may be distributed to multiple service providers."* Specifies strict No Refunds policy on digital tokens and subscriptions (with automatic technical failure token refunds and Australian Consumer Law non-excludable guarantees). Explains independent contractor status of Ad Agents: Ad Agents are independent contractors with no official employment by Ad Radar; their role is purely in an outsourced capacity with no long-term contractual arrangement; **their individual pricing structure is theirs alone, and Ad Radar HQ does not have any control over their specialization and expert services**; and their advice, recommendations, strategies, and opinions are strictly their own and do not represent Ad Radar HQ. Enforces sole proprietary ownership: all development, source code, and assets remain the sole proprietary ownership of AI Foundation, ABN 36 339 516 584, and no part of this web app can be used without express written prior consent of the developer. Nations outside Australia and New Zealand view an AUD to USD currency conversion.
 - **AI Policy (ISO/IEC 42001):** Artificial Intelligence Management System compliance, model ethics, bias mitigations, and human-in-the-loop oversight.
 - **Security Policy (ISO/IEC 27001):** Information Security Management System standards, defense-in-depth, RBAC matrix, and encrypted storage.
 
@@ -869,13 +897,18 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 ## 22. Super Admin Exclusive Token Controls (`POST /api/admin/orders`)
 - **Strict Super Admin Authorization (`requireRole: "superadmin"`):** Only `role === "superadmin"` is authorized to execute token ledger mutations via `POST /api/admin/orders`.
 - **Permitted Actions Only:**
-  1. **Add Tokens (`GIFT_TOKENS` / `ADD_TOKENS`)**: Validated via `AdminGiftTokensRequestSchema` (with mandatory confirmation in the All Users Token Balances table).
-  2. **Minus / Remove Tokens (`DEDUCT_TOKENS` / `REMOVE_TOKENS`)**: Validated via `AdminDeductTokensRequestSchema` with mandatory confirmation and hard non-negative enforcement (`tokenBalance >= 0`).
-  3. **Reset Tokens to 0 (`RESET_TOKENS`)**: Validated via `AdminResetTokensRequestSchema` with mandatory confirmation to reset a user's token balance to `0`.
-  4. **Refund Tokens (`REFUND_ORDER`)**: Validated via `AdminRefundOrderRequestSchema` with mandatory confirmation to restore deducted tokens to the customer wallet.
-- **Collapsible Master Order Ledger & All Users Token Balances Directory (`SuperAdminModal.tsx`):**
-  - The **Master Order Ledger (All Transactions, Stripe Purchases & Search Orders)** is collapsible (`data-agent-id="toggle-master-order-ledger-btn"`).
-  - Directly underneath the Master Order Ledger, the **All Users Token Balances** directory (`data-agent-id="all-users-token-balances-section"`) is also collapsible (`data-agent-id="toggle-user-token-balances-btn"`, `aria-expanded`) and displays every registered user's live non-negative token balance (`tokenBalance >= 0`) with Super Admin row actions: **`Add Tokens` -> `Confirm Add`**, **`- Minus Tokens` -> `Confirm Minus`**, and **`Reset to 0` -> `Confirm Reset to 0`**.
+  1. **Add Tokens (`GIFT_TOKENS` / `ADD_TOKENS`)**: Validated via `AdminGiftTokensRequestSchema` (with mandatory confirmation in the **All Users & Multi-Role RBAC Directory Table**).
+  2. **Remove / Minus Tokens (`DEDUCT_TOKENS` / `REMOVE_TOKENS`)**: Validated via `AdminDeductTokensRequestSchema` with mandatory confirmation and hard non-negative enforcement (`tokenBalance >= 0`).
+  3. **Reset to Zero (`RESET_TOKENS`)**: Validated via `AdminResetTokensRequestSchema` with mandatory confirmation to reset a user's token balance to `0`.
+  4. **Refund Tokens (`REFUND_ORDER`)**: Validated via `AdminRefundOrderRequestSchema` with mandatory confirmation in the **Master Order Ledger** to restore deducted tokens to the customer wallet.
+- **Consolidated User Token Controls (`SuperAdminModal.tsx`):**
+  - `Super Admin Token Controls` (`user-token-management-card`) and `All Users Token Balances` (`all-users-token-balances-section`) have been removed from the `LEDGER` tab.
+  - The **Master Order Ledger** (`data-agent-id="master-order-ledger-section"`) remains collapsible (`data-agent-id="toggle-master-order-ledger-btn"`) and provides inline **`Refund Tokens` -> `Confirm Refund`** on deduction orders.
+  - In **All Users & Multi-Role RBAC Assignment (`USERS` tab)** under the **All Users & Multi-Role RBAC Directory Table** (`data-agent-id="all-users-rbac-table"`), every user row displays live non-negative integer `tokenBalance` (`tokenBalance >= 0`) alongside Super Admin inline controls with mandatory confirmation: **`+ Add Tokens` -> `Confirm Add`**, **`- Tokens` -> `Confirm`**, and **`Reset to Zero` -> `Confirm Reset to Zero`**.
+  - **User Deletion with Mandatory Confirmation (`DELETE /api/admin/rbac`, `DeleteUserRequestSchema`):**
+    - Every deletable user row in **All Users** renders **`Delete`** (`data-agent-id="delete-user-btn-<uid>"`) which expands a mandatory two-step **`Confirm Delete`** (`data-agent-id="confirm-delete-user-btn-<uid>"`) + **`Cancel`** (`data-agent-id="cancel-delete-user-btn-<uid>"`) prompt.
+    - Validated strictly via `DeleteUserRequestSchema` (`action: "DELETE_USER"`, `uid`, optional `email`, `confirmDelete: true`, `additionalProperties: false`).
+    - Permanently blocks deleting the permanent database Super Admin account or the caller's own active session, revokes refresh tokens and deletes the Firebase Auth record + Firestore `users/{uid}` and private `brands` docs, deactivates any active Ad Agent routing entry (`inActiveLedger: false`, `status: "inactive"`), and preserves statutory 7-year compliance ledgers (`token_transactions`, `stripe_purchases`, `admin_messages`).
 
 ## 23. Hard Non-Negative Token Balance & Zero-Balance Purchase Requirement Contract (`tokenBalance >= 0`)
 - **Hard Non-Negative Rule (`tokenBalance >= 0`):**
@@ -935,34 +968,121 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
       "type": "string",
       "enum": ["active", "inactive"]
     },
+    "inActiveLedger": { "type": "boolean", "default": true },
     "isSuperAdminBuiltIn": { "type": "boolean" },
+    "claimedCustomizationsTokens": { "type": "integer", "minimum": 0 },
+    "claimedTokens": { "type": "integer", "minimum": 0 },
+    "claimedAudCents": { "type": "integer", "minimum": 0 },
+    "claimedUsdCents": { "type": "integer", "minimum": 0 },
     "lastResetAt": { "type": "string", "format": "date-time" },
+    "lastResetBy": { "type": "string" },
     "createdAt": { "type": "string", "format": "date-time" },
     "updatedAt": { "type": "string", "format": "date-time" }
   }
 }
 ```
 - **Role Rules & Self-Service Status Toggle (`ON` / `OFF`):**
-  - **Super Admin (`superadmin`):** Automatically provisioned as an active Ad Agent (`isSuperAdminBuiltIn: true`) — **no registration required**.
+  - **Super Admin (`superadmin`):** Automatically provisioned as an active Ad Agent (`isSuperAdminBuiltIn: true`, `inActiveLedger: true`) — **no registration required**.
   - **Main Admin (`admin`):** Can register as an Ad Agent via `AdAgentModal.tsx` while retaining their `admin` role.
-  - **Standard Users (`supporter`, etc.):** Registering via `AdAgentModal.tsx` (`Name`, `Phone Number`, locked `Registered Email`, `Geolocation`, and optional `Bank Details or PayID Details`) promotes their RBAC role to `"ad_agent"`.
+  - **Approved Ad Agents (`ad_agent`):** Everyone who registers as an agent and is approved with the `"ad_agent"` RBAC role (via `PUT /api/admin/rbac` `ASSIGN_USER_ROLE` or `POST /api/ad-agent` `REGISTER_AD_AGENT`) is automatically saved in the `ad_agents` records pool (`inActiveLedger: false`, `status: "inactive"` until activated by Super Admin) and can be activated one-by-one into the active `Ad Agent & Customizations Value` list directly from the Super Admin panel.
   - **Ad Agent Self-Service Status Toggle (`POST /api/ad-agent` with `action: "AGENT_TOGGLE_OWN_STATUS"` / `ToggleOwnAdAgentStatusRequestSchema`):**
-    - Any registered Ad Agent can turn their Ad Agent status **OFF** (`status: "inactive"`) or back **ON** (`status: "active"`) directly inside the **Ad Agent Registration & Customize Orders Panel** (`AdAgentModal.tsx`).
-    - When turned **OFF** (`"inactive"`), the Ad Agent is paused from `findClosestAdAgent` and `publicAgents` so no new Customize orders are routed to them until they turn their status back **ON** (`"active"`).
+    - Any Ad Agent currently in the active list (`inActiveLedger !== false`) can turn their Ad Agent status **OFF** (`status: "inactive"`) or back **ON** (`status: "active"`) inside `AdAgentModal.tsx`.
+    - When turned **OFF** (`"inactive"`) or when `inActiveLedger === false`, the Ad Agent is excluded from `findClosestAdAgent` and `publicAgents` so no new Customize orders are routed to them until active in the ledger.
 - **Closest Ad Agent Matching & Customer Choice When Multiple Ad Agents Are Available (`POST /api/customize`):**
   - Customers enter/auto-detect their geolocation (`customerLocation`) on the **Customize your Brand Strategy with Professional Experts** form and pay the Super Admin-configured `customizeService` token cost (`config.serviceCosts.customizeService`).
-  - `rankAdAgentsByLocation(customerLocation)` calculates the Haversine great-circle distance in kilometers to every active Ad Agent. When more than one active Ad Agent is available, all active Ad Agents are displayed sorted by proximity so the customer can choose their preferred Ad Agent (`preferredAgentId`, max 128 chars), or default to the closest Ad Agent.
-  - The customer is immediately informed which Ad Agent is handling their customization, and the assigned Ad Agent receives the Customize order in their **Ad Agent Panel** (`AdAgentModal.tsx`), which includes the **Recommended Services** section (`Custom Ad Graphic Art`, `Custom Video Work`, and `Other Recommended Services, Who Provides Them & Estimate Pricing`) underneath the **Strategy Package Body (Plain Text)**.
-- **Ad Agent Distribution Ledger (`SuperAdminModal.tsx` under `Owner Redistribution Breakdown`):**
-  - Automatically syncs and displays **all users registered with the RBAC role of `Ad Agent`** (`role === "ad_agent"`, `roles.includes("ad_agent")`, or `isAdAgent === true` across Firestore `users`, `ad_agents`, and Firebase Auth custom claims).
-  - On **Ad Agent Registration & Geolocation** (`AdAgentModal.tsx`), checks the entered email: if the Ad Agent has not completed personal detail registration before, provides clean empty fields so each Ad Agent can enter their own distinct personal details (`Name`, `Phone Number`, `Bank Details or PayID Details`, `Geolocation`).
-  - Includes a **Select Registered Ad Agent Dropdown** (`data-agent-id="select-registered-ad-agent-dropdown"`) that lists all registered Ad Agents and **automatically fills out** the selected Ad Agent's **Name**, **Email**, **Phone Number**, **Geolocation (`Suburb`, `State`, `Coordinates`)**, **Redistribution % (`10%`–`70%`)**, and **Bank Details or PayID Details** (`data-agent-id="ad-agent-bank-payid-details-box"`).
-  - Displays each Ad Agent's **Name**, **Email**, **Bank Details / PayID Details**, and **Total Value of All Customizations Done** next to their name (`# orders`, `⚡ Tokens`, `$ AUD`, `$ USD`).
-  - Super Admin can add or update Ad Agents, enter/update their **Bank Details or PayID Details**, and select each Ad Agent's **Redistribution %** from a dropdown menu (`10%`, `20%`, `30%`, `40%`, `50%`, `60%`, `70%`), displaying their **Total Customizations Value** and calculated **Redistribution Amount** (`⚡ Tokens`, `$ AUD`, `$ USD`).
+  - `findClosestAdAgent` calculates the Haversine great-circle distance in kilometers to every active Ad Agent (`status === "active" && inActiveLedger !== false`). When more than one active Ad Agent is available, all active Ad Agents are displayed sorted by proximity so the customer can choose their preferred Ad Agent (`selectedAgentId`, max 128 chars), or default to the closest Ad Agent.
+  - The customer is immediately informed which Ad Agent is handling their customization, and the assigned Ad Agent receives the Customize order in their **Ad Agent Panel** (`AdAgentModal.tsx`).
+- **One-by-One Add, Remove & Permanent Record Retention in Ad Agent Distribution Ledger (`SuperAdminModal.tsx`):**
+  - **Active List (`liveAdAgentLedger`, `inActiveLedger !== false`):** Renders the **Ad Agent & Customizations Value** table (`ad-agent-distribution-ledger-table`). Every row supports one-by-one removal via a mandatory two-step confirmation (`delete-ad-agent-<agentId>` -> `confirm-delete-ad-agent-<agentId>` / `cancel-delete-ad-agent-<agentId>`).
+  - **Soft-Removal Preserves 100% of Records (`POST /api/ad-agent` `SUPERADMIN_DELETE_AGENT` / `SuperAdminRemoveAdAgentFromActiveRequestSchema`):** Removing an Ad Agent from the active `Ad Agent & Customizations Value` table sets `inActiveLedger: false` and `status: "inactive"` in `ad_agents/{agentId}` **without deleting their Firestore document or revoking their RBAC approval**. All personal details, phone, geolocation, `bankOrPayIdDetails`, `redistributionPercentage`, payout reset history, and customizations value remain permanently stored.
+  - **Registered & Approved Ad Agent Records Pool (`ad-agent-saved-records-panel`, `inActiveLedger === false`):** Displays every registered and RBAC-approved Ad Agent record not currently in the active table, with one-by-one **`+ Activate`** (`activate-saved-ad-agent-<agentId>`, `POST /api/ad-agent` `SUPERADMIN_ACTIVATE_AGENT` / `SuperAdminActivateAdAgentRequestSchema`) and **`Edit / View`** (`edit-saved-ad-agent-<agentId>`) controls, plus full auto-fill selection in `select-registered-ad-agent-dropdown` and manual one-by-one agent creation (`quick-new-ad-agent-btn` / `SUPERADMIN_UPSERT_AGENT`).
+
+### 24.4 Ad Agent `'Distributions'` Tab & Distribution Item Schemas (`AdAgentDistributionPricingMetaSchema`, `AdAgentDistributionItemSchema`)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AdAgentDistributionPricingMeta",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "audCentsPerToken",
+    "customizeServiceTokens",
+    "isTokenSystemEnabled",
+    "isAudEnabled",
+    "isUsdEnabled"
+  ],
+  "properties": {
+    "audCentsPerToken": { "type": "integer", "minimum": 1 },
+    "customizeServiceTokens": { "type": "integer", "minimum": 0 },
+    "isTokenSystemEnabled": { "type": "boolean" },
+    "isAudEnabled": { "type": "boolean" },
+    "isUsdEnabled": { "type": "boolean" }
+  }
+}
+```
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AdAgentDistributionItem",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "agentId",
+    "uid",
+    "name",
+    "email",
+    "phone",
+    "locationLabel",
+    "latitude",
+    "longitude",
+    "customizationsCount",
+    "totalCustomizationsTokens",
+    "totalCustomizationsAudCents",
+    "totalCustomizationsUsdCents",
+    "redistributionPercentage",
+    "redistributionTokens",
+    "redistributionAudCents",
+    "redistributionUsdCents",
+    "status",
+    "isSuperAdminBuiltIn"
+  ],
+  "properties": {
+    "agentId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "uid": { "type": "string", "maxLength": 128 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "email": { "type": "string", "format": "email", "maxLength": 254 },
+    "phone": { "type": "string", "maxLength": 40 },
+    "bankOrPayIdDetails": { "type": "string", "maxLength": 500 },
+    "locationLabel": { "type": "string", "maxLength": 240 },
+    "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+    "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+    "customizationsCount": { "type": "integer", "minimum": 0 },
+    "totalCustomizationsTokens": { "type": "integer", "minimum": 0 },
+    "totalCustomizationsAudCents": { "type": "integer", "minimum": 0 },
+    "totalCustomizationsUsdCents": { "type": "integer", "minimum": 0 },
+    "redistributionPercentage": {
+      "type": "integer",
+      "enum": [10, 20, 30, 40, 50, 60, 70]
+    },
+    "redistributionTokens": { "type": "integer", "minimum": 0 },
+    "redistributionAudCents": { "type": "integer", "minimum": 0 },
+    "redistributionUsdCents": { "type": "integer", "minimum": 0 },
+    "status": { "type": "string", "enum": ["active", "inactive"] },
+    "inActiveLedger": { "type": "boolean" },
+    "isSuperAdminBuiltIn": { "type": "boolean" },
+    "lastResetAt": { "type": "string", "format": "date-time" }
+  }
+}
+```
+- **Ad Agent Exclusive `'Distributions'` Tab (`SupporterModal.tsx`, `AdAgentModal.tsx`, `AdAgentDistributionsPanel.tsx`):**
+  - Regular Supporters see 3 tabs (`Tokens`, `Buy More Tokens`, `Messages`) in `SupporterModal.tsx`. Whenever a user holds the `ad_agent` role (`role === "ad_agent"` or `ad_agent` in `profile.roles` / `claims`, unless Super Admin is explicitly previewing pure `Supporter`), they see one extra tab: **`Distributions`** (`supporter-tab-distributions`), plus **`Distributions`** (`ad-agent-tab-distributions`) in `AdAgentModal.tsx`.
+  - Displays only the signed-in Ad Agent's own record from Super Admin's **Ad Agent & Customizations Value** ledger (`visibleLedger` strictly enforces `row.email === viewer.email || row.uid === viewer.uid` on the server): **Ad Agent Name**, **Redistribution Percentage**, **Customizations Total** (strict integer tokens `⚡` + AUD/USD hover estimate), and **Redistribution Amount** (strict integer tokens `⚡` + AUD/USD hover estimate).
+  - **Live Reset-to-Zero Sync (`SUPERADMIN_RESET_AGENT_ZERO` & `computeAdAgentDisplayItem`):** Subscribes to `ad_agents/{agentId}` via Firestore `onSnapshot` and `ad-agent-ledger-updated` events so when Super Admin resets an Ad Agent's redistribution balance to zero (`Reset 0 ⚡` -> `Confirm Reset 0 ⚡`), the Ad Agent's **Redistribution Amount** immediately updates to `⚡ 0` (`Refreshed to 0`), and only new unpaid customizations completed after `lastResetAt` accrue toward the unpaid redistribution balance.
 
 ### 24.5 Terms of Service Independent Contractor Clause
 - **Independent Contractor Status:** Ad Agents are outsourced independent contractors who are only associated with Ad Radar HQ by the way of independent contractors.
 - **No Legal Representation:** Ad Agents are neither employees, partners, agents, nor authorized legal representatives of Ad Radar HQ or AI Foundation.
+- **Individual Pricing & Specialization:** Each Ad Agent's individual pricing structure is theirs alone, and Ad Radar HQ does not have any control over their specialization and expert services.
 - **Independent Opinions & Advice:** All advice, campaign strategies, creative directions, contractor recommendations, and opinions expressed or provided by Ad Agents (and their subcontractors) are strictly their own independent views and do not represent Ad Radar HQ.
 
 ## 25. Super Admin Timed Free Access Window (`system_config/global.freeAccessWindow` & `PUT /api/admin/config`)

@@ -50,6 +50,9 @@ export function TokenPacks() {
     aiRemix: ACTION_COSTS.AI_REMIX,
     regenerateVariations: ACTION_COSTS.REGENERATE_VARIATIONS,
     brandClone: ACTION_COSTS.BRAND_CLONE,
+    brandTxtDownload: ACTION_COSTS.BRAND_TXT_DOWNLOAD,
+    searchMixDownload: ACTION_COSTS.SEARCHMIX_DOWNLOAD,
+    deconstructDownload: ACTION_COSTS.DECONSTRUCT_DOWNLOAD,
     customizeService: ACTION_COSTS.CUSTOMIZE_SERVICE,
   });
 
@@ -254,6 +257,24 @@ export function TokenPacks() {
             Global Brand Copy:{" "}
             <strong className="text-primary">
               {(serviceCosts.brandClone ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.brandClone ?? 1} tok`}
+            </strong>
+          </span>
+          <span>
+            Brand .txt Download:{" "}
+            <strong className="text-primary">
+              {(serviceCosts.brandTxtDownload ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.brandTxtDownload ?? 1} tok`}
+            </strong>
+          </span>
+          <span>
+            SearchMix Download:{" "}
+            <strong className="text-primary">
+              {(serviceCosts.searchMixDownload ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.searchMixDownload ?? 1} tok`}
+            </strong>
+          </span>
+          <span>
+            Deconstructed Anatomy (.txt):{" "}
+            <strong className="text-primary">
+              {(serviceCosts.deconstructDownload ?? 0) === 0 ? "Free (0)" : `+${serviceCosts.deconstructDownload ?? 0} tok`}
             </strong>
           </span>
           <span>

@@ -321,7 +321,8 @@ export async function assignUserRole(
     // Non-blocking fallback
   }
 
-  // If the user is granted the "ad_agent" role, ensure they appear in `ad_agents` for the Ad Agent Distribution Ledger
+  // If the user is granted the "ad_agent" role, ensure their Ad Agent record exists in `ad_agents`
+  // so they are always available in the Ad Agent panel records and can be activated one-by-one when required.
   if (roles.includes("ad_agent")) {
     try {
       const existingAgentSnap = await db
@@ -352,13 +353,25 @@ export async function assignUserRole(
               },
               bankOrPayIdDetails: "",
               redistributionPercentage: 30,
-              status: "active",
+              status: "inactive",
+              inActiveLedger: false,
               isSuperAdminBuiltIn: false,
               createdAt: now,
               updatedAt: now,
             },
             { merge: true },
           );
+      } else {
+        const existingDoc = existingAgentSnap.docs[0];
+        const existingData = existingDoc.data() || {};
+        await existingDoc.ref.set(
+          {
+            ...(existingData.uid ? {} : { uid }),
+            ...(existingData.name ? {} : { name: userDisplayName || normEmail.split("@")[0] || "Ad Agent" }),
+            updatedAt: now,
+          },
+          { merge: true },
+        );
       }
     } catch {
       // Non-blocking fallback
@@ -371,6 +384,126 @@ export async function assignUserRole(
     role: primaryRole,
     roles,
     tier,
+  };
+}
+
+/** Deletes a registered user account from Firebase Authentication and Firestore `users` directory. */
+export async function deleteRegisteredUser(
+  params: { uid: string; email?: string },
+  caller: { uid: string; email: string; allowDeleteAdmin?: boolean },
+): Promise<{ deletedUid: string; deletedEmail: string }> {
+  const rawUid = params.uid.trim();
+  let normEmail = (params.email || "").trim().toLowerCase();
+
+  let authUid: string | null = null;
+  let targetRoles: RbacRole[] = [];
+
+  if (!rawUid.startsWith("email:")) {
+    try {
+      const authRecord = await adminAuth.getUser(rawUid);
+      authUid = authRecord.uid;
+      if (authRecord.email) {
+        normEmail = authRecord.email.trim().toLowerCase();
+      }
+      targetRoles = normalizeUserRoles(authRecord.customClaims?.roles, authRecord.customClaims?.role, false);
+    } catch {
+      // May only exist in Firestore `users`
+    }
+  }
+
+  if (!authUid && normEmail) {
+    try {
+      const authByEmail = await adminAuth.getUserByEmail(normEmail);
+      authUid = authByEmail.uid;
+      targetRoles = normalizeUserRoles(authByEmail.customClaims?.roles, authByEmail.customClaims?.role, false);
+    } catch {
+      // Not in Firebase Auth
+    }
+  }
+
+  const userDocSnap = await db.collection("users").doc(rawUid).get();
+  if (userDocSnap.exists) {
+    const docData = userDocSnap.data() || {};
+    if (!normEmail && typeof docData.email === "string") {
+      normEmail = docData.email.trim().toLowerCase();
+    }
+    if (targetRoles.length === 0) {
+      targetRoles = normalizeUserRoles(docData.roles, docData.role, false);
+    }
+  }
+
+  if (!authUid && !userDocSnap.exists && !normEmail) {
+    throw new ApiError("NOT_FOUND", "User account not found", 404);
+  }
+
+  if (normEmail && isDatabaseAdminEmail(normEmail)) {
+    throw new ApiError("FORBIDDEN", "Cannot delete permanent database Super Admin account", 403);
+  }
+
+  const callerEmailNorm = (caller.email || "").trim().toLowerCase();
+  if (
+    rawUid === caller.uid ||
+    (authUid && authUid === caller.uid) ||
+    (normEmail && callerEmailNorm && normEmail === callerEmailNorm)
+  ) {
+    throw new ApiError("FORBIDDEN", "You cannot delete your own currently signed-in account", 403);
+  }
+
+  if (!caller.allowDeleteAdmin && (targetRoles.includes("admin") || targetRoles.includes("superadmin"))) {
+    throw new ApiError("FORBIDDEN", "Main Admin cannot delete Super Admin or Main Admin accounts", 403);
+  }
+
+  if (authUid) {
+    await adminAuth.revokeRefreshTokens(authUid).catch(() => undefined);
+    await adminAuth.deleteUser(authUid).catch((err: { code?: string }) => {
+      if (err?.code !== "auth/user-not-found") {
+        throw err;
+      }
+    });
+  }
+
+  const docIdsToDelete = new Set<string>([rawUid]);
+  if (authUid) docIdsToDelete.add(authUid);
+  if (normEmail) {
+    docIdsToDelete.add(`email:${normEmail}`);
+    const byEmailSnap = await db.collection("users").where("email", "==", normEmail).get();
+    byEmailSnap.forEach((d) => docIdsToDelete.add(d.id));
+  }
+
+  const batch = db.batch();
+  for (const id of docIdsToDelete) {
+    batch.delete(db.collection("users").doc(id));
+  }
+
+  const targetUids = Array.from(new Set([rawUid, ...(authUid ? [authUid] : [])]));
+  for (const tUid of targetUids) {
+    const brandsSnap = await db.collection("brands").where("uid", "==", tUid).limit(100).get();
+    brandsSnap.forEach((bDoc) => batch.delete(bDoc.ref));
+  }
+
+  if (normEmail) {
+    const agentSnap = await db.collection("ad_agents").where("email", "==", normEmail).get();
+    const now = new Date().toISOString();
+    agentSnap.forEach((aDoc) => {
+      if (aDoc.data()?.isSuperAdminBuiltIn !== true) {
+        batch.set(
+          aDoc.ref,
+          {
+            inActiveLedger: false,
+            status: "inactive",
+            updatedAt: now,
+          },
+          { merge: true },
+        );
+      }
+    });
+  }
+
+  await batch.commit();
+
+  return {
+    deletedUid: authUid || rawUid,
+    deletedEmail: normEmail || rawUid,
   };
 }
 

@@ -17,6 +17,142 @@ import {
 import { TONE_LABELS } from "./BrandForm";
 import { BrandSlideOver } from "./BrandSlideOver";
 import { formatTokenEstimateHover } from "@/lib/pricing";
+import { downloadBrandTextFile, getBrandTextAttachment } from "@/lib/brand-text-file";
+
+interface BrandTextFileAttachmentProps {
+  brand: BrandProfile;
+  txtDownloadFee: number;
+  audRate: number;
+  isGlobalSource?: boolean;
+  isDownloading: boolean;
+  isUnlocked: boolean;
+  onDownload: (brand: BrandProfile, isGlobalSource?: boolean) => Promise<void>;
+}
+
+function BrandTextFileAttachment({
+  brand,
+  txtDownloadFee,
+  audRate,
+  isGlobalSource = false,
+  isDownloading,
+  isUnlocked,
+  onDownload,
+}: BrandTextFileAttachmentProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const attachment = getBrandTextAttachment(brand);
+  const canInspectInline = isUnlocked || txtDownloadFee === 0;
+  const hoverTitle =
+    txtDownloadFee === 0
+      ? "Free to download"
+      : formatTokenEstimateHover(txtDownloadFee, false, audRate);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(attachment.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard fallback ignored
+    }
+  }
+
+  return (
+    <div
+      data-agent-id={`brand-txt-attachment-${brand.brandId}`}
+      data-testid={`brand-txt-attachment-${brand.brandId}`}
+      className="rounded-lg border border-primary/25 bg-primary/[0.06] p-2.5 space-y-2"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/15 text-primary">
+            <Icon name="fileText" className="size-3.5" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span
+                data-agent-id={`brand-txt-filename-${brand.brandId}`}
+                data-testid={`brand-txt-filename-${brand.brandId}`}
+                className="truncate font-mono text-xs font-semibold text-on-surface"
+                title={attachment.fileName}
+              >
+                {attachment.fileName}
+              </span>
+            </div>
+            <p className="font-mono text-[10px] text-on-surface-variant">
+              Attached Brand Text File · Saved {attachment.savedDate}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          {canInspectInline && (
+            <>
+              <button
+                type="button"
+                onClick={() => setExpanded((prev) => !prev)}
+                data-agent-id={`view-brand-txt-btn-${brand.brandId}`}
+                data-testid={`view-brand-txt-btn-${brand.brandId}`}
+                aria-expanded={expanded}
+                aria-label={`${expanded ? "Hide" : "View"} attached brand text file ${attachment.fileName}`}
+                className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-surface-container px-2 py-1 font-mono text-[11px] font-medium text-on-surface transition hover:border-primary/40 hover:text-primary"
+              >
+                <Icon name="fileText" className="size-3" />
+                <span>{expanded ? "Hide .txt" : "View .txt"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCopy}
+                data-agent-id={`copy-brand-txt-btn-${brand.brandId}`}
+                data-testid={`copy-brand-txt-btn-${brand.brandId}`}
+                aria-label={`Copy attached brand text file ${attachment.fileName}`}
+                className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-surface-container px-2 py-1 font-mono text-[11px] font-medium text-on-surface transition hover:border-primary/40 hover:text-primary"
+              >
+                <Icon name={copied ? "checkCircle" : "copy"} className="size-3" />
+                <span>{copied ? "Copied ✓" : "Copy"}</span>
+              </button>
+            </>
+          )}
+
+          <button
+            type="button"
+            disabled={isDownloading}
+            onClick={() => void onDownload(brand, isGlobalSource)}
+            title={hoverTitle}
+            data-agent-id={`download-brand-txt-btn-${brand.brandId}`}
+            data-testid={`download-brand-txt-btn-${brand.brandId}`}
+            aria-label={`Download attached brand text file ${attachment.fileName}`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/20 px-2.5 py-1 font-mono text-[11px] font-semibold text-primary transition hover:bg-primary/30 disabled:opacity-50 cursor-pointer"
+          >
+            <Icon name="download" className="size-3" />
+            <span>{isDownloading ? "Downloading…" : "Download .txt"}</span>
+            {txtDownloadFee > 0 ? (
+              <span className="ml-0.5 inline-flex items-center gap-0.5 rounded-full bg-black/30 px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary">
+                <Icon name="zap" className="size-2.5" />
+                {txtDownloadFee}
+              </span>
+            ) : (
+              <span className="ml-0.5 rounded-full bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
+                Free
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {canInspectInline && expanded && (
+        <pre
+          data-agent-id={`brand-txt-preview-${brand.brandId}`}
+          data-testid={`brand-txt-preview-${brand.brandId}`}
+          className="max-h-60 overflow-y-auto rounded-md border border-white/[0.08] bg-surface-container-lowest p-2.5 font-mono text-[11px] leading-relaxed text-on-surface-variant whitespace-pre-wrap break-words"
+        >
+          {attachment.content}
+        </pre>
+      )}
+    </div>
+  );
+}
 
 type SlideOverState =
   | { isOpen: false }
@@ -41,6 +177,9 @@ export function BrandsManager() {
   const [globalBrands, setGlobalBrands] = useState<BrandProfile[] | null>(null);
   const [globalLoading, setGlobalLoading] = useState(false);
   const [cloneFee, setCloneFee] = useState<number>(1);
+  const [txtDownloadFee, setTxtDownloadFee] = useState<number>(1);
+  const [downloadingTxtId, setDownloadingTxtId] = useState<string | null>(null);
+  const [unlockedTxtIds, setUnlockedTxtIds] = useState<Record<string, boolean>>({});
   const [audRate, setAudRate] = useState<number>(100);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTone, setSelectedTone] = useState<string>("ALL");
@@ -124,10 +263,12 @@ export function BrandsManager() {
       const res = await apiFetch<{
         brands: BrandProfile[];
         brandCloneFee?: number;
+        brandTxtDownloadFee?: number;
         audCentsPerToken?: number;
       }>(`/api/brands/global${queryStr ? `?${queryStr}` : ""}`, { method: "GET" });
       setGlobalBrands(res.brands);
       if (typeof res.brandCloneFee === "number") setCloneFee(res.brandCloneFee);
+      if (typeof res.brandTxtDownloadFee === "number") setTxtDownloadFee(res.brandTxtDownloadFee);
       if (typeof res.audCentsPerToken === "number") setAudRate(res.audCentsPerToken);
     } catch (err) {
       setError(errorMessage(err));
@@ -167,8 +308,62 @@ export function BrandsManager() {
     }
   }
 
+  async function handleDownloadBrandTxt(targetBrand: BrandProfile, isGlobalSource = false) {
+    const isSuperAdmin = Boolean(isAdmin);
+    const balance = profile?.tokenBalance ?? 0;
+    if (!isSuperAdmin && txtDownloadFee > 0 && balance < txtDownloadFee) {
+      setError(
+        `Insufficient tokens: downloading the brand .txt file requires ${txtDownloadFee} ${
+          txtDownloadFee === 1 ? "token" : "tokens"
+        } (your balance: ${balance} tokens). Please top up in your Wallet.`
+      );
+      return;
+    }
+
+    setDownloadingTxtId(targetBrand.brandId);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      const res = await apiFetch<{
+        brandId: string;
+        brandName: string;
+        fileName: string;
+        savedDate: string;
+        content: string;
+        balanceAfter: number;
+      }>("/api/brands/download-txt", {
+        method: "POST",
+        body: {
+          brandId: targetBrand.brandId,
+          isGlobalSource,
+        },
+      });
+      downloadBrandTextFile(targetBrand, {
+        fileName: res.fileName,
+        content: res.content,
+      });
+      setUnlockedTxtIds((prev) => ({ ...prev, [targetBrand.brandId]: true }));
+      setSuccessMsg(
+        `Downloaded "${res.fileName}"${
+          txtDownloadFee > 0 && !isSuperAdmin ? ` (-${txtDownloadFee} ${txtDownloadFee === 1 ? "token" : "tokens"})` : ""
+        }!`
+      );
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setDownloadingTxtId(null);
+    }
+  }
+
   useEffect(() => {
     void fetchGlobalBrands(searchQuery, selectedTone);
+    const handleConfigUpdated = () => {
+      void fetchGlobalBrands(searchQuery, selectedTone);
+    };
+    window.addEventListener("adradar:config-updated", handleConfigUpdated);
+    return () => {
+      window.removeEventListener("adradar:config-updated", handleConfigUpdated);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -534,6 +729,17 @@ export function BrandsManager() {
                       </a>
                     </div>
 
+                    {/* Attached Brand Text File (<Brand Name> - <Date Saved>.txt) */}
+                    <BrandTextFileAttachment
+                      brand={b}
+                      txtDownloadFee={txtDownloadFee}
+                      audRate={audRate}
+                      isGlobalSource={false}
+                      isDownloading={downloadingTxtId === b.brandId}
+                      isUnlocked={Boolean(isAdmin) || Boolean(unlockedTxtIds[b.brandId])}
+                      onDownload={handleDownloadBrandTxt}
+                    />
+
                     {/* Action Buttons & Confirm Delete */}
                     <div className="mt-auto pt-2">
                       {isDeleting ? (
@@ -813,6 +1019,17 @@ export function BrandsManager() {
                         <span className="truncate">{primaryUrl}</span>
                       </a>
                     )}
+
+                    {/* Attached Brand Text File (<Brand Name> - <Date Saved>.txt) */}
+                    <BrandTextFileAttachment
+                      brand={gb}
+                      txtDownloadFee={txtDownloadFee}
+                      audRate={audRate}
+                      isGlobalSource={true}
+                      isDownloading={downloadingTxtId === gb.brandId}
+                      isUnlocked={Boolean(isAdmin) || Boolean(unlockedTxtIds[gb.brandId])}
+                      onDownload={handleDownloadBrandTxt}
+                    />
 
                     {/* Copy to My Brands Button */}
                     <div className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">

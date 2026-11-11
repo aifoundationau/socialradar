@@ -8,6 +8,7 @@ import { useSession } from "@/components/auth/SessionProvider";
 import { Icon } from "@/components/ui/Icon";
 import { alertError, alertInfo, btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
 import { TokenPacks } from "@/components/wallet/TokenPacks";
+import { AdAgentDistributionsPanel } from "@/components/ad-agent/AdAgentDistributionsPanel";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { LINK_URL_PATTERN, type AdminMessage, type TokenTransactionDoc } from "@/lib/contracts";
 
@@ -26,20 +27,47 @@ export interface SupporterModalProps {
   initialTab?: SupporterTab;
 }
 
-export type SupporterTab = "TOKENS" | "BUY_TOKENS" | "MESSAGES";
+export type SupporterTab = "TOKENS" | "BUY_TOKENS" | "MESSAGES" | "DISTRIBUTIONS";
 
 export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalProps) {
   const isClient = useIsClient();
-  const { user, profile, isSuperAdmin, resetRole } = useSession();
+  const { user, profile, role, realRole, actingAsRole, isSuperAdmin, claims, resetRole } = useSession();
   const uid = user?.uid;
+
+  const profileRoles = Array.isArray(profile?.roles) ? profile.roles : [];
+  const claimRoles = Array.isArray(claims?.roles) ? (claims.roles as string[]) : [];
+  const hasUnderlyingAdAgentRole =
+    realRole === "ad_agent" ||
+    profile?.role === "ad_agent" ||
+    profile?.isAdAgent === true ||
+    profileRoles.includes("ad_agent") ||
+    claims?.role === "ad_agent" ||
+    claims?.ad_agent === true ||
+    claimRoles.includes("ad_agent");
+
+  // Show the extra 'Distributions' tab whenever the viewer is an Ad Agent
+  // (unless Super Admin is explicitly previewing pure 'Supporter' role).
+  const isAdAgentViewer =
+    role === "ad_agent" ||
+    (hasUnderlyingAdAgentRole && !(isSuperAdmin && actingAsRole === "supporter"));
 
   const [tab, setTab] = useState<SupporterTab>(initialTab ?? "TOKENS");
 
   useEffect(() => {
     if (initialTab && isOpen) {
-      setTab(initialTab);
+      if (initialTab === "DISTRIBUTIONS" && !isAdAgentViewer) {
+        setTab("TOKENS");
+      } else {
+        setTab(initialTab);
+      }
     }
-  }, [initialTab, isOpen]);
+  }, [initialTab, isOpen, isAdAgentViewer]);
+
+  useEffect(() => {
+    if (tab === "DISTRIBUTIONS" && !isAdAgentViewer) {
+      setTab("TOKENS");
+    }
+  }, [tab, isAdAgentViewer]);
 
   // Token ledger state
   const [rows, setRows] = useState<TokenTransactionDoc[] | null>(null);
@@ -269,16 +297,23 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
               <Icon name="sliders" className="size-5" />
             </span>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h2 id="supporter-modal-title" className="text-title-sm sm:text-title-md font-bold text-on-surface">
                   Supporter Admin Panel
                 </h2>
                 <span className="rounded-full bg-secondary/20 border border-secondary/30 px-2.5 py-0.5 font-mono text-[10px] font-bold text-secondary uppercase tracking-wider">
                   Lifetime Supporter
                 </span>
+                {isAdAgentViewer && (
+                  <span className="rounded-full bg-tertiary/20 border border-tertiary/35 px-2.5 py-0.5 font-mono text-[10px] font-bold text-tertiary uppercase tracking-wider">
+                    Ad Agent
+                  </span>
+                )}
               </div>
               <p className="text-[12px] text-on-surface-variant font-mono">
-                Tokens · Buy More Tokens · Messages
+                {isAdAgentViewer
+                  ? "Tokens · Buy More Tokens · Messages · Distributions"
+                  : "Tokens · Buy More Tokens · Messages"}
               </p>
             </div>
           </div>
@@ -287,7 +322,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
             {isSuperAdmin && (
               <div className="flex items-center gap-2">
                 <span className="hidden sm:inline font-mono text-[10px] text-on-surface-variant">
-                  Acting as Supporter
+                  {role === "ad_agent" ? "Acting as Ad Agent" : "Acting as Supporter"}
                 </span>
                 <button
                   type="button"
@@ -317,18 +352,20 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
           </div>
         </div>
 
-        {/* 3 Dedicated Navigation Tabs: Tokens, Buy More Tokens, Messages */}
+        {/* Dedicated Navigation Tabs: Tokens, Buy More Tokens, Messages (+ Distributions for Ad Agents) */}
         <nav
           aria-label="Supporter Panel Navigation"
           data-testid="supporter-navbar"
-          className="flex items-center gap-2 px-5 pt-3 border-b border-white/[0.08] bg-surface-container shrink-0"
+          className="flex items-center gap-2 px-5 pt-3 border-b border-white/[0.08] bg-surface-container shrink-0 overflow-x-auto whitespace-nowrap"
         >
           <button
             type="button"
             onClick={() => setTab("TOKENS")}
+            aria-pressed={tab === "TOKENS"}
+            aria-label="Tokens tab"
             data-testid="supporter-tab-tokens"
             data-agent-id="supporter-tab-tokens"
-            className={`flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 ${
+            className={`shrink-0 flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 ${
               tab === "TOKENS"
                 ? "border-primary text-primary bg-primary/10 shadow-sm"
                 : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-white/[0.03]"
@@ -344,9 +381,11 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
           <button
             type="button"
             onClick={() => setTab("BUY_TOKENS")}
+            aria-pressed={tab === "BUY_TOKENS"}
+            aria-label="Buy More Tokens tab"
             data-testid="supporter-tab-buy"
             data-agent-id="supporter-tab-buy"
-            className={`flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 ${
+            className={`shrink-0 flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 ${
               tab === "BUY_TOKENS"
                 ? "border-secondary text-secondary bg-secondary/10 shadow-sm"
                 : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-white/[0.03]"
@@ -359,9 +398,11 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
           <button
             type="button"
             onClick={() => setTab("MESSAGES")}
+            aria-pressed={tab === "MESSAGES"}
+            aria-label="Messages tab"
             data-testid="supporter-tab-messages"
             data-agent-id="supporter-tab-messages"
-            className={`flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 ${
+            className={`shrink-0 flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 ${
               tab === "MESSAGES"
                 ? "border-tertiary-container text-tertiary-container bg-tertiary-container/10 shadow-sm"
                 : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-white/[0.03]"
@@ -375,6 +416,25 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
               </span>
             )}
           </button>
+
+          {isAdAgentViewer && (
+            <button
+              type="button"
+              onClick={() => setTab("DISTRIBUTIONS")}
+              aria-pressed={tab === "DISTRIBUTIONS"}
+              aria-label="View Ad Agent Distributions"
+              data-testid="supporter-tab-distributions"
+              data-agent-id="supporter-tab-distributions"
+              className={`shrink-0 flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 ${
+                tab === "DISTRIBUTIONS"
+                  ? "border-tertiary text-tertiary bg-tertiary/10 shadow-sm"
+                  : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-white/[0.03]"
+              }`}
+            >
+              <Icon name="layers" className="size-3.5" />
+              <span>Distributions</span>
+            </button>
+          )}
         </nav>
 
         {/* Content Body */}
@@ -951,6 +1011,11 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
               )}
             </div>
           )}
+
+          {/* ========================================================================= */}
+          {/* TAB 4 (AD AGENTS ONLY): DISTRIBUTIONS */}
+          {/* ========================================================================= */}
+          {tab === "DISTRIBUTIONS" && isAdAgentViewer && <AdAgentDistributionsPanel />}
         </div>
       </div>
     </div>,
