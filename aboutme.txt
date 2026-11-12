@@ -1,0 +1,223 @@
+================================================================================
+ADRADARHQ (SOCIAL RADAR) — ABOUT ME & APPLICATION OVERVIEW
+================================================================================
+Platform: AdRadarHQ (Social Radar)
+Founder & Architect: David Robertson
+Publisher: AI Foundation Australia (aifoundation.net.au)
+Copyright: Copyright, all rights reserved, David Robertson
+Environment: Next.js 16 (Turbopack) / TypeScript / Firebase Admin / Cloud Firestore
+Document Created: 12 November 2026
+
+================================================================================
+1. EXECUTIVE SUMMARY & MISSION
+================================================================================
+AdRadarHQ is a high-performance competitor ad intelligence and AI creative
+remix web application designed to level the playing field for ambitious
+entrepreneurs, agency operators, and businesses across Australia, New Zealand,
+and globally.
+
+Traditional advertising agencies charge massive monthly retainers ($3,000 to
+$10,000+ per month) with lengthy lock-in contracts, slow turnaround times, and
+untested creative theories. "Guru" courses sell outdated books and templates
+that stop working as ad algorithms evolve.
+
+AdRadarHQ flips the model completely:
+1. Real Proven Winners: Search the live, official ad libraries of Meta
+   (Facebook & Instagram), TikTok, and Google (Search, Shopping, Display,
+   and YouTube) to see what is already working in the market right now.
+2. Longevity as the Profit Proxy: Advertisers do not keep paying for ads that
+   lose money. If an ad has run for 28+ days or 60+ days, it is converting.
+3. AI Creative Remix Studio: Google Gemini deconstructs winning competitor ad
+   psychology (hooks, pacing, persuasion frameworks) and writes 3 brand-new,
+   ready-to-test creative variations tailored to your specific brand.
+4. Human Professional Services: When you need expert custom creative strategy,
+   AdRadarHQ connects you with certified Ad Agents located near you via
+   intelligent geolocation matching.
+5. Fair Pay-As-You-Go Token Economy: No retainers, no contracts, no forced
+   rebills. Pay only for what you use using integer tokens that never expire.
+
+
+================================================================================
+2. CORE VALUE PROPOSITION: HOW IT BEATS AGENCIES & GURUS
+================================================================================
+Traditional Agency Approach:
+- $3,000 - $10,000 monthly retainer before spending a dollar on ad clicks.
+- 3 to 6-month minimum lock-in contracts.
+- 2 to 4-week delays to research competitors and draft first ad scripts.
+- Junior copywriters guessing hooks that may never convert.
+
+The "Guru / Course" Approach:
+- $997 - $2,997 for video courses and PDF swipe files.
+- Swipe files are static, saturated, and outdated within weeks.
+- Requires dozens of hours of manual study with no automated creative tooling.
+
+The AdRadarHQ Approach:
+- Real-time intelligence directly from official ad repositories.
+- Zero retainer: pay-as-you-go with transparent token pricing (1 token = AUD $1).
+- Instant turnaround: in under 60 seconds, search 100+ active competitor ads
+  and generate 3 complete remix variations with storyboards and image prompts.
+- Rigorous scoring: Winner Matrix evaluates brand fit, hook power, and scale.
+- Local human specialists: Outsource custom strategy to independent Ad Agents
+  whenever you need high-touch creative execution.
+
+
+================================================================================
+3. SYSTEM ARCHITECTURE & KEY SUBSYSTEMS
+================================================================================
+
+3.1 COMPETITOR AD INTELLIGENCE ENGINE (RADAR SEARCH)
+--------------------------------------------------------------------------------
+- Real Ads Only: Strict anti-hallucination policy. Search queries pull real ads
+  exclusively from Meta Ad Library, TikTok Commercial Content Library, and
+  Google Ads Transparency Center via SearchApi.io with platform isolation.
+- Search Flexibility: Search by competitor brand name, product keyword, market
+  niche, or specific hook phrase (e.g., "stop scrolling", "the secret to").
+- Longevity & Winner Filters:
+  * Proven (28+ Days): Ads that have run for at least 4 continuous weeks.
+  * Extended (60+ Days): Evergreen powerhouse ads running for two months or more.
+  * Top Winners (90%+): Ads achieving top-tier composite Winner Matrix scores.
+- Winner Matrix Scoring (0 - 100%):
+  * 40% Brand Fit: Alignment with your active brand profile and niche.
+  * 30% Hook Strength: Power and uniqueness of the opening 3-second hook.
+  * 30% Longevity & Scale: Number of days active, duplicate ad sets, and volume.
+- SearchMix Download: Download complete search results and postcard collections
+  as structured .txt files directly to your device.
+
+3.2 AI CREATIVE REMIX STUDIO (GEMINI POWERED)
+--------------------------------------------------------------------------------
+- Deconstructed Anatomy:
+  * Hook Analysis: Psychological triggers and hook angle classification.
+  * Pacing & Structure: Second-by-second pacing, visual cut cadence, and flow.
+  * Persuasion Mechanics: Problem-Agitation-Solution, social proof, risk reversal.
+  * Conversion Blueprint: Why the ad converts and how it maintains viewer attention.
+  * Exportable .txt file: Download <brandname>deconstruct.txt instantly.
+- 3 Ready-to-Test Creative Variations:
+  * Variation A: Direct Response / High Urgency angle.
+  * Variation B: Storytelling / Empathy & Social Proof angle.
+  * Variation C: Contrarian / Pattern-Interrupt angle.
+  * Complete Deliverables: Primary text, headline, CTA button, shot-by-shot
+    storyboard with visual cues, voiceover script, and AI image prompts.
+- Regenerate Variations: 1-click re-generation to explore fresh creative angles.
+
+3.3 MULTI-BRAND VAULT & BRAND INTELLIGENCE
+--------------------------------------------------------------------------------
+- Brand Profiles: Manage multiple distinct brand identities under one account.
+- Deep Brand Attributes: Name, industry, target customer persona, brand voice
+  and tone, unique selling propositions (USPs), pain points, and website URL.
+- Brand Clone Capability: Instantly duplicate existing brand profiles to test
+  sub-brands, alternative target audiences, or new product lines.
+- Brand .txt Export: Download complete brand strategy dossiers as text files.
+
+3.4 AD AGENT MARKETPLACE & GEOLOCATION DISPATCH
+--------------------------------------------------------------------------------
+- Independent Contractor Network: Certified Ad Agents provide bespoke brand
+  strategy packages, campaign consulting, graphic design, and video production.
+- Geolocation Proximity Matching: Haversine distance algorithm calculates the
+  closest active Ad Agent based on the customer's suburb, state, and country.
+- Customer Choice: When multiple Ad Agents are active, customers can choose
+  their preferred agent or default to the closest verified specialist.
+- Ad Agent Portal:
+  * Self-service status toggle: Turn availability ON or OFF with 1 click.
+  * Assigned Orders Queue: Review customer strategy briefs and brand data.
+  * AI Strategy Draft Assistant: Generates structured campaign packages.
+  * Contractors Directory: Manage specialized subcontractors (video editors,
+    graphic artists, animators, copywriters) with PayID/banking notes and
+    average rates, inserting their services into client deliverables with 1 click.
+- Super Admin Ad Agent & Customizations Value Ledger:
+  * Super Admin sets redistribution percentages (10% to 70%) per Ad Agent.
+  * Real-time tracking of completed customizations, total tokens, AUD, and USD.
+  * ATO-Compliant Payout Invoicing: 1-click download of .txt payout invoices.
+  * Reset to Zero Workflow: Clicking "Reset 0 ⚡" zeros out the redistribution
+    balance upon settlement, accruing only new orders completed thereafter.
+- Ad Agent "Distributions" Tab:
+  * Dedicated panel visible exclusively to approved Ad Agents in both their
+    Supporter Admin Panel and Ad Agent Panel.
+  * Displays Ad Agent Name, Redistribution Percentage, Customizations Total,
+    and live Redistribution Amount synced in real-time with Super Admin.
+
+3.5 TOKEN ECONOMY & REVENUE GOVERNANCE
+--------------------------------------------------------------------------------
+- Strict Integer Accounting: All token values are strict whole numbers
+  (Math.round, non-negative enforcement: tokenBalance >= 0).
+- Dynamic Pricing & Live Currency Conversion:
+  * Default rate: 1 Token = $1.00 AUD.
+  * Real-time exchange rate sync with European Central Bank (ECB) API.
+  * Super Admin toggles: isAudEnabled, isUsdEnabled, isTokenSystemEnabled.
+  * Geolocation currency display: AUD for Australian users, USD internationally.
+  * Full hover tooltips showing exact AUD and USD pricing estimates.
+- Zero-Balance Gating: No negative balances permitted. When an account has 0
+  tokens, paid operations are blocked until additional tokens are acquired.
+- Two Independent Financial Ledgers:
+  1. Equity Partner Redistributive Ledger: Aggregates Stripe card purchases
+     and distributes revenue to equity partners based on cap table allocations.
+  2. Ad Agent Distribution Ledger: Tracks customization revenue sharing for
+     Ad Agents based on service completions.
+- Free Access Window: Super Admin timed toggle (15, 30, or 60 minutes) for
+  monthly subscribers in selected world countries with global countdown banner.
+
+3.6 ROLE-BASED ACCESS CONTROL (RBAC) & SECURITY
+--------------------------------------------------------------------------------
+- 6 Permissioned Roles:
+  * Super Admin (superadmin): Full platform control, system config, ledger resets,
+    user management, role assignment, and financial oversight.
+  * Admin (admin): Platform administration, content moderation, user support.
+  * Moderator (moderator): Community guidelines enforcement and ticket review.
+  * Agency (agency): Multi-client management and shared asset collaboration.
+  * Ad Agent (ad_agent): Contractor operations, customize order fulfillment,
+    contractors directory, and the exclusive "Distributions" tab.
+  * Supporter (supporter): Standard customer user with wallet, search, remix,
+    brand vault, and self-service token refresh.
+- Role Simulation: Super Admin can preview the application UI as any role
+  (Supporter, Ad Agent, Agency, Moderator, Admin) without losing master access.
+- User Deletion Safety: 2-step confirmation ("Delete" -> "Confirm Delete"),
+  protecting the root Super Admin and caller account while safely removing Auth
+  and Firestore documents and preserving statutory 7-year audit records.
+- 71-Rule Firestore Security Suite: Strict server-side access control with
+  100% automated test coverage in firestore.rules.
+
+3.7 MULTI-LINGUAL RAG KNOWLEDGE BASE & PWA APP
+--------------------------------------------------------------------------------
+- Multi-Lingual RAG Engine: FAQ system supports 30+ languages (English, Chinese,
+  Vietnamese, Indonesian, Thai, Tagalog, Malay, Japanese, Korean, Arabic, etc.).
+- Google Translate Integration: Instant translation with human-in-the-loop
+  verification before publishing to global corpus.
+- Universal Progressive Web App (PWA):
+  * Standalone fullscreen experience on desktop, Android, and iOS.
+  * Service worker static asset caching for offline resilience.
+  * 1-click install button for desktop Chrome, custom prompt for Android,
+    and 3-step visual walkthrough for Apple Safari/iOS.
+
+
+================================================================================
+4. SUMMARY OF RECENT FEATURE MILESTONES
+================================================================================
+1. Ad Agent Distributions Tab: Added dedicated live-synced "Distributions" tab
+   for Ad Agents in Supporter Admin Panel and Ad Agent Panel.
+2. Structured .txt Downloads: Added Brand dossier .txt, SearchMix postcard .txt,
+   and <brandname>deconstruct.txt downloads with Super Admin token price controls.
+3. Ad Agent Saved Records Pool: Implemented 1-by-1 activation and soft-deletion
+   in Ad Agent Distribution Ledger, retaining 100% of historical records.
+4. Consolidated RBAC Token Controls: Moved + Add Tokens, - Remove Tokens, and
+   Reset to Zero into the All Users directory with mandatory two-step confirmation.
+5. User Deletion Safety Protocol: Added two-step user deletion with permanent
+   Super Admin protection and statutory audit preservation.
+6. Terms of Service Updates: Removed fixed token prices (dynamic pricing), added
+   disclaimers that Ad Agents set their own independent pricing, and affirmed
+   that Ad Agents are outsourced independent contractors.
+7. Strict Data Contracts: Full Zod schema validation across all API routes, UI
+   components, and data-contracts.md.
+
+
+================================================================================
+5. CONCLUSION
+================================================================================
+AdRadarHQ is a comprehensive, production-grade advertising intelligence and
+creative generation suite. By marrying real-world ad library transparency,
+state-of-the-art AI creative deconstruction, human contractor marketplaces,
+and bulletproof financial governance, AdRadarHQ delivers agency-grade advertising
+power at software speed and software economics.
+
+Copyright, all rights reserved, David Robertson
+AI Foundation Australia (aifoundation.net.au)
+================================================================================
+

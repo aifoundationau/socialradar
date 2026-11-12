@@ -1087,6 +1087,25 @@ export interface AdAgentDistributionItem {
   lastResetAt?: string;
 }
 
+export const AdAgentMoaDocumentSchema = z
+  .object({
+    agentId: safeText(1, 128),
+    name: safeText(1, 120),
+    email: z.string().trim().toLowerCase().email().max(254),
+    phone: safeText(1, 60),
+    suburb: safeText(0, 120).optional(),
+    state: safeText(0, 120).optional(),
+    country: z.string().trim().toUpperCase().max(8).optional(),
+    locationLabel: safeText(1, 240),
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+    bankOrPayIdDetails: safeText(0, 500).optional(),
+    redistributionPercentage: AdAgentRedistributionPercentSchema,
+    status: z.enum(["active", "inactive"]),
+  })
+  .strict();
+export type AdAgentMoaDocument = z.infer<typeof AdAgentMoaDocumentSchema>;
+
 // ---------- 11. Professional Customize Service & Staff AI Reply ----------
 export const CustomizeRequestInputSchema = z
   .object({

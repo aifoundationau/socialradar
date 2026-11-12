@@ -43,6 +43,7 @@ import {
   RBAC_PERMISSIONS_LIST,
 } from "@/lib/contracts";
 import { computeAdAgentDisplayItem } from "@/lib/ad-agent-display";
+import { downloadAdAgentMoaTextFile } from "@/lib/ad-agent-moa";
 import { GlobalRagCorpusSection, PerFaqRagDrawer } from "@/components/faq/FaqRagWorkspace";
 import { autofindUserLocation, loadDetectedGeoCountry, loadGeoConfig } from "@/lib/geo";
 
@@ -834,6 +835,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     } finally {
       setAdAgentSaving(false);
     }
+  }
+
+  function handleDownloadAdAgentMoa(agent: AdAgentDistributionItem) {
+    const { fileName } = downloadAdAgentMoaTextFile(agent);
+    setErrorMsg(null);
+    setStatusMsg(
+      `Downloaded Memorandum of Agreement (${fileName}) for ${agent.name} (${agent.email}).`
+    );
   }
 
   function handleDownloadAdAgentInvoice(agent: AdAgentDistributionItem) {
@@ -5248,7 +5257,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                       </button>
                                     </td>
 
-                                    {/* 7. Actions (Invoice .txt, Reset 0 ⚡ & Confirm Delete) */}
+                                    {/* 7. Actions (MOA .txt, Invoice .txt, Reset 0 ⚡ & Confirm Delete) */}
                                     <td
                                       className="flex items-center justify-between gap-2 pt-1.5 md:pt-0 border-t border-white/[0.06] md:border-0 md:table-cell md:px-2.5 md:py-2 text-right whitespace-nowrap"
                                       onClick={(e) => e.stopPropagation()}
@@ -5258,6 +5267,19 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                       </span>
                                       {(isSuper || isSuperAdmin) && (
                                         <div className="flex flex-wrap items-center justify-end gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDownloadAdAgentMoa(agent)}
+                                            data-agent-id={`download-ad-agent-moa-${agent.agentId}`}
+                                            data-testid={`download-ad-agent-moa-${agent.agentId}`}
+                                            aria-label={`Download Memorandum of Agreement text file for ${agent.name}`}
+                                            title={`Download Memorandum of Agreement (.txt) for ${agent.name}`}
+                                            className="inline-flex items-center gap-1 rounded border border-tertiary/40 bg-tertiary/15 px-1.5 py-0.5 font-mono text-[9px] font-bold text-tertiary hover:bg-tertiary/25 transition"
+                                          >
+                                            <Icon name="download" className="size-2.5" />
+                                            <span>MOA</span>
+                                          </button>
+
                                           <button
                                             type="button"
                                             onClick={() => handleDownloadAdAgentInvoice(agent)}

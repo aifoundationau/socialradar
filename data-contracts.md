@@ -1085,6 +1085,47 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 - **Individual Pricing & Specialization:** Each Ad Agent's individual pricing structure is theirs alone, and Ad Radar HQ does not have any control over their specialization and expert services.
 - **Independent Opinions & Advice:** All advice, campaign strategies, creative directions, contractor recommendations, and opinions expressed or provided by Ad Agents (and their subcontractors) are strictly their own independent views and do not represent Ad Radar HQ.
 
+### 24.6 Ad Agent Memorandum of Agreement (`.txt`) Download (`AdAgentMoaDocumentSchema`, `src/lib/ad-agent-moa.ts` & `SuperAdminModal.tsx`)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AdAgentMoaDocument",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "agentId",
+    "name",
+    "email",
+    "phone",
+    "locationLabel",
+    "latitude",
+    "longitude",
+    "redistributionPercentage",
+    "status"
+  ],
+  "properties": {
+    "agentId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "email": { "type": "string", "format": "email", "maxLength": 254 },
+    "phone": { "type": "string", "minLength": 1, "maxLength": 60 },
+    "suburb": { "type": "string", "maxLength": 120 },
+    "state": { "type": "string", "maxLength": 120 },
+    "country": { "type": "string", "maxLength": 8 },
+    "locationLabel": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+    "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+    "bankOrPayIdDetails": { "type": "string", "maxLength": 500 },
+    "redistributionPercentage": {
+      "type": "integer",
+      "enum": [10, 20, 30, 40, 50, 60, 70]
+    },
+    "status": { "type": "string", "enum": ["active", "inactive"] }
+  }
+}
+```
+- **UI & DOM Bindings (`SuperAdminModal.tsx`):** Every Ad Agent row inside **Ad Agent Distribution Ledger -> Ad Agent & Customizations Value** (`ad-agent-distribution-ledger-table`) includes an **`MOA`** button (`data-agent-id="download-ad-agent-moa-<agentId>"`, `data-testid="download-ad-agent-moa-<agentId>"`, `aria-label="Download Memorandum of Agreement text file for <name>"`).
+- **Generated `.txt` Output (`ad-agent-moa-<safeName>-<YYYY-MM-DD>.txt`):** Sanitizes and validates the Ad Agent record via `AdAgentMoaDocumentSchema` (with deterministic fallback) and downloads the complete Memorandum of Agreement containing the Ad Agent's Name, the 5-part Ad Agent MOU terms (Fulfilling Customer Customization Orders, Profile/Availability/Geolocation, Earnings & Redistribution Ledger, Contractor Directory Management, Legal & Operational Status), full Ad Agent contact & payout details, and counterparty details (**David Robertson**, **The AI Foundation**, **ABN 36 339 516 584**).
+
 ## 25. Super Admin Timed Free Access Window (`system_config/global.freeAccessWindow` & `PUT /api/admin/config`)
 
 ### `FreeAccessWindow` (`FreeAccessWindowSchema`)

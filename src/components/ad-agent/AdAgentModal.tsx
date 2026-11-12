@@ -2295,10 +2295,9 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                     onClick={handleStartAddContractor}
                     data-agent-id="add-contractor-top-btn"
                     data-testid="add-contractor-top-btn"
-                    aria-label="Add new contractor"
-                    className={`${btnPrimary} shrink-0 text-xs py-1.5 px-3.5 flex items-center gap-1.5`}
+                    aria-label="Add contractor"
+                    className={`${btnPrimary} shrink-0 text-xs py-1.5 px-3.5 flex items-center justify-center`}
                   >
-                    <Icon name="plus" className="size-3.5" />
                     <span>+ Add Contractor</span>
                   </button>
                 </div>
@@ -2777,8 +2776,9 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                             className={`${btnPrimary} text-xs py-1.5 px-3 mx-auto`}
                             data-agent-id="add-first-contractor-btn"
                             data-testid="add-first-contractor-btn"
+                            aria-label="Add contractor"
                           >
-                            + Add Your First Contractor
+                            <span>+ Add Contractor</span>
                           </button>
                         )}
                       </div>
