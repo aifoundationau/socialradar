@@ -118,6 +118,8 @@ export function buildAdAgentMoaTextContent(
     "     70%, set by Super Admin) for every completed customization order. To view",
     "     their distribution percentage, ad agents can log in and see their agreed",
     "     distribution amount under the Ad Agent Registration & Geolocation menu item.",
+    "   - Locked-In Distribution Percentage: The distribution percentage is locked in",
+    "     as long as the account remains in good standing.",
     "   - Distributions Tracking: Has access to a dedicated Distributions tab to view",
     "     completed orders, token totals, and accumulated earnings.",
     "   - Payouts: Receives payouts directly to their registered Bank Account or",

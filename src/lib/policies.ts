@@ -125,10 +125,11 @@ export const POLICIES: Record<string, PolicyDoc> = {
         ],
       },
       {
-        heading: "7. Independent Contractor Status of Ad Agents & Disclaimer of Representation",
+        heading: "7. Independent Contractor Status of Ad Agents, Account in Good Standing & Disclaimer of Representation",
         paragraphs: [
           "Ad Agents are independent contractors, with no official employment by Ad Radar or AI Foundation. Their role and engagement is purely in an outsourced capacity, and has no long-term contractual arrangement.",
           "Ad Agents are outsourced independent contractors who are only associated with Ad Radar HQ by the way of independent contractors. Ad Agents are neither employees, partners, agents, joint venturers, nor authorized legal representatives of Ad Radar HQ or AI Foundation.",
+          "An account in Good Standing is an Ad Agent account that is regularly used, building customizations on a routine basis, and free of conflict with other Ad Agents and affiliates.",
           "Their individual pricing structure is theirs alone, and Ad Radar HQ does not have any control over their specialization and expert services.",
           "All advice, campaign strategies, creative directions, contractor recommendations, and opinions expressed or provided by Ad Agents (and their registered subcontractors) are strictly their own independent views and do not represent Ad Radar HQ, AI Foundation, or its officers.",
           "Ad Radar HQ acts solely as a software technology platform provider, delivering public ad library search indexing, creative workflow tools, and order coordination mechanisms. Ad Radar HQ does not endorse, guarantee, or assume legal liability for any specific third-party advice, contractor performance, creative deliverables, individual pricing structures, specializations, expert services, or commercial outcomes resulting from communications or engagements with independent Ad Agents.",
@@ -136,6 +137,7 @@ export const POLICIES: Record<string, PolicyDoc> = {
         bullets: [
           "Independent Contractors & No Employment: Ad Agents are independent contractors with no official employment by Ad Radar; their engagement is purely in an outsourced capacity with no long-term contractual arrangement.",
           "Outsourced Capacity: Ad Agents are associated with Ad Radar HQ solely by way of independent contractor relationships.",
+          "Account in Good Standing: An account in Good Standing is an Ad Agent account that is regularly used, building customizations on a routine basis, and free of conflict with other Ad Agents and affiliates.",
           "Individual Pricing & Specialization: Their individual pricing structure is theirs alone, and Ad Radar HQ does not have any control over their specialization and expert services.",
           "Independent Advice & Opinions: All advice, recommendations, strategies, and opinions provided by Ad Agents are strictly their own and do not represent Ad Radar HQ.",
           "Independent Subcontractors: Any contractors or third-party service providers listed or recommended by Ad Agents operate under their own independent commercial arrangements.",
