@@ -1295,3 +1295,17 @@ export const WalletSelfResetRequestSchema = z
   })
   .strict();
 export type WalletSelfResetRequest = z.infer<typeof WalletSelfResetRequestSchema>;
+
+// ---------- 15. SEO Route Metadata Contract ----------
+export const SeoRouteMetadataInputSchema = z
+  .object({
+    title: safeText(1, 160),
+    description: safeText(1, 320),
+    canonicalPath: z
+      .string()
+      .trim()
+      .regex(/^\/[a-z0-9\-/]*$/i, "Canonical path must start with '/'"),
+    keywords: z.array(safeText(1, 80)).min(1).max(30),
+  })
+  .strict();
+export type SeoRouteMetadataInput = z.infer<typeof SeoRouteMetadataInputSchema>;

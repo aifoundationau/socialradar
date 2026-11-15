@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { SessionProvider } from "@/components/auth/SessionProvider";
 import { AgentDomBridge } from "@/components/agent/AgentDomBridge";
 import { FreeAccessTopBanner } from "@/components/layout/FreeAccessTopBanner";
+import { SEO_COPYRIGHT, buildStructuredDataJsonLd } from "@/lib/seo";
 import "./globals.css";
 
 const inter = Inter({
@@ -48,6 +49,13 @@ export const metadata: Metadata = {
   creator: "AI Foundation",
   publisher: "AdRadarHQ",
   category: "Marketing & Advertising Intelligence",
+  classification: "Advertising Intelligence, Competitor Ad Research & AI Creative Software",
+  referrer: "origin-when-cross-origin",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
   // The manifest comes from app/manifest.ts (served as /manifest.webmanifest and linked automatically).
   icons: {
     icon: [
@@ -66,6 +74,13 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: "/",
+    languages: {
+      "en-AU": "/",
+      "en-NZ": "/",
+      "en-US": "/",
+      "en-GB": "/",
+      "x-default": "/",
+    },
   },
   openGraph: {
     type: "website",
@@ -91,7 +106,16 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
+  other: {
+    "geo.region": "AU",
+    "geo.placename": "Australia",
+    copyright: SEO_COPYRIGHT,
+    rating: "general",
+    distribution: "global",
+  },
 };
+
+const STRUCTURED_DATA_JSON_LD = buildStructuredDataJsonLd(SEO_TITLE, SEO_DESCRIPTION);
 
 // viewport-fit=cover lets the header and tab bar extend under notches; they pad with safe-area insets.
 export const viewport: Viewport = {
@@ -111,6 +135,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {children}
           <AgentDomBridge />
         </SessionProvider>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: STRUCTURED_DATA_JSON_LD }}
+        />
       </body>
     </html>
   );

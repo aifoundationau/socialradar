@@ -1246,6 +1246,39 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 - `data-agent-id="tab-device-desktop"`, `data-agent-id="tab-device-android"`, `data-agent-id="tab-device-ios"`
 - `data-agent-id="install-pwa-direct-btn"`, `data-agent-id="install-pwa-android-btn"`
 
+## 28. High-Quality SEO Package, Structured Data JSON-LD, Robots, Sitemap & Social Preview Contract (`SeoRouteMetadataInputSchema`, `src/lib/seo.ts`)
+
+### 28.1 Route Metadata Contract (`SeoRouteMetadataInputSchema`)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SeoRouteMetadataInput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "description", "canonicalPath", "keywords"],
+  "properties": {
+    "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 320 },
+    "canonicalPath": { "type": "string", "pattern": "^/[a-zA-Z0-9\\-/]*$" },
+    "keywords": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": { "type": "string", "minLength": 1, "maxLength": 80 }
+    }
+  }
+}
+```
+
+### 28.2 Non-Visual SEO Endpoints & Head Metadata
+- **Preservation Rule:** Existing `title`, `description`, `keywords`, `icons`, `appleWebApp`, `manifest`, `openGraph`, `twitter`, `robots`, and `viewport` definitions in `src/app/layout.tsx`, `src/app/manifest.ts`, and `(dashboard)` route pages are preserved verbatim with zero visual or UI layout changes.
+- **Additive Root Metadata (`src/app/layout.tsx`):** Adds `classification`, `referrer: "origin-when-cross-origin"`, `formatDetection` (`email: false`, `address: false`, `telephone: false`), `alternates.languages` (`en-AU`, `en-NZ`, `en-US`, `en-GB`, `x-default`), custom `other` tags (`geo.region`, `geo.placename`, `copyright`, `rating`, `distribution`), and sanitized Schema.org `@graph` JSON-LD (`Organization`, `WebSite`, `SoftwareApplication`) via `<script type="application/ld+json">`.
+- **Route-Specific Canonical, Keywords & Social Cards (`/radar`, `/brands`, `/customize`, `/wallet`):** Validated via `buildRouteSeoMetadata()` (`SeoRouteMetadataInputSchema`) to attach route-level `keywords`, `alternates.canonical`, `openGraph` (`url`, `title`, `description`, `images`), and `twitter` (`summary_large_image`, `images`) while keeping existing page `title` and `description` strings unchanged.
+- **Crawler Directives & Sitemap (`src/app/robots.ts`, `src/app/sitemap.ts`):**
+  - `GET /robots.txt`: Allows indexing of `/`, `/radar`, `/brands`, `/customize`, `/wallet`, disallows `/api/`, and declares `Host` + `Sitemap: <SITE_URL>/sitemap.xml`.
+  - `GET /sitemap.xml`: Outputs deterministic XML sitemap entries for `/`, `/radar`, `/customize`, `/brands`, and `/wallet`.
+- **Generated Social Preview Cards (`src/app/opengraph-image.tsx`, `src/app/twitter-image.tsx`):** Serves `1200x630` `image/png` Open Graph and Twitter/X preview cards via `next/og` `ImageResponse`.
+
 
 
 
