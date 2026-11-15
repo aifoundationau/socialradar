@@ -1,4 +1,5 @@
 import { HomeCta } from "@/components/auth/HomeCta";
+import { HomeValuePostcards } from "@/components/home/HomeValuePostcards";
 import { AmbientGlow } from "@/components/ui/AmbientGlow";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { AppFooter } from "@/components/layout/AppFooter";
@@ -65,6 +66,8 @@ export default function Home() {
             </li>
           ))}
         </ol>
+
+        <HomeValuePostcards />
       </main>
 
       <AppFooter />

@@ -190,12 +190,12 @@ export function AppFooter() {
               type="button"
               data-testid="policy-btn-founder"
               data-agent-id="policy-btn-founder"
-              aria-label="Open Founder Welcome (David Robertson)"
+              aria-label="Open Founder Welcome"
               onClick={() => setActivePolicy("founder")}
               className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1.5 text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
             >
               <Icon name="user" className="size-3 text-primary" />
-              <span>Founder Welcome (David Robertson)</span>
+              <span>Founder Welcome</span>
             </button>
             <button
               type="button"

@@ -119,3 +119,28 @@
     display: none;
   }
 }
+
+.postcard-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.postcard-disclosure::details-content {
+  overflow: clip;
+  contain: layout;
+}
+
+@supports (interpolate-size: allow-keywords) {
+  .postcard-disclosure::details-content {
+    interpolate-size: allow-keywords;
+  }
+
+  .postcard-disclosure:not([open])::details-content {
+    block-size: 0;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .postcard-disclosure::details-content {
+      transition: block-size 0.22s ease-out, content-visibility 0.22s ease-out allow-discrete;
+    }
+  }
+}

@@ -90,8 +90,11 @@ One-off Stripe Checkout purchases. Tokens never expire.
 | Field | Type | Rules |
 |---|---|---|
 | `uid` | string | same as `UserDoc.uid`; must equal the session's `client_reference_id` |
-| `packId` | enum | `PACK_10 \| PACK_50 \| PACK_100 \| PACK_CUSTOM` |
+| `packId` | enum | `PACK_10 \| PACK_50 \| PACK_100 \| PACK_CUSTOM \| SUB_MONTHLY_1000` (or Admin-configured pack ID matching `^[A-Za-z0-9_:-]{2,64}$`) |
 | `tokens` | string | integer `1–1000000` (Stripe metadata values are strings) |
+| `buyerCountry` | string (optional) | ISO-2 buyer country code (`maxLength: 8`) detected or selected at checkout |
+| `priceExGstAud` | string (optional) | Formatted ex-GST AUD subtotal (`"10.00"`) |
+| `webApp` | string (optional) | `"AdRadarHQ"` linking the Stripe charge and invoice to the AdRadarHQ web app |
 
 The webhook credits `tokens` to `uid` with `txId = referenceId = <Checkout Session id>`, so redelivered events are no-ops.
 
@@ -505,7 +508,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 
 ### Mandatory Footer Elements
 - **Copyright Button:** Interactive link button `2026 AI Foundation` navigating to `https://aifoundation.net.au/` (new tab, `rel="noopener noreferrer"`) with `· All rights reserved.`
-- **Founder Welcome:** David Robertson welcome briefing detailing democratic access and redistributive token economics.
+- **Founder Welcome (`policy-btn-founder`):** Footer button labeled strictly `Founder Welcome` (no founder name attached on the button itself); clicking opens the `Founder Welcome` modal briefing introducing Founder David Robertson (Griffith University higher degree in research in AI and digital transformation; opening the AI Centre in Phnom Penh for development of regional AI infrastructure in Southeast Asia), stating solely that his web apps operate on a token system (with zero mention of token cost), and explaining that visitors can contact him by registering as a Supporter and sending a message from their admin panel.
 - **Privacy Policy:** Australian Privacy Principles (APPs) and Privacy Act 1988 (Cth) compliance, 7-year statutory data retention on financial logs, zero selling of personal data.
 - **Terms of Service:** Commercial contract specifying that all invoices are in Australian Dollars (AUD), the default currency is AUD, **contains zero references to any specific token price**, explicitly states that *"The price of Tokens can change at any time without notice"* (with product & service token requirements customizable by SuperAdmin), that the business never uses decimals, operating strictly on whole numbers, and that currency conversion can show up to 2 decimal places. Explains what tokens are: *"You exchange money for a token; tokens mean more flexible payment options, as a payment may be distributed to multiple service providers."* Specifies strict No Refunds policy on digital tokens and subscriptions (with automatic technical failure token refunds and Australian Consumer Law non-excludable guarantees). Explains independent contractor status of Ad Agents: Ad Agents are independent contractors with no official employment by Ad Radar; their role is purely in an outsourced capacity with no long-term contractual arrangement; **their individual pricing structure is theirs alone, and Ad Radar HQ does not have any control over their specialization and expert services**; and their advice, recommendations, strategies, and opinions are strictly their own and do not represent Ad Radar HQ. Enforces sole proprietary ownership: all development, source code, and assets remain the sole proprietary ownership of AI Foundation, ABN 36 339 516 584, and no part of this web app can be used without express written prior consent of the developer. Nations outside Australia and New Zealand view an AUD to USD currency conversion.
 - **AI Policy (ISO/IEC 42001):** Artificial Intelligence Management System compliance, model ethics, bias mitigations, and human-in-the-loop oversight.
@@ -766,12 +769,13 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   - Zero manual `tax_rates` (`txr_...`) or `ensureAuGstTaxRateId` logic.
 - **Two Payment Modes:**
   1. **Buy Tokens (`PACK_10`, `PACK_50`, `PACK_100`, `PACK_CUSTOM`):**
-     - `mode: "payment"`, `invoice_creation: { enabled: true }`, `automatic_tax: { enabled: true }`
-     - `price_data`: `{ currency: "aud", tax_behavior: "exclusive", unit_amount: pack.priceCents, product_data: { name, description } }`
+     - `mode: "payment"`, `invoice_creation: { enabled: true, invoice_data: { description, custom_fields, footer, rendering_options: { amount_tax_display: "exclude_tax" }, metadata } }`, `automatic_tax: { enabled: true }`
+     - `invoice_data.description`, `payment_intent_data.description`, and `product_data.description` explicitly link the charge to **AdRadarHQ Web App (`adradarhq.com`)**, the **token purchase quantity**, and the **ex-GST AUD subtotal** (`+10% GST` added exclusively if customer is in Australia; `$0` tax outside Australia). `custom_fields` include `Web App`, `Token Purchase`, `Subtotal (ex-GST)`, and `AI Foundation ABN`.
+     - `price_data`: `{ currency: "aud", tax_behavior: "exclusive", unit_amount: pack.priceCents, product_data: { name, description, metadata } }`
      - Upon payment confirmation, the purchased integer tokens are atomically distributed to `users/{uid}.tokenBalance` and logged in `token_transactions/{sessionId}` and `stripe_purchases/{sessionId}`.
   2. **Buy Monthly Search Subscription (`SUB_MONTHLY_1000`):**
-     - `mode: "subscription"`, `automatic_tax: { enabled: true }`
-     - `price_data`: `{ currency: "aud", tax_behavior: "exclusive", unit_amount: pack.priceCents, recurring: { interval: "month" }, product_data: { name: "Monthly Search Subscription", description } }`
+     - `mode: "subscription"`, `automatic_tax: { enabled: true }`, `subscription_data: { description, metadata }`
+     - `price_data`: `{ currency: "aud", tax_behavior: "exclusive", unit_amount: pack.priceCents, recurring: { interval: "month" }, product_data: { name, description, metadata } }` (explicitly linking to `AdRadarHQ Web App (adradarhq.com)`, monthly token quantity, and ex-GST AUD subtotal).
      - Upon payment confirmation, the subscription starts (`subscriptionStatus: "active"`, `stripeSubscriptionId`, `subscriptionTokensPerMonth: 1000`) and 1,000 tokens are atomically distributed to `users/{uid}.tokenBalance`.
 
 ### 18.2 Direct Session Confirmation Endpoint (`POST /api/wallet/confirm`)
@@ -1278,6 +1282,73 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   - `GET /robots.txt`: Allows indexing of `/`, `/radar`, `/brands`, `/customize`, `/wallet`, disallows `/api/`, and declares `Host` + `Sitemap: <SITE_URL>/sitemap.xml`.
   - `GET /sitemap.xml`: Outputs deterministic XML sitemap entries for `/`, `/radar`, `/customize`, `/brands`, and `/wallet`.
 - **Generated Social Preview Cards (`src/app/opengraph-image.tsx`, `src/app/twitter-image.tsx`):** Serves `1200x630` `image/png` Open Graph and Twitter/X preview cards via `next/og` `ImageResponse`.
+
+## 29. Landing Page Value, Features & Functions Collapsible Postcards (`HomeValuePostcardSchema`, `src/components/home/HomeValuePostcards.tsx`)
+
+### 29.1 Postcard Item Contract (`HomeValuePostcardSchema`)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HomeValuePostcard",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "numberLabel",
+    "category",
+    "title",
+    "teaser",
+    "description",
+    "bullets",
+    "valueTakeaway",
+    "icon"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "numberLabel": { "type": "string", "pattern": "^\\d{2}$" },
+    "category": { "type": "string", "minLength": 1, "maxLength": 40 },
+    "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "teaser": { "type": "string", "minLength": 1, "maxLength": 220 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 600 },
+    "bullets": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 5,
+      "items": { "type": "string", "minLength": 1, "maxLength": 220 }
+    },
+    "valueTakeaway": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "icon": {
+      "type": "string",
+      "enum": [
+        "shield",
+        "flame",
+        "clock",
+        "radar",
+        "sliders",
+        "sparkles",
+        "layers",
+        "mapPin",
+        "fileText",
+        "wallet",
+        "refresh",
+        "smartphone"
+      ]
+    }
+  }
+}
+```
+
+### 29.2 Responsive Layout & Initial Collapsed Behavior
+- Placed immediately underneath the `01 / 02 / 03` overview steps in `src/app/page.tsx` without altering the hero section or steps `01`–`03`.
+- Uses native HTML `<details>` + `<summary>` disclosure elements (`04`–`15`, 12 postcards total), strictly **all collapsed on initial load** (`open={false}`, empty initial `openMap`) across desktop, laptop, tablet, Android, and iPhone.
+- Responsive grid (`grid-cols-1 items-start gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3`): **3 postcards across** on laptop/desktop, **2 across** on tablets, and **1 stacked column** on Android/iPhone.
+- **Interactive DOM Bindings:**
+  - `data-agent-id="home-value-postcards-section"`, `data-testid="home-value-postcards-section"`
+  - `data-agent-id="home-postcards-toggle-all-btn"`, `data-testid="home-postcards-toggle-all-btn"` (`aria-expanded`)
+  - `data-agent-id="home-value-postcards-grid"`, `data-testid="home-value-postcards-grid"`
+  - `data-agent-id="home-postcard-<id>"`, `data-testid="home-postcard-<id>"`
+  - `data-agent-id="home-postcard-trigger-<id>"`, `data-testid="home-postcard-trigger-<id>"`
+  - `data-agent-id="home-postcard-body-<id>"`, `data-testid="home-postcard-body-<id>"`
 
 
 

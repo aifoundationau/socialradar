@@ -384,6 +384,7 @@ export const TopupMetadataSchema = z
     gstTaxAud: z.string().max(64).optional(),
     totalIncGstAud: z.string().max(64).optional(),
     taxType: z.string().max(64).optional(),
+    webApp: z.string().max(64).optional(),
   })
   .strict();
 
@@ -1309,3 +1310,35 @@ export const SeoRouteMetadataInputSchema = z
   })
   .strict();
 export type SeoRouteMetadataInput = z.infer<typeof SeoRouteMetadataInputSchema>;
+
+// ---------- 16. Landing Page Value, Features & Functions Postcards Contract ----------
+export const HomeValuePostcardIconSchema = z.enum([
+  "shield",
+  "flame",
+  "clock",
+  "radar",
+  "sliders",
+  "sparkles",
+  "layers",
+  "mapPin",
+  "fileText",
+  "wallet",
+  "refresh",
+  "smartphone",
+]);
+export type HomeValuePostcardIcon = z.infer<typeof HomeValuePostcardIconSchema>;
+
+export const HomeValuePostcardSchema = z
+  .object({
+    id: z.string().trim().regex(/^[a-z0-9-]+$/),
+    numberLabel: z.string().trim().regex(/^\d{2}$/),
+    category: safeText(1, 40),
+    title: safeText(1, 100),
+    teaser: safeText(1, 220),
+    description: safeText(1, 600),
+    bullets: z.array(safeText(1, 220)).min(2).max(5),
+    valueTakeaway: safeText(1, 200),
+    icon: HomeValuePostcardIconSchema,
+  })
+  .strict();
+export type HomeValuePostcard = z.infer<typeof HomeValuePostcardSchema>;

@@ -22,28 +22,28 @@ export const POLICIES: Record<string, PolicyDoc> = {
       {
         heading: "Welcome to AdRadarHQ & AI Foundation",
         paragraphs: [
-          "G'day and welcome! I am David Robertson, founder of AI Foundation and AdRadarHQ. When we set out to build this platform, our primary motivation was to level the playing field for ambitious entrepreneurs, agency operators, and businesses across Australia, New Zealand, and globally.",
+          "G'day and welcome! I am David Robertson, founder of AI Foundation and AdRadarHQ. My Griffith University higher degree in research is in AI and digital transformation. When we set out to build this platform, our primary motivation was to level the playing field for ambitious entrepreneurs, agency operators, and businesses across Australia, New Zealand, Southeast Asia, and globally.",
+          "I am going to Phnom Penh to open the AI Centre, for development of regional AI infrastructure in Southeast Asia.",
           "For too long, deep ad library intelligence and high-converting marketing frameworks were walled off inside ultra-expensive enterprise tooling or guarded by elite media-buying agencies. AdRadarHQ changes that equation entirely.",
         ],
       },
       {
-        heading: "Democratic Access & The Token Economy",
+        heading: "Democratic Access & The Token System",
         paragraphs: [
-          "We eliminated predatory monthly lock-in subscriptions. Instead, we architected a transparent, redistributive token model. You purchase tokens only when you need them, they never expire, and your resources fuel genuine intelligence searches and AI-driven creative deconstructions.",
+          "We eliminated predatory monthly lock-in subscriptions. My web apps operate on a token system — you use tokens only when you need them, they never expire, and your resources fuel genuine intelligence searches and AI-driven creative deconstructions.",
           "As an Australian business founded in Brisbane/Sydney, we operate with relentless transparency, strict adherence to Australian Privacy Principles, and ISO-standard operational security.",
         ],
         bullets: [
+          "My web apps operate on a token system with whole-number tokens that never expire.",
           "No forced recurring retainers or hidden cancellation penalties.",
-          "Tokens are priced and invoiced in Australian Dollars (default rate 1 Token = AUD $1) with whole numbers and local settlement.",
-          "Australians and New Zealanders receive transparent, dedicated AUD pricing.",
           "Redistributive equity ledger ensuring partner accountability and statutory compliance.",
         ],
       },
       {
-        heading: "Pairing Human Intuition with Ethical AI",
+        heading: "Pairing Human Intuition with Ethical AI & Direct Contact",
         paragraphs: [
           "Technology should amplify human creativity, not replace it. Our AI Remix Studio deconstructs proven multi-platform winners (Meta, TikTok, Google) and synthesizes bespoke, brand-aligned hook variants, storyboards, and scripts designed specifically for your brand voice.",
-          "Thank you for being part of this journey as a Supporter. If you ever have feedback, questions, or ideas, message me directly through the platform.",
+          "Thank you for being part of this journey. If you ever have feedback, questions, or ideas, you can contact me by registering as a Supporter, then sending me a message from your admin panel.",
         ],
       },
     ],

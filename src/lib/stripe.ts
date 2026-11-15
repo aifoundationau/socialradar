@@ -48,20 +48,31 @@ export function buildCheckoutParams(opts: {
   const isSubscription = pack.id === "SUB_MONTHLY_1000";
   const tokensFormatted = pack.tokens.toLocaleString("en-AU");
   const priceFormatted = (pack.priceCents / 100).toFixed(2);
+  const webAppDomain = "adradarhq.com";
+  const packTitle = pack.name
+    ? `${pack.name} — ${tokensFormatted} AdRadarHQ Tokens`
+    : `${tokensFormatted} AdRadarHQ Tokens`;
 
   const metadata: Record<string, string> = {
     uid,
     packId: pack.id,
     tokens: String(pack.tokens),
     buyerCountry,
+    priceExGstAud: priceFormatted,
+    webApp: "AdRadarHQ",
   };
 
   if (isSubscription) {
+    const subTitle = subscriptionName
+      ? `AdRadarHQ — ${subscriptionName}`
+      : "AdRadarHQ — Monthly Search Subscription";
+    const subDescription = `AdRadarHQ Web App (${webAppDomain}) — ${tokensFormatted} Monthly Tokens · Subtotal $${priceFormatted} AUD/mo ex-GST (+10% GST in Australia)`;
     return {
       mode: "subscription",
       client_reference_id: uid,
       metadata,
       subscription_data: {
+        description: subDescription,
         metadata,
       },
       automatic_tax: { enabled: true },
@@ -77,8 +88,9 @@ export function buildCheckoutParams(opts: {
               interval: "month",
             },
             product_data: {
-              name: subscriptionName || "Monthly Search Subscription",
-              description: `Allocate ${tokensFormatted} Tokens / Month ($${priceFormatted} AUD / mo)`,
+              name: subTitle,
+              description: subDescription,
+              metadata,
             },
           },
         },
@@ -88,11 +100,26 @@ export function buildCheckoutParams(opts: {
     };
   }
 
+  const lineDescription = `AdRadarHQ Web App (${webAppDomain}) — Token Purchase: ${tokensFormatted} Non-Expiring Tokens · Subtotal $${priceFormatted} AUD ex-GST (+10% GST in Australia)`;
+  const invoiceDescription = `Tax Invoice — AdRadarHQ Web App (${webAppDomain}) — Token Purchase: ${tokensFormatted} Non-Expiring Tokens (Subtotal $${priceFormatted} AUD ex-GST; +10% GST added if customer is in Australia)`;
+
   return {
     mode: "payment",
     invoice_creation: {
       enabled: true,
       invoice_data: {
+        description: invoiceDescription,
+        custom_fields: [
+          { name: "Web App", value: `AdRadarHQ (${webAppDomain})` },
+          { name: "Token Purchase", value: `${tokensFormatted} Tokens` },
+          { name: "Subtotal (ex-GST)", value: `$${priceFormatted} AUD` },
+          { name: "AI Foundation ABN", value: "36 339 516 584" },
+        ],
+        footer:
+          "AdRadarHQ Web App (https://adradarhq.com) · AI Foundation Australia (ABN 36 339 516 584) · Non-expiring digital tokens settled in AUD (+10% GST in Australia; $0 tax outside Australia).",
+        rendering_options: {
+          amount_tax_display: "exclude_tax",
+        },
         metadata,
       },
     },
@@ -100,7 +127,7 @@ export function buildCheckoutParams(opts: {
     client_reference_id: uid,
     metadata,
     payment_intent_data: {
-      description: `${tokensFormatted} AdRadarHQ Tokens ($${priceFormatted} AUD)`,
+      description: lineDescription,
       metadata,
     },
     customer_creation: "always",
@@ -113,8 +140,9 @@ export function buildCheckoutParams(opts: {
           tax_behavior: "exclusive",
           unit_amount: pack.priceCents,
           product_data: {
-            name: `${tokensFormatted} AdRadarHQ Tokens`,
-            description: `${tokensFormatted} AdRadarHQ tokens ($${priceFormatted} AUD)`,
+            name: packTitle,
+            description: lineDescription,
+            metadata,
           },
         },
       },
