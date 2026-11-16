@@ -24,6 +24,7 @@ import { Icon } from "@/components/ui/Icon";
 import { alertError, alertInfo, alertSuccess, btnSecondary } from "@/components/ui/styles";
 import { AdWinnerCard } from "./AdWinnerCard";
 import { RadarFilterBar, type RadarFilters } from "./RadarFilterBar";
+import { RadarProcessPostcards } from "./RadarProcessPostcards";
 import { RemixStudio, type RemixError, type RemixState } from "./RemixStudio";
 import { PLATFORMS, type SortKey } from "./options";
 
@@ -547,39 +548,65 @@ export function RadarView() {
             )}
           </>
         ) : (
-          <div className="flex flex-col items-center gap-5 px-2 py-12 text-center sm:py-20">
-            <span className="flex size-16 items-center justify-center rounded-2xl border border-primary-container/40 bg-primary-container/15 text-primary shadow-[0_0_24px_rgba(128,131,255,0.25)]">
-              <Icon name="radar" className="size-8" />
-            </span>
-            <div className="max-w-lg space-y-2">
-              <h1 className="text-[22px] leading-7 font-semibold tracking-tight text-on-surface sm:text-headline-lg">
-                Find ads that are already winning
-              </h1>
-              <p className="text-body text-on-surface-variant">
-                Search the Meta, TikTok and Google ad libraries. Ads that have run for weeks rise to the top, ready to remix
-                for {activeBrand?.brandName ?? "your brand"}.
+          <div className="flex flex-col items-center gap-6 px-1 py-4 text-center sm:gap-8 sm:px-2 sm:py-8">
+            <RadarProcessPostcards />
+            <div className="flex w-full max-w-5xl flex-col items-center gap-5 pt-2">
+              <span className="flex size-16 items-center justify-center rounded-2xl border border-primary-container/40 bg-primary-container/15 text-primary shadow-[0_0_24px_rgba(128,131,255,0.25)]">
+                <Icon name="radar" className="size-8" />
+              </span>
+              <div className="max-w-xl space-y-2">
+                <h1 className="text-[22px] leading-7 font-semibold tracking-tight text-on-surface sm:text-headline-lg">
+                  Find ads that are already winning
+                </h1>
+                <p className="text-body text-on-surface-variant">
+                  Search the Meta, TikTok and Google ad libraries. Ads that have run for weeks rise to the top, ready to remix
+                  for {activeBrand?.brandName ?? "your brand"}.
+                </p>
+              </div>
+              <div
+                data-agent-id="radar-category-examples-grid"
+                data-testid="radar-category-examples-grid"
+                className="grid w-full max-w-5xl grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5 md:grid-cols-4 lg:grid-cols-6"
+              >
+                {EXAMPLES.map((q) => {
+                  const isSelected = filters.query.trim().toLowerCase() === q.toLowerCase();
+                  return (
+                    <button
+                      key={q}
+                      type="button"
+                      data-agent-id={`radar-example-${q.replace(/\s+/g, "-")}`}
+                      data-testid={`radar-example-${q.replace(/\s+/g, "-")}`}
+                      aria-label={`Search ads for ${q}`}
+                      aria-pressed={isSelected}
+                      onClick={() => {
+                        setFilters((f) => ({ ...f, query: q }));
+                        const searchInput = document.querySelector<HTMLInputElement>(
+                          '[data-testid="radar-search-input"]',
+                        );
+                        searchInput?.focus({ preventScroll: true });
+                        if (window.innerWidth < 768) {
+                          document
+                            .querySelector('[data-testid="radar-search-form"]')
+                            ?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
+                        }
+                      }}
+                      className={`inline-flex min-h-10 w-full min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 font-mono text-xs transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary-container active:scale-[0.97] sm:min-h-9 sm:text-mono-code ${
+                        isSelected
+                          ? "border-primary bg-primary-container/25 font-semibold text-on-surface ring-1 ring-primary/40 shadow-[0_0_14px_rgba(128,131,255,0.22)]"
+                          : "border-white/10 bg-surface-container-low text-on-surface-variant hover:-translate-y-0.5 hover:border-primary-container/60 hover:bg-surface-container-high hover:text-on-surface hover:shadow-sm"
+                      }`}
+                    >
+                      <span className="truncate">{q}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="font-mono text-mono-label text-outline">
+                {ACTION_COSTS.RADAR_SEARCH || ACTION_COSTS.AI_REMIX
+                  ? `Searches cost ${ACTION_COSTS.RADAR_SEARCH} ${ACTION_COSTS.RADAR_SEARCH === 1 ? "token" : "tokens"} · remixes cost ${ACTION_COSTS.AI_REMIX} ${ACTION_COSTS.AI_REMIX === 1 ? "token" : "tokens"}`
+                  : "Searching and remixing are free right now"}
               </p>
             </div>
-            <div className="flex max-w-3xl flex-wrap justify-center gap-2">
-              {EXAMPLES.map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  data-agent-id={`radar-example-${q.replace(/\s+/g, "-")}`}
-                  data-testid={`radar-example-${q.replace(/\s+/g, "-")}`}
-                  aria-label={`Search ads for ${q}`}
-                  onClick={() => setFilters((f) => ({ ...f, query: q }))}
-                  className="h-10 rounded-full border border-white/10 bg-surface-container-low px-3.5 font-mono text-mono-code text-on-surface-variant transition-colors hover:border-primary-container hover:text-on-surface sm:h-8"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-            <p className="font-mono text-mono-label text-outline">
-              {ACTION_COSTS.RADAR_SEARCH || ACTION_COSTS.AI_REMIX
-                ? `Searches cost ${ACTION_COSTS.RADAR_SEARCH} ${ACTION_COSTS.RADAR_SEARCH === 1 ? "token" : "tokens"} · remixes cost ${ACTION_COSTS.AI_REMIX} ${ACTION_COSTS.AI_REMIX === 1 ? "token" : "tokens"}`
-                : "Searching and remixing are free right now"}
-            </p>
           </div>
         )}
       </div>

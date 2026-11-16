@@ -1533,3 +1533,32 @@ export interface LibraryPurchaseResponse {
   balanceAfter: number;
   alreadyPurchased: boolean;
 }
+
+// ---------- 18. Radar Process Walkthrough Postcards Contract ----------
+export const RadarProcessPostcardIconSchema = z.enum([
+  "tag",
+  "sliders",
+  "search",
+  "chevronsUpDown",
+  "zap",
+  "sparkles",
+  "film",
+  "image",
+  "fileText",
+  "refresh",
+]);
+export type RadarProcessPostcardIcon = z.infer<typeof RadarProcessPostcardIconSchema>;
+
+export const RadarProcessPostcardSchema = z
+  .object({
+    id: z.string().trim().regex(/^[a-z0-9-]+$/),
+    stepNumber: z.string().trim().regex(/^\d{2}$/),
+    category: safeText(1, 40),
+    title: safeText(1, 120),
+    chips: z.array(safeText(1, 40)).min(1).max(6).optional(),
+    shortExplanation: safeText(1, 240),
+    hoverExplanation: safeText(1, 600),
+    icon: RadarProcessPostcardIconSchema,
+  })
+  .strict();
+export type RadarProcessPostcard = z.infer<typeof RadarProcessPostcardSchema>;

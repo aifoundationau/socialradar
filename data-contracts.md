@@ -1508,6 +1508,69 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   - `data-agent-id="library-buy-<itemKey>"`, `data-agent-id="library-view-<itemKey>"`
   - `data-agent-id="library-detail-modal"`, `library-open-in-radar-btn`, `library-modal-download-txt-btn`, `library-modal-copy-btn`, `library-modal-close-btn`
 
+## 32. Radar Process Walkthrough Postcards (`RadarProcessPostcardSchema`, `src/components/radar/RadarProcessPostcards.tsx`)
+
+### 32.1 Postcard Item Contract (`RadarProcessPostcardSchema`)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RadarProcessPostcard",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "stepNumber",
+    "category",
+    "title",
+    "shortExplanation",
+    "hoverExplanation",
+    "icon"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "stepNumber": { "type": "string", "pattern": "^\\d{2}$" },
+    "category": { "type": "string", "minLength": 1, "maxLength": 40 },
+    "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "chips": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": { "type": "string", "minLength": 1, "maxLength": 40 }
+    },
+    "shortExplanation": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "hoverExplanation": { "type": "string", "minLength": 1, "maxLength": 600 },
+    "icon": {
+      "type": "string",
+      "enum": [
+        "tag",
+        "sliders",
+        "search",
+        "chevronsUpDown",
+        "zap",
+        "sparkles",
+        "film",
+        "image",
+        "fileText",
+        "refresh"
+      ]
+    }
+  }
+}
+```
+
+### 32.2 Placement, Responsive Layout, Hover Explanation & DOM Bindings
+- Rendered on `/radar` inside `RadarView.tsx` **above** the Radar icon and `Find ads that are already winning` heading in the initial empty-search view (`grid-cols-1 sm:grid-cols-2 xl:grid-cols-5`: `1×10` on mobile, `2×5` on tablets/foldables, `5×2` on wide desktops), covering the 10 workflow steps (`01`–`10`): `Add your brands to My Brands`, `Choose your combination` [`Proven (28+d)`, `Extended (60+d)`, `Top Winners (90%+)`], `Perform your search`, `Sort by` [`Winning score`, `Most likes`, `Most views`, `Longest ad online`], `Choose which ad to remix your brand with the model ad`, `Remix the ad`, `Receive the three versions for your video ad`, `Receive the image prompts for your remix`, `Option to build a remixed ad text for social media text posts`, and `Option to regenerate variations again`.
+- Underneath the `"Search the Meta, TikTok and Google ad libraries..."` subheading, the 24 keyword category buttons render in a responsive grid (`radar-category-examples-grid`: `grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6`) with tactile press/hover states, `aria-pressed` active selection state, and automatic search-bar focus + mobile scroll alignment.
+- Each postcard displays a concise `shortExplanation` and reveals its `hoverExplanation` tooltip (`role="tooltip"`) strictly **inside each postcard's own bounded box** (`col-start-1 row-start-1` in-place grid layer reveal) on hover, keyboard focus (`focus-within`), or touch tap (`aria-expanded`), avoiding any external floating overflow or clipping.
+- **Interactive DOM Bindings:**
+  - `data-agent-id="radar-process-postcards-section"`, `data-testid="radar-process-postcards-section"`
+  - `data-agent-id="radar-process-postcards-grid"`, `data-testid="radar-process-postcards-grid"`
+  - `data-agent-id="radar-process-postcard-<id>"`, `data-testid="radar-process-postcard-<id>"`
+  - `data-agent-id="radar-process-trigger-<id>"`, `data-testid="radar-process-trigger-<id>"` (`aria-expanded`, `aria-describedby`)
+  - `data-agent-id="radar-process-tooltip-<id>"`, `data-testid="radar-process-tooltip-<id>"` (`role="tooltip"`)
+  - `data-agent-id="radar-category-examples-grid"`, `data-testid="radar-category-examples-grid"`
+  - `data-agent-id="radar-example-<slug>"`, `data-testid="radar-example-<slug>"` (`aria-pressed`)
+
 
 
 
