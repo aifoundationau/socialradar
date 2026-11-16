@@ -24,6 +24,9 @@ export {
   type WorldCountryOption,
 };
 
+/** Master feature toggle for Monthly Search Subscriptions (hidden for now; flip to `true` to re-enable). */
+export const ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE: boolean = false;
+
 /**
  * Returns true if the user has an active Monthly Search Subscription (`SUB_MONTHLY_1000`)
  * or is a Super Admin.
@@ -110,6 +113,8 @@ export const ACTION_COSTS: Record<
   | "RADAR_SEARCH"
   | "AI_REMIX"
   | "REGENERATE_VARIATIONS"
+  | "BUILD_REMIXED_AD_TEXT"
+  | "LIBRARY_ITEM_PURCHASE"
   | "BRAND_CLONE"
   | "BRAND_TXT_DOWNLOAD"
   | "SEARCHMIX_DOWNLOAD"
@@ -120,6 +125,8 @@ export const ACTION_COSTS: Record<
   RADAR_SEARCH: 1,
   AI_REMIX: 1,
   REGENERATE_VARIATIONS: 1,
+  BUILD_REMIXED_AD_TEXT: 1,
+  LIBRARY_ITEM_PURCHASE: 1,
   BRAND_CLONE: 1,
   BRAND_TXT_DOWNLOAD: 1,
   SEARCHMIX_DOWNLOAD: 1,

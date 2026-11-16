@@ -1,13 +1,25 @@
 import "server-only";
 import { GoogleGenAI, type Part } from "@google/genai";
 import { z } from "zod";
-import { AdRemixBlueprintSchema, type AdRemixBlueprint, type BrandProfile, type NormalizedAd } from "./contracts";
+import {
+  AdRemixBlueprintSchema,
+  RemixedAdTextGenerationSchema,
+  RemixedAdTextItemSchema,
+  countAdWords,
+  sanitizeText,
+  type AdRemixBlueprint,
+  type BrandProfile,
+  type NormalizedAd,
+  type RemixedAdTextItem,
+  type RemixDoc,
+} from "./contracts";
 import { UpstreamError } from "./token-ledger";
 
 /** Override with GEMINI_MODEL; the default alias tracks Google's current Flash model. */
 const MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
 /** Inline media limit, kept well under Gemini's 20 MB request cap once base64-encoded. */
 const MAX_INLINE_BYTES = 12 * 1024 * 1024;
+const MAX_AD_TEXT_WORDS = 150;
 
 let client: GoogleGenAI | null = null;
 
@@ -45,6 +57,24 @@ function toGeminiSchema(node: unknown): unknown {
   );
 }
 const BLUEPRINT_SCHEMA = toGeminiSchema(z.toJSONSchema(AdRemixBlueprintSchema));
+const REMIXED_AD_TEXT_SCHEMA = toGeminiSchema(z.toJSONSchema(RemixedAdTextGenerationSchema));
+
+function buildSourceAdPayload(ad: NormalizedAd) {
+  return {
+    platform: ad.platform,
+    advertiser: ad.advertiserName,
+    format: ad.mediaType,
+    daysActive: ad.activeDaysCount,
+    winningScore: ad.winningScore,
+    totalViews: ad.totalViews,
+    totalLikes: ad.totalLikes,
+    performanceSummary: ad.matrixScore?.resonanceReason,
+    headline: ad.headline,
+    primaryCopy: ad.primaryCopy,
+    callToAction: ad.ctaText,
+    landingPage: ad.landingPageUrl,
+  };
+}
 
 const SYSTEM_INSTRUCTION = `You are a senior direct-response creative strategist. You deconstruct a proven ad and remix it for a different brand.
 
@@ -63,20 +93,7 @@ Then write exactly 3 variations for the BRAND, each with a clearly different ang
 
 /** Deconstructs `ad` and writes three variations for `brand`. Throws UpstreamError on any failure, so the token gate refunds. */
 export async function generateRemix(ad: NormalizedAd, brand: BrandProfile): Promise<AdRemixBlueprint> {
-  const source = {
-    platform: ad.platform,
-    advertiser: ad.advertiserName,
-    format: ad.mediaType,
-    daysActive: ad.activeDaysCount,
-    winningScore: ad.winningScore,
-    totalViews: ad.totalViews,
-    totalLikes: ad.totalLikes,
-    performanceSummary: ad.matrixScore?.resonanceReason,
-    headline: ad.headline,
-    primaryCopy: ad.primaryCopy,
-    callToAction: ad.ctaText,
-    landingPage: ad.landingPageUrl,
-  };
+  const source = buildSourceAdPayload(ad);
   const platformDirective =
     ad.platform === "TIKTOK"
       ? "\n\nTIKTOK VIRAL INTELLIGENCE DIRECTIVE: Deconstruct the 0-2s visual thumbstop and 2-6s retention bridge. Design all 3 variations with TikTok-native UGC delivery (e.g., Green Screen, POV, Creator Review/Unboxing, or Problem-Agitate-Solve), punchy on-screen native text overlays, and high-converting verbal hooks."
@@ -120,6 +137,147 @@ export async function generateRemix(ad: NormalizedAd, brand: BrandProfile): Prom
     throw new UpstreamError("The AI returned an incomplete remix. Please try again.");
   }
   return parsed.data;
+}
+
+const AD_TEXT_SYSTEM_INSTRUCTION = `You are a senior paid social and search direct-response copywriter. Using the BRAND profile, the SOURCE MODELING AD (and its creative deconstruction when provided), write exactly 4 ready-to-publish remixed text ad descriptions — one each for TikTok, Facebook, Instagram, and Google Ads.
+
+Strict platform & quality rules:
+1. HARD LENGTH CAP: Every single \`adText\` MUST be 150 words or fewer (target 60–130 words; never exceed 150 words).
+2. Adapt the proven persuasion mechanics and hook structure of the source modeling ad to the BRAND's product, target audience, pain points, unique mechanism/USPs, offer, and tone of voice.
+3. Never copy the source competitor's brand names, trademarks, or specific wording, and never invent prices, stats, reviews, certifications, or guarantees absent from the BRAND profile.
+4. Platform tailoring:
+   - \`tiktok\`: Thumb-stopping 0–2s scroll-stop hook, natural conversational UGC cadence, clear benefit & CTA, plus 3–5 niche hashtags at the end.
+   - \`facebook\`: High-converting above-the-fold primary text hook (strong first 125 characters), clear problem-agitate-solve flow, concrete offer framing, and direct CTA.
+   - \`instagram\`: Clean Reels/Feed visual hook, punchy scannable short lines matching brand voice, desirable outcome & CTA, plus 3–5 targeted hashtags at the end.
+   - \`googleAds\`: High-intent commercial search / Performance Max / YouTube ad description with strong intent-matching hook, key differentiators, and direct action callout.
+5. Plain text only (no Markdown **bold** or # headings). Keep \`headline\` crisp and \`cta\` short and actionable.`;
+
+/** Strips markdown/control chars and clamps an AI-generated ad text description strictly to <= 150 words. */
+export function enforceMaxAdWords(
+  rawText: string,
+  maxWords = MAX_AD_TEXT_WORDS,
+): { adText: string; wordCount: number } {
+  const normalized = rawText
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/^[#]{1,6}\s+/gm, "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n")
+    .trim();
+
+  const words = normalized ? normalized.split(/\s+/) : [];
+  if (words.length === 0) {
+    return { adText: "", wordCount: 0 };
+  }
+  if (words.length <= maxWords) {
+    return { adText: normalized, wordCount: words.length };
+  }
+
+  const slice = words.slice(0, maxWords);
+  let cutIdx = -1;
+  for (let i = slice.length - 1; i >= 39; i--) {
+    if (/[.!?]["')\]]*$/.test(slice[i])) {
+      cutIdx = i + 1;
+      break;
+    }
+  }
+
+  let truncated =
+    cutIdx > 0
+      ? slice.slice(0, cutIdx).join(" ")
+      : `${slice.join(" ").replace(/[,:;—–-]+$/g, "").trim()}.`;
+
+  while (countAdWords(truncated) > maxWords) {
+    const shrink = truncated.split(/\s+/).slice(0, maxWords);
+    truncated = `${shrink.join(" ").replace(/[,:;—–-]+$/g, "").trim()}.`;
+  }
+
+  const cleaned = sanitizeText(truncated);
+  return {
+    adText: cleaned,
+    wordCount: countAdWords(cleaned),
+  };
+}
+
+const AD_TEXT_PLATFORMS = [
+  { key: "tiktok", platform: "TIKTOK", platformLabel: "TikTok" },
+  { key: "facebook", platform: "FACEBOOK", platformLabel: "Facebook" },
+  { key: "instagram", platform: "INSTAGRAM", platformLabel: "Instagram" },
+  { key: "googleAds", platform: "GOOGLE_ADS", platformLabel: "Google Ads" },
+] as const;
+
+/** Builds 4 platform-tailored social media ad text descriptions (<= 150 words each) from `ad` + `brand`. */
+export async function generateRemixedAdTexts(
+  ad: NormalizedAd,
+  brand: BrandProfile,
+  deconstruction?: RemixDoc["deconstruction"] | null,
+): Promise<RemixedAdTextItem[]> {
+  const source = buildSourceAdPayload(ad);
+  const media = await mediaPart(ad);
+  const parts: Part[] = [
+    {
+      text: `SOURCE MODELING AD${media ? " (creative attached)" : ""}:\n${JSON.stringify(source, null, 2)}`,
+    },
+    ...(media ? [media] : []),
+    ...(deconstruction
+      ? [{ text: `DECONSTRUCTED CREATIVE DNA:\n${JSON.stringify(deconstruction, null, 2)}` }]
+      : []),
+    { text: `BRAND PROFILE:\n${JSON.stringify(brand, null, 2)}` },
+  ];
+
+  let raw: string | undefined;
+  try {
+    const res = await getGemini().models.generateContent({
+      model: MODEL,
+      contents: [{ role: "user", parts }],
+      config: {
+        systemInstruction: AD_TEXT_SYSTEM_INSTRUCTION,
+        responseMimeType: "application/json",
+        responseJsonSchema: REMIXED_AD_TEXT_SCHEMA,
+        temperature: 0.85,
+      },
+    });
+    raw = res.text;
+  } catch (err) {
+    console.error("[gemini] generateRemixedAdTexts failed", ad.adId, err);
+    throw new UpstreamError("The AI ad text builder didn't respond. Please try again.");
+  }
+
+  let json: unknown;
+  try {
+    json = JSON.parse(raw ?? "");
+  } catch {
+    json = null;
+  }
+
+  const parsed = RemixedAdTextGenerationSchema.safeParse(json);
+  if (!parsed.success) {
+    console.error("[gemini] remixed ad texts failed validation", ad.adId, parsed.error.issues.slice(0, 5));
+    throw new UpstreamError("The AI returned incomplete ad text descriptions. Please try again.");
+  }
+
+  try {
+    return AD_TEXT_PLATFORMS.map(({ key, platform, platformLabel }) => {
+      const draft = parsed.data[key];
+      const { adText, wordCount } = enforceMaxAdWords(draft.adText, MAX_AD_TEXT_WORDS);
+      return RemixedAdTextItemSchema.parse({
+        platform,
+        platformLabel,
+        headline: sanitizeText(draft.headline).slice(0, 160),
+        adText,
+        cta: sanitizeText(draft.cta).slice(0, 80),
+        wordCount,
+      });
+    });
+  } catch (err) {
+    console.error("[gemini] remixed ad texts post-validation failed", ad.adId, err);
+    throw new UpstreamError("The generated ad text descriptions did not pass validation. Please try again.");
+  }
 }
 
 /** The ad's creative for Gemini: YouTube links by reference, other media inline when small enough. */

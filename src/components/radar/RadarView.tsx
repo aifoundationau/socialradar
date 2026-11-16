@@ -6,10 +6,12 @@ import { useSession } from "@/components/auth/SessionProvider";
 import { ApiClientError, apiFetch, errorMessage } from "@/lib/api-client";
 import {
   PROVEN_WINNER_DAYS,
+  type BuildRemixedAdTextResponse,
   type FreeAccessWindow,
   type NormalizedAd,
   type RadarSearchResponse,
   type RemixDoc,
+  type RemixedAdTextDoc,
   type RemixResponse,
   type ServiceCosts,
 } from "@/lib/contracts";
@@ -71,6 +73,7 @@ type Saved = {
   result: RadarSearchResponse | null;
   selectedAdId: string | null;
   remixes: Record<string, RemixDoc>;
+  remixedAdTexts?: Record<string, RemixedAdTextDoc>;
 };
 const storageKey = (uid: string) => `adradar:radar:${uid}`;
 
@@ -171,11 +174,13 @@ export function RadarView() {
   const [result, setResult] = useState<RadarSearchResponse | null>(saved?.result ?? null);
   const [selectedAdId, setSelectedAdId] = useState<string | null>(saved?.selectedAdId ?? null);
   const [remixes, setRemixes] = useState<Record<string, RemixDoc>>(saved?.remixes ?? {});
+  const [remixedAdTexts, setRemixedAdTexts] = useState<Record<string, RemixedAdTextDoc>>(saved?.remixedAdTexts ?? {});
   const [sort, setSort] = useState<SortKey>("SCORE");
   const [page, setPage] = useState(0);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<RemixError | null>(null);
   const [remixJob, setRemixJob] = useState<{ adId: string; loading: boolean; error: RemixError | null } | null>(null);
+  const [adTextJob, setAdTextJob] = useState<{ adId: string; loading: boolean; error: RemixError | null } | null>(null);
   const [downloadingAdId, setDownloadingAdId] = useState<string | null>(null);
   const [downloadSuccessMsg, setDownloadSuccessMsg] = useState<string | null>(null);
   const [liveServiceCosts, setLiveServiceCosts] = useState<ServiceCosts | undefined>(undefined);
@@ -233,16 +238,20 @@ export function RadarView() {
   const deconstructFee = chargingActive
     ? Math.max(0, Math.round(liveServiceCosts?.deconstructDownload ?? ACTION_COSTS.DECONSTRUCT_DOWNLOAD))
     : 0;
+  const buildRemixedAdTextFee = chargingActive
+    ? Math.max(0, Math.round(liveServiceCosts?.buildRemixedAdText ?? ACTION_COSTS.BUILD_REMIXED_AD_TEXT))
+    : 0;
+  const isAuNz = userCountry === "AU" || userCountry === "NZ";
 
   useEffect(() => {
     if (!uid) return;
     try {
-      const data: Saved = { filters, searched, result, selectedAdId, remixes };
+      const data: Saved = { filters, searched, result, selectedAdId, remixes, remixedAdTexts };
       sessionStorage.setItem(storageKey(uid), JSON.stringify(data));
     } catch {
       // Storage full or disabled: results just won't survive a page change.
     }
-  }, [uid, filters, searched, result, selectedAdId, remixes]);
+  }, [uid, filters, searched, result, selectedAdId, remixes, remixedAdTexts]);
 
   const selectedBrandId = filters.brandId || activeBrand?.brandId || brands?.[0]?.brandId || "";
 
@@ -348,8 +357,31 @@ export function RadarView() {
     }
   }
 
+  async function buildRemixedAdText(ad: NormalizedAd) {
+    if (!activeBrand) return;
+    setAdTextJob({ adId: ad.adId, loading: true, error: null });
+    try {
+      const existingRemixId = remixes[ad.adId]?.remixId;
+      const res = await apiFetch<BuildRemixedAdTextResponse>("/api/radar/remix-ad-text", {
+        body: {
+          adId: ad.adId,
+          brandId: activeBrand.brandId,
+          ...(existingRemixId ? { remixId: existingRemixId } : {}),
+        },
+      });
+      setRemixedAdTexts((prev) => ({ ...prev, [ad.adId]: res.remixedAdText }));
+      const updated = res.ad;
+      if (updated) setResult((r) => r && { ...r, ads: r.ads.map((a) => (a.adId === updated.adId ? updated : a)) });
+      setAdTextJob(null);
+    } catch (err) {
+      setAdTextJob({ adId: ad.adId, loading: false, error: toError(err) });
+    }
+  }
+
   const job = selected && remixJob?.adId === selected.adId ? remixJob : null;
+  const activeAdTextJob = selected && adTextJob?.adId === selected.adId ? adTextJob : null;
   const remix = selected ? remixes[selected.adId] : undefined;
+  const remixedAdText = selected ? (remixedAdTexts[selected.adId] ?? null) : null;
   const studioState: RemixState = job?.loading
     ? { status: "loading" }
     : remix
@@ -503,8 +535,14 @@ export function RadarView() {
                 brand={activeBrand}
                 remixBrandName={remixBrandName}
                 deconstructFee={deconstructFee}
+                buildRemixedAdTextFee={buildRemixedAdTextFee}
+                isAuNz={isAuNz}
                 audRate={audRate}
+                remixedAdText={remixedAdText}
+                buildingAdText={Boolean(activeAdTextJob?.loading)}
+                adTextError={activeAdTextJob?.error ?? null}
                 onGenerate={(isRegenerate) => generate(selected, isRegenerate)}
+                onBuildRemixedAdText={() => void buildRemixedAdText(selected)}
               />
             )}
           </>

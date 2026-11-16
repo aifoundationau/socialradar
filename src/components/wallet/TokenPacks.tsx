@@ -49,6 +49,8 @@ export function TokenPacks() {
     searchEliteScore: SERVICE_SURCHARGES.ELITE_SCORE,
     aiRemix: ACTION_COSTS.AI_REMIX,
     regenerateVariations: ACTION_COSTS.REGENERATE_VARIATIONS,
+    buildRemixedAdText: ACTION_COSTS.BUILD_REMIXED_AD_TEXT,
+    libraryItems: ACTION_COSTS.LIBRARY_ITEM_PURCHASE,
     brandClone: ACTION_COSTS.BRAND_CLONE,
     brandTxtDownload: ACTION_COSTS.BRAND_TXT_DOWNLOAD,
     searchMixDownload: ACTION_COSTS.SEARCHMIX_DOWNLOAD,
@@ -251,6 +253,18 @@ export function TokenPacks() {
             Regenerate Variations:{" "}
             <strong className="text-primary">
               {(serviceCosts.regenerateVariations ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.regenerateVariations ?? 1} tok`}
+            </strong>
+          </span>
+          <span>
+            Build Remixed Ad Text:{" "}
+            <strong className="text-primary">
+              {(serviceCosts.buildRemixedAdText ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.buildRemixedAdText ?? 1} tok`}
+            </strong>
+          </span>
+          <span>
+            Library Items:{" "}
+            <strong className="text-primary">
+              {(serviceCosts.libraryItems ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.libraryItems ?? 1} tok`}
             </strong>
           </span>
           <span>

@@ -74,7 +74,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
   const [ledgerError, setLedgerError] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState("");
   const [platformFilter, setPlatformFilter] = useState<"ALL" | "META" | "TIKTOK" | "GOOGLE">("ALL");
-  const [typeFilter, setTypeFilter] = useState<"ALL" | "RADAR_SEARCH" | "AI_REMIX" | "CUSTOMIZE_SERVICE" | "TOPUP" | "REFUND_GIFT">("ALL");
+  const [typeFilter, setTypeFilter] = useState<"ALL" | "RADAR_SEARCH" | "AI_REMIX" | "LIBRARY_ITEM_PURCHASE" | "CUSTOMIZE_SERVICE" | "TOPUP" | "REFUND_GIFT">("ALL");
   const [confirmRefreshZeroOpen, setConfirmRefreshZeroOpen] = useState(false);
   const [refreshingZero, setRefreshingZero] = useState(false);
   const [refreshZeroMsg, setRefreshZeroMsg] = useState<string | null>(null);
@@ -249,7 +249,13 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
     return rows.filter((rec) => {
       // Type filter
       if (typeFilter === "RADAR_SEARCH" && rec.type !== "RADAR_SEARCH") return false;
-      if (typeFilter === "AI_REMIX" && rec.type !== "AI_REMIX") return false;
+      if (
+        typeFilter === "AI_REMIX" &&
+        rec.type !== "AI_REMIX" &&
+        rec.type !== "REGENERATE_VARIATIONS" &&
+        rec.type !== "BUILD_REMIXED_AD_TEXT"
+      ) return false;
+      if (typeFilter === "LIBRARY_ITEM_PURCHASE" && rec.type !== "LIBRARY_ITEM_PURCHASE") return false;
       if (typeFilter === "CUSTOMIZE_SERVICE" && rec.type !== "CUSTOMIZE_SERVICE") return false;
       if (typeFilter === "TOPUP" && rec.type !== "TOPUP") return false;
       if (typeFilter === "REFUND_GIFT" && rec.type !== "REFUND" && rec.type !== "GIFT") return false;
@@ -650,6 +656,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                       <option value="ALL">All Activity</option>
                       <option value="RADAR_SEARCH">Ad Searches</option>
                       <option value="AI_REMIX">AI Remixes</option>
+                      <option value="LIBRARY_ITEM_PURCHASE">Library Items</option>
                       <option value="CUSTOMIZE_SERVICE">Customize</option>
                       <option value="TOPUP">Stripe Top-ups</option>
                       <option value="REFUND_GIFT">Refunds & Gifts</option>

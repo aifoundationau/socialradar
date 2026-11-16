@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "@/components/auth/SessionProvider";
+import { apiFetch } from "@/lib/api-client";
 import { Icon } from "@/components/ui/Icon";
 import {
   type GeoConfig,
@@ -12,13 +15,19 @@ import {
 import { PolicyModal } from "@/components/legal/PolicyModal";
 import { GeoTimeModal } from "@/components/geo/GeoTimeModal";
 import { CurrencyConverterModal } from "@/components/currency/CurrencyConverterModal";
+import { FaqModal } from "@/components/faq/FaqModal";
+import { ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE } from "@/lib/pricing";
 
 export function AppFooter() {
+  const router = useRouter();
+  const { status, isAdmin } = useSession();
   // Use identical initial state on server and client to avoid hydration mismatch
   const [geoConfig, setGeoConfig] = useState<GeoConfig>(DEFAULT_AU_GEO);
   const [activePolicy, setActivePolicy] = useState<string | null>(null);
   const [isGeoModalOpen, setIsGeoModalOpen] = useState(false);
   const [isCurrencyModalOpen, setIsCurrencyModalOpen] = useState(false);
+  const [isFaqOpen, setIsFaqOpen] = useState(false);
+  const [isSubscriptionEnabled, setIsSubscriptionEnabled] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
 
   useEffect(() => {
@@ -61,6 +70,35 @@ export function AppFooter() {
       window.removeEventListener("adradar:geo-updated", handleGeoUpdated);
     };
   }, [geoConfig.timeFormat]);
+
+  useEffect(() => {
+    function handleOpenFaq() {
+      setIsFaqOpen(true);
+    }
+    window.addEventListener("adradar:open-faq", handleOpenFaq);
+    return () => {
+      window.removeEventListener("adradar:open-faq", handleOpenFaq);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE || !isFaqOpen || status !== "signed-in" || !isAdmin) return;
+    let active = true;
+    apiFetch<{ monthlySubscription?: { enabled?: boolean } }>("/api/wallet/checkout", {
+      method: "GET",
+    })
+      .then((data) => {
+        if (active && data?.monthlySubscription) {
+          setIsSubscriptionEnabled(Boolean(data.monthlySubscription.enabled));
+        }
+      })
+      .catch(() => {
+        // default remains false (off)
+      });
+    return () => {
+      active = false;
+    };
+  }, [isFaqOpen, status, isAdmin]);
 
   return (
     <>
@@ -188,6 +226,17 @@ export function AppFooter() {
           >
             <button
               type="button"
+              data-testid="footer-btn-faqs"
+              data-agent-id="footer-btn-faqs"
+              aria-label="Open Frequently Asked Questions"
+              onClick={() => setIsFaqOpen(true)}
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-container-low px-3 py-1.5 text-on-surface-variant transition-all hover:border-primary/40 hover:bg-surface-container-high hover:text-primary active:scale-95 shadow-xs"
+            >
+              <Icon name="helpCircle" className="size-3 text-primary" />
+              <span>FAQs</span>
+            </button>
+            <button
+              type="button"
               data-testid="policy-btn-founder"
               data-agent-id="policy-btn-founder"
               aria-label="Open Founder Welcome"
@@ -264,6 +313,38 @@ export function AppFooter() {
       <CurrencyConverterModal
         isOpen={isCurrencyModalOpen}
         onClose={() => setIsCurrencyModalOpen(false)}
+      />
+
+      {/* Frequently Asked Questions Modal (triggered from footer FAQs button or Account Menu) */}
+      <FaqModal
+        isOpen={isFaqOpen}
+        onClose={() => setIsFaqOpen(false)}
+        onOpenFaqDev={
+          status === "signed-in" && isAdmin
+            ? () => {
+                setIsFaqOpen(false);
+                const cancelled = !window.dispatchEvent(
+                  new CustomEvent("adradar:open-faq-dev", { cancelable: true }),
+                );
+                if (!cancelled) {
+                  router.push("/radar");
+                }
+              }
+            : undefined
+        }
+        onOpenSubscription={
+          ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE && status === "signed-in" && isAdmin && isSubscriptionEnabled
+            ? () => {
+                setIsFaqOpen(false);
+                const cancelled = !window.dispatchEvent(
+                  new CustomEvent("adradar:open-subscription", { cancelable: true }),
+                );
+                if (!cancelled) {
+                  router.push("/radar");
+                }
+              }
+            : undefined
+        }
       />
     </>
   );

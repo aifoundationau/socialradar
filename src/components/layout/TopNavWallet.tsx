@@ -12,11 +12,11 @@ import { NAV, isActivePath } from "./nav";
 import { SuperAdminModal } from "@/components/admin/SuperAdminModal";
 import { SupporterModal } from "@/components/supporter/SupporterModal";
 import { ContactAdminModal } from "@/components/contact/ContactAdminModal";
-import { FaqModal } from "@/components/faq/FaqModal";
 import { MonthlySubscriptionModal } from "@/components/subscription/MonthlySubscriptionModal";
 import { AdAgentModal } from "@/components/ad-agent/AdAgentModal";
 import { InstallAppModal } from "@/components/pwa/InstallAppModal";
 import type { AdAgentProfile } from "@/lib/contracts";
+import { ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE } from "@/lib/pricing";
 
 function NavItems({ pathname }: { pathname: string | null }) {
   return NAV.map(({ href, label, tooltipTitle, tooltipDesc }) => {
@@ -478,7 +478,6 @@ export function TopNavWallet() {
   >(undefined);
   const [isSupporterOpen, setIsSupporterOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
-  const [isFaqOpen, setIsFaqOpen] = useState(false);
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false);
   const [isAdAgentOpen, setIsAdAgentOpen] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
@@ -488,8 +487,28 @@ export function TopNavWallet() {
   const [adAgentRegistrationChecked, setAdAgentRegistrationChecked] = useState(false);
   const [isAdAgentProfileRegistered, setIsAdAgentProfileRegistered] = useState(true);
 
+  useEffect(() => {
+    function handleOpenFaqDev(e: Event) {
+      e.preventDefault();
+      setAdminInitialTab("FAQS");
+      setIsAdminOpen(true);
+    }
+    function handleOpenSubscription(e: Event) {
+      e.preventDefault();
+      if (!ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE) return;
+      setIsSubscriptionOpen(true);
+    }
+    window.addEventListener("adradar:open-faq-dev", handleOpenFaqDev);
+    window.addEventListener("adradar:open-subscription", handleOpenSubscription);
+    return () => {
+      window.removeEventListener("adradar:open-faq-dev", handleOpenFaqDev);
+      window.removeEventListener("adradar:open-subscription", handleOpenSubscription);
+    };
+  }, []);
+
   // Sync Monthly Search Subscription (1K) enabled status (Default is Off)
   useEffect(() => {
+    if (!ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE) return;
     let active = true;
     async function syncSubscriptionStatus() {
       try {
@@ -628,34 +647,7 @@ export function TopNavWallet() {
           <Suspense fallback={<NavItems pathname={null} />}>
             <NavLinks />
           </Suspense>
-          <div className="group relative flex items-center">
-            <button
-              type="button"
-              onClick={() => setIsFaqOpen(true)}
-              data-agent-id="nav-link-faqs"
-              data-testid="nav-link-faqs"
-              aria-label="Frequently Asked Questions"
-              className="rounded px-3 py-1.5 text-body text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
-            >
-              FAQs
-            </button>
-            <div
-              role="tooltip"
-              data-agent-id="nav-tooltip-faqs"
-              data-testid="nav-tooltip-faqs"
-              className="pointer-events-none absolute top-full left-1/2 z-50 mt-2.5 w-64 -translate-x-1/2 rounded-xl border border-white/[0.14] bg-surface-container-highest p-3 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 group-focus-within:scale-100"
-            >
-              <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-primary">
-                <Icon name="helpCircle" className="size-3.5 shrink-0" />
-                <span>Frequently Asked Questions</span>
-              </div>
-              <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant font-normal">
-                Everything you need to know about Radar search filters, token mechanics, AI creative remixes, and platform billing.
-              </p>
-              <div className="absolute -top-1 left-1/2 -translate-x-1/2 size-2 rotate-45 border-t border-l border-white/[0.14] bg-surface-container-highest" />
-            </div>
-          </div>
-          {isAdmin && isSubscriptionEnabled && (
+          {ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE && isAdmin && isSubscriptionEnabled && (
             <div className="group relative flex items-center">
               <button
                 type="button"
@@ -688,32 +680,7 @@ export function TopNavWallet() {
         </nav>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-3">
-          <div className="group relative flex items-center md:hidden">
-            <button
-              type="button"
-              onClick={() => setIsFaqOpen(true)}
-              aria-label="Frequently Asked Questions"
-              data-agent-id="mobile-header-faqs"
-              data-testid="mobile-header-faqs"
-              className="flex h-9 items-center gap-1 rounded-lg border border-white/[0.08] bg-surface-container-low px-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors text-compact font-medium"
-            >
-              <Icon name="helpCircle" className="size-3.5 text-primary shrink-0" />
-              <span className="text-[11px] font-medium">FAQs</span>
-            </button>
-            <div
-              role="tooltip"
-              className="pointer-events-none hidden sm:block absolute top-full right-0 z-50 mt-2 w-64 rounded-xl border border-white/[0.14] bg-surface-container-highest p-2.5 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100"
-            >
-              <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-primary">
-                <Icon name="helpCircle" className="size-3.5 shrink-0" />
-                <span>Frequently Asked Questions</span>
-              </div>
-              <p className="mt-1 text-[11px] leading-snug text-on-surface-variant font-normal">
-                Everything you need to know about search filters, token mechanics, AI remixes, and billing.
-              </p>
-            </div>
-          </div>
-          {isAdmin && isSubscriptionEnabled && (
+          {ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE && isAdmin && isSubscriptionEnabled && (
             <div className="group relative flex items-center md:hidden">
               <button
                 type="button"
@@ -774,7 +741,7 @@ export function TopNavWallet() {
               setIsAdminOpen(true);
             }}
             onOpenSupporter={() => setIsSupporterOpen(true)}
-            onOpenFaq={() => setIsFaqOpen(true)}
+            onOpenFaq={() => window.dispatchEvent(new CustomEvent("adradar:open-faq"))}
             onOpenAdAgent={() => setIsAdAgentOpen(true)}
             onOpenInstallApp={() => setIsInstallModalOpen(true)}
             isAdAgentProfileRegistered={isAdAgentProfileRegistered}
@@ -787,32 +754,17 @@ export function TopNavWallet() {
         onClose={() => setIsInstallModalOpen(false)}
       />
 
-      <FaqModal
-        isOpen={isFaqOpen}
-        onClose={() => setIsFaqOpen(false)}
-        onOpenFaqDev={() => {
-          setIsFaqOpen(false);
-          setAdminInitialTab("FAQS");
-          setIsAdminOpen(true);
-        }}
-        onOpenSubscription={
-          isSubscriptionEnabled
-            ? () => {
-                setIsFaqOpen(false);
-                setIsSubscriptionOpen(true);
-              }
-            : undefined
-        }
-      />
-      <MonthlySubscriptionModal
-        isOpen={isSubscriptionOpen}
-        onClose={() => setIsSubscriptionOpen(false)}
-        onOpenPricing={() => {
-          setIsSubscriptionOpen(false);
-          setAdminInitialTab("PRICING");
-          setIsAdminOpen(true);
-        }}
-      />
+      {ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE && (
+        <MonthlySubscriptionModal
+          isOpen={isSubscriptionOpen}
+          onClose={() => setIsSubscriptionOpen(false)}
+          onOpenPricing={() => {
+            setIsSubscriptionOpen(false);
+            setAdminInitialTab("PRICING");
+            setIsAdminOpen(true);
+          }}
+        />
+      )}
       <SuperAdminModal
         isOpen={isAdminOpen}
         onClose={() => {

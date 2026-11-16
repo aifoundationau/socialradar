@@ -8,6 +8,7 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 import { alertError, alertInfo, btnDanger, btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
 import {
   ALL_COUNTRIES_CODE,
+  ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE,
   WORLD_COUNTRIES,
   audToUsdCents,
   formatAllowedCountriesSummary,
@@ -156,6 +157,8 @@ interface ServiceCosts {
   searchEliteScore: number;
   aiRemix: number;
   regenerateVariations?: number;
+  buildRemixedAdText?: number;
+  libraryItems?: number;
   brandClone?: number;
   brandTxtDownload?: number;
   searchMixDownload?: number;
@@ -2565,7 +2568,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     <div>
                       <h3 className="text-title-sm font-semibold text-on-surface">Service Pricing &amp; Token Packs (CRUD)</h3>
                       <p className="mt-0.5 text-compact text-on-surface-variant">
-                        All features start collapsed. Click any feature below to expand and configure timed free web app access, service token amounts, monthly subscription pricing, or Stripe checkout token packs.
+                        {ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE
+                          ? "All features start collapsed. Click any feature below to expand and configure timed free web app access, service token amounts, monthly subscription pricing, or Stripe checkout token packs."
+                          : "All features start collapsed. Click any feature below to expand and configure timed free web app access, service token amounts, or Stripe checkout token packs."}
                       </p>
                     </div>
                     <button
@@ -2574,12 +2579,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         const allOpen =
                           (!isSuper || isFeatureExpanded("pricing_free_access")) &&
                           isFeatureExpanded("pricing_services") &&
-                          isFeatureExpanded("pricing_subscription") &&
+                          (!ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE || isFeatureExpanded("pricing_subscription")) &&
                           showAddPack &&
                           isFeatureExpanded("packs_catalog");
                         if (isSuper) setFeatureExpanded("pricing_free_access", !allOpen);
                         setFeatureExpanded("pricing_services", !allOpen);
-                        setFeatureExpanded("pricing_subscription", !allOpen);
+                        if (ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE) {
+                          setFeatureExpanded("pricing_subscription", !allOpen);
+                        }
                         setShowAddPack(!allOpen);
                         setFeatureExpanded("packs_catalog", !allOpen);
                       }}
@@ -2592,7 +2599,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         className={`size-3.5 transition-transform duration-200 ${
                           (!isSuper || isFeatureExpanded("pricing_free_access")) &&
                           isFeatureExpanded("pricing_services") &&
-                          isFeatureExpanded("pricing_subscription") &&
+                          (!ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE || isFeatureExpanded("pricing_subscription")) &&
                           showAddPack &&
                           isFeatureExpanded("packs_catalog")
                             ? "rotate-180"
@@ -2602,7 +2609,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       <span>
                         {(!isSuper || isFeatureExpanded("pricing_free_access")) &&
                         isFeatureExpanded("pricing_services") &&
-                        isFeatureExpanded("pricing_subscription") &&
+                        (!ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE || isFeatureExpanded("pricing_subscription")) &&
                         showAddPack &&
                         isFeatureExpanded("packs_catalog")
                           ? "Collapse All"
@@ -2996,6 +3003,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                           searchEliteScore: 0,
                                           aiRemix: 0,
                                           regenerateVariations: 0,
+                                          buildRemixedAdText: 0,
+                                          libraryItems: 0,
                                           brandClone: 0,
                                           brandTxtDownload: 0,
                                           searchMixDownload: 0,
@@ -3009,6 +3018,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                           searchEliteScore: 1,
                                           aiRemix: 1,
                                           regenerateVariations: 1,
+                                          buildRemixedAdText: 1,
+                                          libraryItems: 1,
                                           brandClone: 1,
                                           brandTxtDownload: 1,
                                           searchMixDownload: 1,
@@ -3092,6 +3103,16 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               desc: "Regenerate fresh angles & 3 script variations for an existing deconstructed ad in Remix Studio",
                             },
                             {
+                              key: "buildRemixedAdText" as const,
+                              label: "Build Remixed Ad Text",
+                              desc: "Generate 4 AI remixed social media ad text descriptions (TikTok, Facebook, Instagram & Google Ads — max 150 words each) on the left of Regenerate Variations in Remix Studio",
+                            },
+                            {
+                              key: "libraryItems" as const,
+                              label: "Library Items",
+                              desc: "Purchase price (in tokens) charged per item in the Library (Previous Searches, Remix Studio blueprints, and Remixed Ad Text packs)",
+                            },
+                            {
                               key: "brandClone" as const,
                               label: "Global Brand Card Copy",
                               desc: "Token fee to copy a community brand card from the Global Library into personal account",
@@ -3117,7 +3138,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               desc: "Customer submits full brand brief + extra details for SuperAdmin & Main Admin strategy reply (Default: 55 tokens — automatically updates Customizations Total & Redist. Amount in Ad Agent Distribution Ledger)",
                             },
                           ].map(({ key, label: serviceLabel, desc }) => {
-                            const defaultTok = key === "customizeService" ? 55 : 0;
+                            const defaultTok =
+                              key === "customizeService" ? 55 : key === "deconstructDownload" ? 0 : 1;
                             const tok = config.serviceCosts[key] ?? defaultTok;
                             const displayVal = draftCostInputs[key] !== undefined ? draftCostInputs[key] : String(tok);
                             const audCents = Math.round(tok * (config.audCentsPerToken ?? 100));
@@ -3262,6 +3284,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                   </div>
 
                   {/* Feature 2: MONTHLY SEARCH SUBSCRIPTION CONFIGURATION */}
+                  {ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE && (
                   <div
                     className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-surface-container-high to-surface-container p-4 space-y-4"
                     data-agent-id="feature-card-pricing-subscription"
@@ -3541,6 +3564,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       </div>
                     )}
                   </div>
+                  )}
 
                   {/* Feature 3: Create New Token Pack (Token Packs CRUD) */}
                   <div
@@ -5520,6 +5544,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           tx.type !== "CUSTOMIZE_SERVICE" &&
                           tx.type !== "AI_REMIX" &&
                           tx.type !== "REGENERATE_VARIATIONS" &&
+                          tx.type !== "BUILD_REMIXED_AD_TEXT" &&
+                          tx.type !== "LIBRARY_ITEM_PURCHASE" &&
                           tx.type !== "BRAND_CLONE" &&
                           tx.type !== "BRAND_TXT_DOWNLOAD" &&
                           tx.type !== "SEARCHMIX_DOWNLOAD" &&

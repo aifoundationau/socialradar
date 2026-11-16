@@ -95,12 +95,12 @@ Every page in AdRadarHQ mounts `<AgentDomBridge />` ([`src/components/agent/Agen
   - `packId` (`PACK_10` | `PACK_50` | `PACK_100` | `PACK_CUSTOM`): *"How many tokens would you like to top up: 10 tokens, 50 tokens, 100 tokens (Best Value), or a custom amount?"*
   - If `PACK_CUSTOM`, ask for `customTokens` (whole integer `Math.round`).
 - **DOM Execution Sequence:**
-  1. Click `nav-link-wallet` (or `header-topup-link`).
+  1. Click `header-topup-link` (or `header-wallet-balance-link`) on the far right of the top navbar.
   2. If `PACK_CUSTOM`, fill `custom-token-input` with `Math.round(customTokens)`.
   3. Click `buy-pack_10`, `buy-pack_50`, `buy-pack_100`, or `buy-pack-custom`.
 
 ### 3.7 `SEND_SUPERADMIN_MESSAGE`, `SEARCH_FAQS`, `CONFIGURE_GEO_TIME`
-- **FAQs:** Click `nav-link-faqs` (desktop) or `mobile-header-faqs` (mobile) → fill `faq-search-input` → click `faq-toggle-${faqId}`.
+- **FAQs:** Click `footer-btn-faqs` in the bottom footer → fill `faq-search-input` → click `faq-toggle-${faqId}`.
 - **Message Super Admin:** Open `account-menu-button` → `open-supporter-button` → `supporter-tab-messages` → `message-tab-compose` → fill `supporter-compose-subject` and `supporter-compose-body` (plain text only, zero URLs/links) → click `supporter-submit-message`.
 - **Geo & Time Widget:** Click `geo-chip-location` or `geo-chip-clock` → click `geo-autofind-button` or fill `geo-suburb-input`, `geo-state-input`, `geo-country-select`, `geo-time-format-select`, `geo-date-format-select` → click `geo-save-button`.
 

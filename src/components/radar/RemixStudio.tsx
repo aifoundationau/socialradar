@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type Ref } from "react";
 import Link from "next/link";
-import type { BrandProfile, NormalizedAd, RemixDoc } from "@/lib/contracts";
+import type { BrandProfile, NormalizedAd, RemixDoc, RemixedAdTextDoc, RemixedAdTextItem } from "@/lib/contracts";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import {
   getDeconstructFileName,
@@ -45,6 +45,10 @@ function scriptText(v: Variation, i: number) {
     .map((b) => `${b.timestamp}\n  Visual: ${b.visualAction}\n  Voiceover: ${b.spokenAudio}\n  On screen: ${b.onScreenText}`)
     .join("\n\n");
   return `Variation ${variationLetter(i)}: ${v.angleName}\nHeadline: ${v.headline}\nCTA: ${v.ctaButton}\n\n${v.primaryCopy}\n\n${beats}\n`;
+}
+
+function remixedAdTextBlock(item: RemixedAdTextItem) {
+  return `${item.platformLabel} (${item.wordCount}/150 words)\nHeadline: ${item.headline}\nCTA: ${item.cta}\n\n${item.adText}`;
 }
 
 function Toast({ message }: { message: string | null }) {
@@ -91,8 +95,14 @@ export function RemixStudio({
   brand,
   remixBrandName,
   deconstructFee = 0,
+  buildRemixedAdTextFee = 1,
+  isAuNz = true,
   audRate = 100,
+  remixedAdText = null,
+  buildingAdText = false,
+  adTextError = null,
   onGenerate,
+  onBuildRemixedAdText,
 }: {
   ref?: Ref<HTMLElement>;
   ad: NormalizedAd;
@@ -103,15 +113,31 @@ export function RemixStudio({
   /** Brand the shown remix was written for (it may differ from the active brand). */
   remixBrandName: string | null;
   deconstructFee?: number;
+  buildRemixedAdTextFee?: number;
+  isAuNz?: boolean;
   audRate?: number;
+  remixedAdText?: RemixedAdTextDoc | null;
+  buildingAdText?: boolean;
+  adTextError?: RemixError | null;
   onGenerate: (isRegenerate?: boolean) => void;
+  onBuildRemixedAdText?: () => void;
 }) {
   const [tab, setTab] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [downloadingDeconstruct, setDownloadingDeconstruct] = useState(false);
   const [deconstructError, setDeconstructError] = useState<string | null>(null);
+  const [adTextTipOpen, setAdTextTipOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
+
+  useEffect(() => {
+    if (!adTextTipOpen) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setAdTextTipOpen(false);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [adTextTipOpen]);
 
   function notify(message: string) {
     setToast(message);
@@ -127,6 +153,7 @@ export function RemixStudio({
     deconstructFee === 0
       ? "Free to download (0 tokens)"
       : formatTokenEstimateHover(deconstructFee, false, audRate);
+  const buildAdTextCostHover = formatTokenEstimateHover(buildRemixedAdTextFee, isAuNz, audRate);
 
   async function handleDownloadDeconstruct() {
     if (!remix) return;
@@ -165,6 +192,26 @@ export function RemixStudio({
     try {
       await navigator.clipboard.writeText(scriptText(remix.variations[active], active));
       notify(`Variation ${variationLetter(active)} script copied`);
+    } catch {
+      notify("Couldn't reach the clipboard");
+    }
+  }
+
+  async function copyAdTextItem(item: RemixedAdTextItem) {
+    try {
+      await navigator.clipboard.writeText(remixedAdTextBlock(item));
+      notify(`${item.platformLabel} remixed ad text copied`);
+    } catch {
+      notify("Couldn't reach the clipboard");
+    }
+  }
+
+  async function copyAllAdTexts() {
+    if (!remixedAdText) return;
+    const full = remixedAdText.items.map(remixedAdTextBlock).join("\n\n---\n\n");
+    try {
+      await navigator.clipboard.writeText(full);
+      notify("All 4 remixed social media ad texts copied");
     } catch {
       notify("Couldn't reach the clipboard");
     }
@@ -283,6 +330,7 @@ export function RemixStudio({
             />
           </div>
           {error && <ErrorNote error={error} className="mx-3 mt-3 sm:mx-5" />}
+          {adTextError && <ErrorNote error={adTextError} className="mx-3 mt-3 sm:mx-5" />}
           {deconstructError && (
             <p className={`${alertError} mx-3 mt-3 sm:mx-5`} role="alert">
               {deconstructError}
@@ -338,20 +386,192 @@ export function RemixStudio({
               </p>
             </div>
             {brand && (
-              <button
-                type="button"
-                data-agent-id="remix-regenerate-variations-button"
-                data-testid="remix-regenerate-variations-button"
-                aria-label="Regenerate ad variations"
-                onClick={() => onGenerate(true)}
-                className={`${btnPrimary} shrink-0`}
-              >
-                <Icon name="refresh" />
-                Regenerate variations
-                <CostTag action="REGENERATE_VARIATIONS" />
-              </button>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <div
+                  className="relative inline-flex"
+                  onMouseEnter={() => setAdTextTipOpen(true)}
+                  onMouseLeave={() => setAdTextTipOpen(false)}
+                  onFocus={() => setAdTextTipOpen(true)}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                      setAdTextTipOpen(false);
+                    }
+                  }}
+                >
+                  <button
+                    type="button"
+                    disabled={buildingAdText || !onBuildRemixedAdText}
+                    data-agent-id="remix-build-ad-text-button"
+                    data-testid="remix-build-ad-text-button"
+                    aria-label="Build Remixed Ad Text"
+                    aria-describedby="build-remixed-ad-text-tooltip"
+                    onClick={() => onBuildRemixedAdText?.()}
+                    className={`${btnSecondary} shrink-0`}
+                  >
+                    {buildingAdText ? (
+                      <span className="size-3.5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+                    ) : (
+                      <Icon name="fileText" />
+                    )}
+                    <span>{buildingAdText ? "Building Ad Text…" : "Build Remixed Ad Text"}</span>
+                    {buildRemixedAdTextFee > 0 ? (
+                      <span className="flex items-center font-mono text-mono-label text-primary opacity-90">
+                        <Icon name="zap" className="size-3" />
+                        {buildRemixedAdTextFee}
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
+                        Free (0)
+                      </span>
+                    )}
+                  </button>
+                  <div
+                    className={`absolute bottom-full left-0 z-30 w-72 max-w-[calc(100vw-2rem)] pb-2 transition-opacity duration-150 sm:left-auto sm:right-0 ${
+                      adTextTipOpen ? "opacity-100" : "pointer-events-none opacity-0"
+                    }`}
+                  >
+                    <div
+                      id="build-remixed-ad-text-tooltip"
+                      role="tooltip"
+                      data-agent-id="remix-build-ad-text-tooltip"
+                      data-testid="remix-build-ad-text-tooltip"
+                      className="rounded-xl border border-primary/30 bg-surface-container-highest p-3 text-left text-compact leading-relaxed text-on-surface shadow-2xl"
+                    >
+                      <p className="font-semibold text-on-surface">
+                        Remixed Social Media Ad Text Descriptions
+                      </p>
+                      <p className="mt-1 text-[12px] text-on-surface-variant">
+                        These are remixed text ad descriptions that can be used directly on social media platforms.
+                        Generates 4 AI ad descriptions (TikTok, Facebook, Instagram, and Google Ads — max 150 words
+                        each) using your brand and the current modeling ad.
+                      </p>
+                      <p className="mt-1.5 font-mono text-[11px] text-primary">
+                        {buildAdTextCostHover}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-agent-id="remix-regenerate-variations-button"
+                  data-testid="remix-regenerate-variations-button"
+                  aria-label="Regenerate ad variations"
+                  onClick={() => onGenerate(true)}
+                  className={`${btnPrimary} shrink-0`}
+                >
+                  <Icon name="refresh" />
+                  Regenerate variations
+                  <CostTag action="REGENERATE_VARIATIONS" />
+                </button>
+              </div>
             )}
           </footer>
+          {buildingAdText && !remixedAdText && (
+            <div
+              data-agent-id="remixed-ad-texts-loading"
+              data-testid="remixed-ad-texts-loading"
+              aria-busy="true"
+              className="border-t border-white/[0.06] px-3 py-4 sm:px-5 space-y-3"
+            >
+              <p className="flex items-center gap-2 font-mono text-mono-code text-on-surface-variant">
+                <span className="size-3 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+                Building 4 platform-tailored ad text descriptions (TikTok, Facebook, Instagram &amp; Google Ads — max 150 words each)…
+              </p>
+              <div className="grid gap-3 md:grid-cols-2">
+                {[0, 1, 2, 3].map((idx) => (
+                  <div key={idx} className="h-36 animate-pulse rounded-xl bg-surface-container-high" />
+                ))}
+              </div>
+            </div>
+          )}
+          {remixedAdText && (
+            <section
+              aria-labelledby="remixed-ad-texts-heading"
+              data-agent-id="remixed-ad-texts-panel"
+              data-testid="remixed-ad-texts-panel"
+              className="border-t border-white/[0.08] bg-surface-container-low/50 px-3 py-4 sm:px-5 space-y-4"
+            >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3
+                    id="remixed-ad-texts-heading"
+                    className="text-title-sm font-semibold text-on-surface flex items-center gap-2"
+                  >
+                    <Icon name="fileText" className="size-4 text-primary" />
+                    <span>Remixed Social Media Ad Text (4 Platforms)</span>
+                  </h3>
+                  <p className="mt-0.5 font-mono text-[11px] text-on-surface-variant">
+                    Built for <span className="text-secondary font-medium">{remixedAdText.brandName}</span> · Modeled on{" "}
+                    {remixedAdText.sourceAdvertiser} · Max 150 words each
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void copyAllAdTexts()}
+                  data-agent-id="copy-all-remixed-ad-texts-button"
+                  data-testid="copy-all-remixed-ad-texts-button"
+                  aria-label="Copy all 4 social media remixed ad text descriptions"
+                  className={`${btnSecondary} self-start sm:self-auto shrink-0`}
+                >
+                  <Icon name="copy" />
+                  <span>Copy all 4</span>
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {remixedAdText.items.map((item) => {
+                  const keySlug = item.platform.toLowerCase();
+                  return (
+                    <article
+                      key={item.platform}
+                      data-agent-id={`remixed-ad-text-card-${keySlug}`}
+                      data-testid={`remixed-ad-text-card-${keySlug}`}
+                      className="flex flex-col gap-2.5 rounded-xl border border-white/[0.08] bg-surface-container p-4"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-primary/35 bg-primary/15 px-2.5 py-0.5 font-mono text-[11px] font-bold text-primary uppercase">
+                            {item.platformLabel}
+                          </span>
+                          <span
+                            data-agent-id={`remixed-ad-text-words-${keySlug}`}
+                            data-testid={`remixed-ad-text-words-${keySlug}`}
+                            className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] text-on-surface-variant"
+                          >
+                            {item.wordCount} / 150 words
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyAdTextItem(item)}
+                          data-agent-id={`copy-remixed-ad-text-${keySlug}`}
+                          data-testid={`copy-remixed-ad-text-${keySlug}`}
+                          aria-label={`Copy ${item.platformLabel} remixed ad text`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-surface-container-high px-2.5 py-1 font-mono text-[11px] font-medium text-on-surface-variant transition hover:border-primary/40 hover:text-primary cursor-pointer"
+                        >
+                          <Icon name="copy" className="size-3" />
+                          <span>Copy</span>
+                        </button>
+                      </div>
+                      <div>
+                        <p className="font-mono text-[10px] uppercase tracking-wider text-outline">Headline</p>
+                        <p className="mt-0.5 text-compact font-semibold text-on-surface">{item.headline}</p>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-mono text-[10px] uppercase tracking-wider text-outline">Ad Text Description</p>
+                        <p className="mt-1 whitespace-pre-line text-compact leading-relaxed text-on-surface-variant">
+                          {item.adText}
+                        </p>
+                      </div>
+                      <div className="border-t border-white/[0.06] pt-2 flex items-center justify-between gap-2">
+                        <span className="font-mono text-[10px] uppercase tracking-wider text-outline">CTA</span>
+                        <span className="font-mono text-mono-code font-semibold text-primary">{item.cta}</span>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
         </>
       )}
 

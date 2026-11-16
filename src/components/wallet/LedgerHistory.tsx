@@ -14,6 +14,8 @@ const TYPE_LABELS: Record<TokenTxType, string> = {
   RADAR_SEARCH: "Radar search",
   AI_REMIX: "AI remix",
   REGENERATE_VARIATIONS: "Regenerate variations",
+  BUILD_REMIXED_AD_TEXT: "Build remixed ad text (4 social platforms)",
+  LIBRARY_ITEM_PURCHASE: "Library item purchase",
   REFUND: "Refund",
   BRAND_CLONE: "Global brand copy",
   BRAND_TXT_DOWNLOAD: "Brand .txt file download",

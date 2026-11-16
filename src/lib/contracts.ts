@@ -67,6 +67,8 @@ export const TokenTxTypeSchema = z.enum([
   "RADAR_SEARCH",
   "AI_REMIX",
   "REGENERATE_VARIATIONS",
+  "BUILD_REMIXED_AD_TEXT",
+  "LIBRARY_ITEM_PURCHASE",
   "REFUND",
   "BRAND_CLONE",
   "BRAND_TXT_DOWNLOAD",
@@ -247,8 +249,72 @@ export const RemixDocSchema = AdRemixBlueprintSchema.extend({
   uid: z.string().min(1).max(128),
   sourceAdId: NormalizedAdSchema.shape.adId,
   brandId: BrandIdSchema,
+  brandName: z.string().max(100).optional(),
+  sourceAdvertiser: z.string().max(200).optional(),
+  platform: PlatformSchema.optional(),
+  createdAt: isoDate.optional(),
 }).strict();
 export type RemixDoc = z.infer<typeof RemixDocSchema>;
+
+export const RemixedAdTextPlatformSchema = z.enum([
+  "TIKTOK",
+  "FACEBOOK",
+  "INSTAGRAM",
+  "GOOGLE_ADS",
+]);
+export type RemixedAdTextPlatform = z.infer<typeof RemixedAdTextPlatformSchema>;
+
+export const RemixedAdTextDraftSchema = z
+  .object({
+    headline: z.string().min(2).max(160),
+    adText: z.string().min(5).max(2000),
+    cta: z.string().min(2).max(80),
+  })
+  .strict();
+
+export const RemixedAdTextGenerationSchema = z
+  .object({
+    tiktok: RemixedAdTextDraftSchema,
+    facebook: RemixedAdTextDraftSchema,
+    instagram: RemixedAdTextDraftSchema,
+    googleAds: RemixedAdTextDraftSchema,
+  })
+  .strict();
+export type RemixedAdTextGeneration = z.infer<typeof RemixedAdTextGenerationSchema>;
+
+export const countAdWords = (text: string): number => {
+  const trimmed = text.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+};
+
+export const RemixedAdTextItemSchema = z
+  .object({
+    platform: RemixedAdTextPlatformSchema,
+    platformLabel: safeText(2, 40),
+    headline: safeText(2, 160),
+    adText: safeText(5, 2000).refine(
+      (val) => countAdWords(val) <= 150,
+      "Ad text description must not exceed 150 words",
+    ),
+    cta: safeText(2, 80),
+    wordCount: tokenInt.min(1).max(150),
+  })
+  .strict();
+export type RemixedAdTextItem = z.infer<typeof RemixedAdTextItemSchema>;
+
+export const RemixedAdTextDocSchema = z
+  .object({
+    remixedAdTextId: z.string().min(1).max(160),
+    uid: z.string().min(1).max(128),
+    sourceAdId: NormalizedAdSchema.shape.adId,
+    brandId: BrandIdSchema,
+    brandName: safeText(1, 100),
+    sourceAdvertiser: z.string().max(200),
+    items: z.array(RemixedAdTextItemSchema).length(4),
+    createdAt: isoDate,
+  })
+  .strict();
+export type RemixedAdTextDoc = z.infer<typeof RemixedAdTextDocSchema>;
 
 // ---------- 5. API Request Payloads ----------
 /** "Proven winners" are ads that have been running for at least this many days. */
@@ -338,6 +404,21 @@ export interface RemixResponse {
   balanceAfter: number;
 }
 
+export const BuildRemixedAdTextRequestSchema = z
+  .object({
+    adId: NormalizedAdSchema.shape.adId,
+    brandId: BrandIdSchema,
+    remixId: z.string().trim().min(1).max(160).optional(),
+  })
+  .strict();
+export type BuildRemixedAdTextRequest = z.infer<typeof BuildRemixedAdTextRequestSchema>;
+
+export interface BuildRemixedAdTextResponse {
+  remixedAdText: RemixedAdTextDoc;
+  ad?: NormalizedAd;
+  balanceAfter: number;
+}
+
 export const BrandDeleteRequestSchema = z.object({ brandId: BrandIdSchema }).strict();
 
 export const ActiveBrandRequestSchema = z
@@ -415,6 +496,8 @@ export const ServiceCostsSchema = z
     searchEliteScore: tokenInt.min(0).default(1),
     aiRemix: tokenInt.min(0).default(1),
     regenerateVariations: tokenInt.min(0).default(1),
+    buildRemixedAdText: tokenInt.min(0).default(1),
+    libraryItems: tokenInt.min(0).default(1),
     brandClone: tokenInt.min(0).default(1),
     brandTxtDownload: tokenInt.min(0).default(1),
     searchMixDownload: tokenInt.min(0).default(1),
@@ -504,6 +587,8 @@ export const AdminConfigPatchSchema = z
         searchEliteScore: serviceCostValue.optional(),
         aiRemix: serviceCostValue.optional(),
         regenerateVariations: serviceCostValue.optional(),
+        buildRemixedAdText: serviceCostValue.optional(),
+        libraryItems: serviceCostValue.optional(),
         brandClone: serviceCostValue.optional(),
         brandTxtDownload: serviceCostValue.optional(),
         searchMixDownload: serviceCostValue.optional(),
@@ -1342,3 +1427,109 @@ export const HomeValuePostcardSchema = z
   })
   .strict();
 export type HomeValuePostcard = z.infer<typeof HomeValuePostcardSchema>;
+
+// ---------- 17. Library Items Catalog & Purchase Contracts ----------
+export const LibraryItemKindSchema = z.enum([
+  "PREVIOUS_SEARCH",
+  "REMIX_STUDIO",
+  "REMIXED_AD_TEXT",
+]);
+export type LibraryItemKind = z.infer<typeof LibraryItemKindSchema>;
+
+export const LibraryItemKeySchema = z
+  .string()
+  .trim()
+  .regex(/^(search|remix|adtext)_[A-Za-z0-9_-]{1,180}$/, "Invalid Library item key");
+
+export const LibraryItemSummarySchema = z
+  .object({
+    itemKey: LibraryItemKeySchema,
+    sourceId: z.string().min(1).max(180),
+    kind: LibraryItemKindSchema,
+    kindLabel: z.enum(["Previous Search", "Remix Studio", "Remixed Ad Text"]),
+    title: safeText(1, 200),
+    subtitle: z.string().max(240),
+    teaser: z.string().max(500),
+    platform: PlatformSchema.optional(),
+    country: z.string().max(8).optional(),
+    tags: z.array(z.string().max(80)).max(8),
+    metricsLabel: z.string().max(120),
+    createdAt: isoDate,
+    purchased: z.boolean(),
+  })
+  .strict();
+export type LibraryItemSummary = z.infer<typeof LibraryItemSummarySchema>;
+
+export const LibraryListQuerySchema = z
+  .object({
+    q: z.string().trim().max(120).optional(),
+    kind: z
+      .enum(["ALL", "PREVIOUS_SEARCH", "REMIX_STUDIO", "REMIXED_AD_TEXT"])
+      .default("ALL"),
+    platform: z.enum(["ALL", "META", "TIKTOK", "GOOGLE"]).default("ALL"),
+    limit: tokenInt.min(1).max(200).default(120),
+  })
+  .strict();
+export type LibraryListQuery = z.infer<typeof LibraryListQuerySchema>;
+
+export const LibraryPurchaseRequestSchema = z
+  .object({
+    itemKey: LibraryItemKeySchema,
+  })
+  .strict();
+export type LibraryPurchaseRequest = z.infer<typeof LibraryPurchaseRequestSchema>;
+
+export const LibraryPurchaseDocSchema = z
+  .object({
+    itemKey: LibraryItemKeySchema,
+    sourceId: z.string().min(1).max(180),
+    kind: LibraryItemKindSchema,
+    uid: z.string().min(1).max(128),
+    txId: z.string().min(1).max(160),
+    tokensPaid: tokenInt.min(0),
+    purchasedAt: isoDate,
+  })
+  .strict();
+export type LibraryPurchaseDoc = z.infer<typeof LibraryPurchaseDocSchema>;
+
+export type LibraryUnlockedDetail =
+  | {
+      kind: "PREVIOUS_SEARCH";
+      query: string;
+      platform: Platform;
+      country: string;
+      mediaType: MediaFilter;
+      ads: NormalizedAd[];
+    }
+  | {
+      kind: "REMIX_STUDIO";
+      remix: RemixDoc;
+      brandName: string;
+      sourceAd: NormalizedAd | null;
+    }
+  | {
+      kind: "REMIXED_AD_TEXT";
+      remixedAdText: RemixedAdTextDoc;
+      sourceAd: NormalizedAd | null;
+    };
+
+export interface LibraryListResponse {
+  items: LibraryItemSummary[];
+  counts: {
+    total: number;
+    previousSearch: number;
+    remixStudio: number;
+    remixedAdText: number;
+  };
+  libraryItemFee: number;
+  audCentsPerToken: number;
+}
+
+export interface LibraryPurchaseResponse {
+  item: LibraryItemSummary;
+  detail: LibraryUnlockedDetail;
+  fileName: string;
+  txtContent: string;
+  balanceAfter: number;
+  alreadyPurchased: boolean;
+}

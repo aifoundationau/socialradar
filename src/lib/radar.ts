@@ -112,6 +112,26 @@ export async function runRadarSearch(req: RadarSearchRequest, queryHash: string,
     const batch = db.batch();
     for (const ad of doc.ads) batch.set(db.collection("normalized_ads").doc(ad.adId), ad);
     batch.set(ref, doc);
+    if (doc.ads.length > 0) {
+      const archiveId = createHash("sha256")
+        .update([req.platform, req.query.trim().toLowerCase(), req.country, req.mediaType].join("\u0000"))
+        .digest("hex");
+      batch.set(
+        db.collection("library_searches").doc(archiveId),
+        {
+          archiveId,
+          platform: req.platform,
+          query: req.query.trim(),
+          country: req.country,
+          mediaType: req.mediaType,
+          ads: doc.ads,
+          notice,
+          createdAt: doc.createdAt,
+          updatedAt: doc.createdAt,
+        },
+        { merge: true },
+      );
+    }
     await batch.commit();
   } catch (err) {
     console.error("[radar] failed to store results", queryHash, err);

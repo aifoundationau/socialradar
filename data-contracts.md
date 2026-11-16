@@ -109,6 +109,8 @@ Standard Paid Rates for all services, products, and surcharges across the platfo
 | `searchEliteScore` | +1 token | Top Winners composite score filter (90%+ score) |
 | `aiRemix` (AI Creative Remix) | 1 token | Multimodal AI remix deconstruction & script generation |
 | `regenerateVariations` (Regenerate Variations) | 1 token | Regenerate fresh angles & 3 script variations in Remix Studio |
+| `buildRemixedAdText` (`BUILD_REMIXED_AD_TEXT`) | 1 token | Build 4 AI remixed social media ad text descriptions (TikTok, Facebook, Instagram & Google Ads, max 150 words each) next to Regenerate Variations |
+| `libraryItems` (`LIBRARY_ITEM_PURCHASE`) | 1 token | Purchase price per item in Library (`Previous Search`, `Remix Studio`, or `Remixed Ad Text`), configurable via SuperAdmin `Library Items` |
 | `brandClone` (Global Brand Copy) | 1 token | Copying global brand card into personal workspace |
 | `brandTxtDownload` (Download Brand Text File `.txt`) | 1 token | Downloading the attached `<Brand Name> - <YYYY-MM-DD>.txt` file from a Brand Postcard |
 | `searchMixDownload` (SearchMix Download) | 1 token | Downloading a SearchMix postcard `.txt` file (`<Title> - <YYYY-MM-DD>.txt`) from Radar search results |
@@ -460,7 +462,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 8. `faq_tokens_overview`: *"How do Token Deductions Work?"* — Strict integer token ledger, 1 token standard paid rates, and refund request rules (`category: "General"`, `order: 8`).
 
 ### Header & Superadmin Integration
-- **Header FAQs Button:** Displays in top desktop navigation and mobile user account menu. Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.
+- **Footer FAQs Button (`footer-btn-faqs`):** Displays in the bottom footer (`AppFooter.tsx`) across all routes (and via secondary `account-menu-faqs-button` in the mobile/desktop account menu). Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.
 - **Superadmin FAQ Development Suite:** Accessible directly from the Super Admin Panel (`SuperAdminModal` tab `FAQS`) and via the highlighted "FAQ Development Suite" action in `FaqModal` for superadmins. Supports real-time Q&A authoring, live inline editing, priority ordering, draft visibility toggling, and confirmation-protected deletion.
 
 ### API Endpoints
@@ -494,7 +496,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 8. `faq_tokens_overview`: *"How do Token Deductions Work?"* — Strict integer token ledger, 1 token standard paid rates, and refund request rules (`category: "General"`, `order: 8`).
 
 ### Header & Superadmin Integration
-- **Header FAQs Button:** Displays in top desktop navigation and mobile user account menu. Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.
+- **Footer FAQs Button (`footer-btn-faqs`):** Displays in the bottom footer (`AppFooter.tsx`) across all routes (and via secondary `account-menu-faqs-button` in the mobile/desktop account menu). Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.
 - **Superadmin FAQ Development Suite:** Accessible directly from the Super Admin Panel (`SuperAdminModal` tab `FAQS`) and via the highlighted "FAQ Development Suite" action in `FaqModal` for superadmins. Supports real-time Q&A authoring, live inline editing, priority ordering, draft visibility toggling, and confirmation-protected deletion.
 
 ### API Endpoints
@@ -508,6 +510,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 
 ### Mandatory Footer Elements
 - **Copyright Button:** Interactive link button `2026 AI Foundation` navigating to `https://aifoundation.net.au/` (new tab, `rel="noopener noreferrer"`) with `· All rights reserved.`
+- **FAQs (`footer-btn-faqs`):** Bottom footer button opening `FaqModal` (featuring live search, language selector with RAG/Google translation, and SuperAdmin/MainAdmin shortcuts when signed in).
 - **Founder Welcome (`policy-btn-founder`):** Footer button labeled strictly `Founder Welcome` (no founder name attached on the button itself); clicking opens the `Founder Welcome` modal briefing introducing Founder David Robertson (Griffith University higher degree in research in AI and digital transformation; opening the AI Centre in Phnom Penh for development of regional AI infrastructure in Southeast Asia), stating solely that his web apps operate on a token system (with zero mention of token cost), and explaining that visitors can contact him by registering as a Supporter and sending a message from their admin panel.
 - **Privacy Policy:** Australian Privacy Principles (APPs) and Privacy Act 1988 (Cth) compliance, 7-year statutory data retention on financial logs, zero selling of personal data.
 - **Terms of Service:** Commercial contract specifying that all invoices are in Australian Dollars (AUD), the default currency is AUD, **contains zero references to any specific token price**, explicitly states that *"The price of Tokens can change at any time without notice"* (with product & service token requirements customizable by SuperAdmin), that the business never uses decimals, operating strictly on whole numbers, and that currency conversion can show up to 2 decimal places. Explains what tokens are: *"You exchange money for a token; tokens mean more flexible payment options, as a payment may be distributed to multiple service providers."* Specifies strict No Refunds policy on digital tokens and subscriptions (with automatic technical failure token refunds and Australian Consumer Law non-excludable guarantees). Explains independent contractor status of Ad Agents: Ad Agents are independent contractors with no official employment by Ad Radar; their role is purely in an outsourced capacity with no long-term contractual arrangement; **their individual pricing structure is theirs alone, and Ad Radar HQ does not have any control over their specialization and expert services**; and their advice, recommendations, strategies, and opinions are strictly their own and do not represent Ad Radar HQ. Enforces sole proprietary ownership: all development, source code, and assets remain the sole proprietary ownership of AI Foundation, ABN 36 339 516 584, and no part of this web app can be used without express written prior consent of the developer. Nations outside Australia and New Zealand view an AUD to USD currency conversion.
@@ -716,6 +719,8 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   - `click(agentId)` and `fill(agentId, value)` verify post-action DOM mutation (`MutationObserver` + React-controlled value verification).
 
 ## 17. Monthly Search Subscription Contract (SuperAdmin & MainAdmin)
+
+- **Current Availability Status (Hidden For Now):** Monthly Search Subscriptions are currently hidden across the UI and forced `enabled: false` in `normalizeConfig` via the master feature flag `ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE = false` in `src/lib/pricing.ts` (`TopNavWallet`, `FaqModal` via `AppFooter`, `SuperAdminModal`, and landing copy in `src/app/page.tsx`). All underlying data contracts, modal components, and Stripe webhook/checkout handlers remain preserved for future reintroduction.
 
 ### 17.1 Subscription Specification
 - **Allowance:** 1,000 monthly tokens (1,000 tokens/month).
@@ -1349,6 +1354,161 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   - `data-agent-id="home-postcard-<id>"`, `data-testid="home-postcard-<id>"`
   - `data-agent-id="home-postcard-trigger-<id>"`, `data-testid="home-postcard-trigger-<id>"`
   - `data-agent-id="home-postcard-body-<id>"`, `data-testid="home-postcard-body-<id>"`
+
+## 30. Build Remixed Ad Text (`POST /api/radar/remix-ad-text`, `RemixedAdTextDocSchema`)
+
+### 30.1 API Request Contract (`BuildRemixedAdTextRequestSchema`)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BuildRemixedAdTextRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["adId", "brandId"],
+  "properties": {
+    "adId": { "type": "string", "pattern": "^(meta|tiktok|google)_[A-Za-z0-9_-]{1,200}$" },
+    "brandId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "remixId": { "type": "string", "minLength": 1, "maxLength": 160 }
+  }
+}
+```
+
+### 30.2 Generated Document & Item Contract (`RemixedAdTextDocSchema`)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RemixedAdTextDoc",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "remixedAdTextId",
+    "uid",
+    "sourceAdId",
+    "brandId",
+    "brandName",
+    "sourceAdvertiser",
+    "items",
+    "createdAt"
+  ],
+  "properties": {
+    "remixedAdTextId": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "sourceAdId": { "type": "string", "pattern": "^(meta|tiktok|google)_[A-Za-z0-9_-]{1,200}$" },
+    "brandId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "brandName": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "sourceAdvertiser": { "type": "string", "maxLength": 200 },
+    "items": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["platform", "platformLabel", "headline", "adText", "cta", "wordCount"],
+        "properties": {
+          "platform": { "type": "string", "enum": ["TIKTOK", "FACEBOOK", "INSTAGRAM", "GOOGLE_ADS"] },
+          "platformLabel": { "type": "string", "minLength": 2, "maxLength": 40 },
+          "headline": { "type": "string", "minLength": 2, "maxLength": 160 },
+          "adText": { "type": "string", "minLength": 5, "maxLength": 2000, "description": "Strictly <= 150 words" },
+          "cta": { "type": "string", "minLength": 2, "maxLength": 80 },
+          "wordCount": { "type": "integer", "minimum": 1, "maximum": 150 }
+        }
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}
+```
+
+### 30.3 SuperAdmin Fee, Hover Tooltip, Word Cap & DOM Bindings
+- **Token Gate & SuperAdmin Fee (`serviceCosts.buildRemixedAdText`):** Default cost is `1` token (`ACTION_COSTS.BUILD_REMIXED_AD_TEXT = 1`, `BUILD_REMIXED_AD_TEXT` transaction type, RBAC permission `ai_remix`), customizable as an integer `>= 0` in the SuperAdmin Panel (`SuperAdminModal`) and propagated live to `TokenPacks` and `RemixStudio`. Gated with `x-idempotency-key` and automatic full token refund on AI/upstream failures.
+- **Persistence:** Saved in Cloud Firestore under `remixed_ad_texts/{txId}` (written exclusively via Firebase Admin SDK; replayed idempotency keys return the cached document with zero extra charge).
+- **UI Placement & Unchanged Neighbor:** Placed strictly to the left of the untouched `Regenerate variations` button (`remix-regenerate-variations-button`) inside `RemixStudio` (`src/components/radar/RemixStudio.tsx`).
+- **Accessible Hover Tooltip & Strict 150-Word Cap:** Hovering or focusing `remix-build-ad-text-button` opens `remix-build-ad-text-tooltip` (`role="tooltip"`, `aria-describedby`, `Escape`-dismissible) explaining that the output generates remixed text ad descriptions ready for social media platforms (`TikTok`, `Facebook`, `Instagram`, `Google Ads` — max `150` words each) alongside the AUD/USD token price estimate. Server post-processing (`enforceMaxAdWords`) deterministically clamps every platform's `adText` to `<= 150` words before validation and storage.
+- **Interactive DOM Bindings:**
+  - `data-agent-id="remix-build-ad-text-button"`, `data-testid="remix-build-ad-text-button"`
+  - `data-agent-id="remix-build-ad-text-tooltip"`, `data-testid="remix-build-ad-text-tooltip"`
+  - `data-agent-id="remixed-ad-texts-loading"`, `data-testid="remixed-ad-texts-loading"`
+  - `data-agent-id="remixed-ad-texts-panel"`, `data-testid="remixed-ad-texts-panel"`
+  - `data-agent-id="copy-all-remixed-ad-texts-button"`, `data-testid="copy-all-remixed-ad-texts-button"`
+  - `data-agent-id="remixed-ad-text-card-<platform>"`, `data-testid="remixed-ad-text-card-<platform>"` (`tiktok`, `facebook`, `instagram`, `google_ads`)
+  - `data-agent-id="remixed-ad-text-words-<platform>"`, `data-testid="remixed-ad-text-words-<platform>"`
+  - `data-agent-id="copy-remixed-ad-text-<platform>"`, `data-testid="copy-remixed-ad-text-<platform>"`
+
+## 31. Library & `'Library Items'` Purchase Contract (`GET /api/library`, `POST /api/library/purchase`)
+
+### 31.1 Library Sources & Automatic Archiving
+- Top Navbar button **`Library`** (`/library`) appears in both the dashboard navbar (`src/components/layout/nav.ts` -> `TopNavWallet.tsx` and 4-tab `MobileTabBar.tsx`: `/brands`, `/radar`, `/customize`, `/library`) and `PublicStartNavbar.tsx`. The dedicated `Wallet` top-navbar link is omitted, while the `tokens / Top-up` `TokenPill` (`header-token-pill` -> `/wallet` & `/wallet#packs`) remains on the far right of `TopNavWallet.tsx`.
+- Every saved result across the platform populates `/library` automatically:
+  1. **Previous Searches (`PREVIOUS_SEARCH`, `search_<id>`):** Archived permanently in `library_searches/{archiveId}` on every search returning `>= 1` result alongside existing `radar_cache` entries (deduplicated by platform + query + country + mediaType).
+  2. **Remix Studio (`REMIX_STUDIO`, `remix_<id>`):** Saved automatically in `remixes/{txId}` (including `brandName`, `sourceAdvertiser`, `platform`, and `createdAt`, with fallback resolution for historical remixes).
+  3. **Remixed Ad Text (`REMIXED_AD_TEXT`, `adtext_<id>`):** Generated by `Build Remixed Ad Text` and saved automatically in `remixed_ad_texts/{txId}`.
+
+### 31.2 Summary & Purchase Data Contracts (`additionalProperties: false`)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LibraryPurchaseRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["itemKey"],
+  "properties": {
+    "itemKey": {
+      "type": "string",
+      "pattern": "^(search|remix|adtext)_[A-Za-z0-9_-]{1,180}$"
+    }
+  }
+}
+```
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LibraryItemSummary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "itemKey",
+    "sourceId",
+    "kind",
+    "kindLabel",
+    "title",
+    "subtitle",
+    "teaser",
+    "tags",
+    "metricsLabel",
+    "createdAt",
+    "purchased"
+  ],
+  "properties": {
+    "itemKey": { "type": "string", "pattern": "^(search|remix|adtext)_[A-Za-z0-9_-]{1,180}$" },
+    "sourceId": { "type": "string", "minLength": 1, "maxLength": 180 },
+    "kind": { "type": "string", "enum": ["PREVIOUS_SEARCH", "REMIX_STUDIO", "REMIXED_AD_TEXT"] },
+    "kindLabel": { "type": "string", "enum": ["Previous Search", "Remix Studio", "Remixed Ad Text"] },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "subtitle": { "type": "string", "maxLength": 240 },
+    "teaser": { "type": "string", "maxLength": 500 },
+    "platform": { "type": "string", "enum": ["META", "TIKTOK", "GOOGLE"] },
+    "country": { "type": "string", "maxLength": 8 },
+    "tags": { "type": "array", "maxItems": 8, "items": { "type": "string", "maxLength": 80 } },
+    "metricsLabel": { "type": "string", "maxLength": 120 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "purchased": { "type": "boolean" }
+  }
+}
+```
+
+### 31.3 SuperAdmin `'Library Items'` Fee, Security & DOM Bindings
+- **Configurable Fee (`serviceCosts.libraryItems`):** Managed in SuperAdmin Panel (`service-cost-card-libraryItems`, labeled **`Library Items`**, default `1` integer token). Recorded in `token_transactions` under `type: "LIBRARY_ITEM_PURCHASE"`.
+- **Redaction & Permanent Unlock Guarantee:** `GET /api/library` never exposes unpurchased full search ad arrays, remix scripts/storyboards, or 4-platform ad text bodies, and never exposes creator UIDs/emails. `POST /api/library/purchase` records permanent unlocks under `users/{uid}/library_purchases/{itemKey}` via Firebase Admin SDK (`firestore.rules` default-deny blocks all direct client writes/reads outside owner-scoped documents), so already-purchased items open via `GET /api/library?itemKey=...` at `0` additional tokens, while missing items return `404` with automatic token refund.
+- **Interactive DOM Bindings:**
+  - `data-agent-id="nav-link-library"`, `data-testid="nav-link-library"`, `data-agent-id="start-navbar-library-link"`, `data-testid="mobile-tab-library"`
+  - `data-agent-id="library-price-badge"`, `data-agent-id="library-refresh-button"`
+  - `data-agent-id="library-filter-all"`, `library-filter-previous_search`, `library-filter-remix_studio`, `library-filter-remixed_ad_text`
+  - `data-agent-id="library-search-input"`, `data-agent-id="library-platform-filter"`
+  - `data-agent-id="library-buy-<itemKey>"`, `data-agent-id="library-view-<itemKey>"`
+  - `data-agent-id="library-detail-modal"`, `library-open-in-radar-btn`, `library-modal-download-txt-btn`, `library-modal-copy-btn`, `library-modal-close-btn`
+
+
 
 
 

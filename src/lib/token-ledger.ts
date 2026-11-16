@@ -21,6 +21,7 @@ const ACTION_PERMISSIONS: Partial<Record<ChargeableAction, RbacPermission>> = {
   RADAR_SEARCH: "search_radar",
   AI_REMIX: "ai_remix",
   REGENERATE_VARIATIONS: "ai_remix",
+  BUILD_REMIXED_AD_TEXT: "ai_remix",
   BRAND_CLONE: "manage_brands",
   BRAND_TXT_DOWNLOAD: "manage_brands",
   SEARCHMIX_DOWNLOAD: "search_radar",

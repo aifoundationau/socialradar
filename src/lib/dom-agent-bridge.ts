@@ -724,9 +724,9 @@ export const AGENT_TASK_DEFINITIONS: Record<AgentTaskId, AgentTaskDefinition> = 
       {
         stepNumber: 1,
         action: "click",
-        targetAgentId: "nav-link-wallet",
+        targetAgentId: "header-topup-link",
         route: "/wallet",
-        description: "Navigate to Wallet.",
+        description: "Click the Top-up button in the far-right token pill to navigate to Wallet.",
         expectedMutation: "wallet-balance-section is visible.",
       },
       {
@@ -753,7 +753,7 @@ export const AGENT_TASK_DEFINITIONS: Record<AgentTaskId, AgentTaskDefinition> = 
     title: "Subscribe to 1,000 Monthly Tokens (SuperAdmin & MainAdmin)",
     route: "/radar",
     description:
-      "Open the Monthly Search Subscription dialog advertised next to FAQs in the top header and subscribe to 1,000 monthly tokens for AUD $500/month.",
+      "Open the Monthly Search Subscription dialog advertised in the top header and subscribe to 1,000 monthly tokens for AUD $500/month.",
     tokenCostNote: "AUD $500/month (1,000 monthly tokens).",
     confirmationRequiredBeforeFinalClick: true,
     slots: [],
@@ -762,7 +762,7 @@ export const AGENT_TASK_DEFINITIONS: Record<AgentTaskId, AgentTaskDefinition> = 
         stepNumber: 1,
         action: "click",
         targetAgentId: "nav-link-subscription",
-        description: "Click the Subscription button next to FAQs in the top header.",
+        description: "Click the Subscription button in the top header.",
         expectedMutation: "monthly-subscription-modal dialog opens.",
       },
       {
@@ -859,7 +859,7 @@ export const AGENT_TASK_DEFINITIONS: Record<AgentTaskId, AgentTaskDefinition> = 
     taskId: "SEARCH_FAQS",
     title: "Open & Search Frequently Asked Questions (FAQs)",
     route: "/radar",
-    description: "Open the FAQ modal from the top header and search or filter questions by category.",
+    description: "Open the FAQ modal from the bottom footer and search or filter questions by category.",
     tokenCostNote: "0 tokens.",
     confirmationRequiredBeforeFinalClick: false,
     slots: [
@@ -876,8 +876,8 @@ export const AGENT_TASK_DEFINITIONS: Record<AgentTaskId, AgentTaskDefinition> = 
       {
         stepNumber: 1,
         action: "click",
-        targetAgentId: "nav-link-faqs",
-        description: "Click the FAQs button in the top header (or mobile-header-faqs on mobile).",
+        targetAgentId: "footer-btn-faqs",
+        description: "Click the FAQs button in the bottom footer.",
         expectedMutation: "faq-modal dialog is visible.",
       },
       {

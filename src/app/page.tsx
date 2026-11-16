@@ -4,6 +4,7 @@ import { AmbientGlow } from "@/components/ui/AmbientGlow";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { PublicStartNavbar } from "@/components/layout/PublicStartNavbar";
+import { ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE } from "@/lib/pricing";
 
 const STEPS: { title: string; body: string; icon: IconName }[] = [
   {
@@ -43,7 +44,9 @@ export default function Home() {
           </h1>
           <div className="space-y-3 text-sm text-on-surface-variant sm:text-base lg:text-[1.05rem] leading-relaxed">
             <p className="whitespace-normal lg:whitespace-nowrap">
-              Pay as you go or buy with tokens or buy an agency subscription: Search Proven Ads, Top Performers, Long Term winners.
+              {ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE
+                ? "Pay as you go or buy with tokens or buy an agency subscription: Search Proven Ads, Top Performers, Long Term winners."
+                : "Pay as you go or buy with tokens: Search Proven Ads, Top Performers, Long Term winners."}
             </p>
             <p className="whitespace-normal md:whitespace-nowrap text-on-surface-variant/90">
               Get assistance from top Social Media Agencies, Videographers, and Visual AI Experts.

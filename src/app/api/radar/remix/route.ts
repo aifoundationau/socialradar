@@ -63,12 +63,17 @@ export async function POST(req: Request) {
         ad = await enrichGoogleAd(ad);
         await adSnap.ref.set(ad);
       }
-      const blueprint = await generateRemix(ad, BrandProfileSchema.parse(brandSnap.data()));
+      const brand = BrandProfileSchema.parse(brandSnap.data());
+      const blueprint = await generateRemix(ad, brand);
       const remix = RemixDocSchema.parse({
         remixId: txId,
         uid: caller.uid,
         sourceAdId: input.adId,
         brandId: input.brandId,
+        brandName: brand.brandName,
+        sourceAdvertiser: ad.advertiserName || "Selected Ad",
+        platform: ad.platform,
+        createdAt: new Date().toISOString(),
         ...blueprint,
       });
       await ref.set(remix);

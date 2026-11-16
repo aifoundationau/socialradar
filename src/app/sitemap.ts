@@ -20,6 +20,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
+      url: `${siteUrl}/library`,
+      lastModified: SITEMAP_LAST_MODIFIED,
+      changeFrequency: "daily",
+      priority: 0.85,
+    },
+    {
       url: `${siteUrl}/customize`,
       lastModified: SITEMAP_LAST_MODIFIED,
       changeFrequency: "weekly",

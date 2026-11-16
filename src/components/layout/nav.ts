@@ -9,7 +9,7 @@ export interface NavItem {
   tooltipDesc: string;
 }
 
-/** Dashboard sections: My Brands first, followed by Radar Feed, then Wallet. */
+/** Dashboard sections: My Brands, Radar Feed, Customize, and Library. */
 export const NAV: NavItem[] = [
   {
     href: "/brands",
@@ -36,12 +36,12 @@ export const NAV: NavItem[] = [
     tooltipDesc: "Have our professional strategy team take your brand details and extra notes to craft a bespoke brand & ad blueprint.",
   },
   {
-    href: "/wallet",
-    label: "Wallet",
-    short: "Wallet",
-    icon: "wallet",
-    tooltipTitle: "Token Wallet",
-    tooltipDesc: "Inspect live token ledger balance, monitor deduction history, and purchase token packs.",
+    href: "/library",
+    label: "Library",
+    short: "Library",
+    icon: "layers",
+    tooltipTitle: "Library",
+    tooltipDesc: "Browse and purchase saved Previous Searches, Remix Studio blueprints, and Remixed Ad Text packs.",
   },
 ];
 

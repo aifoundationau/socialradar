@@ -18,7 +18,12 @@ import {
   type TokenTransactionDoc,
 } from "./contracts";
 import { ApiError } from "./api";
-import { TOKEN_PACKS, isFreeAccessWindowActive, normalizeAllowedCountries } from "./pricing";
+import {
+  ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE,
+  TOKEN_PACKS,
+  isFreeAccessWindowActive,
+  normalizeAllowedCountries,
+} from "./pricing";
 import { creditTokens } from "./token-ledger";
 import { findClosestAdAgent, formatAgentLocationLabel } from "./ad-agents";
 
@@ -63,6 +68,8 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
     searchEliteScore: 1,
     aiRemix: 1,
     regenerateVariations: 1,
+    buildRemixedAdText: 1,
+    libraryItems: 1,
     brandClone: 1,
     brandTxtDownload: 1,
     searchMixDownload: 1,
@@ -115,6 +122,7 @@ function normalizeConfig(data: DocumentData): AdminSystemConfig {
     monthlySubscription: {
       ...DEFAULT_CONFIG.monthlySubscription!,
       ...(data.monthlySubscription || {}),
+      ...(ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE ? {} : { enabled: false }),
     },
     freeAccessWindow,
   };
