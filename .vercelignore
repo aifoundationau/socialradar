@@ -1,0 +1,3 @@
+# Files that must never be uploaded by `vercel deploy` from this machine.
+# (Vercel's own defaults, such as node_modules and .env.local, still apply.)
+stripewebhooks.txt

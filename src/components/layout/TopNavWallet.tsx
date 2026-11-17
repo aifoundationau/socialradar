@@ -17,6 +17,7 @@ import { AdAgentModal } from "@/components/ad-agent/AdAgentModal";
 import { InstallAppModal } from "@/components/pwa/InstallAppModal";
 import type { AdAgentProfile } from "@/lib/contracts";
 import { ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE } from "@/lib/pricing";
+import { SITE_HOME_HREF } from "@/lib/seo";
 
 function NavItems({ pathname }: { pathname: string | null }) {
   return NAV.map(({ href, label, tooltipTitle, tooltipDesc }) => {
@@ -589,7 +590,7 @@ export function TopNavWallet() {
 
       <div className="flex h-14 w-full max-w-full min-w-0 items-center gap-1.5 px-2.5 sm:gap-3 sm:px-6">
         <Link
-          href="/"
+          href={SITE_HOME_HREF}
           data-agent-id="header-home-logo-link"
           data-testid="header-home-logo-link"
           aria-label="AdRadarHQ home page"

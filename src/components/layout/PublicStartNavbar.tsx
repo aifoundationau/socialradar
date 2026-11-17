@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
 import { Icon } from "@/components/ui/Icon";
 import { InstallAppModal } from "@/components/pwa/InstallAppModal";
+import { SITE_HOME_HREF } from "@/lib/seo";
 
 /**
  * Top Navbar displayed on the front start page (`/`) and on signed-out views,
@@ -17,7 +18,7 @@ export function PublicStartNavbar() {
     <header className="relative mx-auto flex w-full max-w-5xl items-center justify-between px-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6">
       <div className="flex items-center gap-3">
         <Link
-          href="/"
+          href={SITE_HOME_HREF}
           data-agent-id="start-navbar-logo-link"
           data-testid="start-navbar-logo-link"
           aria-label="AdRadarHQ home page"

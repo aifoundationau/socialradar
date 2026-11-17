@@ -16,6 +16,13 @@ export function getSiteUrl(): string {
 }
 
 /**
+ * Target of the top-left logo. Absolute so visitors on any other address (such as the old
+ * socialradar.aifoundation.net.au) land on adradarhq.com; on adradarhq.com itself next/link sees the
+ * same origin and still navigates client-side. `next dev` keeps "/" so local clicks stay local.
+ */
+export const SITE_HOME_HREF = process.env.NODE_ENV === "production" ? `${DEFAULT_SITE_URL}/` : "/";
+
+/**
  * Builds route-specific Next.js Metadata (`keywords`, `alternates.canonical`, `openGraph`, `twitter`)
  * while preserving the exact route `title` and `description` passed in.
  */

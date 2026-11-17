@@ -296,7 +296,7 @@ export function InstallAppModal({ isOpen, onClose }: InstallAppModalProps) {
                           1
                         </span>
                         <span>
-                          Open <strong>socialradar.aifoundation.net.au</strong> in Chrome on your Android device.
+                          Open <strong>adradarhq.com</strong> in Chrome on your Android device.
                         </span>
                       </li>
                       <li className="flex items-start gap-2.5">

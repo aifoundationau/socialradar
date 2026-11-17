@@ -1,5 +1,5 @@
 # Firebase App Hosting config for backend "ad-radar" in project ai-foundation-firebase (see .firebaserc).
-# Production: https://socialradar.aifoundation.net.au
+# Production: https://adradarhq.com
 # Public values live here; secrets live in Cloud Secret Manager of ai-foundation-firebase.
 # Create or update each secret below before the next rollout (a missing secret fails the build):
 #   firebase apphosting:secrets:set firebase-web-api-key  --project ai-foundation-firebase
@@ -40,7 +40,7 @@ env:
     availability: [RUNTIME]
   # Also needed at BUILD: layout.tsx bakes it into the canonical / OpenGraph URLs of static pages.
   - variable: APP_URL
-    value: https://socialradar.aifoundation.net.au
+    value: https://adradarhq.com
     availability: [BUILD, RUNTIME]
 
   # Stripe — test mode while in staging.
