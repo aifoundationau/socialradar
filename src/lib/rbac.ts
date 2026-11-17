@@ -11,6 +11,19 @@ import {
 
 const RBAC_DOC_PATH = "system_config/rbac";
 
+const LEGACY_PRE_SEEDED_PERMISSIONS: readonly RbacPermission[] = [
+  "view_analytics",
+  "manage_config",
+  "manage_ledger",
+  "flush_cache",
+  "manage_messages",
+  "manage_rbac",
+  "manage_users",
+  "search_radar",
+  "ai_remix",
+  "manage_brands",
+];
+
 export const DEFAULT_RBAC_MATRIX: RbacMatrix = {
   superadmin: [...RBAC_PERMISSIONS_LIST],
   admin: [
@@ -20,33 +33,41 @@ export const DEFAULT_RBAC_MATRIX: RbacMatrix = {
     "search_radar",
     "ai_remix",
     "manage_brands",
+    "submit_rag_translations",
+    "approve_rag_translations",
   ],
   ad_agent: [
     "manage_messages",
     "search_radar",
     "ai_remix",
     "manage_brands",
+    "submit_rag_translations",
+    "approve_rag_translations",
   ],
   moderator: [
     "view_analytics",
     "manage_messages",
     "search_radar",
     "ai_remix",
+    "submit_rag_translations",
   ],
   agency: [
     "search_radar",
     "ai_remix",
     "manage_brands",
+    "submit_rag_translations",
   ],
   supporter: [
     "search_radar",
     "ai_remix",
     "manage_brands",
+    "submit_rag_translations",
   ],
 };
 
 export interface RbacSystemConfig {
   matrix: RbacMatrix;
+  seededPermissions?: string[];
   updatedAt: string;
   updatedBy: string;
 }
@@ -111,6 +132,7 @@ export async function getRbacConfig(): Promise<RbacSystemConfig> {
     if (!snap.exists) {
       const initial: RbacSystemConfig = {
         matrix: DEFAULT_RBAC_MATRIX,
+        seededPermissions: [...RBAC_PERMISSIONS_LIST],
         updatedAt: new Date().toISOString(),
         updatedBy: "system:bootstrap",
       };
@@ -127,8 +149,40 @@ export async function getRbacConfig(): Promise<RbacSystemConfig> {
       superadmin: [...RBAC_PERMISSIONS_LIST], // Superadmin always retains all permissions
     };
 
+    // One-time additive seed for newly added RBAC capabilities onto existing Firestore matrices
+    const alreadySeeded = new Set<string>(
+      Array.isArray(data.seededPermissions)
+        ? (data.seededPermissions as string[])
+        : LEGACY_PRE_SEEDED_PERMISSIONS,
+    );
+    const unseeded = RBAC_PERMISSIONS_LIST.filter((p) => !alreadySeeded.has(p));
+    if (unseeded.length > 0) {
+      for (const r of RBAC_ROLES_LIST) {
+        if (r === "superadmin") continue;
+        const currentForRole = Array.isArray(mergedMatrix[r]) ? mergedMatrix[r] : [];
+        const nextSet = new Set<RbacPermission>(currentForRole);
+        for (const p of unseeded) {
+          if (DEFAULT_RBAC_MATRIX[r].includes(p)) {
+            nextSet.add(p);
+          }
+        }
+        mergedMatrix[r] = Array.from(nextSet);
+      }
+      const seededDoc: RbacSystemConfig = {
+        matrix: mergedMatrix,
+        seededPermissions: [...RBAC_PERMISSIONS_LIST],
+        updatedAt: data.updatedAt || new Date().toISOString(),
+        updatedBy: data.updatedBy || "system:seed-permissions",
+      };
+      await db.doc(RBAC_DOC_PATH).set(seededDoc, { merge: true }).catch(() => undefined);
+      return seededDoc;
+    }
+
     return {
       matrix: mergedMatrix,
+      seededPermissions: Array.isArray(data.seededPermissions)
+        ? (data.seededPermissions as string[])
+        : [...RBAC_PERMISSIONS_LIST],
       updatedAt: data.updatedAt || new Date().toISOString(),
       updatedBy: data.updatedBy || "system",
     };
@@ -136,6 +190,7 @@ export async function getRbacConfig(): Promise<RbacSystemConfig> {
     console.warn("[rbac] failed to fetch rbac config, using default", err);
     return {
       matrix: DEFAULT_RBAC_MATRIX,
+      seededPermissions: [...RBAC_PERMISSIONS_LIST],
       updatedAt: new Date().toISOString(),
       updatedBy: "system:fallback",
     };
@@ -153,7 +208,115 @@ const PERMISSION_LABELS: Record<RbacPermission, string> = {
   search_radar: "Search AdRadarHQ",
   ai_remix: "AI Remix Studio",
   manage_brands: "Manage Brands",
+  submit_rag_translations: "Create RAG Translations",
+  approve_rag_translations: "Approve RAG Translations",
 };
+
+export interface CallerRbacContext {
+  isSuper: boolean;
+  primaryRole: RbacRole;
+  roles: RbacRole[];
+  permissions: Set<RbacPermission>;
+  canSubmitRagTranslations: boolean;
+  canApproveRagTranslations: boolean;
+  canPublishFaq: boolean;
+  canSyncCorpus: boolean;
+}
+
+/**
+ * Resolves live roles and effective RBAC permissions for an authenticated caller.
+ * Combines Firebase custom claims with live Firestore user roles so multi-role assignments
+ * (such as Main Admin or Ad Agent) take effect immediately without waiting for token refresh.
+ * Only verified permanent database Super Admins may pass `actingRole` to preview other roles.
+ */
+export async function resolveCallerRbacContext(
+  caller: VerifiedCaller,
+  actingRole?: string,
+): Promise<CallerRbacContext> {
+  const { matrix } = await getRbacConfig();
+  const isTrueSuper = caller.claims.isSuperAdmin === true;
+
+  if (isTrueSuper) {
+    if (
+      actingRole &&
+      actingRole !== "superadmin" &&
+      RBAC_ROLES_LIST.includes(actingRole as RbacRole)
+    ) {
+      const simRole = actingRole as RbacRole;
+      const perms = new Set<RbacPermission>(
+        (matrix[simRole] ?? []).filter((p) => RBAC_PERMISSIONS_LIST.includes(p)),
+      );
+      return {
+        isSuper: false,
+        primaryRole: simRole,
+        roles: [simRole],
+        permissions: perms,
+        canSubmitRagTranslations: perms.has("submit_rag_translations"),
+        canApproveRagTranslations:
+          (simRole === "admin" || simRole === "ad_agent") &&
+          perms.has("approve_rag_translations"),
+        canPublishFaq: simRole === "admin" && perms.has("manage_config"),
+        canSyncCorpus:
+          simRole === "admin" &&
+          (perms.has("manage_config") || perms.has("approve_rag_translations")),
+      };
+    }
+
+    return {
+      isSuper: true,
+      primaryRole: "superadmin",
+      roles: ["superadmin", "admin", "ad_agent", "supporter"],
+      permissions: new Set(RBAC_PERMISSIONS_LIST),
+      canSubmitRagTranslations: true,
+      canApproveRagTranslations: true,
+      canPublishFaq: true,
+      canSyncCorpus: true,
+    };
+  }
+
+  // Non-superadmin: strictly ignore actingRole and merge claims + Firestore user doc roles
+  const userSnap = await db.collection("users").doc(caller.uid).get().catch(() => null);
+  const userData = userSnap?.exists ? userSnap.data() : undefined;
+  const docRoles = Array.isArray(userData?.roles) ? userData.roles : [];
+  const claimRoles = Array.isArray(caller.claims.roles) ? caller.claims.roles : [];
+  const combinedRoles = normalizeUserRoles(
+    [...claimRoles, ...docRoles, caller.claims.role, userData?.role],
+    caller.claims.role || userData?.role || "supporter",
+    false,
+  );
+  const primaryRole = combinedRoles[0] || "supporter";
+  const perms = new Set<RbacPermission>();
+  let knownRole = false;
+  for (const r of combinedRoles) {
+    const list = matrix[r];
+    if (!Array.isArray(list)) continue;
+    knownRole = true;
+    for (const p of list) {
+      if (RBAC_PERMISSIONS_LIST.includes(p)) perms.add(p);
+    }
+  }
+  if (!knownRole) {
+    for (const p of matrix.supporter ?? []) {
+      if (RBAC_PERMISSIONS_LIST.includes(p)) perms.add(p);
+    }
+  }
+
+  return {
+    isSuper: false,
+    primaryRole,
+    roles: combinedRoles,
+    permissions: perms,
+    canSubmitRagTranslations: perms.has("submit_rag_translations"),
+    canApproveRagTranslations:
+      combinedRoles.some((r) => r === "admin" || r === "ad_agent") &&
+      perms.has("approve_rag_translations"),
+    canPublishFaq:
+      combinedRoles.includes("admin") && perms.has("manage_config"),
+    canSyncCorpus:
+      combinedRoles.includes("admin") &&
+      (perms.has("manage_config") || perms.has("approve_rag_translations")),
+  };
+}
 
 /**
  * The permissions the caller holds: everything for Super Admin, otherwise the union of what each of
@@ -220,6 +383,7 @@ export async function updateRolePermissions(
 
   const nextDoc: RbacSystemConfig = {
     matrix: updatedMatrix,
+    seededPermissions: [...RBAC_PERMISSIONS_LIST],
     updatedAt: new Date().toISOString(),
     updatedBy,
   };
@@ -510,10 +674,25 @@ export async function deleteRegisteredUser(
 /** Lists registered users for the RBAC management table. */
 export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]> {
   try {
-    const [listResult, usersSnap] = await Promise.all([
+    const [listResult, usersSnap, adAgentsSnap] = await Promise.all([
       adminAuth.listUsers(limitCount),
       db.collection("users").get(),
+      db.collection("ad_agents").get().catch(() => null),
     ]);
+
+    const nameMap = new Map<string, string>();
+    adAgentsSnap?.forEach((doc) => {
+      const data = doc.data();
+      const agentName = typeof data.name === "string" ? data.name.trim() : "";
+      if (!agentName || agentName === "Ad Agent") return;
+      nameMap.set(doc.id, agentName);
+      if (typeof data.uid === "string" && data.uid.trim()) {
+        nameMap.set(data.uid.trim(), agentName);
+      }
+      if (typeof data.email === "string" && data.email.trim()) {
+        nameMap.set(data.email.toLowerCase().trim(), agentName);
+      }
+    });
 
     const balanceMap = new Map<string, number>();
     const firestoreRoleMap = new Map<string, RbacRole>();
@@ -521,6 +700,15 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
     const healPromises: Promise<unknown>[] = [];
     usersSnap.forEach((doc) => {
       const data = doc.data();
+      const docName =
+        (typeof data.displayName === "string" ? data.displayName.trim() : "") ||
+        (typeof data.name === "string" ? data.name.trim() : "");
+      if (docName) {
+        nameMap.set(doc.id, docName);
+        if (data.email) {
+          nameMap.set(String(data.email).toLowerCase().trim(), docName);
+        }
+      }
       const rawBal = Number(data.tokenBalance ?? 0);
       if (!Number.isFinite(rawBal) || rawBal < 0) {
         healPromises.push(
@@ -572,11 +760,16 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
         (u.customClaims?.tier as string) ||
         (roles.includes("agency") || roles.includes("admin") || isSuper ? "agency" : "supporter");
       const tokenBalance = balanceMap.get(u.uid) ?? balanceMap.get(email) ?? 0;
+      const resolvedName =
+        (u.displayName ? u.displayName.trim() : "") ||
+        nameMap.get(u.uid) ||
+        nameMap.get(email) ||
+        undefined;
 
       return {
         uid: u.uid,
         email,
-        displayName: u.displayName || undefined,
+        displayName: resolvedName,
         photoUrl: u.photoURL || undefined,
         role,
         roles,
@@ -599,10 +792,16 @@ export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]
       const role: RbacRole = isSuper ? "superadmin" : roles[0] || "supporter";
       const tier = roles.includes("agency") || roles.includes("admin") || isSuper ? "agency" : "supporter";
       const tokenBalance = balanceMap.get(doc.id) ?? balanceMap.get(email) ?? 0;
+      const resolvedName =
+        (typeof data.displayName === "string" ? data.displayName.trim() : "") ||
+        (typeof data.name === "string" ? data.name.trim() : "") ||
+        nameMap.get(doc.id) ||
+        nameMap.get(email) ||
+        undefined;
       combined.push({
         uid: doc.id,
         email,
-        displayName: typeof data.displayName === "string" ? data.displayName : undefined,
+        displayName: resolvedName,
         role,
         roles,
         tier,

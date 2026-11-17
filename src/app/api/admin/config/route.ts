@@ -149,6 +149,9 @@ export async function PUT(req: Request) {
     // Plain config save: validated field by field; anything not in the schema is rejected.
     assertPermission(permissions, "manage_config");
     const patch = AdminConfigPatchSchema.parse(body);
+    if (patch.tokenPacks !== undefined && caller.claims.isSuperAdmin !== true) {
+      throw new ApiError("FORBIDDEN", "Only Super Admin can create, edit, or delete token packs.", 403);
+    }
     const updated = await updateSystemConfig(patch);
     return NextResponse.json({
       success: true,

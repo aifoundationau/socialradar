@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { ApiError, errorResponse, readJson } from "@/lib/api";
 import { verifyRequest } from "@/lib/firebase-admin";
 import { GoogleTranslateRequestSchema } from "@/lib/contracts";
-import { requirePermission } from "@/lib/rbac";
+import { resolveCallerRbacContext } from "@/lib/rbac";
 import {
   batchTranslateFaqsWithGoogle,
   isSupportedRagLanguage,
@@ -13,7 +13,9 @@ import {
  * Two modes:
  * - `items` (FAQ modal, open to signed-out visitors): translates the site's own FAQs, looked up by
  *   faqId on the server. Any question/answer text sent by the client is ignored.
- * - `text` / `question` (RAG workspace): free text, for admins with the "System Config" permission.
+ * - `text` / `question` (RAG Studio): open to any authenticated registered user with
+ *   `submit_rag_translations` permission; returns an auto-translation draft that must be human-edited
+ *   before storing in the RAG corpus.
  */
 export async function POST(req: Request) {
   try {
@@ -33,8 +35,15 @@ export async function POST(req: Request) {
       });
     }
 
-    const caller = await verifyRequest(req, { requireRole: "admin" });
-    await requirePermission(caller, "manage_config");
+    const caller = await verifyRequest(req);
+    const ctx = await resolveCallerRbacContext(caller);
+    if (!ctx.canSubmitRagTranslations) {
+      throw new ApiError(
+        "FORBIDDEN",
+        "Your role does not currently have the Create RAG Translations permission.",
+        403,
+      );
+    }
     if (!parsed.text?.trim()) {
       throw new ApiError("INVALID_INPUT", "text is required", 400);
     }

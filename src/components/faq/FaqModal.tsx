@@ -72,7 +72,7 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev, onOpenSubscription }: 
     try {
       const [faqRes, ragRes] = await Promise.all([
         fetch("/api/faqs", { method: "GET", cache: "no-store" }),
-        fetch("/api/rag?sourceType=FAQ", { method: "GET", cache: "no-store" }).catch(() => null),
+        fetch("/api/rag?sourceType=FAQ&approvedOnly=1", { method: "GET", cache: "no-store" }).catch(() => null),
       ]);
       if (!faqRes.ok) {
         const errBody = await faqRes.json().catch(() => null);
@@ -102,6 +102,7 @@ export function FaqModal({ isOpen, onClose, onOpenFaqDev, onOpenSubscription }: 
 
     for (const entry of ragEntries) {
       if (
+        entry.approvalStatus !== "pending" &&
         entry.sourceType === "FAQ" &&
         entry.sourceId &&
         entry.languageCode.toLowerCase() === selectedLang.toLowerCase() &&

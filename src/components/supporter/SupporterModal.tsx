@@ -9,6 +9,7 @@ import { Icon } from "@/components/ui/Icon";
 import { alertError, alertInfo, btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
 import { TokenPacks } from "@/components/wallet/TokenPacks";
 import { AdAgentDistributionsPanel } from "@/components/ad-agent/AdAgentDistributionsPanel";
+import { GlobalRagCorpusSection } from "@/components/faq/FaqRagWorkspace";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { LINK_URL_PATTERN, type AdminMessage, type TokenTransactionDoc } from "@/lib/contracts";
 
@@ -27,7 +28,7 @@ export interface SupporterModalProps {
   initialTab?: SupporterTab;
 }
 
-export type SupporterTab = "TOKENS" | "BUY_TOKENS" | "MESSAGES" | "DISTRIBUTIONS";
+export type SupporterTab = "TOKENS" | "BUY_TOKENS" | "MESSAGES" | "DISTRIBUTIONS" | "RAG_STUDIO";
 
 export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalProps) {
   const isClient = useIsClient();
@@ -295,7 +296,11 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
       />
 
       {/* Modal Dialog Content */}
-      <div className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/12 bg-surface-container-low shadow-2xl">
+      <div
+        className={`relative flex max-h-[92vh] w-full ${
+          tab === "RAG_STUDIO" ? "max-w-5xl" : "max-w-4xl"
+        } flex-col overflow-hidden rounded-2xl border border-white/12 bg-surface-container-low shadow-2xl transition-all`}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-4 bg-surface-container-high/60 backdrop-blur-sm shrink-0">
           <div className="flex items-center gap-3">
@@ -318,8 +323,8 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
               </div>
               <p className="text-[12px] text-on-surface-variant font-mono">
                 {isAdAgentViewer
-                  ? "Tokens · Buy More Tokens · Messages · Distributions"
-                  : "Tokens · Buy More Tokens · Messages"}
+                  ? "Tokens · Buy More Tokens · Messages · Distributions · RAG Studio"
+                  : "Tokens · Buy More Tokens · Messages · RAG Studio"}
               </p>
             </div>
           </div>
@@ -441,6 +446,23 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
               <span>Distributions</span>
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => setTab("RAG_STUDIO")}
+            aria-pressed={tab === "RAG_STUDIO"}
+            aria-label="Website Sentences, AI Works & Multilingual FAQ RAG Studio"
+            data-testid="supporter-tab-rag-studio"
+            data-agent-id="supporter-tab-rag-studio"
+            className={`shrink-0 flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-semibold rounded-t-xl transition border-b-2 ${
+              tab === "RAG_STUDIO"
+                ? "border-primary text-primary bg-primary/10 shadow-sm"
+                : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-white/[0.03]"
+            }`}
+          >
+            <Icon name="globe" className="size-3.5" />
+            <span>RAG Studio</span>
+          </button>
         </nav>
 
         {/* Content Body */}
@@ -1023,6 +1045,11 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
           {/* TAB 4 (AD AGENTS ONLY): DISTRIBUTIONS */}
           {/* ========================================================================= */}
           {tab === "DISTRIBUTIONS" && isAdAgentViewer && <AdAgentDistributionsPanel />}
+
+          {/* ========================================================================= */}
+          {/* TAB 5: WEBSITE SENTENCES, AI WORKS & MULTILINGUAL FAQ RAG STUDIO */}
+          {/* ========================================================================= */}
+          {tab === "RAG_STUDIO" && <GlobalRagCorpusSection isAdmin={false} />}
         </div>
       </div>
     </div>,

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/styles";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { autofindUserLocation, loadGeoConfig, searchSuburbs, type SuburbSuggestion } from "@/lib/geo";
+import { GlobalRagCorpusSection } from "@/components/faq/FaqRagWorkspace";
 import { AdAgentDistributionsPanel } from "./AdAgentDistributionsPanel";
 import type {
   AdAgentContractor,
@@ -70,7 +71,7 @@ export type AdAgentSectionKey =
 export interface AdAgentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: "REGISTRATION" | "ORDERS" | "CONTRACTORS" | "DISTRIBUTIONS";
+  initialTab?: "REGISTRATION" | "ORDERS" | "CONTRACTORS" | "DISTRIBUTIONS" | "RAG_STUDIO";
 }
 
 export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: AdAgentModalProps) {
@@ -80,7 +81,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
   const isSuper = role === "superadmin" || isSuperAdmin;
   const isMainAdmin = role === "admin";
 
-  const [tab, setTab] = useState<"REGISTRATION" | "ORDERS" | "CONTRACTORS" | "DISTRIBUTIONS">(initialTab);
+  const [tab, setTab] = useState<"REGISTRATION" | "ORDERS" | "CONTRACTORS" | "DISTRIBUTIONS" | "RAG_STUDIO">(initialTab);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [detectingGeo, setDetectingGeo] = useState(false);
@@ -953,6 +954,21 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
             >
               <Icon name="layers" className="size-3.5" />
               <span>Distributions</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("RAG_STUDIO")}
+              aria-pressed={tab === "RAG_STUDIO"}
+              aria-label="Website Sentences, AI Works & Multilingual FAQ RAG Studio"
+              data-agent-id="ad-agent-tab-rag-studio"
+              data-testid="ad-agent-tab-rag-studio"
+              className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 font-mono text-xs font-semibold transition ${tab === "RAG_STUDIO"
+                  ? "border-secondary/50 bg-secondary/15 text-secondary shadow-sm"
+                  : "border-white/[0.06] bg-surface-container-high/60 text-on-surface-variant hover:text-on-surface"
+                }`}
+            >
+              <Icon name="globe" className="size-3.5" />
+              <span>RAG Studio</span>
             </button>
           </div>
 
@@ -2930,6 +2946,12 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
 
           {tab === "DISTRIBUTIONS" && (
             <AdAgentDistributionsPanel targetEmail={isSuper && agentEmail ? agentEmail : undefined} />
+          )}
+
+          {tab === "RAG_STUDIO" && (
+            <div className="space-y-4">
+              <GlobalRagCorpusSection isAdmin={false} />
+            </div>
           )}
         </div>
       </div>

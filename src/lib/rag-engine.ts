@@ -9,6 +9,7 @@ import type {
   FaqItem,
   RagSentenceItem,
   RagSourceType,
+  RbacRole,
   UpdateRagEntryRequest,
 } from "./contracts";
 
@@ -20,8 +21,74 @@ const RAG_ENTRIES_COL = "rag_custom_entries";
 /** ragIds can carry user-supplied language codes, so map them to safe Firestore document ids. */
 const ragDocId = (ragId: string) => ragId.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 150) || "rag_entry";
 
-/** Who the corpus is for. "public" never includes live user data, disabled FAQs or contributor emails. */
-export type RagAudience = "admin" | "public";
+/**
+ * Who the corpus is for:
+ * - "public": signed-out / unauthenticated FAQ reader (approved WEBSITE_UI & enabled FAQ only, emails redacted)
+ * - "registered": registered non-approver user in Admin Panel (approved corpus + their own pending submissions)
+ * - "approver": Ad Agent with approve permission (approved corpus + all pending submissions for review)
+ * - "admin": Main Admin / Super Admin (full corpus + live harvested AI works + all pending submissions)
+ */
+export type RagAudience = "public" | "registered" | "approver" | "admin";
+
+/** Normalizes unicode, outer whitespace, and collapsed internal spaces when comparing translations. */
+export function normalizeRagComparisonText(s: string): string {
+  return s.normalize("NFKC").trim().replace(/\s+/g, " ");
+}
+
+/**
+ * Enforces mandatory human editing before any translation can enter the pending queue or RAG corpus.
+ * Rejects empty translations, untranslated copies matching the source text, and raw Google Translate outputs.
+ */
+async function assertHumanEditedTranslation(params: {
+  originalText: string;
+  translatedText: string;
+  languageCode: string;
+  autoTranslatedText?: string;
+}): Promise<void> {
+  const normTranslated = normalizeRagComparisonText(params.translatedText);
+  if (!normTranslated) {
+    throw new ApiError("INVALID_INPUT", "Translated text is required.", 400);
+  }
+  if (params.languageCode.toLowerCase() !== "en") {
+    const normOrig = params.originalText.trim()
+      ? normalizeRagComparisonText(params.originalText)
+      : "";
+    if (normOrig && normTranslated === normOrig) {
+      throw new ApiError(
+        "INVALID_INPUT",
+        "Translation must be translated and human-edited rather than matching the original source text.",
+        400,
+      );
+    }
+    const normAuto = params.autoTranslatedText?.trim()
+      ? normalizeRagComparisonText(params.autoTranslatedText)
+      : "";
+    if (normAuto && normTranslated === normAuto) {
+      throw new ApiError(
+        "INVALID_INPUT",
+        "Registered users must edit a translation, not simply use auto translation, for the translation to store in the RAG.",
+        400,
+      );
+    }
+    if (params.originalText.trim()) {
+      const autoCheck = await translateWithGoogleTranslator({
+        text: params.originalText,
+        sourceLang: "en",
+        targetLang: params.languageCode,
+      }).catch(() => null);
+      if (
+        autoCheck?.translatedText &&
+        normalizeRagComparisonText(autoCheck.translatedText) === normTranslated
+      ) {
+        throw new ApiError(
+          "INVALID_INPUT",
+          "Registered users must edit a translation, not simply use auto translation, for the translation to store in the RAG.",
+          400,
+        );
+      }
+    }
+  }
+}
 
 const STOP_WORDS = new Set([
   "the", "and", "for", "that", "this", "with", "from", "your", "are", "you",
@@ -300,6 +367,7 @@ export function buildFaqRagEntries(faqs: FaqItem[]): RagSentenceItem[] {
       translatedText: faq.answer,
       keywords: extractRagKeywords(fullText, faq.category),
       isHumanVerified: true,
+      approvalStatus: "approved",
       contributorEmail: "system@adradarhq.com",
       createdAt: baseTime,
       updatedAt: baseTime,
@@ -322,6 +390,7 @@ export function buildFaqRagEntries(faqs: FaqItem[]): RagSentenceItem[] {
         translatedText: sentence,
         keywords: extractRagKeywords(sentence, `${faq.category} ${faq.question}`),
         isHumanVerified: true,
+        approvalStatus: "approved",
         contributorEmail: "system@adradarhq.com",
         createdAt: baseTime,
         updatedAt: baseTime,
@@ -347,6 +416,7 @@ export function buildWebsiteAndBaselineAiEntries(): RagSentenceItem[] {
     translatedText: item.sentence,
     keywords: extractRagKeywords(item.sentence, item.section),
     isHumanVerified: true,
+    approvalStatus: "approved",
     contributorEmail: "system@adradarhq.com",
     createdAt: now,
     updatedAt: now,
@@ -363,6 +433,7 @@ export function buildWebsiteAndBaselineAiEntries(): RagSentenceItem[] {
     translatedText: item.sentence,
     keywords: extractRagKeywords(item.sentence, item.section),
     isHumanVerified: true,
+    approvalStatus: "approved",
     contributorEmail: "system@adradarhq.com",
     createdAt: now,
     updatedAt: now,
@@ -407,6 +478,7 @@ export async function harvestLiveAiWorksSentences(): Promise<RagSentenceItem[]> 
             translatedText: sentence,
             keywords: extractRagKeywords(sentence, "Radar Feed Search"),
             isHumanVerified: true,
+            approvalStatus: "approved",
             contributorEmail: "system@adradarhq.com",
             createdAt: typeof d.createdAt === "string" ? d.createdAt : now,
             updatedAt: typeof d.createdAt === "string" ? d.createdAt : now,
@@ -439,6 +511,7 @@ export async function harvestLiveAiWorksSentences(): Promise<RagSentenceItem[]> 
             translatedText: sentence,
             keywords: extractRagKeywords(sentence, `${platform} ${brand}`),
             isHumanVerified: true,
+            approvalStatus: "approved",
             contributorEmail: "system@adradarhq.com",
             createdAt: typeof ad.lastSeenDate === "string" ? ad.lastSeenDate : now,
             updatedAt: typeof ad.lastSeenDate === "string" ? ad.lastSeenDate : now,
@@ -471,6 +544,7 @@ export async function harvestLiveAiWorksSentences(): Promise<RagSentenceItem[]> 
               translatedText: sentence,
               keywords: extractRagKeywords(sentence, "AI Creative Remix"),
               isHumanVerified: true,
+              approvalStatus: "approved",
               contributorEmail: "system@adradarhq.com",
               createdAt: typeof r.createdAt === "string" ? r.createdAt : now,
               updatedAt: typeof r.createdAt === "string" ? r.createdAt : now,
@@ -502,6 +576,7 @@ export async function harvestLiveAiWorksSentences(): Promise<RagSentenceItem[]> 
             translatedText: s,
             keywords: extractRagKeywords(s, `Customize Strategy ${brandName}`),
             isHumanVerified: true,
+            approvalStatus: "approved",
             // Never copy the customer's email into the corpus.
             contributorEmail: "system@adradarhq.com",
             createdAt: typeof c.createdAt === "string" ? c.createdAt : now,
@@ -530,11 +605,23 @@ export async function getCustomRagEntries(): Promise<RagSentenceItem[]> {
     const byId = new Map<string, RagSentenceItem>();
     const legacy = legacySnap.exists ? legacySnap.get("customEntries") : null;
     if (Array.isArray(legacy)) {
-      for (const e of legacy as RagSentenceItem[]) if (e?.ragId) byId.set(e.ragId, e);
+      for (const e of legacy as RagSentenceItem[]) {
+        if (e?.ragId) {
+          byId.set(e.ragId, {
+            ...e,
+            approvalStatus: e.approvalStatus === "pending" ? "pending" : "approved",
+          });
+        }
+      }
     }
     for (const doc of entriesSnap.docs) {
       const e = doc.data() as RagSentenceItem;
-      if (e?.ragId) byId.set(e.ragId, e);
+      if (e?.ragId) {
+        byId.set(e.ragId, {
+          ...e,
+          approvalStatus: e.approvalStatus === "pending" ? "pending" : "approved",
+        });
+      }
     }
     return Array.from(byId.values()).sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
   } catch (err) {
@@ -545,13 +632,10 @@ export async function getCustomRagEntries(): Promise<RagSentenceItem[]> {
 
 /**
  * Retrieves the unified RAG corpus combining:
- * 1. Human-edited & multilingual custom RAG entries
+ * 1. Human-edited & multilingual custom RAG entries (respecting approvalStatus gating)
  * 2. FAQ entries and atomic FAQ sentences
  * 3. Website UI sentences
- * 4. Admin audience only: AI Works sentences (baseline plus live Radar searches, AI remixes and Customize briefs)
- *
- * The default "public" audience gets only Website UI entries and FAQ entries for enabled FAQs, with
- * contributor emails removed, and never triggers the live harvest of user data.
+ * 4. Baseline AI Works sentences (and live harvested AI works for Main Admin / Super Admin)
  */
 export async function getFullRagCorpus(options?: {
   query?: string;
@@ -559,6 +643,8 @@ export async function getFullRagCorpus(options?: {
   faqId?: string;
   languageCode?: string;
   audience?: RagAudience;
+  viewerEmail?: string;
+  approvedOnly?: boolean;
 }): Promise<{
   entries: RagSentenceItem[];
   stats: {
@@ -569,9 +655,12 @@ export async function getFullRagCorpus(options?: {
     aiRemixCount: number;
     customizeAiCount: number;
     multilingualCount: number;
+    pendingCount: number;
   };
 }> {
-  const isAdminView = options?.audience === "admin";
+  const audience: RagAudience = options?.audience ?? "public";
+  const isAdminView = audience === "admin";
+  const viewerEmailNorm = (options?.viewerEmail || "").trim().toLowerCase();
   const [faqs, customEntries, liveAiEntries] = await Promise.all([
     getFaqs(isAdminView),
     getCustomRagEntries(),
@@ -591,17 +680,40 @@ export async function getFullRagCorpus(options?: {
   }
 
   let allEntries = Array.from(map.values());
-  if (!isAdminView) {
-    // Custom entries can be admin overrides of live entries (copies of customer content), so the
-    // public view is limited to source types that only ever hold site content.
+  if (options?.approvedOnly || audience === "public") {
+    // Public / FAQ reader: only approved WEBSITE_UI and enabled FAQ entries; no pending or emails.
     const enabledFaqIds = new Set(faqs.map((f) => f.faqId));
     allEntries = allEntries
       .filter(
         (e) =>
-          e.sourceType === "WEBSITE_UI" ||
-          (e.sourceType === "FAQ" && (!e.sourceId || enabledFaqIds.has(e.sourceId))),
+          e.approvalStatus !== "pending" &&
+          (e.sourceType === "WEBSITE_UI" ||
+            (e.sourceType === "FAQ" && (!e.sourceId || enabledFaqIds.has(e.sourceId)))),
       )
-      .map((e) => ({ ...e, contributorEmail: "" }));
+      .map((e) => ({
+        ...e,
+        contributorEmail: "",
+        contributorUid: undefined,
+        approvedByEmail: undefined,
+      }));
+  } else if (audience === "registered") {
+    // Registered non-approver in Admin Panel: approved corpus (including baseline AI works) + own pending entries.
+    allEntries = allEntries
+      .filter((e) => {
+        if (e.approvalStatus !== "pending") return true;
+        return Boolean(viewerEmailNorm) && e.contributorEmail?.toLowerCase() === viewerEmailNorm;
+      })
+      .map((e) => {
+        const isOwn =
+          Boolean(viewerEmailNorm) && e.contributorEmail?.toLowerCase() === viewerEmailNorm;
+        const isSystem = e.contributorEmail === "system@adradarhq.com";
+        return {
+          ...e,
+          contributorEmail: isOwn || isSystem ? e.contributorEmail : "",
+          contributorUid: isOwn ? e.contributorUid : undefined,
+          approvedByEmail: undefined,
+        };
+      });
   }
 
   const stats = {
@@ -611,7 +723,8 @@ export async function getFullRagCorpus(options?: {
     radarSearchCount: allEntries.filter((e) => e.sourceType === "RADAR_SEARCH").length,
     aiRemixCount: allEntries.filter((e) => e.sourceType === "AI_REMIX").length,
     customizeAiCount: allEntries.filter((e) => e.sourceType === "CUSTOMIZE_AI").length,
-    multilingualCount: allEntries.filter((e) => e.languageCode !== "en").length,
+    multilingualCount: allEntries.filter((e) => e.languageCode !== "en" && e.approvalStatus !== "pending").length,
+    pendingCount: allEntries.filter((e) => e.approvalStatus === "pending").length,
   };
 
   let filtered = allEntries;
@@ -621,7 +734,9 @@ export async function getFullRagCorpus(options?: {
   }
   if (options?.sourceType && options.sourceType !== "ALL") {
     if (options.sourceType === "MULTILINGUAL") {
-      filtered = filtered.filter((e) => e.languageCode !== "en");
+      filtered = filtered.filter((e) => e.languageCode !== "en" && e.approvalStatus !== "pending");
+    } else if (options.sourceType === "PENDING") {
+      filtered = filtered.filter((e) => e.approvalStatus === "pending");
     } else {
       filtered = filtered.filter((e) => e.sourceType === options.sourceType);
     }
@@ -828,23 +943,48 @@ export async function batchTranslateFaqsWithGoogle(params: {
 }
 
 /**
- * Persists a human-edited translation or user-authored multilingual FAQ into the RAG corpus.
+ * Persists a human-edited translation or user-authored multilingual FAQ into the RAG corpus
+ * (approved immediately for Main Admin / Super Admin / Ad Agent approvers; pending approval otherwise).
  */
 export async function addHumanEditedRagEntry(
   input: CreateRagEntryRequest,
-  contributorEmail: string
+  actor: {
+    uid: string;
+    email: string;
+    role: RbacRole;
+    canApprove: boolean;
+    canPublishFaq: boolean;
+  },
 ): Promise<RagSentenceItem> {
   const now = new Date().toISOString();
   const langMeta = getRagLanguageMeta(input.languageCode || "en");
 
+  const originalSourceText = (input.originalText || input.answer || "").trim();
+  const translatedText = (input.translatedText || "").trim();
+
+  await assertHumanEditedTranslation({
+    originalText: originalSourceText,
+    translatedText,
+    languageCode: langMeta.code,
+    autoTranslatedText: input.autoTranslatedText,
+  });
+
+  const originalText = originalSourceText || translatedText;
+
   const sourceType: RagSourceType = input.sourceType || "FAQ";
   let sourceId = input.sourceId;
 
-  // If the user/admin also chose to publish a brand new FAQ into the main FAQ collection:
-  if (input.publishAsFaq && (input.translatedQuestion || input.question) && (input.translatedText || input.answer)) {
+  // Publish as standalone FAQ only when caller holds publish + approve authority
+  if (
+    input.publishAsFaq &&
+    actor.canPublishFaq &&
+    actor.canApprove &&
+    (input.translatedQuestion || input.question) &&
+    translatedText
+  ) {
     const createdFaq = await createFaq({
       question: (input.translatedQuestion || input.question || "").slice(0, 200),
-      answer: (input.translatedText || input.answer || "").slice(0, 2000),
+      answer: translatedText.slice(0, 2000),
       category: input.category || "Multilingual FAQ",
       order: 99,
       enabled: true,
@@ -852,8 +992,6 @@ export async function addHumanEditedRagEntry(
     sourceId = createdFaq.faqId;
   }
 
-  const originalText = (input.originalText || input.answer || input.translatedText || "").trim();
-  const translatedText = (input.translatedText || input.answer || originalText).trim();
   const question = input.question?.trim();
   const translatedQuestion = (input.translatedQuestion || input.question)?.trim();
   const section =
@@ -862,8 +1000,6 @@ export async function addHumanEditedRagEntry(
       ? `FAQ (${langMeta.name})`
       : `RAG Corpus (${sourceType})`);
 
-  // Random suffix so two entries saved in the same millisecond can't overwrite each other;
-  // parts are capped so the id stays within the 128-char ragId limit used by update/delete.
   const uniqueSuffix = `${Date.now().toString(36)}${randomBytes(3).toString("hex")}`;
   const langPart = langMeta.code.slice(0, 16);
   const ragId =
@@ -871,12 +1007,13 @@ export async function addHumanEditedRagEntry(
       ? `rag_faq_human_${sourceId.slice(0, 64)}_${langPart}_${uniqueSuffix}`
       : `rag_human_${sourceType.toLowerCase()}_${langPart}_${uniqueSuffix}`;
 
+  const approvalStatus = actor.canApprove ? "approved" : "pending";
   const newItem: RagSentenceItem = {
     ragId,
     sourceType,
     ...(sourceId ? { sourceId } : {}),
     section,
-    originalText,
+    originalText: originalText || translatedText,
     ...(question ? { question } : {}),
     ...(input.answer ? { answer: input.answer.trim() } : {}),
     languageCode: langMeta.code,
@@ -885,10 +1022,20 @@ export async function addHumanEditedRagEntry(
     translatedText,
     keywords: extractRagKeywords(
       `${translatedQuestion ?? ""} ${translatedText} ${originalText}`,
-      `${section} ${langMeta.name}`
+      `${section} ${langMeta.name}`,
     ),
     isHumanVerified: true,
-    contributorEmail: contributorEmail || "user@adradarhq.com",
+    approvalStatus,
+    contributorUid: actor.uid,
+    contributorEmail: actor.email || "user@adradarhq.com",
+    contributorRole: actor.role,
+    ...(actor.canApprove
+      ? {
+          approvedByEmail: actor.email,
+          approvedByRole: actor.role,
+          approvedAt: now,
+        }
+      : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -898,35 +1045,121 @@ export async function addHumanEditedRagEntry(
 }
 
 /**
- * Updates an existing human-edited RAG entry after human review.
+ * Approves a pending human-edited RAG entry (Main Admin, Super Admin, or Ad Agent with approve permission).
  */
-export async function updateHumanEditedRagEntry(
+export async function approveRagEntry(
   input: UpdateRagEntryRequest,
-  contributorEmail: string
+  approver: { email: string; role: RbacRole },
 ): Promise<RagSentenceItem> {
   const now = new Date().toISOString();
-  // A custom entry is edited in place; a system-seeded (or live) entry is copied into the custom
-  // store with the human edit, which then overrides it by ragId.
-  const target =
-    (await getCustomRagEntries()).find((e) => e.ragId === input.ragId) ??
-    (await getFullRagCorpus({ audience: "admin" })).entries.find((e) => e.ragId === input.ragId);
+  const target = (await getCustomRagEntries()).find((e) => e.ragId === input.ragId);
   if (!target) {
     throw new ApiError("NOT_FOUND", `RAG entry ${input.ragId} not found`, 404);
   }
 
+  const finalText = (input.translatedText ?? target.translatedText).trim();
+  const finalQuestion =
+    input.translatedQuestion !== undefined
+      ? input.translatedQuestion.trim()
+      : target.translatedQuestion;
+
+  await assertHumanEditedTranslation({
+    originalText: target.originalText,
+    translatedText: finalText,
+    languageCode: target.languageCode,
+    autoTranslatedText: input.autoTranslatedText,
+  });
+
+  const approved: RagSentenceItem = {
+    ...target,
+    translatedText: finalText,
+    ...(finalQuestion !== undefined ? { translatedQuestion: finalQuestion } : {}),
+    ...(input.section ? { section: input.section.trim() } : {}),
+    keywords: extractRagKeywords(
+      `${finalQuestion ?? ""} ${finalText}`,
+      input.section ?? target.section,
+    ),
+    isHumanVerified: true,
+    approvalStatus: "approved",
+    approvedByEmail: approver.email,
+    approvedByRole: approver.role,
+    approvedAt: now,
+    updatedAt: now,
+  };
+
+  await db.collection(RAG_ENTRIES_COL).doc(ragDocId(approved.ragId)).set(approved);
+  return approved;
+}
+
+/**
+ * Updates a RAG entry after human review. Non-approvers may only edit their own pending submissions.
+ */
+export async function updateHumanEditedRagEntry(
+  input: UpdateRagEntryRequest,
+  actor: { email: string; role: RbacRole; canApprove: boolean },
+): Promise<RagSentenceItem> {
+  const now = new Date().toISOString();
+  const nextText = (input.translatedText ?? "").trim();
+  if (!nextText) {
+    throw new ApiError("INVALID_INPUT", "translatedText is required.", 400);
+  }
+
+  const customTarget = (await getCustomRagEntries()).find((e) => e.ragId === input.ragId);
+  if (!actor.canApprove) {
+    if (
+      !customTarget ||
+      customTarget.approvalStatus !== "pending" ||
+      customTarget.contributorEmail.toLowerCase() !== actor.email.toLowerCase()
+    ) {
+      throw new ApiError(
+        "FORBIDDEN",
+        "Registered users can only edit their own pending translations.",
+        403,
+      );
+    }
+  }
+
+  const corpusAudience: RagAudience =
+    actor.role === "superadmin" || actor.role === "admin" ? "admin" : "approver";
+  const target =
+    customTarget ??
+    (await getFullRagCorpus({ audience: corpusAudience, viewerEmail: actor.email })).entries.find(
+      (e) => e.ragId === input.ragId,
+    );
+  if (!target) {
+    throw new ApiError("NOT_FOUND", `RAG entry ${input.ragId} not found`, 404);
+  }
+
+  await assertHumanEditedTranslation({
+    originalText: target.originalText,
+    translatedText: nextText,
+    languageCode: target.languageCode,
+    autoTranslatedText: input.autoTranslatedText,
+  });
+
+  const isPendingUpdate = !actor.canApprove;
   const updated: RagSentenceItem = {
     ...target,
-    translatedText: input.translatedText.trim(),
+    translatedText: nextText,
     ...(input.translatedQuestion !== undefined
       ? { translatedQuestion: input.translatedQuestion.trim() }
       : {}),
     ...(input.section ? { section: input.section.trim() } : {}),
     keywords: extractRagKeywords(
-      `${input.translatedQuestion ?? target.translatedQuestion ?? ""} ${input.translatedText}`,
-      input.section ?? target.section
+      `${input.translatedQuestion ?? target.translatedQuestion ?? ""} ${nextText}`,
+      input.section ?? target.section,
     ),
     isHumanVerified: true,
-    contributorEmail: contributorEmail || target.contributorEmail || "admin@adradarhq.com",
+    approvalStatus: isPendingUpdate ? "pending" : "approved",
+    contributorEmail:
+      customTarget?.contributorEmail || actor.email || target.contributorEmail || "admin@adradarhq.com",
+    ...(actor.canApprove
+      ? {
+          approvedByEmail: actor.email,
+          approvedByRole: actor.role,
+          approvedAt: now,
+        }
+      : {}),
     updatedAt: now,
   };
   await db.collection(RAG_ENTRIES_COL).doc(ragDocId(updated.ragId)).set(updated);

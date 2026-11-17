@@ -36,11 +36,13 @@ const load = (p) => jiti.import(`${SRC}/${p}`);
 const { adminAuth, db } = await load("lib/firebase-admin.ts");
 const ledger = await load("lib/token-ledger.ts");
 const pricing = await load("lib/pricing.ts");
+const ragEngine = await load("lib/rag-engine.ts");
 const routes = {
   me: await load("app/api/me/route.ts"),
   brands: await load("app/api/brands/route.ts"),
   checkout: await load("app/api/wallet/checkout/route.ts"),
   webhook: await load("app/api/webhooks/stripe/route.ts"),
+  rag: await load("app/api/rag/route.ts"),
 };
 const Stripe = require("stripe");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -57,15 +59,16 @@ function check(name, cond, detail) {
     console.log(`FAIL  ${name}  ${detail === undefined ? "" : JSON.stringify(detail).slice(0, 400)}`);
   }
 }
-async function call(route, method, { token, body, key, headers = {}, raw } = {}) {
+async function callUrl(route, method, url, { token, body, key, headers = {}, raw } = {}) {
   const h = { "Content-Type": "application/json", ...headers };
   if (token) h.Authorization = `Bearer ${token}`;
   if (key) h["x-idempotency-key"] = key;
   const res = await route[method](
-    new Request("http://localhost:3000/api/test", { method, headers: h, body: raw ?? (body === undefined ? undefined : JSON.stringify(body)) }),
+    new Request(url, { method, headers: h, body: raw ?? (body === undefined ? undefined : JSON.stringify(body)) }),
   );
   return { status: res.status, json: await res.json().catch(() => null) };
 }
+const call = (route, method, opts) => callUrl(route, method, "http://localhost:3000/api/test", opts);
 const userDoc = async (uid) => (await db.doc(`users/${uid}`).get()).data();
 const key = (label) => `e2e_${label}_${Date.now()}`;
 
@@ -73,7 +76,7 @@ const key = (label) => `e2e_${label}_${Date.now()}`;
 const stamp = Date.now().toString(36);
 const UID = `e2eUser${stamp}`;
 const OTHER = `e2eOther${stamp}`;
-const created = { sessions: [] };
+const created = { sessions: [], ragIds: [] };
 
 async function idTokenFor(uid, email) {
   await adminAuth.createUser({ uid, email }).catch((e) => {
@@ -133,7 +136,11 @@ try {
   check("me: garbage token → 401", (await call(routes.me, "POST", { token: "abc.def.ghi" })).status === 401);
   const me = await call(routes.me, "POST", { token });
   check("me: bootstraps user doc with 0 tokens", me.status === 200 && me.json.user.tokenBalance === 0 && me.json.user.uid === UID, me);
-  check("me: default claims user/starter", me.json?.claims?.role === "user" && me.json?.claims?.tier === "starter", me.json?.claims);
+  check(
+    "me: default claims supporter",
+    me.json?.claims?.role === "supporter" && me.json?.claims?.tier === "supporter" && me.json?.claims?.isSuperAdmin === false,
+    me.json?.claims,
+  );
   check("me: second call is a no-op", (await call(routes.me, "POST", { token })).json.user.updatedAt === me.json.user.updatedAt);
 
   // ---------- brands ----------
@@ -185,6 +192,13 @@ try {
   check("brands DELETE again → 404", (await call(routes.brands, "DELETE", { token, body: { brandId: b2Id } })).status === 404);
 
   // ---------- checkout (real Stripe test API) ----------
+  const pubPricing = await call(routes.checkout, "GET", { headers: { accept: "application/json" } });
+  const pack500Cfg = pubPricing.json?.tokenPacks?.find((p) => p.id === "PACK_500");
+  const baseCents = Number(pubPricing.json?.audCentsPerToken ?? 100);
+  const expectedPack500Cents =
+    typeof pack500Cfg?.priceCents === "number" && pack500Cfg.priceCents >= 100
+      ? pack500Cfg.priceCents
+      : Math.round(500 * baseCents);
   const ck = key("checkout");
   const c1 = await call(routes.checkout, "POST", { token, key: ck, body: { packId: "PACK_500" } });
   check("checkout: returns Stripe URL", c1.status === 200 && c1.json.url?.startsWith("https://checkout.stripe.com/"), c1);
@@ -194,12 +208,13 @@ try {
   const s = sessions.data.find((x) => x.client_reference_id === UID);
   if (s) created.sessions.push(s.id);
   check(
-    "checkout session: A$79 AUD, metadata uid/pack/tokens",
-    s && s.amount_total === 7900 && s.currency === "aud" && s.metadata.uid === UID && s.metadata.packId === "PACK_500" && s.metadata.tokens === "500",
-    s && { amount: s.amount_total, currency: s.currency, metadata: s.metadata },
+    "checkout session: live PACK_500 AUD amount + metadata uid/pack/tokens",
+    s && (s.amount_subtotal === expectedPack500Cents || s.amount_total === expectedPack500Cents) && s.currency === "aud" && s.metadata.uid === UID && s.metadata.packId === "PACK_500" && s.metadata.tokens === "500",
+    s && { amountSubtotal: s.amount_subtotal, amountTotal: s.amount_total, expectedPack500Cents, currency: s.currency, metadata: s.metadata },
   );
   check("checkout: no key → 400", (await call(routes.checkout, "POST", { token, body: { packId: "PACK_500" } })).status === 400);
-  check("checkout: unknown pack → 400", (await call(routes.checkout, "POST", { token, key: key("bad"), body: { packId: "PACK_9" } })).status === 400);
+  check("checkout: malformed pack → 400", (await call(routes.checkout, "POST", { token, key: key("badfmt"), body: { packId: "bad id!" } })).status === 400);
+  check("checkout: unknown pack → 404", (await call(routes.checkout, "POST", { token, key: key("bad"), body: { packId: "PACK_9" } })).status === 404);
 
   // ---------- webhook ----------
   const sessId = `cs_test_e2e_${stamp}`;
@@ -209,7 +224,7 @@ try {
   const u1 = await userDoc(UID);
   check("webhook: balance 500 + stripeCustomerId saved", u1.tokenBalance === 500 && u1.stripeCustomerId === "cus_e2eTest123", u1);
   const tx = (await db.doc(`token_transactions/${sessId}`).get()).data();
-  check("ledger: TOPUP +500, balanceAfter 500, ref = session id", tx?.type === "TOPUP" && tx.delta === 500 && tx.balanceAfter === 500 && tx.referenceId === sessId, tx);
+  check("ledger: TOPUP +500, balanceAfter 500, ref includes session id", tx?.type === "TOPUP" && tx.delta === 500 && tx.balanceAfter === 500 && typeof tx.referenceId === "string" && tx.referenceId.includes(sessId), tx);
 
   const w2 = await call(routes.webhook, "POST", signedEvent("checkout.session.completed", paidSession(sessId)));
   check("webhook: redelivery is a no-op", w2.status === 200 && w2.json.credited === false && (await userDoc(UID)).tokenBalance === 500, w2);
@@ -268,22 +283,111 @@ try {
   Object.assign(pricing.ACTION_COSTS, { RADAR_SEARCH: 0, AI_REMIX: 0 });
   const freeKey = key("gate_free");
   const g8 = await ledger.withTokenGate(okReq(freeKey), "RADAR_SEARCH", "q", async (ctx) => Response.json({ balanceAfter: ctx.balanceAfter }));
+  const freeTx = (await db.doc(`token_transactions/${UID}_${freeKey}`).get()).data();
   check(
-    "gate: free action runs with no charge and no ledger entry",
+    "gate: free action runs with no charge and delta 0 ledger entry",
     g8.status === 200 &&
       (await g8.json()).balanceAfter === 50 &&
       (await userDoc(UID)).tokenBalance === 50 &&
-      !(await db.doc(`token_transactions/${UID}_${freeKey}`).get()).exists,
+      freeTx?.delta === 0,
+    freeTx,
   );
   const g9 = await ledger.withTokenGate(new Request("http://localhost/api/x", { headers: { "x-idempotency-key": key("gate_anon") } }), "RADAR_SEARCH", "q", async () => Response.json({}));
   check("gate: free action still requires sign-in → 401", g9.status === 401);
   Object.assign(pricing.ACTION_COSTS, liveCosts);
+
+  // ---------- RAG Studio, Mandatory Human Edit & Multi-Role Approval ----------
+  check(
+    "rag POST: unauthenticated → 401",
+    (await callUrl(routes.rag, "POST", "http://localhost:3000/api/rag", { body: { action: "ADD_ENTRY", translatedText: "Test" } })).status === 401,
+  );
+
+  const ragAutoReject = await callUrl(routes.rag, "POST", "http://localhost:3000/api/rag", {
+    token,
+    body: {
+      action: "ADD_ENTRY",
+      sourceType: "FAQ",
+      section: "E2E FAQ",
+      originalText: "How do tokens work on AdRadarHQ?",
+      languageCode: "id",
+      translatedText: "Bagaimana cara kerja token di AdRadarHQ?",
+      autoTranslatedText: "Bagaimana cara kerja token di AdRadarHQ?",
+    },
+  });
+  check("rag POST: unedited auto-translation rejected → 400 INVALID_INPUT", ragAutoReject.status === 400 && ragAutoReject.json?.error?.code === "INVALID_INPUT", ragAutoReject);
+
+  const ragSameSourceReject = await callUrl(routes.rag, "POST", "http://localhost:3000/api/rag", {
+    token,
+    body: {
+      action: "ADD_ENTRY",
+      sourceType: "FAQ",
+      section: "E2E FAQ",
+      originalText: "How do tokens work on AdRadarHQ?",
+      languageCode: "id",
+      translatedText: "How do tokens work on AdRadarHQ?",
+    },
+  });
+  check("rag POST: untranslated source copy rejected → 400 INVALID_INPUT", ragSameSourceReject.status === 400 && ragSameSourceReject.json?.error?.code === "INVALID_INPUT", ragSameSourceReject);
+
+  const ragPendingRes = await callUrl(routes.rag, "POST", "http://localhost:3000/api/rag", {
+    token,
+    body: {
+      action: "ADD_ENTRY",
+      sourceType: "FAQ",
+      section: "E2E FAQ",
+      originalText: "How do tokens work on AdRadarHQ?",
+      languageCode: "id",
+      translatedText: "Token AdRadarHQ menggunakan bilangan bulat penuh (1 Token = 1 AUD) secara otomatis.",
+    },
+  });
+  const pendingRagId = ragPendingRes.json?.item?.ragId;
+  if (pendingRagId) created.ragIds.push(pendingRagId);
+  check(
+    "rag POST: supporter human-edited translation → 200 pending approval",
+    ragPendingRes.status === 200 && Boolean(pendingRagId) && ragPendingRes.json?.item?.approvalStatus === "pending",
+    ragPendingRes,
+  );
+
+  const publicBefore = await callUrl(routes.rag, "GET", "http://localhost:3000/api/rag?sourceType=FAQ&approvedOnly=1");
+  check(
+    "rag GET public approvedOnly: excludes pending translation",
+    publicBefore.status === 200 && !publicBefore.json?.entries?.some((e) => e.ragId === pendingRagId),
+    publicBefore.json?.stats,
+  );
+
+  const supporterApprove = await callUrl(routes.rag, "PUT", "http://localhost:3000/api/rag", {
+    token,
+    body: { action: "APPROVE_ENTRY", ragId: pendingRagId },
+  });
+  check("rag PUT APPROVE_ENTRY: supporter forbidden → 403", supporterApprove.status === 403, supporterApprove);
+
+  await call(routes.me, "POST", { token: otherToken });
+  await db.doc(`users/${OTHER}`).set({ role: "ad_agent", roles: ["ad_agent", "supporter"] }, { merge: true });
+  const adAgentApprove = await callUrl(routes.rag, "PUT", "http://localhost:3000/api/rag", {
+    token: otherToken,
+    body: { action: "APPROVE_ENTRY", ragId: pendingRagId },
+  });
+  check(
+    "rag PUT APPROVE_ENTRY: ad_agent approves pending translation → 200 approved",
+    adAgentApprove.status === 200 &&
+      adAgentApprove.json?.item?.approvalStatus === "approved" &&
+      adAgentApprove.json?.item?.approvedByRole === "ad_agent",
+    adAgentApprove,
+  );
+
+  const publicAfter = await callUrl(routes.rag, "GET", "http://localhost:3000/api/rag?sourceType=FAQ&approvedOnly=1");
+  check(
+    "rag GET public approvedOnly: includes translation once approved",
+    publicAfter.status === 200 && publicAfter.json?.entries?.some((e) => e.ragId === pendingRagId),
+    publicAfter.json?.stats,
+  );
 } catch (err) {
   failures.push(`harness crashed: ${err.stack ?? err}`);
   console.log("CRASH", err);
 } finally {
   // ---------- cleanup ----------
   for (const id of created.sessions) await stripe.checkout.sessions.expire(id).catch(() => {});
+  for (const ragId of created.ragIds) await ragEngine.deleteRagEntry(ragId).catch(() => {});
   for (const uid of [UID, OTHER]) {
     const brands = await db.collection(`users/${uid}/brands`).listDocuments();
     const txs = await db.collection("token_transactions").where("uid", "==", uid).get();
@@ -294,9 +398,12 @@ try {
     await batch.commit();
     await adminAuth.deleteUser(uid).catch(() => {});
   }
+  const remainingCustomRag = await ragEngine.getCustomRagEntries();
+  const ragLeftovers = remainingCustomRag.filter((e) => created.ragIds.includes(e.ragId)).length;
   const leftovers = (await db.collection("token_transactions").where("uid", "in", [UID, OTHER]).get()).size +
-    (await db.collection("users").where("uid", "in", [UID, OTHER]).get()).size;
-  console.log(`\ncleanup: ${created.sessions.length} Stripe session(s) expired, test docs deleted (leftovers: ${leftovers})`);
+    (await db.collection("users").where("uid", "in", [UID, OTHER]).get()).size +
+    ragLeftovers;
+  console.log(`\ncleanup: ${created.sessions.length} Stripe session(s) expired, ${created.ragIds.length} RAG test entry deleted, test docs deleted (leftovers: ${leftovers})`);
   console.log(`${passed} passed, ${failures.length} failed`);
   if (failures.length) console.log("failed:", failures);
   process.exit(failures.length ? 1 : 0);

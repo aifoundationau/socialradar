@@ -148,6 +148,14 @@ const PERMISSION_METADATA: Record<RbacPermission, { label: string; desc: string 
   search_radar: { label: "Search AdRadarHQ", desc: "Perform Meta ad library intelligence searches" },
   ai_remix: { label: "AI Remix Studio", desc: "Generate generative ad variations using Gemini" },
   manage_brands: { label: "Manage Brands", desc: "Create, edit, and select brand profiles" },
+  submit_rag_translations: {
+    label: "Create RAG Translations",
+    desc: "Translate & submit human-edited entries in Website Sentences, AI Works & Multilingual FAQ RAG Studio",
+  },
+  approve_rag_translations: {
+    label: "Approve RAG Translations",
+    desc: "Review & approve pending user RAG translations (Main Admin, Super Admin, and Ad Agent)",
+  },
 };
 
 interface ServiceCosts {
@@ -207,11 +215,9 @@ type AdminFeatureKey =
   | "ledger_owners"
   | "ledger_stripe"
   | "ledger_ad_agents"
-  | "users_quick_assign"
   | "users_directory"
   | "messages_retention"
   | "messages_inbox"
-  | "rbac_gate"
   | "rbac_matrix"
   | "rbac_assignments"
   | "faqs_list"
@@ -235,12 +241,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       : ["CURRENCY", "PRICING", "LEDGER", "USERS", "MESSAGES", "FAQS"];
   }, [isSuper]);
 
-  const resolvedInitialTab: TabKey = initialTab === "PACKS" ? "PRICING" : (initialTab ?? "CURRENCY");
+  const resolvedInitialTab: TabKey = initialTab === "PACKS" ? "LEDGER" : (initialTab ?? "CURRENCY");
   const [tab, setTab] = useState<TabKey>(resolvedInitialTab);
 
   useEffect(() => {
     if (initialTab && isOpen) {
-      const targetTab: TabKey = initialTab === "PACKS" ? "PRICING" : initialTab;
+      const targetTab: TabKey = initialTab === "PACKS" ? "LEDGER" : initialTab;
       if (allowedTabs.includes(targetTab)) {
         setTab(targetTab);
       } else {
@@ -508,7 +514,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [confirmResetPartnerId, setConfirmResetPartnerId] = useState<string | null>(null);
   const [resettingPartnerId, setResettingPartnerId] = useState<string | null>(null);
 
-  // New Pack input state
+  // New & Edit Pack input state (Super Admin Only)
   const [newPack, setNewPack] = useState<TokenPackItem>({
     id: "",
     name: "",
@@ -517,6 +523,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     enabled: true,
   });
   const [showAddPack, setShowAddPack] = useState(false);
+  const [editingPackId, setEditingPackId] = useState<string | null>(null);
+  const [editPackDraft, setEditPackDraft] = useState<TokenPackItem | null>(null);
 
   // New Equity Partner input state
   const [showAddPartner, setShowAddPartner] = useState(false);
@@ -1813,20 +1821,76 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     }
   }
 
-  // Pack CRUD
+  // Pack CRUD (Super Admin Only)
   function handleAddPack() {
-    if (!config || !newPack.id || !newPack.name) return;
-    const updatedPacks = [...config.tokenPacks, newPack];
+    if (!isSuper || !config) return;
+    const cleanId = newPack.id.trim().toUpperCase();
+    const cleanName = newPack.name.trim();
+    if (!cleanId || !cleanName) {
+      setErrorMsg("Pack ID and Pack Name are required.");
+      return;
+    }
+    if (cleanId === "PACK_CUSTOM" || cleanId === "SUB_MONTHLY_1000") {
+      setErrorMsg("PACK_CUSTOM and SUB_MONTHLY_1000 are reserved pack IDs.");
+      return;
+    }
+    if (config.tokenPacks.some((p) => p.id.toUpperCase() === cleanId)) {
+      setErrorMsg(`Token pack ID "${cleanId}" already exists.`);
+      return;
+    }
+    const tokens = Math.max(1, Math.round(Number(newPack.tokens) || 1));
+    const priceCents = Math.max(100, Math.round(Number(newPack.priceCents) || 100));
+    const updatedPacks: TokenPackItem[] = [
+      ...config.tokenPacks,
+      { id: cleanId, name: cleanName, tokens, priceCents, enabled: true },
+    ];
     saveConfig({ tokenPacks: updatedPacks });
     setShowAddPack(false);
     setNewPack({ id: "", name: "", tokens: 100, priceCents: 1900, enabled: true });
   }
 
+  function handleStartEditPack(pack: TokenPackItem) {
+    if (!isSuper) return;
+    setShowAddPack(false);
+    setConfirmDeletePackId(null);
+    setEditingPackId(pack.id);
+    setEditPackDraft({ ...pack });
+  }
+
+  function handleSaveEditPack() {
+    if (!isSuper || !config || !editPackDraft) return;
+    const cleanName = editPackDraft.name.trim();
+    if (!cleanName) {
+      setErrorMsg("Pack Name is required.");
+      return;
+    }
+    const tokens = Math.max(1, Math.round(Number(editPackDraft.tokens) || 1));
+    const priceCents = Math.max(100, Math.round(Number(editPackDraft.priceCents) || 100));
+    const updatedPacks = config.tokenPacks.map((p) =>
+      p.id === editPackDraft.id
+        ? {
+            ...p,
+            name: cleanName,
+            tokens,
+            priceCents,
+            enabled: editPackDraft.enabled !== false,
+          }
+        : p,
+    );
+    saveConfig({ tokenPacks: updatedPacks });
+    setEditingPackId(null);
+    setEditPackDraft(null);
+  }
+
   function handleDeletePack(packId: string) {
-    if (!config) return;
+    if (!isSuper || !config) return;
     const updatedPacks = config.tokenPacks.filter((p) => p.id !== packId);
     saveConfig({ tokenPacks: updatedPacks });
     setConfirmDeletePackId(null);
+    if (editingPackId === packId) {
+      setEditingPackId(null);
+      setEditPackDraft(null);
+    }
   }
 
   // Equity Partners CRUD
@@ -2257,7 +2321,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
               { id: "RBAC" as const, label: "RBAC Matrix & Roles", icon: "shield" as IconName },
               {
                 id: "FAQS" as const,
-                label: `FAQ Development (${faqs.length})`,
+                label: `FAQs & RAG Studio (${faqs.length})`,
                 icon: "sparkles" as IconName,
               },
               { id: "DEV" as const, label: "Developer Diagnostics", icon: "flask" as IconName },
@@ -2561,16 +2625,16 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                 </div>
               )}
 
-              {/* TAB 2: SERVICE PRICING & TOKEN PACKS (CRUD) */}
+              {/* TAB 2: SERVICE PRICING */}
               {tab === "PRICING" && (
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <h3 className="text-title-sm font-semibold text-on-surface">Service Pricing &amp; Token Packs (CRUD)</h3>
+                      <h3 className="text-title-sm font-semibold text-on-surface">Service Pricing</h3>
                       <p className="mt-0.5 text-compact text-on-surface-variant">
                         {ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE
-                          ? "All features start collapsed. Click any feature below to expand and configure timed free web app access, service token amounts, monthly subscription pricing, or Stripe checkout token packs."
-                          : "All features start collapsed. Click any feature below to expand and configure timed free web app access, service token amounts, or Stripe checkout token packs."}
+                          ? "All features start collapsed. Click any feature below to expand and configure timed free web app access, service token amounts, or monthly subscription pricing."
+                          : "All features start collapsed. Click any feature below to expand and configure timed free web app access or service token amounts."}
                       </p>
                     </div>
                     <button
@@ -2579,16 +2643,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         const allOpen =
                           (!isSuper || isFeatureExpanded("pricing_free_access")) &&
                           isFeatureExpanded("pricing_services") &&
-                          (!ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE || isFeatureExpanded("pricing_subscription")) &&
-                          showAddPack &&
-                          isFeatureExpanded("packs_catalog");
+                          (!ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE || isFeatureExpanded("pricing_subscription"));
                         if (isSuper) setFeatureExpanded("pricing_free_access", !allOpen);
                         setFeatureExpanded("pricing_services", !allOpen);
                         if (ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE) {
                           setFeatureExpanded("pricing_subscription", !allOpen);
                         }
-                        setShowAddPack(!allOpen);
-                        setFeatureExpanded("packs_catalog", !allOpen);
                       }}
                       data-agent-id="pricing-expand-all-btn"
                       data-testid="pricing-expand-all-btn"
@@ -2599,9 +2659,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         className={`size-3.5 transition-transform duration-200 ${
                           (!isSuper || isFeatureExpanded("pricing_free_access")) &&
                           isFeatureExpanded("pricing_services") &&
-                          (!ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE || isFeatureExpanded("pricing_subscription")) &&
-                          showAddPack &&
-                          isFeatureExpanded("packs_catalog")
+                          (!ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE || isFeatureExpanded("pricing_subscription"))
                             ? "rotate-180"
                             : ""
                         }`}
@@ -2609,9 +2667,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       <span>
                         {(!isSuper || isFeatureExpanded("pricing_free_access")) &&
                         isFeatureExpanded("pricing_services") &&
-                        (!ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE || isFeatureExpanded("pricing_subscription")) &&
-                        showAddPack &&
-                        isFeatureExpanded("packs_catalog")
+                        (!ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE || isFeatureExpanded("pricing_subscription"))
                           ? "Collapse All"
                           : "Expand All"}
                       </span>
@@ -3565,125 +3621,81 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     )}
                   </div>
                   )}
+                </div>
+              )}
 
-                  {/* Feature 3: Create New Token Pack (Token Packs CRUD) */}
-                  <div
-                    className={`${card} p-4 space-y-4 border border-primary/25`}
-                    data-agent-id="feature-card-packs-create"
-                    data-testid="feature-card-packs-create"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => setShowAddPack((prev) => !prev)}
-                        aria-expanded={showAddPack}
-                        data-agent-id="toggle-feature-packs-create-header"
-                        data-testid="toggle-feature-packs-create-header"
-                        className="flex-1 text-left group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Icon
-                            name="chevronDown"
-                            className={`size-4 text-primary transition-transform duration-200 ${
-                              showAddPack ? "rotate-180" : "-rotate-90"
-                            }`}
-                          />
-                          <h4 className="text-compact font-bold text-on-surface group-hover:text-primary transition-colors">
-                            Create New Token Pack
-                          </h4>
-                          <span className="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
-                            Add Pack Form
-                          </span>
-                        </div>
-                        <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                          Add a new integer token pack and AUD cent price to the Stripe checkout catalog.
-                        </p>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowAddPack((prev) => !prev)}
-                        aria-expanded={showAddPack}
-                        className={showAddPack ? btnSecondary : btnPrimary}
-                        data-testid="toggle-add-pack-button"
-                      >
-                        <Icon name={showAddPack ? "chevronDown" : "plus"} className="size-4" />
-                        <span>{showAddPack ? "Collapse" : "Add Token Pack"}</span>
-                      </button>
+              {/* TAB 4: TOKEN CONTROLS & LEDGER (Super Admin & Main Admin) */}
+              {tab === "LEDGER" && (
+                <div className="space-y-4 lg:space-y-3.5 min-w-0 max-w-full">
+                  {/* Category Header + Expand All / Collapse All */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
+                    <div className="min-w-0">
+                      <h3 className="text-title-sm font-semibold text-on-surface">Token Controls &amp; Ledger</h3>
+                      <p className="mt-0.5 text-[12px] text-on-surface-variant">
+                        All features start collapsed. Click any feature below to expand and manage Stripe token packs, or inspect equity splits, platform owners, Stripe purchases, Ad Agents, and orders.
+                      </p>
                     </div>
-
-                    {showAddPack && (
-                      <div className="space-y-4 pt-2 border-t border-white/[0.06]">
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                          <div>
-                            <label className={label}>ID</label>
-                            <input
-                              type="text"
-                              placeholder="PACK_1000"
-                              value={newPack.id}
-                              onChange={(e) => setNewPack({ ...newPack, id: e.target.value.toUpperCase() })}
-                              className={field}
-                            />
-                          </div>
-                          <div>
-                            <label className={label}>Name</label>
-                            <input
-                              type="text"
-                              placeholder="Power Pack"
-                              value={newPack.name}
-                              onChange={(e) => setNewPack({ ...newPack, name: e.target.value })}
-                              className={field}
-                            />
-                          </div>
-                          <div>
-                            <label className={label}>Tokens (Integer)</label>
-                            <input
-                              type="number"
-                              min={1}
-                              step={1}
-                              value={newPack.tokens}
-                              onChange={(e) => setNewPack({ ...newPack, tokens: Math.round(Number(e.target.value)) })}
-                              className={field}
-                            />
-                          </div>
-                          <div>
-                            <label className={label}>Price (Cents)</label>
-                            <input
-                              type="number"
-                              min={100}
-                              step={100}
-                              placeholder="1900 = $19.00"
-                              value={newPack.priceCents}
-                              onChange={(e) => setNewPack({ ...newPack, priceCents: Math.round(Number(e.target.value)) })}
-                              className={field}
-                            />
-                          </div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <button type="button" onClick={() => setShowAddPack(false)} className={btnSecondary}>
-                            Cancel
-                          </button>
-                          <button type="button" onClick={handleAddPack} className={btnPrimary}>
-                            Save Pack
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allOpen =
+                          isFeatureExpanded("packs_catalog") &&
+                          isFeatureExpanded("ledger_equity") &&
+                          isFeatureExpanded("ledger_owners") &&
+                          isFeatureExpanded("ledger_stripe") &&
+                          isFeatureExpanded("ledger_ad_agents") &&
+                          isMasterLedgerExpanded;
+                        setFeatureExpanded("packs_catalog", !allOpen);
+                        setFeatureExpanded("ledger_equity", !allOpen);
+                        setFeatureExpanded("ledger_owners", !allOpen);
+                        setFeatureExpanded("ledger_stripe", !allOpen);
+                        setFeatureExpanded("ledger_ad_agents", !allOpen);
+                        setIsMasterLedgerExpanded(!allOpen);
+                      }}
+                      data-agent-id="ledger-expand-all-btn"
+                      data-testid="ledger-expand-all-btn"
+                      className={`${btnSecondary} font-mono text-xs shrink-0`}
+                    >
+                      <Icon
+                        name="chevronDown"
+                        className={`size-3.5 transition-transform duration-200 ${
+                          isFeatureExpanded("packs_catalog") &&
+                          isFeatureExpanded("ledger_equity") &&
+                          isFeatureExpanded("ledger_owners") &&
+                          isFeatureExpanded("ledger_stripe") &&
+                          isFeatureExpanded("ledger_ad_agents") &&
+                          isMasterLedgerExpanded
+                            ? "rotate-180"
+                            : ""
+                        }`}
+                      />
+                      <span>
+                        {isFeatureExpanded("packs_catalog") &&
+                        isFeatureExpanded("ledger_equity") &&
+                        isFeatureExpanded("ledger_owners") &&
+                        isFeatureExpanded("ledger_stripe") &&
+                        isFeatureExpanded("ledger_ad_agents") &&
+                        isMasterLedgerExpanded
+                          ? "Collapse All"
+                          : "Expand All"}
+                      </span>
+                    </button>
                   </div>
 
-                  {/* Feature 4: Token Packs (CRUD) — Token Pack Catalog List */}
+                  {/* TOP PANEL: Token Packs (CRUD) — Token Pack Catalog (Create & Edit Super Admin Only) */}
                   <div
-                    className={`${card} p-4 space-y-4`}
+                    className={`${card} p-3 sm:p-4 space-y-4 min-w-0`}
                     data-agent-id="feature-card-packs-catalog"
                     data-testid="feature-card-packs-catalog"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 min-w-0">
                       <button
                         type="button"
                         onClick={() => toggleFeatureExpanded("packs_catalog")}
                         aria-expanded={isFeatureExpanded("packs_catalog")}
                         data-agent-id="toggle-feature-packs-catalog-header"
                         data-testid="toggle-feature-packs-catalog-header"
-                        className="flex-1 text-left group cursor-pointer"
+                        className="flex-1 text-left group cursor-pointer min-w-0"
                       >
                         <div className="flex items-center gap-2 flex-wrap">
                           <Icon
@@ -3698,9 +3710,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           <span className="rounded-full bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
                             {config.tokenPacks.length} Active {config.tokenPacks.length === 1 ? "Pack" : "Packs"}
                           </span>
+                          <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
+                            {isSuper ? "Super Admin Only" : "Super Admin Only · View Only"}
+                          </span>
                         </div>
                         <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                          Manage existing token packs and pricing for Stripe checkout.
+                          Manage existing token packs and pricing for Stripe checkout. Only Super Admin can create and edit token packs.
                         </p>
                       </button>
                       <button
@@ -3723,117 +3738,354 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
                     {isFeatureExpanded("packs_catalog") && (
                       <div className="space-y-3 pt-2 border-t border-white/[0.06]">
-                        {config.tokenPacks.map((pack) => (
+                        {/* Catalog Header Toolbar: Create New Token Pack (Super Admin Only) */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-white/[0.08] bg-surface-container p-3">
+                          <p className="text-[11px] text-on-surface-variant">
+                            {isSuper
+                              ? "Create new packs or edit/delete existing Stripe token packs below."
+                              : "View active token packs below. Only Super Admin can create, edit, or delete token packs."}
+                          </p>
+                          {isSuper ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowAddPack((prev) => !prev);
+                                setEditingPackId(null);
+                                setEditPackDraft(null);
+                              }}
+                              aria-expanded={showAddPack}
+                              aria-label="Create New Token Pack"
+                              data-agent-id="toggle-add-pack-button"
+                              data-testid="toggle-add-pack-button"
+                              className={`${showAddPack ? btnSecondary : btnPrimary} font-mono text-xs shrink-0`}
+                            >
+                              <Icon name={showAddPack ? "chevronDown" : "plus"} className="size-4" />
+                              <span>{showAddPack ? "Close Create Form" : "Create New Token Pack"}</span>
+                            </button>
+                          ) : (
+                            <span
+                              data-agent-id="packs-superadmin-only-badge"
+                              data-testid="packs-superadmin-only-badge"
+                              className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-outline shrink-0"
+                            >
+                              Super Admin Control Only
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Inline Create New Token Pack Form (Super Admin Only) */}
+                        {isSuper && showAddPack && (
                           <div
-                            key={pack.id}
-                            className={`${card} p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4`}
+                            data-agent-id="create-token-pack-form"
+                            data-testid="create-token-pack-form"
+                            className={`${card} p-4 space-y-4 border border-primary/30`}
                           >
-                            <div className="flex items-center gap-3">
-                              <span className="flex size-9 items-center justify-center rounded-lg bg-surface-container-highest text-primary">
-                                <Icon name="zap" className="size-4" />
-                              </span>
+                            <div className="flex items-center justify-between gap-2">
                               <div>
-                                <p className="text-body font-semibold text-on-surface">{pack.name}</p>
-                                <p className="text-[12px] text-on-surface-variant font-mono">
-                                  {pack.id} • {pack.tokens.toLocaleString("en-AU")} tokens • {formatAud(pack.priceCents)} AUD (≈ {formatUsd(audToUsdCents(pack.priceCents, liveEcbRate?.rate))} USD)
+                                <h5 className="text-compact font-bold text-on-surface">
+                                  Create New Token Pack
+                                </h5>
+                                <p className="text-[11px] text-on-surface-variant">
+                                  Add a new integer token pack and AUD cent price to the Stripe checkout catalog.
                                 </p>
                               </div>
                             </div>
-
-                            <div className="flex items-center gap-2 self-end sm:self-center">
-                              {confirmDeletePackId === pack.id ? (
-                                <div className="flex items-center gap-1.5 animate-fadeIn">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeletePack(pack.id)}
-                                    className={btnDanger}
-                                    data-testid={`confirm-delete-pack-${pack.id}`}
-                                  >
-                                    Confirm Delete
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setConfirmDeletePackId(null)}
-                                    className={btnSecondary}
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => setConfirmDeletePackId(pack.id)}
-                                  className="flex size-8 items-center justify-center rounded-lg text-error hover:bg-error/10 transition"
-                                  data-testid={`delete-pack-${pack.id}`}
-                                  title="Delete pack"
-                                >
-                                  <Icon name="trash" className="size-4" />
-                                </button>
-                              )}
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                              <div>
+                                <label className={label}>ID</label>
+                                <input
+                                  type="text"
+                                  placeholder="PACK_1000"
+                                  aria-label="New Token Pack ID"
+                                  data-agent-id="new-pack-id-input"
+                                  data-testid="new-pack-id-input"
+                                  value={newPack.id}
+                                  onChange={(e) => setNewPack({ ...newPack, id: e.target.value.toUpperCase() })}
+                                  className={field}
+                                />
+                              </div>
+                              <div>
+                                <label className={label}>Name</label>
+                                <input
+                                  type="text"
+                                  placeholder="Power Pack"
+                                  aria-label="New Token Pack Name"
+                                  data-agent-id="new-pack-name-input"
+                                  data-testid="new-pack-name-input"
+                                  value={newPack.name}
+                                  onChange={(e) => setNewPack({ ...newPack, name: e.target.value })}
+                                  className={field}
+                                />
+                              </div>
+                              <div>
+                                <label className={label}>Tokens (Integer)</label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  step={1}
+                                  aria-label="New Token Pack Tokens"
+                                  data-agent-id="new-pack-tokens-input"
+                                  data-testid="new-pack-tokens-input"
+                                  value={newPack.tokens}
+                                  onChange={(e) =>
+                                    setNewPack({
+                                      ...newPack,
+                                      tokens: Math.max(1, Math.round(Number(e.target.value) || 1)),
+                                    })
+                                  }
+                                  className={field}
+                                />
+                              </div>
+                              <div>
+                                <label className={label}>Price (Cents)</label>
+                                <input
+                                  type="number"
+                                  min={100}
+                                  step={100}
+                                  placeholder="1900 = $19.00"
+                                  aria-label="New Token Pack Price in Cents"
+                                  data-agent-id="new-pack-price-input"
+                                  data-testid="new-pack-price-input"
+                                  value={newPack.priceCents}
+                                  onChange={(e) =>
+                                    setNewPack({
+                                      ...newPack,
+                                      priceCents: Math.max(100, Math.round(Number(e.target.value) || 100)),
+                                    })
+                                  }
+                                  className={field}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setShowAddPack(false)}
+                                data-agent-id="cancel-add-pack-button"
+                                data-testid="cancel-add-pack-button"
+                                className={btnSecondary}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={handleAddPack}
+                                data-agent-id="save-add-pack-button"
+                                data-testid="save-add-pack-button"
+                                className={btnPrimary}
+                              >
+                                Save Pack
+                              </button>
                             </div>
                           </div>
-                        ))}
+                        )}
+
+                        {config.tokenPacks.map((pack) => {
+                          const isEditingThisPack = isSuper && editingPackId === pack.id && editPackDraft;
+                          return (
+                            <div
+                              key={pack.id}
+                              data-agent-id={`catalog-pack-card-${pack.id}`}
+                              data-testid={`catalog-pack-card-${pack.id}`}
+                              className={`${card} p-4 space-y-3`}
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                  <span className="flex size-9 items-center justify-center rounded-lg bg-surface-container-highest text-primary">
+                                    <Icon name="zap" className="size-4" />
+                                  </span>
+                                  <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <p className="text-body font-semibold text-on-surface">{pack.name}</p>
+                                      {pack.enabled === false && (
+                                        <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[10px] text-outline">
+                                          Hidden
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[12px] text-on-surface-variant font-mono">
+                                      {pack.id} • {pack.tokens.toLocaleString("en-AU")} tokens • {formatAud(pack.priceCents)} AUD (≈ {formatUsd(audToUsdCents(pack.priceCents, liveEcbRate?.rate))} USD)
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {isSuper && (
+                                  <div className="flex items-center gap-2 self-end sm:self-center">
+                                    {confirmDeletePackId === pack.id ? (
+                                      <div className="flex items-center gap-1.5 animate-fadeIn">
+                                        <button
+                                          type="button"
+                                          disabled={saving}
+                                          onClick={() => handleDeletePack(pack.id)}
+                                          className={btnDanger}
+                                          data-agent-id={`confirm-delete-pack-${pack.id}`}
+                                          data-testid={`confirm-delete-pack-${pack.id}`}
+                                        >
+                                          Confirm Delete
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setConfirmDeletePackId(null)}
+                                          data-agent-id={`cancel-delete-pack-${pack.id}`}
+                                          data-testid={`cancel-delete-pack-${pack.id}`}
+                                          className={btnSecondary}
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            isEditingThisPack
+                                              ? (() => {
+                                                  setEditingPackId(null);
+                                                  setEditPackDraft(null);
+                                                })()
+                                              : handleStartEditPack(pack)
+                                          }
+                                          className={`${btnSecondary} py-1.5 px-2.5 font-mono text-xs`}
+                                          data-agent-id={`edit-pack-${pack.id}`}
+                                          data-testid={`edit-pack-${pack.id}`}
+                                          aria-label={isEditingThisPack ? `Cancel editing ${pack.name}` : `Edit ${pack.name}`}
+                                          title="Edit pack"
+                                        >
+                                          <Icon name="pencil" className="size-3.5" />
+                                          <span>{isEditingThisPack ? "Close" : "Edit"}</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingPackId(null);
+                                            setEditPackDraft(null);
+                                            setConfirmDeletePackId(pack.id);
+                                          }}
+                                          className="flex size-8 items-center justify-center rounded-lg text-error hover:bg-error/10 transition"
+                                          data-agent-id={`delete-pack-${pack.id}`}
+                                          data-testid={`delete-pack-${pack.id}`}
+                                          aria-label={`Delete ${pack.name}`}
+                                          title="Delete pack"
+                                        >
+                                          <Icon name="trash" className="size-4" />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {isEditingThisPack && editPackDraft && (
+                                <div
+                                  data-agent-id={`edit-pack-form-${pack.id}`}
+                                  data-testid={`edit-pack-form-${pack.id}`}
+                                  className="space-y-3 border-t border-white/[0.08] pt-3"
+                                >
+                                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                    <div>
+                                      <label className={label}>Name</label>
+                                      <input
+                                        type="text"
+                                        aria-label={`Edit name for ${pack.id}`}
+                                        data-agent-id={`edit-pack-name-${pack.id}`}
+                                        data-testid={`edit-pack-name-${pack.id}`}
+                                        value={editPackDraft.name}
+                                        onChange={(e) =>
+                                          setEditPackDraft({ ...editPackDraft, name: e.target.value })
+                                        }
+                                        className={field}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className={label}>Tokens (Integer)</label>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        step={1}
+                                        aria-label={`Edit token count for ${pack.id}`}
+                                        data-agent-id={`edit-pack-tokens-${pack.id}`}
+                                        data-testid={`edit-pack-tokens-${pack.id}`}
+                                        value={editPackDraft.tokens}
+                                        onChange={(e) =>
+                                          setEditPackDraft({
+                                            ...editPackDraft,
+                                            tokens: Math.max(1, Math.round(Number(e.target.value) || 1)),
+                                          })
+                                        }
+                                        className={field}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className={label}>Price (Cents)</label>
+                                      <input
+                                        type="number"
+                                        min={100}
+                                        step={100}
+                                        aria-label={`Edit price in cents for ${pack.id}`}
+                                        data-agent-id={`edit-pack-price-${pack.id}`}
+                                        data-testid={`edit-pack-price-${pack.id}`}
+                                        value={editPackDraft.priceCents}
+                                        onChange={(e) =>
+                                          setEditPackDraft({
+                                            ...editPackDraft,
+                                            priceCents: Math.max(100, Math.round(Number(e.target.value) || 100)),
+                                          })
+                                        }
+                                        className={field}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <label className="inline-flex items-center gap-2 font-mono text-xs text-on-surface cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={editPackDraft.enabled !== false}
+                                        onChange={(e) =>
+                                          setEditPackDraft({ ...editPackDraft, enabled: e.target.checked })
+                                        }
+                                        data-agent-id={`edit-pack-enabled-${pack.id}`}
+                                        data-testid={`edit-pack-enabled-${pack.id}`}
+                                        className="size-4 accent-primary"
+                                      />
+                                      <span>Visible &amp; active in checkout catalog</span>
+                                    </label>
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingPackId(null);
+                                          setEditPackDraft(null);
+                                        }}
+                                        data-agent-id={`cancel-edit-pack-${pack.id}`}
+                                        data-testid={`cancel-edit-pack-${pack.id}`}
+                                        className={btnSecondary}
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={saving}
+                                        onClick={handleSaveEditPack}
+                                        data-agent-id={`save-edit-pack-${pack.id}`}
+                                        data-testid={`save-edit-pack-${pack.id}`}
+                                        className={btnPrimary}
+                                      >
+                                        Save Changes
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
-                </div>
-              )}
 
-              {/* TAB 4: TOKEN CONTROLS & LEDGER (Super Admin & Main Admin) */}
-              {tab === "LEDGER" && (
-                <div className="space-y-4 lg:space-y-3.5 min-w-0 max-w-full">
-                  {/* Category Header + Expand All / Collapse All */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
-                    <div className="min-w-0">
-                      <h3 className="text-title-sm font-semibold text-on-surface">Token Controls &amp; Ledger</h3>
-                      <p className="mt-0.5 text-[12px] text-on-surface-variant">
-                        All features start collapsed. Click any feature below to expand and inspect equity splits, platform owners, Stripe purchases, Ad Agents, and orders.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const allOpen =
-                          isFeatureExpanded("ledger_equity") &&
-                          isFeatureExpanded("ledger_owners") &&
-                          isFeatureExpanded("ledger_stripe") &&
-                          isFeatureExpanded("ledger_ad_agents") &&
-                          isMasterLedgerExpanded;
-                        setFeatureExpanded("ledger_equity", !allOpen);
-                        setFeatureExpanded("ledger_owners", !allOpen);
-                        setFeatureExpanded("ledger_stripe", !allOpen);
-                        setFeatureExpanded("ledger_ad_agents", !allOpen);
-                        setIsMasterLedgerExpanded(!allOpen);
-                      }}
-                      data-agent-id="ledger-expand-all-btn"
-                      data-testid="ledger-expand-all-btn"
-                      className={`${btnSecondary} font-mono text-xs shrink-0`}
-                    >
-                      <Icon
-                        name="chevronDown"
-                        className={`size-3.5 transition-transform duration-200 ${
-                          isFeatureExpanded("ledger_equity") &&
-                          isFeatureExpanded("ledger_owners") &&
-                          isFeatureExpanded("ledger_stripe") &&
-                          isFeatureExpanded("ledger_ad_agents") &&
-                          isMasterLedgerExpanded
-                            ? "rotate-180"
-                            : ""
-                        }`}
-                      />
-                      <span>
-                        {isFeatureExpanded("ledger_equity") &&
-                        isFeatureExpanded("ledger_owners") &&
-                        isFeatureExpanded("ledger_stripe") &&
-                        isFeatureExpanded("ledger_ad_agents") &&
-                        isMasterLedgerExpanded
-                          ? "Collapse All"
-                          : "Expand All"}
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* Feature 1: Redistributive Equity Ledger & Summary Stats */}
+                  {/* Feature 2: Redistributive Equity Ledger & Summary Stats */}
                   <div
                     className={`${card} p-3 sm:p-4 space-y-3.5 min-w-0`}
                     data-agent-id="feature-card-ledger-equity"
@@ -6454,18 +6706,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {(() => {
-                        const allExpanded =
-                          (!canApproveRoles || isFeatureExpanded("users_quick_assign")) &&
-                          isFeatureExpanded("users_directory");
+                        const allExpanded = isFeatureExpanded("users_directory");
                         return (
                           <button
                             type="button"
                             onClick={() => {
-                              const next = !allExpanded;
-                              if (canApproveRoles) {
-                                setFeatureExpanded("users_quick_assign", next);
-                              }
-                              setFeatureExpanded("users_directory", next);
+                              setFeatureExpanded("users_directory", !allExpanded);
                             }}
                             data-agent-id="users-expand-all-btn"
                             data-testid="users-expand-all-btn"
@@ -6476,20 +6722,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           </button>
                         );
                       })()}
-                      <input
-                        type="search"
-                        placeholder="Search users by email, name, or UID..."
-                        value={userSearchQuery}
-                        onChange={(e) => {
-                          setUserSearchQuery(e.target.value);
-                          if (!isFeatureExpanded("users_directory")) {
-                            setFeatureExpanded("users_directory", true);
-                          }
-                        }}
-                        data-agent-id="all-users-search-input"
-                        data-testid="all-users-search-input"
-                        className="rounded-lg border border-white/10 bg-surface-container px-3 py-1.5 text-compact text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:outline-none sm:w-64"
-                      />
                       <button
                         type="button"
                         onClick={reloadRbac}
@@ -6504,181 +6736,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     </div>
                   </div>
 
-                  {/* Collapsible Feature 1: Quick Assign Multiple Roles by Email with Confirm Button (Super Admin & Main Admin) */}
-                  {canApproveRoles && (
-                    <div
-                      className={`${card} p-3.5 border border-primary/30 bg-primary/[0.04] space-y-3`}
-                      data-agent-id="users-tab-quick-assign-card"
-                      data-testid="users-tab-quick-assign-card"
-                    >
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        aria-expanded={isFeatureExpanded("users_quick_assign")}
-                        onClick={() => toggleFeatureExpanded("users_quick_assign")}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            toggleFeatureExpanded("users_quick_assign");
-                          }
-                        }}
-                        data-agent-id="users-quick-assign-collapse-header"
-                        data-testid="users-quick-assign-collapse-header"
-                        className="flex cursor-pointer select-none flex-wrap items-center justify-between gap-2 rounded-lg py-0.5 hover:opacity-95"
-                      >
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={`inline-flex size-6 items-center justify-center rounded-md border border-primary/35 bg-primary/10 text-primary transition-transform duration-200 ${
-                              isFeatureExpanded("users_quick_assign") ? "rotate-180" : "-rotate-90"
-                            }`}
-                          >
-                            <Icon name="chevronDown" className="size-3.5" />
-                          </span>
-                          <span className="font-mono text-xs font-bold uppercase tracking-wider text-primary">
-                            {isSuper
-                              ? "Super Admin Quick Assign Multiple Roles by Email"
-                              : "Main Admin Quick Approve Roles by Email (Supporter, Ad Agent, Agency, Moderator)"}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFeatureExpanded("users_quick_assign");
-                          }}
-                          aria-expanded={isFeatureExpanded("users_quick_assign")}
-                          data-agent-id="toggle-users-quick-assign-btn"
-                          data-testid="toggle-users-quick-assign-btn"
-                          className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-surface-container-high px-2.5 py-1 font-mono text-[11px] font-semibold text-on-surface-variant hover:border-primary/40 hover:text-on-surface transition"
-                        >
-                          <span>{isFeatureExpanded("users_quick_assign") ? "Collapse" : "Expand"}</span>
-                          <Icon name="chevronDown" className={`size-3 transition-transform duration-200 ${isFeatureExpanded("users_quick_assign") ? "rotate-180" : "-rotate-90"}`} />
-                        </button>
-                      </div>
-
-                      {isFeatureExpanded("users_quick_assign") && (
-                        <div className="space-y-2.5 border-t border-white/[0.08] pt-3">
-                          <p className="font-mono text-[10px] text-on-surface-variant">
-                            {isSuper
-                              ? "Select user email & toggle one or multiple RBAC roles, then click Confirm"
-                              : "Main Admin can only approve Supporter, Ad Agent, Agency, and Moderator (cannot make people Main Admin)"}
-                          </p>
-                          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
-                            <input
-                              type="email"
-                              list="all-users-email-datalist"
-                              placeholder="Select or enter user email (e.g. user@example.com)..."
-                              value={quickAssignEmail}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setQuickAssignEmail(val);
-                                setConfirmQuickAssignOpen(false);
-                                const matched = rbacUsers.find(
-                                  (u) => u.email.toLowerCase() === val.trim().toLowerCase()
-                                );
-                                if (matched && !matched.isPermanentSuperAdmin) {
-                                  setQuickAssignRoles(getUserAssignableRoles(matched, isSuper));
-                                }
-                              }}
-                              data-agent-id="users-quick-assign-email-input"
-                              data-testid="users-quick-assign-email-input"
-                              className={`w-full lg:w-72 ${field} py-1.5 text-xs`}
-                            />
-                            <datalist id="all-users-email-datalist">
-                              {rbacUsers
-                                .filter((u) => !u.isPermanentSuperAdmin)
-                                .map((u) => (
-                                  <option key={u.uid} value={u.email}>
-                                    {u.displayName
-                                      ? `${u.displayName} (${getUserRolesList(u).join(", ")})`
-                                      : getUserRolesList(u).join(", ")}
-                                  </option>
-                                ))}
-                            </datalist>
-
-                            <div
-                              className="flex flex-wrap items-center gap-1.5 flex-1"
-                              role="group"
-                              aria-label="Select one or multiple RBAC roles to assign"
-                              data-agent-id="users-quick-assign-roles-group"
-                              data-testid="users-quick-assign-roles-group"
-                            >
-                              {assignableRoleOptions.map((opt) => {
-                                const isSelected = quickAssignRoles.includes(opt.value);
-                                return (
-                                  <button
-                                    key={opt.value}
-                                    type="button"
-                                    onClick={() => {
-                                      setQuickAssignRoles((prev) =>
-                                        toggleRoleSelection(prev, opt.value, isSuper)
-                                      );
-                                      setConfirmQuickAssignOpen(false);
-                                    }}
-                                    aria-pressed={isSelected}
-                                    data-agent-id={`users-quick-role-pill-${opt.value}`}
-                                    data-testid={`users-quick-role-pill-${opt.value}`}
-                                    className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition ${
-                                      isSelected
-                                        ? "border-primary bg-primary/20 text-primary shadow-sm"
-                                        : "border-white/10 bg-surface-container-low text-on-surface-variant hover:border-white/25 hover:text-on-surface"
-                                    }`}
-                                  >
-                                    <span>{isSelected ? "☑" : "☐"}</span>
-                                    <span>{opt.label}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-
-                            {confirmQuickAssignOpen ? (
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (!quickAssignEmail.trim()) return;
-                                    handleAssignUserRole(quickAssignEmail.trim(), quickAssignRoles);
-                                  }}
-                                  disabled={rbacSaving || !quickAssignEmail.trim()}
-                                  data-agent-id="users-confirm-quick-assign-btn"
-                                  data-testid="users-confirm-quick-assign-btn"
-                                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 font-mono text-xs font-bold text-on-primary hover:bg-primary-fixed disabled:opacity-50 transition"
-                                >
-                                  <Icon name="checkCircle" className="size-3.5" />
-                                  <span>{rbacSaving ? "Saving…" : `Confirm (${quickAssignRoles.length})`}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setConfirmQuickAssignOpen(false)}
-                                  data-agent-id="users-cancel-quick-assign-btn"
-                                  data-testid="users-cancel-quick-assign-btn"
-                                  className={`${btnSecondary} px-2.5 py-1.5 text-xs`}
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (!quickAssignEmail.trim()) return;
-                                  setConfirmQuickAssignOpen(true);
-                                }}
-                                disabled={rbacSaving || !quickAssignEmail.trim()}
-                                data-agent-id="users-quick-assign-btn"
-                                data-testid="users-quick-assign-btn"
-                                className={`${btnPrimary} shrink-0 py-1.5 text-xs`}
-                              >
-                                Assign {quickAssignRoles.length > 1 ? `Roles (${quickAssignRoles.length})` : "Role"}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Collapsible Feature 2: All Users Table with Multi-Role Toggles & Confirm Button */}
+                  {/* All Users Table with Email & Name Search, Multi-Role Toggles & Confirm Button */}
                   <div className={`${card} p-3.5 space-y-3`}>
                     <div
                       role="button"
@@ -6726,8 +6784,82 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       </button>
                     </div>
 
-                    {isFeatureExpanded("users_directory") && (
+                    {isFeatureExpanded("users_directory") && (() => {
+                      const agentNameByUser = new Map<string, string>();
+                      for (const ag of adAgentLedger) {
+                        const cleanAgentName = ag.name ? ag.name.trim() : "";
+                        if (!cleanAgentName || cleanAgentName === "Ad Agent") continue;
+                        if (ag.uid) agentNameByUser.set(ag.uid, cleanAgentName);
+                        if (ag.agentId) agentNameByUser.set(ag.agentId, cleanAgentName);
+                        if (ag.email) agentNameByUser.set(ag.email.toLowerCase().trim(), cleanAgentName);
+                      }
+                      const resolveUserName = (u: (typeof rbacUsers)[number]) => {
+                        const authOrDocName = (u.displayName || "").trim();
+                        const agentName =
+                          agentNameByUser.get(u.uid) ||
+                          agentNameByUser.get(u.email.toLowerCase().trim()) ||
+                          "";
+                        return {
+                          primaryName: authOrDocName || agentName,
+                          agentName,
+                        };
+                      };
+                      const normalizedUserQuery = userSearchQuery.trim().toLowerCase();
+                      const filteredDirectoryUsers = rbacUsers.filter((u) => {
+                        const userRoles = getUserRolesList(u);
+                        if (roleFilter !== "ALL" && !userRoles.includes(roleFilter)) return false;
+                        if (!normalizedUserQuery) return true;
+                        const { primaryName, agentName } = resolveUserName(u);
+                        return (
+                          u.email.toLowerCase().includes(normalizedUserQuery) ||
+                          primaryName.toLowerCase().includes(normalizedUserQuery) ||
+                          agentName.toLowerCase().includes(normalizedUserQuery) ||
+                          u.uid.toLowerCase().includes(normalizedUserQuery) ||
+                          userRoles.some((r) => r.toLowerCase().includes(normalizedUserQuery))
+                        );
+                      });
+
+                      return (
                       <div className="space-y-3 border-t border-white/[0.08] pt-3">
+                        {/* Search Bar by Email or Name */}
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="relative flex-1">
+                            <Icon
+                              name="search"
+                              className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-on-surface-variant"
+                            />
+                            <input
+                              type="search"
+                              placeholder="Search by email or name..."
+                              value={userSearchQuery}
+                              onChange={(e) => setUserSearchQuery(e.target.value)}
+                              aria-label="Search users by email or name"
+                              data-agent-id="all-users-search-input"
+                              data-testid="all-users-search-input"
+                              className="w-full rounded-lg border border-white/15 bg-surface-container pl-9 pr-16 py-2 text-compact text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:outline-none"
+                            />
+                            {userSearchQuery.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setUserSearchQuery("")}
+                                aria-label="Clear user search"
+                                data-agent-id="clear-all-users-search-btn"
+                                data-testid="clear-all-users-search-btn"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-white/10 bg-surface-container-high px-2 py-0.5 font-mono text-[10px] font-semibold text-on-surface-variant hover:border-primary/40 hover:text-on-surface transition"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                          <span
+                            data-agent-id="all-users-match-count"
+                            data-testid="all-users-match-count"
+                            className="shrink-0 font-mono text-[11px] text-on-surface-variant"
+                          >
+                            {filteredDirectoryUsers.length} of {rbacUsers.length} users
+                          </span>
+                        </div>
+
                         {/* Role Filter Pills */}
                         <div className="flex flex-wrap items-center gap-1.5">
                           {(
@@ -6799,20 +6931,23 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-white/[0.04]">
-                              {rbacUsers
-                                .filter((u) => {
-                                  const userRoles = getUserRolesList(u);
-                                  if (roleFilter !== "ALL" && !userRoles.includes(roleFilter)) return false;
-                                  const q = userSearchQuery.trim().toLowerCase();
-                                  if (!q) return true;
-                                  return (
-                                    u.email.toLowerCase().includes(q) ||
-                                    (u.displayName || "").toLowerCase().includes(q) ||
-                                    u.uid.toLowerCase().includes(q) ||
-                                    userRoles.some((r) => r.toLowerCase().includes(q))
-                                  );
-                                })
-                                .map((user) => {
+                              {filteredDirectoryUsers.length === 0 ? (
+                                <tr
+                                  data-agent-id="all-users-empty-row"
+                                  data-testid="all-users-empty-row"
+                                >
+                                  <td
+                                    colSpan={5}
+                                    className="px-4 py-8 text-center font-mono text-xs text-on-surface-variant"
+                                  >
+                                    {userSearchQuery.trim()
+                                      ? `No users found matching “${userSearchQuery.trim()}”.`
+                                      : "No users found matching the selected role filter."}
+                                  </td>
+                                </tr>
+                              ) : (
+                                filteredDirectoryUsers.map((user) => {
+                                  const { primaryName } = resolveUserName(user);
                                   const currentRoles = getUserAssignableRoles(user, isSuper);
                                   const selectedRoles = pendingUserRoles[user.uid] ?? currentRoles;
                                   const isRoleChanged =
@@ -6850,9 +6985,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                       <td className="px-3.5 py-2.5">
                                         <div className="flex flex-wrap items-center gap-1.5">
                                           <span className="font-semibold text-on-surface">{user.email}</span>
-                                          {user.displayName && (
-                                            <span className="text-xs text-on-surface-variant">
-                                              ({user.displayName})
+                                          {primaryName && (
+                                            <span className="text-xs font-medium text-primary/90">
+                                              ({primaryName})
                                             </span>
                                           )}
                                         </div>
@@ -7316,12 +7451,14 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                       </td>
                                     </tr>
                                   );
-                                })}
+                                })
+                              )}
                             </tbody>
                           </table>
                         </div>
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -7340,7 +7477,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     </div>
                     {(() => {
                       const allExpanded =
-                        isFeatureExpanded("rbac_gate") &&
                         isFeatureExpanded("rbac_matrix") &&
                         isFeatureExpanded("rbac_assignments");
                       return (
@@ -7348,7 +7484,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           type="button"
                           onClick={() => {
                             const next = !allExpanded;
-                            setFeatureExpanded("rbac_gate", next);
                             setFeatureExpanded("rbac_matrix", next);
                             setFeatureExpanded("rbac_assignments", next);
                           }}
@@ -7363,57 +7498,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     })()}
                   </div>
 
-                  {/* Collapsible Feature 1: Strict Database Superadmin Gate */}
-                  <div className="rounded-xl border border-primary/30 bg-primary/10 p-3.5 text-compact text-on-surface space-y-2.5">
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      aria-expanded={isFeatureExpanded("rbac_gate")}
-                      onClick={() => toggleFeatureExpanded("rbac_gate")}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          toggleFeatureExpanded("rbac_gate");
-                        }
-                      }}
-                      data-agent-id="rbac-gate-collapse-header"
-                      data-testid="rbac-gate-collapse-header"
-                      className="flex cursor-pointer select-none flex-wrap items-center justify-between gap-2 rounded-lg py-0.5 hover:opacity-95"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex size-6 items-center justify-center rounded-md border border-primary/40 bg-primary/20 text-primary transition-transform duration-200 ${
-                            isFeatureExpanded("rbac_gate") ? "rotate-180" : "-rotate-90"
-                          }`}
-                        >
-                          <Icon name="chevronDown" className="size-3.5" />
-                        </span>
-                        <Icon name="sparkles" className="size-4 text-primary shrink-0" />
-                        <strong className="text-primary font-semibold">Strict Database Superadmin Gate</strong>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleFeatureExpanded("rbac_gate");
-                        }}
-                        aria-expanded={isFeatureExpanded("rbac_gate")}
-                        data-agent-id="toggle-rbac-gate-btn"
-                        data-testid="toggle-rbac-gate-btn"
-                        className="inline-flex items-center gap-1 rounded-lg border border-primary/35 bg-surface-container-high px-2.5 py-1 font-mono text-[11px] font-semibold text-primary hover:bg-primary/20 transition"
-                      >
-                        <span>{isFeatureExpanded("rbac_gate") ? "Collapse" : "Expand"}</span>
-                        <Icon name="chevronDown" className={`size-3 transition-transform duration-200 ${isFeatureExpanded("rbac_gate") ? "rotate-180" : "-rotate-90"}`} />
-                      </button>
-                    </div>
-                    {isFeatureExpanded("rbac_gate") && (
-                      <p className="border-t border-primary/25 pt-2.5 text-[12px] text-on-surface-variant leading-relaxed">
-                        Only the authenticated Firebase database administrator email holds permanent Super Admin status. All permissions for Super Admin are locked. Non-admin users start at Supporter level and can be granted one or multiple operational or administrative roles below.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Collapsible Feature 2: 1. Feature Permission Matrix */}
+                  {/* Collapsible Feature 1: 1. Feature Permission Matrix */}
                   <div className={`${card} p-4 space-y-3`}>
                     <div
                       role="button"

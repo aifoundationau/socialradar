@@ -799,6 +799,8 @@ export const RbacPermissionSchema = z.enum([
   "search_radar",
   "ai_remix",
   "manage_brands",
+  "submit_rag_translations",
+  "approve_rag_translations",
 ]);
 export type RbacPermission = z.infer<typeof RbacPermissionSchema>;
 
@@ -813,6 +815,8 @@ export const RBAC_PERMISSIONS_LIST: RbacPermission[] = [
   "search_radar",
   "ai_remix",
   "manage_brands",
+  "submit_rag_translations",
+  "approve_rag_translations",
 ];
 
 export const RBAC_ROLES_LIST = [
@@ -834,6 +838,7 @@ export type RbacMatrix = Record<RbacRole, RbacPermission[]>;
 export const RbacConfigDocSchema = z
   .object({
     matrix: RbacMatrixSchema,
+    seededPermissions: z.array(z.string()).optional(),
     updatedAt: isoDate,
     updatedBy: z.string().max(254),
   })
@@ -1297,6 +1302,9 @@ export const RagSourceTypeSchema = z.enum([
 ]);
 export type RagSourceType = z.infer<typeof RagSourceTypeSchema>;
 
+export const RagApprovalStatusSchema = z.enum(["pending", "approved"]);
+export type RagApprovalStatus = z.infer<typeof RagApprovalStatusSchema>;
+
 export const RagSentenceItemSchema = z
   .object({
     ragId: z.string().trim().min(1).max(128),
@@ -1312,7 +1320,13 @@ export const RagSentenceItemSchema = z
     translatedText: z.string().trim().min(1).max(4000),
     keywords: z.array(z.string().trim().max(64)).max(40).default([]),
     isHumanVerified: z.boolean().default(true),
+    approvalStatus: RagApprovalStatusSchema.default("approved"),
+    contributorUid: z.string().trim().max(128).optional(),
     contributorEmail: z.string().trim().max(254).default("system@adradarhq.com"),
+    contributorRole: z.string().trim().max(32).optional(),
+    approvedByEmail: z.string().trim().max(254).optional(),
+    approvedByRole: z.string().trim().max(32).optional(),
+    approvedAt: isoDate.optional(),
     createdAt: isoDate,
     updatedAt: isoDate,
   })
@@ -1338,6 +1352,15 @@ export const GoogleTranslateRequestSchema = z
   .strict();
 export type GoogleTranslateRequest = z.infer<typeof GoogleTranslateRequestSchema>;
 
+const RagActingRoleSchema = z.enum([
+  "superadmin",
+  "admin",
+  "ad_agent",
+  "moderator",
+  "agency",
+  "supporter",
+]);
+
 export const CreateRagEntryRequestSchema = z
   .object({
     action: z.enum(["ADD_ENTRY", "SYNC_CORPUS"]).default("ADD_ENTRY"),
@@ -1351,18 +1374,24 @@ export const CreateRagEntryRequestSchema = z
     languageName: z.string().trim().min(1).max(64).optional(),
     translatedQuestion: z.string().trim().max(500).optional(),
     translatedText: z.string().trim().min(1).max(4000).optional(),
+    autoTranslatedQuestion: z.string().trim().max(500).optional(),
+    autoTranslatedText: z.string().trim().max(4000).optional(),
     category: z.string().trim().max(64).optional(),
     publishAsFaq: z.boolean().optional(),
+    actingRole: RagActingRoleSchema.optional(),
   })
   .strict();
 export type CreateRagEntryRequest = z.infer<typeof CreateRagEntryRequestSchema>;
 
 export const UpdateRagEntryRequestSchema = z
   .object({
+    action: z.enum(["UPDATE_ENTRY", "APPROVE_ENTRY"]).default("UPDATE_ENTRY"),
     ragId: z.string().trim().min(1).max(128),
     translatedQuestion: z.string().trim().max(500).optional(),
-    translatedText: z.string().trim().min(1).max(4000),
+    translatedText: z.string().trim().min(1).max(4000).optional(),
+    autoTranslatedText: z.string().trim().max(4000).optional(),
     section: z.string().trim().min(1).max(120).optional(),
+    actingRole: RagActingRoleSchema.optional(),
   })
   .strict();
 export type UpdateRagEntryRequest = z.infer<typeof UpdateRagEntryRequestSchema>;
@@ -1370,6 +1399,7 @@ export type UpdateRagEntryRequest = z.infer<typeof UpdateRagEntryRequestSchema>;
 export const DeleteRagEntryRequestSchema = z
   .object({
     ragId: z.string().trim().min(1).max(128),
+    actingRole: RagActingRoleSchema.optional(),
   })
   .strict();
 export type DeleteRagEntryRequest = z.infer<typeof DeleteRagEntryRequestSchema>;

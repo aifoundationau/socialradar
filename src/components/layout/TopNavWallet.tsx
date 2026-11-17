@@ -161,16 +161,12 @@ function TokenPill() {
 function AccountMenu({
   onOpenAdmin,
   onOpenSupporter,
-  onOpenFaq,
   onOpenAdAgent,
-  onOpenInstallApp,
   isAdAgentProfileRegistered = true,
 }: {
   onOpenAdmin: (tab?: "CURRENCY" | "PRICING" | "PACKS" | "LEDGER" | "USERS" | "MESSAGES" | "RBAC" | "FAQS" | "DEV") => void;
   onOpenSupporter: () => void;
-  onOpenFaq: () => void;
   onOpenAdAgent: () => void;
-  onOpenInstallApp: () => void;
   isAdAgentProfileRegistered?: boolean;
 }) {
   const { user, isAdmin, role, isSuperAdmin, actingAsRole, setActingRole, resetRole } = useSession();
@@ -189,7 +185,7 @@ function AccountMenu({
         className="relative flex size-10 items-center justify-center rounded-full bg-primary text-on-primary transition-colors hover:bg-primary-fixed sm:size-8"
       >
         {initial ? <span className="text-body font-semibold">{initial}</span> : <Icon name="user" />}
-        {role === "ad_agent" && !isAdAgentProfileRegistered && (
+        {!isSuperAdmin && role === "ad_agent" && !isAdAgentProfileRegistered && (
           <span
             className="absolute -top-0.5 -right-0.5 flex size-3"
             title="Ad Agent Registration Required"
@@ -231,7 +227,7 @@ function AccountMenu({
           <p className="mt-1 truncate text-body font-medium">{user?.email}</p>
         </div>
 
-        {/* Superadmin Role View Switcher: allows Superadmin to act as any role */}
+        {/* Superadmin Role View Switcher: lets Super Admin view all Admin Panels based on role */}
         {isSuperAdmin && (
           <div className="border-b border-white/[0.08] p-3 space-y-2 bg-surface-container-highest/40">
             <div className="flex items-center justify-between">
@@ -276,6 +272,9 @@ function AccountMenu({
                 )
               )}
             </div>
+            <p className="text-[11px] text-on-surface-variant">
+              View all Admin Panels based on role.
+            </p>
             <div className="grid grid-cols-2 gap-1">
               <button
                 type="button"
@@ -337,70 +336,9 @@ function AccountMenu({
           </div>
         )}
 
-        <div className="space-y-2 border-b border-white/[0.08] px-4 py-3 lg:hidden">
-          <p className={monoLabel}>Active brand</p>
-          <BrandSwitcher />
-        </div>
-        <div className="border-b border-white/[0.08] p-1.5 space-y-0.5">
-          <button
-            type="button"
-            onClick={() => {
-              menu.current?.hidePopover();
-              onOpenInstallApp();
-            }}
-            data-agent-id="account-menu-download-app-button"
-            data-testid="account-menu-download-app-button"
-            aria-label="Download App for Chrome Laptop, Android, and iPhone"
-            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-emerald-400 transition-colors hover:bg-emerald-500/10 sm:min-h-10"
-          >
-            <Icon name="download" className="size-4 text-emerald-400" />
-            <span>Download App (Laptop / Mobile)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              menu.current?.hidePopover();
-              onOpenFaq();
-            }}
-            data-agent-id="account-menu-faqs-button"
-            data-testid="account-menu-faqs-button"
-            aria-label="Open Frequently Asked Questions"
-            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-on-surface-variant transition-colors hover:bg-white/[0.04] hover:text-on-surface sm:min-h-10"
-          >
-            <Icon name="helpCircle" className="size-4 text-primary" />
-            <span>Frequently Asked Questions</span>
-          </button>
-          {/* Ad Agent Menu: Accessible to Ad Agents, Super Admin, and Main Admin — hidden for Supporters */}
-          {role !== "supporter" && (role === "ad_agent" || isSuperAdmin || isAdmin) && (
-            <button
-              type="button"
-              onClick={() => {
-                menu.current?.hidePopover();
-                onOpenAdAgent();
-              }}
-              data-agent-id="account-menu-ad-agent-button"
-              data-testid="account-menu-ad-agent-button"
-              aria-label="Open Ad Agent Registration and Customize Orders Panel"
-              className="flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-body font-medium text-tertiary transition-colors hover:bg-tertiary/15 sm:min-h-10"
-            >
-              <div className="flex items-center gap-2.5">
-                <Icon name="sparkles" className="size-4 text-tertiary" />
-                <span>
-                  {role === "superadmin"
-                    ? "Ad Agent Panel (No Reg Needed)"
-                    : !isAdAgentProfileRegistered
-                      ? "Ad Agent Registration Required"
-                      : "Ad Agent Orders, Profile & Contractors"}
-                </span>
-              </div>
-              {role === "ad_agent" && !isAdAgentProfileRegistered && (
-                <span className="rounded bg-amber-500/25 border border-amber-500/40 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-300 uppercase">
-                  Action Required
-                </span>
-              )}
-            </button>
-          )}
-          {isAdmin ? (
+        {/* Single Role-Specific Admin Panel Entry */}
+        <div className="border-b border-white/[0.08] p-1.5">
+          {role === "superadmin" ? (
             <button
               type="button"
               onClick={() => {
@@ -409,11 +347,48 @@ function AccountMenu({
               }}
               data-agent-id="open-superadmin-button"
               data-testid="open-superadmin-button"
-              aria-label={role === "superadmin" ? "Open Super Admin Panel" : "Open Main Admin Panel"}
+              aria-label="Open Super Admin Panel"
               className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-primary transition-colors hover:bg-primary-container/20 sm:min-h-10"
             >
               <Icon name="sliders" className="size-4" />
-              {role === "superadmin" ? "Super Admin Panel" : "Main Admin Panel"}
+              <span>Super Admin Panel</span>
+            </button>
+          ) : role === "admin" ? (
+            <button
+              type="button"
+              onClick={() => {
+                menu.current?.hidePopover();
+                onOpenAdmin();
+              }}
+              data-agent-id="open-superadmin-button"
+              data-testid="open-superadmin-button"
+              aria-label="Open Main Admin Panel"
+              className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-primary transition-colors hover:bg-primary-container/20 sm:min-h-10"
+            >
+              <Icon name="sliders" className="size-4" />
+              <span>Main Admin Panel</span>
+            </button>
+          ) : role === "ad_agent" ? (
+            <button
+              type="button"
+              onClick={() => {
+                menu.current?.hidePopover();
+                onOpenAdAgent();
+              }}
+              data-agent-id="account-menu-ad-agent-button"
+              data-testid="account-menu-ad-agent-button"
+              aria-label="Open Ad Agent Admin Panel"
+              className="flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-body font-medium text-tertiary transition-colors hover:bg-tertiary/15 sm:min-h-10"
+            >
+              <div className="flex items-center gap-2.5">
+                <Icon name="sliders" className="size-4 text-tertiary" />
+                <span>Ad Agent Admin Panel</span>
+              </div>
+              {!isSuperAdmin && !isAdAgentProfileRegistered && (
+                <span className="rounded bg-amber-500/25 border border-amber-500/40 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-300 uppercase">
+                  Action Required
+                </span>
+              )}
             </button>
           ) : (
             <button
@@ -428,25 +403,7 @@ function AccountMenu({
               className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-secondary transition-colors hover:bg-secondary/15 sm:min-h-10"
             >
               <Icon name="sliders" className="size-4" />
-              Supporter Admin Panel
-            </button>
-          )}
-
-          {/* When Superadmin is in native Superadmin mode, also give direct 1-click preview of other panels */}
-          {isSuperAdmin && role === "superadmin" && (
-            <button
-              type="button"
-              onClick={() => {
-                menu.current?.hidePopover();
-                onOpenSupporter();
-              }}
-              data-agent-id="preview-supporter-panel-button"
-              data-testid="preview-supporter-panel-button"
-              aria-label="Preview Supporter Admin Panel"
-              className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-body font-medium text-secondary/80 transition-colors hover:bg-secondary/10 sm:min-h-10"
-            >
-              <Icon name="user" className="size-4" />
-              <span>Preview Supporter Panel</span>
+              <span>Supporter Admin Panel</span>
             </button>
           )}
         </div>
@@ -585,10 +542,10 @@ export function TopNavWallet() {
             <span className="text-on-surface-variant hidden md:inline">
               (
               {actingAsRole === "admin"
-                ? "Main Admin Panel view with 5 tabs"
+                ? "Main Admin Panel view with 6 tabs"
                 : actingAsRole === "ad_agent"
-                  ? "Ad Agent role view — Customize orders & profile"
-                  : "Supporter Admin Panel view with 3 tabs"}
+                  ? "Ad Agent Admin Panel — Orders, Contractors, Distributions & RAG Studio"
+                  : "Supporter Admin Panel — Tokens, Buy More, Messages & RAG Studio"}
               )
             </span>
           </div>
@@ -606,7 +563,7 @@ export function TopNavWallet() {
       )}
 
       {/* New Ad Agent Role: Registration Required Banner */}
-      {role === "ad_agent" && adAgentRegistrationChecked && !isAdAgentProfileRegistered && (
+      {!isSuperAdmin && role === "ad_agent" && adAgentRegistrationChecked && !isAdAgentProfileRegistered && (
         <div
           data-agent-id="new-ad-agent-banner"
           data-testid="new-ad-agent-banner"
@@ -741,9 +698,7 @@ export function TopNavWallet() {
               setIsAdminOpen(true);
             }}
             onOpenSupporter={() => setIsSupporterOpen(true)}
-            onOpenFaq={() => window.dispatchEvent(new CustomEvent("adradar:open-faq"))}
             onOpenAdAgent={() => setIsAdAgentOpen(true)}
-            onOpenInstallApp={() => setIsInstallModalOpen(true)}
             isAdAgentProfileRegistered={isAdAgentProfileRegistered}
           />
         </div>

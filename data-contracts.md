@@ -312,6 +312,7 @@ No body. Creates `users/{uid}` on first sign-in (balance 0) and returns `{ user,
 { "packId": "PACK_10|PACK_50|PACK_100|PACK_1000|PACK_CUSTOM|SUB_MONTHLY_1000|<custom-pack-id>", "customTokens": 25, "buyerCountry": "AU" }
 ```
 `packId` accepts any enabled pack ID configured in `system_config/global.tokenPacks` (e.g., `PACK_10`, `PACK_50`, `PACK_100`, `PACK_1000` / `Mega Pack (1000)`), `"PACK_CUSTOM"`, or `"SUB_MONTHLY_1000"`. `customTokens` is required when `packId` is `"PACK_CUSTOM"` (integer $\ge 1$). `buyerCountry` (optional 2-letter ISO country code, fallback to IP geo headers) governs tax treatment:
+- **Super Admin Token Pack Catalog CRUD (`superadmin` only):** Creating (`Create New Token Pack` inside the top-panel `Token Packs (CRUD) — Token Pack Catalog` box of the `Token Controls & Ledger` (`LEDGER`) tab in `SuperAdminModal.tsx`), inline editing (`name`, `tokens`, `priceCents`, `enabled`), and deletion of `system_config/global.tokenPacks` via `PUT /api/admin/config` are strictly enforced for `superadmin` (`caller.claims.isSuperAdmin === true`).
 - **Australia (`AU`):** 10% exclusive GST is added on top (`tax_behavior: "exclusive"` via native Stripe Tax `automatic_tax: { enabled: true }`).
 - **New Zealand (`NZ`) & International:** Strictly no GST / $0 tax added or deducted. All purchases outside Australia pay the exact base AUD price with no tax.
 Requires `x-idempotency-key` (reused as the Stripe idempotency key). Returns `{ "url": "https://checkout.stripe.com/..." }`.
@@ -443,6 +444,8 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 - `search_radar`: Execute Meta ad library intelligence searches
 - `ai_remix`: Generate AI remixes using Gemini 2.5 Flash
 - `manage_brands`: Create and manage brand profiles
+- `submit_rag_translations`: Create and submit mandatory human-edited translations in Website Sentences, AI Works & Multilingual FAQ RAG Studio (enabled by default for all 6 RBAC roles)
+- `approve_rag_translations`: Review, approve, or reject pending RAG translations before active storage (enabled by default for `superadmin`, `admin`, and `ad_agent`; hard role-gated to those 3 roles)
 
 ### `RbacConfigDoc` (`system_config/rbac`)
 | Field | Type | Rules |
@@ -462,8 +465,14 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 8. `faq_tokens_overview`: *"How do Token Deductions Work?"* — Strict integer token ledger, 1 token standard paid rates, and refund request rules (`category: "General"`, `order: 8`).
 
 ### Header & Superadmin Integration
-- **Footer FAQs Button (`footer-btn-faqs`):** Displays in the bottom footer (`AppFooter.tsx`) across all routes (and via secondary `account-menu-faqs-button` in the mobile/desktop account menu). Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.
+- **Footer FAQs Button (`footer-btn-faqs`):** Displays in the bottom footer (`AppFooter.tsx`) across all routes. Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.
 - **Superadmin FAQ Development Suite:** Accessible directly from the Super Admin Panel (`SuperAdminModal` tab `FAQS`) and via the highlighted "FAQ Development Suite" action in `FaqModal` for superadmins. Supports real-time Q&A authoring, live inline editing, priority ordering, draft visibility toggling, and confirmation-protected deletion.
+
+### Super Admin RBAC Tab UI (`SuperAdminModal.tsx`, `tab === "RBAC"`)
+- Renders two collapsible sections controlled by `rbac-expand-all-btn`:
+  1. **`1. Feature Permission Matrix`** (`rbac_matrix`): Displays immutable `superadmin` locks alongside editable capability checkboxes and `Save Role` triggers for `admin`, `ad_agent`, `moderator`, `agency`, and `supporter`.
+  2. **`2. User Multi-Role Assignments`** (`rbac_assignments`): Provides role-level multi-role assignment controls for registered accounts.
+- The standalone **`Strict Database Superadmin Gate`** informational banner (`rbac_gate`) has been removed from the UI while backend database superadmin enforcement (`isDatabaseAdminEmail`, `requireRole`, Firebase custom claims) remains strictly enforced server-side.
 
 ### API Endpoints
 - `GET /api/admin/rbac`: Requires `admin` or `superadmin` role. Returns matrix, all permissions, roles, and user list.
@@ -496,7 +505,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 8. `faq_tokens_overview`: *"How do Token Deductions Work?"* — Strict integer token ledger, 1 token standard paid rates, and refund request rules (`category: "General"`, `order: 8`).
 
 ### Header & Superadmin Integration
-- **Footer FAQs Button (`footer-btn-faqs`):** Displays in the bottom footer (`AppFooter.tsx`) across all routes (and via secondary `account-menu-faqs-button` in the mobile/desktop account menu). Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.
+- **Footer FAQs Button (`footer-btn-faqs`):** Displays in the bottom footer (`AppFooter.tsx`) across all routes. Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.
 - **Superadmin FAQ Development Suite:** Accessible directly from the Super Admin Panel (`SuperAdminModal` tab `FAQS`) and via the highlighted "FAQ Development Suite" action in `FaqModal` for superadmins. Supports real-time Q&A authoring, live inline editing, priority ordering, draft visibility toggling, and confirmation-protected deletion.
 
 ### API Endpoints
@@ -641,8 +650,9 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   `${platform} Search: "${query}" (${country}${provenWinnersOnly ? ", 28+d" : ""})`
 - **Zero-Token Tracking:** Even searches conducted at 0 tokens (e.g. when `searchStandard === 0` or executed by admins) are recorded with `delta: 0` so supporters have a complete historical search log.
 
-### Supporter Admin Panel (`SupporterModal`)
-- **Trigger:** Accessible from the top-navigation Account Menu via the "Supporter Admin Panel" button (`data-testid="open-supporter-button"`).
+### Supporter Admin Panel (`SupporterModal`) & Role-Specific Account Menu
+- **Google Sign-In Account Menu (`account-menu-popover`):** Shows only the signed-in Google account identity, **`Act As Role View`** (for `superadmin` to view all Admin Panels based on role), the single active role's Admin Panel button directly below (`Super Admin Panel`, `Main Admin Panel`, `Ad Agent Admin Panel`, or `Supporter Admin Panel` via `open-supporter-button`), and `Sign out`.
+- **Trigger:** Accessible for supporters from the top-navigation Account Menu via the "Supporter Admin Panel" button (`data-testid="open-supporter-button"`).
 - **Navigation & Architectural Structure (Strictly 3 tabs: Tokens, Buy More Tokens, Messages, only):**
   1. **Tokens (`TOKENS`):**
      - Live integer token balance card (`1 Token = $1.00 AUD` default rate, non-expiring, integer economy).
@@ -817,7 +827,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 - **Universal Hook & UGC Evaluation:** Evaluates 9 direct-response and TikTok UGC pattern groups across both brand-scoped and unbranded searches.
 - **Skill Specification:** Documented in [`skills/tiktok-viral-ad-intelligence/SKILL.md`](skills/tiktok-viral-ad-intelligence/SKILL.md) with strict `additionalProperties: false` schemas compatible with Gemini 2.5 Flash-Lite, Claude Haiku 4.5, and gpt-6-luna.
 
-## 20. FAQ & Website Sentence RAG Corpus + Multilingual Google Translator with Human Edit (`/api/rag`, `/api/rag/translate`)
+## 20. Website Sentences, AI Works & Multilingual FAQ RAG Studio Across All Admin Panels (`/api/rag`, `/api/rag/translate`)
 
 ### 20.1 RAG Sentence Item Schema (`RagSentenceItemSchema`)
 ```json
@@ -836,6 +846,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
     "translatedText",
     "keywords",
     "isHumanVerified",
+    "approvalStatus",
     "contributorEmail",
     "createdAt",
     "updatedAt"
@@ -861,7 +872,13 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
       "items": { "type": "string", "maxLength": 64 }
     },
     "isHumanVerified": { "type": "boolean", "default": true },
+    "approvalStatus": { "type": "string", "enum": ["pending", "approved"], "default": "approved" },
+    "contributorUid": { "type": "string", "maxLength": 128 },
     "contributorEmail": { "type": "string", "maxLength": 254 },
+    "contributorRole": { "type": "string", "maxLength": 32 },
+    "approvedByEmail": { "type": "string", "maxLength": 254 },
+    "approvedByRole": { "type": "string", "maxLength": 32 },
+    "approvedAt": { "type": "string", "format": "date-time" },
     "createdAt": { "type": "string", "format": "date-time" },
     "updatedAt": { "type": "string", "format": "date-time" }
   }
@@ -884,7 +901,11 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   }
 }
 ```
-- **Human-in-the-Loop Gate:** `POST /api/rag/translate` translates via Google Translator and returns draft text for human review. Only after the user or admin edits/approves the text in the Human Edit fields does `POST /api/rag` persist the verified entry to Firestore `system_config/rag_corpus` (`isHumanVerified: true`).
+- **All Admin Panels Coverage:** **Website Sentences, AI Works & Multilingual FAQ RAG Studio** (`GlobalRagCorpusSection`) is embedded in all 4 Admin Panels — Super Admin Panel (`SuperAdminModal`), Main Admin Panel (`SuperAdminModal`), Ad Agent Admin Panel (`AdAgentModal` tab `RAG_STUDIO`), and Supporter Admin Panel (`SupporterModal` tab `RAG_STUDIO`).
+- **Mandatory Human-Edit Gate (Anti-Auto-Translation Rule):** `POST /api/rag/translate` requires `submit_rag_translations` and returns a Google Translate draft. Both client validation and server-side `assertHumanEditedTranslation` in `src/lib/rag-engine.ts` reject unedited auto-translations (`normalized translatedText === autoTranslatedText` or fresh Google Translate output) and untranslated copies (`translatedText === originalText` for non-English entries). Registered users must edit a translation before storing it in Firestore.
+- **Multi-Role Approval Workflow:**
+  - Submissions from `supporter`, `agency`, or `moderator` (or roles without `approve_rag_translations`) store as `approvalStatus: "pending"` in `rag_custom_entries` and remain excluded from public FAQ lookups (`GET /api/rag?approvedOnly=1`) until approved.
+  - Only **Main Admin (`admin`)**, **Super Admin (`superadmin`)**, or **Ad Agent (`ad_agent`)** with `approve_rag_translations` can approve pending entries via `PUT /api/rag` (`action: "APPROVE_ENTRY"`), promoting `approvalStatus: "approved"` with approver audit fields (`approvedByEmail`, `approvedByRole`, `approvedAt`).
 
 ## 21. User Self-Service Token Refresh to 0 (`POST /api/wallet/reset`)
 
@@ -913,7 +934,10 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 - **Consolidated User Token Controls (`SuperAdminModal.tsx`):**
   - `Super Admin Token Controls` (`user-token-management-card`) and `All Users Token Balances` (`all-users-token-balances-section`) have been removed from the `LEDGER` tab.
   - The **Master Order Ledger** (`data-agent-id="master-order-ledger-section"`) remains collapsible (`data-agent-id="toggle-master-order-ledger-btn"`) and provides inline **`Refund Tokens` -> `Confirm Refund`** on deduction orders.
-  - In **All Users & Multi-Role RBAC Assignment (`USERS` tab)** under the **All Users & Multi-Role RBAC Directory Table** (`data-agent-id="all-users-rbac-table"`), every user row displays live non-negative integer `tokenBalance` (`tokenBalance >= 0`) alongside Super Admin inline controls with mandatory confirmation: **`+ Add Tokens` -> `Confirm Add`**, **`- Tokens` -> `Confirm`**, and **`Reset to Zero` -> `Confirm Reset to Zero`**.
+  - In **All Users & Multi-Role RBAC Assignment (`USERS` tab)**:
+    - The standalone **`Super Admin Quick Assign Multiple Roles by Email`** panel (`users-tab-quick-assign-card`) has been removed from the `USERS` tab; all user search and multi-role assignment controls live inside the **All Users & Multi-Role RBAC Directory Table** (`data-agent-id="all-users-rbac-table"`).
+    - Inside the expanded **All Users & Multi-Role RBAC Directory Table**, an integrated **Email & Name Search Bar** (`data-agent-id="all-users-search-input"`, `placeholder="Search by email or name..."`, clear button `data-agent-id="clear-all-users-search-btn"`, and live counter `data-agent-id="all-users-match-count"`) filters users across `email`, resolved `displayName` (hydrated in `getRbacUsersList()` from Firebase Auth, `users` `displayName`/`name`, and `ad_agents` `name` plus live `adAgentLedger` studio names), `uid`, and assigned RBAC roles, with an empty-state row (`data-agent-id="all-users-empty-row"`).
+    - Every user row displays live non-negative integer `tokenBalance` (`tokenBalance >= 0`) alongside Super Admin inline controls with mandatory confirmation: **`+ Add Tokens` -> `Confirm Add`**, **`- Tokens` -> `Confirm`**, and **`Reset to Zero` -> `Confirm Reset to Zero`**.
   - **User Deletion with Mandatory Confirmation (`DELETE /api/admin/rbac`, `DeleteUserRequestSchema`):**
     - Every deletable user row in **All Users** renders **`Delete`** (`data-agent-id="delete-user-btn-<uid>"`) which expands a mandatory two-step **`Confirm Delete`** (`data-agent-id="confirm-delete-user-btn-<uid>"`) + **`Cancel`** (`data-agent-id="cancel-delete-user-btn-<uid>"`) prompt.
     - Validated strictly via `DeleteUserRequestSchema` (`action: "DELETE_USER"`, `uid`, optional `email`, `confirmDelete: true`, `additionalProperties: false`).
@@ -1250,7 +1274,6 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 ### 27.3 Interactive DOM Bindings
 - `data-agent-id="header-download-app-btn"`, `data-testid="header-download-app-btn"`
 - `data-agent-id="start-navbar-download-app-btn"`, `data-testid="start-navbar-download-app-btn"`
-- `data-agent-id="account-menu-download-app-button"`, `data-testid="account-menu-download-app-button"`
 - `data-agent-id="install-app-modal"`, `data-testid="install-app-modal"`
 - `data-agent-id="tab-device-desktop"`, `data-agent-id="tab-device-android"`, `data-agent-id="tab-device-ios"`
 - `data-agent-id="install-pwa-direct-btn"`, `data-agent-id="install-pwa-android-btn"`
