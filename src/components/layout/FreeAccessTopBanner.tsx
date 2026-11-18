@@ -16,7 +16,7 @@ import { Icon } from "@/components/ui/Icon";
 /**
  * Global Red Banner displayed across the very top of the web app (including the front
  * start page `/` and before logging in) whenever the Timed Free Access Window
- * (Free 15 Minutes, Free 30 Minutes, Free Hour, Free 24 Hours — for Monthly Subscribers in selected countries)
+ * (Free 15 Minutes, Free 30 Minutes, Free Hour, Free 24 Hours — for ALL Subscribers in selected countries)
  * or global Free Mode (`isTokenSystemEnabled === false`) is active.
  */
 export function FreeAccessTopBanner() {
@@ -133,7 +133,7 @@ export function FreeAccessTopBanner() {
             <span className="underline decoration-white/80 underline-offset-2 font-bold">
               FREE TO USE
             </span>{" "}
-            for Monthly Subscribers!
+            for ALL Subscribers!
           </span>
           <span className="inline-flex items-center gap-1 rounded-full border border-white/30 bg-black/25 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-100">
             <Icon name="globe" className="size-3 text-amber-200" />

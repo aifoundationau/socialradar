@@ -1815,7 +1815,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           data.config.freeAccessWindow?.allowedCountries
         );
         setStatusMsg(
-          `${labelStr} toggled ON! The web app is now FREE to use for Monthly Subscribers in ${countriesStr}.`
+          `${labelStr} toggled ON! The web app is now FREE to use for ALL Subscribers in ${countriesStr}.`
         );
       } else {
         setStatusMsg("Timed Free Access turned OFF. Standard token pricing is now active.");
@@ -2739,7 +2739,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               </span>
                             </div>
                             <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                              When one is toggled on, the web app is 100% free to use for Monthly Subscribers in the selected countries only. Can be turned on and off by Super Admin only.
+                              When one is toggled on, the web app is 100% free to use for ALL Subscribers in the selected countries only. Can be turned on and off by Super Admin only.
                             </p>
                           </button>
                           <button
@@ -2775,7 +2775,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                       htmlFor="free-access-country-dropdown"
                                       className="block font-mono text-xs font-bold text-on-surface"
                                     >
-                                      Select Countries That Receive Free Use (Monthly Subscribers)
+                                      Select Countries That Receive Free Use (ALL Subscribers)
                                     </label>
                                     <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
                                       <Icon name="mapPin" className="size-3" />
@@ -2915,10 +2915,10 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                               {(
                                 [
-                                  { minutes: 15 as const, title: "Free 15 Minutes", subtitle: "15-minute free window for Monthly Subscribers" },
-                                  { minutes: 30 as const, title: "Free 30 Minutes", subtitle: "30-minute free window for Monthly Subscribers" },
-                                  { minutes: 60 as const, title: "Free Hour", subtitle: "60-minute (1 hour) free window for Monthly Subscribers" },
-                                  { minutes: 1440 as const, title: "Free 24 Hours", subtitle: "24-hour (1,440-minute) free window for Monthly Subscribers" },
+                                  { minutes: 15 as const, title: "Free 15 Minutes", subtitle: "15-minute free window for ALL Subscribers" },
+                                  { minutes: 30 as const, title: "Free 30 Minutes", subtitle: "30-minute free window for ALL Subscribers" },
+                                  { minutes: 60 as const, title: "Free Hour", subtitle: "60-minute (1 hour) free window for ALL Subscribers" },
+                                  { minutes: 1440 as const, title: "Free 24 Hours", subtitle: "24-hour (1,440-minute) free window for ALL Subscribers" },
                                 ] as const
                               ).map((opt) => {
                                 const isActiveOpt = isFreeWindowOn && activeDuration === opt.minutes;
@@ -2968,7 +2968,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             {isFreeWindowOn && (
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-winner/40 bg-winner/15 px-3.5 py-2.5 font-mono text-xs">
                                 <span className="text-winner-soft font-semibold">
-                                  ⚡ Web App is currently FREE for Monthly Subscribers in {selectedCountriesLabel} ({activeDuration === 1440 ? "Free 24 Hours" : activeDuration === 60 ? "Free Hour" : `Free ${activeDuration} Minutes`} · {countdownStr} remaining).
+                                  ⚡ Web App is currently FREE for ALL Subscribers in {selectedCountriesLabel} ({activeDuration === 1440 ? "Free 24 Hours" : activeDuration === 60 ? "Free Hour" : `Free ${activeDuration} Minutes`} · {countdownStr} remaining).
                                 </span>
                                 <button
                                   type="button"

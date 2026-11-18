@@ -160,7 +160,7 @@ export async function getSystemConfig(): Promise<AdminSystemConfig> {
 /**
  * SuperAdmin-exclusive control to turn on a Timed Free Access Window (15, 30, 60, or 1440 minutes),
  * turn it off (`durationMinutes = null`), or update `allowedCountries` (`durationMinutes = undefined`).
- * While active, the web app is free to use for Monthly Subscribers in the selected countries.
+ * While active, the web app is free to use for ALL Subscribers in the selected countries.
  */
 export async function setFreeAccessWindow(
   durationMinutes: FreeAccessDurationMinutes | null | undefined,

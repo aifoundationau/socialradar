@@ -520,7 +520,7 @@ export function RadarView() {
                     }}
                   >
                     Show {hiddenNewer} newer {hiddenNewer === 1 ? "ad" : "ads"}
-                    <CostTag action="RADAR_SEARCH" />
+                    <CostTag action="RADAR_SEARCH" free={!chargingActive} />
                   </button>
                 )}
               </div>
@@ -537,6 +537,7 @@ export function RadarView() {
                 remixBrandName={remixBrandName}
                 deconstructFee={deconstructFee}
                 buildRemixedAdTextFee={buildRemixedAdTextFee}
+                isFree={!chargingActive}
                 isAuNz={isAuNz}
                 audRate={audRate}
                 remixedAdText={remixedAdText}

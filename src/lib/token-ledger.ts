@@ -7,7 +7,6 @@ import {
   ALL_COUNTRIES_CODE,
   isChargingEnabled,
   isFreeAccessWindowActive,
-  isMonthlySubscriber,
   normalizeAllowedCountries,
   type ChargeableAction,
 } from "./pricing";
@@ -327,14 +326,13 @@ export async function withTokenGate(
       const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
       const sys = sysSnap?.exists ? sysSnap.data() : null;
       if (sys) {
-        // The country only matters for a subscriber during a free window limited to some countries. It is
+        // The country only matters during a free window limited to some countries. It is
         // worked out on the server (edge header or IP lookup), never taken from a browser-supplied header.
         const freeWindow = sys.freeAccessWindow as Partial<FreeAccessWindow> | undefined;
         const countryMatters =
           isFreeAccessWindowActive(freeWindow) &&
-          isMonthlySubscriber(userData, caller.claims.isSuperAdmin) &&
           !normalizeAllowedCountries(freeWindow?.allowedCountries).includes(ALL_COUNTRIES_CODE);
-        const userCountry = countryMatters ? (await resolveRequestCountry(req)) || "AU" : "AU";
+        const userCountry = countryMatters ? (await resolveRequestCountry(req)) || "AU" : ALL_COUNTRIES_CODE;
         if (!isChargingEnabled(sys, Date.now(), userData, caller.claims.isSuperAdmin, userCountry)) {
           effectiveCost = 0;
         }

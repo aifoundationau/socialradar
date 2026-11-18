@@ -384,7 +384,7 @@ try {
     publicAfter.json?.stats,
   );
 
-  // ---------- Timed Free Access Window: Free 24 Hours (1440m, in-memory + RBAC gate) ----------
+  // ---------- Timed Free Access Window: Free 15m/30m/60m/24h for ALL Subscribers ----------
   check(
     "freeAccess schema: accepts 1440m (24h) and rejects 120m",
     contracts.FreeAccessDurationMinutesSchema.safeParse(1440).success === true &&
@@ -396,18 +396,48 @@ try {
       pricing.formatFreeAccessCountdown(900) === "15m 00s",
   );
   const future24hIso = new Date(Date.now() + 86_400_000).toISOString();
+  const nonSubProfile = { tokenBalance: 0, role: "supporter" };
   check(
-    "freeAccess pricing: 1440m window waives charging for AU Monthly Subscribers",
-    pricing.isFreeAccessWindowActive({ enabled: true, durationMinutes: 1440, expiresAt: future24hIso, allowedCountries: ["ALL"] }) === true &&
+    "freeAccess pricing: all 4 durations (15m/30m/60m/1440m) waive charging for non-monthly supporter subscribers in AU",
+    [15, 30, 60, 1440].every((dur) => {
+      const win = { enabled: true, durationMinutes: dur, expiresAt: future24hIso, allowedCountries: ["AU"] };
+      return (
+        pricing.isFreeAccessWindowActive(win) === true &&
+        pricing.isChargingEnabled({ isTokenSystemEnabled: true, freeAccessWindow: win }, Date.now(), nonSubProfile, false, "AU") === false
+      );
+    }),
+  );
+  check(
+    "freeAccess pricing: country-restricted window requires matching country and Worldwide waives omitted country",
+    pricing.isChargingEnabled(
+      {
+        isTokenSystemEnabled: true,
+        freeAccessWindow: { enabled: true, durationMinutes: 60, expiresAt: future24hIso, allowedCountries: ["AU"] },
+      },
+      Date.now(),
+      nonSubProfile,
+      false,
+      "DE",
+    ) === true &&
       pricing.isChargingEnabled(
         {
           isTokenSystemEnabled: true,
-          freeAccessWindow: { enabled: true, durationMinutes: 1440, expiresAt: future24hIso, allowedCountries: ["AU"] },
+          freeAccessWindow: { enabled: true, durationMinutes: 60, expiresAt: future24hIso, allowedCountries: ["AU"] },
         },
         Date.now(),
-        { subscriptionStatus: "active", subscriptionPackId: "SUB_MONTHLY_1000" },
+        nonSubProfile,
         false,
-        "AU",
+        undefined,
+      ) === true &&
+      pricing.isChargingEnabled(
+        {
+          isTokenSystemEnabled: true,
+          freeAccessWindow: { enabled: true, durationMinutes: 1440, expiresAt: future24hIso, allowedCountries: ["ALL"] },
+        },
+        Date.now(),
+        nonSubProfile,
+        false,
+        undefined,
       ) === false,
   );
   const nonSuperFree24 = await callUrl(routes.adminConfig, "PUT", "http://localhost:3000/api/admin/config", {

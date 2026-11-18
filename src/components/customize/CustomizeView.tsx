@@ -185,8 +185,12 @@ export function CustomizeView() {
       loadCustomizeState();
     };
     window.addEventListener("ad-agent-ledger-updated", onAgentsUpdated);
+    window.addEventListener("adradar:config-updated", onAgentsUpdated);
+    window.addEventListener("adradar:geo-updated", onAgentsUpdated);
     return () => {
       window.removeEventListener("ad-agent-ledger-updated", onAgentsUpdated);
+      window.removeEventListener("adradar:config-updated", onAgentsUpdated);
+      window.removeEventListener("adradar:geo-updated", onAgentsUpdated);
     };
   }, []);
 

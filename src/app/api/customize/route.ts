@@ -10,9 +10,15 @@ import {
   submitCustomizeRequest,
 } from "@/lib/admin";
 import { formatAgentLocationLabel, getAdAgents } from "@/lib/ad-agents";
-import { CustomizeRequestInputSchema, type UserDoc } from "@/lib/contracts";
+import { CustomizeRequestInputSchema, type FreeAccessWindow, type UserDoc } from "@/lib/contracts";
 import { withTokenGate } from "@/lib/token-ledger";
-import { isChargingEnabled } from "@/lib/pricing";
+import {
+  ALL_COUNTRIES_CODE,
+  isChargingEnabled,
+  isFreeAccessWindowActive,
+  normalizeAllowedCountries,
+} from "@/lib/pricing";
+import { resolveRequestCountry } from "@/lib/request-geo";
 
 export async function GET(req: Request) {
   try {
@@ -26,7 +32,12 @@ export async function GET(req: Request) {
     ]);
 
     const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
-    const costTokens = isChargingEnabled(config, Date.now(), userData, caller.claims.isSuperAdmin)
+    const freeWindow = config.freeAccessWindow as Partial<FreeAccessWindow> | undefined;
+    const countryMatters =
+      isFreeAccessWindowActive(freeWindow) &&
+      !normalizeAllowedCountries(freeWindow?.allowedCountries).includes(ALL_COUNTRIES_CODE);
+    const userCountry = countryMatters ? (await resolveRequestCountry(req)) || "AU" : ALL_COUNTRIES_CODE;
+    const costTokens = isChargingEnabled(config, Date.now(), userData, caller.claims.isSuperAdmin, userCountry)
       ? Math.max(0, Math.round(config.serviceCosts?.customizeService ?? 55))
       : 0;
 

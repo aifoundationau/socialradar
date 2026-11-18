@@ -48,6 +48,8 @@ export function isMonthlySubscriber(
 /**
  * Returns true if the user's country is included in the SuperAdmin's selected countries
  * for the Timed Free Access Window (`allowedCountries` contains `"ALL"` or `userCountry`).
+ * When restricted to specific countries and `userCountry` is omitted, returns `false` so
+ * server routes without edge geo defer the decision to `withTokenGate`'s IP lookup.
  */
 export function isCountryEligibleForFreeAccess(
   freeAccessWindow?: Partial<FreeAccessWindow> | null,
@@ -56,7 +58,8 @@ export function isCountryEligibleForFreeAccess(
   if (!freeAccessWindow) return false;
   const countries = normalizeAllowedCountries(freeAccessWindow.allowedCountries);
   if (countries.includes(ALL_COUNTRIES_CODE)) return true;
-  const cleanUserCountry = (userCountry || "AU").trim().toUpperCase();
+  const cleanUserCountry = userCountry?.trim().toUpperCase();
+  if (!cleanUserCountry) return false;
   return countries.includes(cleanUserCountry);
 }
 
@@ -94,7 +97,7 @@ export function isFreeAccessWindowActive(
 /**
  * Returns true if paid token charging is active for the given user.
  * - If `isTokenSystemEnabled === false`, charging is disabled for all users.
- * - If a Timed Free Access Window (15m/30m/60m/1440m) is active, charging is disabled ONLY for Monthly Subscribers
+ * - If a Timed Free Access Window (15m/30m/60m/1440m) is active, charging is disabled for ALL Subscribers
  *   whose country is included in `freeAccessWindow.allowedCountries`.
  */
 export function isChargingEnabled(
@@ -103,16 +106,17 @@ export function isChargingEnabled(
     freeAccessWindow?: Partial<FreeAccessWindow> | null;
   } | null,
   nowMs?: number,
-  user?: Partial<Pick<UserDoc, "subscriptionStatus" | "subscriptionPackId">> | null,
-  isSuperAdmin = false,
+  _user?: Partial<Pick<UserDoc, "subscriptionStatus" | "subscriptionPackId">> | null,
+  _isSuperAdmin = false,
   userCountry?: string | null
 ): boolean {
+  void _user;
+  void _isSuperAdmin;
   if (!config) return true;
   if (config.isTokenSystemEnabled === false) return false;
   if (
     isFreeAccessWindowActive(config.freeAccessWindow, nowMs) &&
-    isMonthlySubscriber(user, isSuperAdmin) &&
-    isCountryEligibleForFreeAccess(config.freeAccessWindow, userCountry ?? "AU")
+    isCountryEligibleForFreeAccess(config.freeAccessWindow, userCountry)
   ) {
     return false;
   }

@@ -2,9 +2,15 @@ import { NextResponse } from "next/server";
 import { db, verifyRequest } from "@/lib/firebase-admin";
 import { errorResponse } from "@/lib/api";
 import { searchGlobalBrands } from "@/lib/brands";
-import { GlobalBrandSearchQuerySchema, type UserDoc } from "@/lib/contracts";
+import { GlobalBrandSearchQuerySchema, type FreeAccessWindow, type UserDoc } from "@/lib/contracts";
 import { getSystemConfig } from "@/lib/admin";
-import { isChargingEnabled } from "@/lib/pricing";
+import {
+  ALL_COUNTRIES_CODE,
+  isChargingEnabled,
+  isFreeAccessWindowActive,
+  normalizeAllowedCountries,
+} from "@/lib/pricing";
+import { resolveRequestCountry } from "@/lib/request-geo";
 
 async function handleGlobalBrands(req: Request) {
   try {
@@ -40,7 +46,12 @@ async function handleGlobalBrands(req: Request) {
     ]);
 
     const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
-    const charging = isChargingEnabled(config, Date.now(), userData, caller.claims.isSuperAdmin);
+    const freeWindow = config.freeAccessWindow as Partial<FreeAccessWindow> | undefined;
+    const countryMatters =
+      isFreeAccessWindowActive(freeWindow) &&
+      !normalizeAllowedCountries(freeWindow?.allowedCountries).includes(ALL_COUNTRIES_CODE);
+    const userCountry = countryMatters ? (await resolveRequestCountry(req)) || "AU" : ALL_COUNTRIES_CODE;
+    const charging = isChargingEnabled(config, Date.now(), userData, caller.claims.isSuperAdmin, userCountry);
     const brandCloneFee = charging
       ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 1))
       : 0;

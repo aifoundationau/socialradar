@@ -14,7 +14,6 @@ import {
   ALL_COUNTRIES_CODE,
   isChargingEnabled,
   isFreeAccessWindowActive,
-  isMonthlySubscriber,
   normalizeAllowedCountries,
 } from "@/lib/pricing";
 import { resolveRequestCountry } from "@/lib/request-geo";
@@ -72,9 +71,8 @@ export async function GET(req: Request) {
     const freeWindow = config.freeAccessWindow as Partial<FreeAccessWindow> | undefined;
     const countryMatters =
       isFreeAccessWindowActive(freeWindow) &&
-      isMonthlySubscriber(userData, caller.claims.isSuperAdmin) &&
       !normalizeAllowedCountries(freeWindow?.allowedCountries).includes(ALL_COUNTRIES_CODE);
-    const userCountry = countryMatters ? (await resolveRequestCountry(req)) || "AU" : "AU";
+    const userCountry = countryMatters ? (await resolveRequestCountry(req)) || "AU" : ALL_COUNTRIES_CODE;
 
     const charging = isChargingEnabled(
       config,
