@@ -1,6 +1,6 @@
 /**
  * Complete ISO 3166-1 alpha-2 country directory for Super Admin country targeting
- * (e.g. Timed Free Access Windows: Free 15 Minutes, Free 30 Minutes, Free 1 Hour).
+ * (e.g. Timed Free Access Windows: Free 15 Minutes, Free 30 Minutes, Free 1 Hour, Free 24 Hours).
  */
 
 export interface WorldCountryOption {

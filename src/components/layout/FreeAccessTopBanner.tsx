@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { FreeAccessWindow } from "@/lib/contracts";
 import {
   ALL_COUNTRIES_CODE,
+  formatFreeAccessCountdown,
   getCountryName,
   isCountryEligibleForFreeAccess,
   isFreeAccessWindowActive,
@@ -15,7 +16,7 @@ import { Icon } from "@/components/ui/Icon";
 /**
  * Global Red Banner displayed across the very top of the web app (including the front
  * start page `/` and before logging in) whenever the Timed Free Access Window
- * (Free 15 Minutes, Free 30 Minutes, Free Hour — for Monthly Subscribers in selected countries)
+ * (Free 15 Minutes, Free 30 Minutes, Free Hour, Free 24 Hours — for Monthly Subscribers in selected countries)
  * or global Free Mode (`isTokenSystemEnabled === false`) is active.
  */
 export function FreeAccessTopBanner() {
@@ -93,17 +94,17 @@ export function FreeAccessTopBanner() {
     timedWindowActive && freeAccessWindow?.expiresAt
       ? Math.max(0, Math.ceil((Date.parse(freeAccessWindow.expiresAt) - nowMs) / 1000))
       : 0;
-  const remMin = Math.floor(remainingSec / 60);
-  const remSec = remainingSec % 60;
-  const countdownStr = `${remMin}m ${String(remSec).padStart(2, "0")}s`;
+  const countdownStr = formatFreeAccessCountdown(remainingSec);
   const durationLabel =
-    durationMinutes === 60
-      ? "Free Hour"
-      : durationMinutes === 30
-        ? "Free 30 Minutes"
-        : durationMinutes === 15
-          ? "Free 15 Minutes"
-          : "Free Access";
+    durationMinutes === 1440
+      ? "Free 24 Hours"
+      : durationMinutes === 60
+        ? "Free Hour"
+        : durationMinutes === 30
+          ? "Free 30 Minutes"
+          : durationMinutes === 15
+            ? "Free 15 Minutes"
+            : "Free Access";
 
   return (
     <div

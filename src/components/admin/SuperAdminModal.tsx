@@ -13,6 +13,7 @@ import {
   audToUsdCents,
   formatAllowedCountriesSummary,
   formatAud,
+  formatFreeAccessCountdown,
   formatPrice,
   formatTokenEstimateHover,
   formatUsd,
@@ -1804,7 +1805,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       setFreeAccessNowMs(Date.now());
       window.dispatchEvent(new CustomEvent("adradar:config-updated"));
       if (nextDuration) {
-        const labelStr = nextDuration === 60 ? "Free 1 Hour" : `Free ${nextDuration} Minutes`;
+        const labelStr =
+          nextDuration === 1440
+            ? "Free 24 Hours"
+            : nextDuration === 60
+              ? "Free 1 Hour"
+              : `Free ${nextDuration} Minutes`;
         const countriesStr = formatAllowedCountriesSummary(
           data.config.freeAccessWindow?.allowedCountries
         );
@@ -2674,7 +2680,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     </button>
                   </div>
 
-                  {/* TOP PANEL (SUPER ADMIN ONLY): Free 15 Minutes / Free 30 Minutes / Free 1 Hour */}
+                  {/* TOP PANEL (SUPER ADMIN ONLY): Free 15 Minutes / Free 30 Minutes / Free 1 Hour / Free 24 Hours */}
                   {isSuper && (() => {
                     const freeWindow = config.freeAccessWindow;
                     const isFreeWindowOn = isFreeAccessWindowActive(freeWindow, freeAccessNowMs);
@@ -2686,9 +2692,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                       isFreeWindowOn && freeWindow?.expiresAt
                         ? Math.max(0, Math.ceil((Date.parse(freeWindow.expiresAt) - freeAccessNowMs) / 1000))
                         : 0;
-                    const remMin = Math.floor(remainingSec / 60);
-                    const remSec = remainingSec % 60;
-                    const countdownStr = `${remMin}m ${String(remSec).padStart(2, "0")}s`;
+                    const countdownStr = formatFreeAccessCountdown(remainingSec);
 
                     return (
                       <div
@@ -2717,7 +2721,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 }`}
                               />
                               <h4 className="text-compact font-bold text-on-surface group-hover:text-primary transition-colors">
-                                Free 15 Minutes · Free 30 Minutes · Free 1 Hour
+                                Free 15 Minutes · Free 30 Minutes · Free 1 Hour · Free 24 Hours
                               </h4>
                               <span
                                 className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] font-bold ${
@@ -2727,7 +2731,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 }`}
                               >
                                 {isFreeWindowOn
-                                  ? `⚡ ACTIVE: ${activeDuration === 60 ? "Free 1 Hour" : `Free ${activeDuration}m`} (${countdownStr} left)`
+                                  ? `⚡ ACTIVE: ${activeDuration === 1440 ? "Free 24 Hours" : activeDuration === 60 ? "Free 1 Hour" : `Free ${activeDuration}m`} (${countdownStr} left)`
                                   : "Super Admin Only · Off"}
                               </span>
                               <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-primary">
@@ -2908,12 +2912,13 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                               {(
                                 [
                                   { minutes: 15 as const, title: "Free 15 Minutes", subtitle: "15-minute free window for Monthly Subscribers" },
                                   { minutes: 30 as const, title: "Free 30 Minutes", subtitle: "30-minute free window for Monthly Subscribers" },
                                   { minutes: 60 as const, title: "Free Hour", subtitle: "60-minute (1 hour) free window for Monthly Subscribers" },
+                                  { minutes: 1440 as const, title: "Free 24 Hours", subtitle: "24-hour (1,440-minute) free window for Monthly Subscribers" },
                                 ] as const
                               ).map((opt) => {
                                 const isActiveOpt = isFreeWindowOn && activeDuration === opt.minutes;
@@ -2963,7 +2968,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             {isFreeWindowOn && (
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-winner/40 bg-winner/15 px-3.5 py-2.5 font-mono text-xs">
                                 <span className="text-winner-soft font-semibold">
-                                  ⚡ Web App is currently FREE for Monthly Subscribers in {selectedCountriesLabel} ({activeDuration === 60 ? "Free Hour" : `Free ${activeDuration} Minutes`} · {countdownStr} remaining).
+                                  ⚡ Web App is currently FREE for Monthly Subscribers in {selectedCountriesLabel} ({activeDuration === 1440 ? "Free 24 Hours" : activeDuration === 60 ? "Free Hour" : `Free ${activeDuration} Minutes`} · {countdownStr} remaining).
                                 </span>
                                 <button
                                   type="button"

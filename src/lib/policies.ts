@@ -100,7 +100,7 @@ export const POLICIES: Record<string, PolicyDoc> = {
       {
         heading: "5. Promotional Timed Free Access & Eligible Countries (Monthly Subscribers)",
         paragraphs: [
-          "From time to time, AdRadarHQ may activate promotional Timed Free Access campaigns (such as Free 15 Minutes, Free 30 Minutes, or Free 1 Hour windows) exclusively for active Monthly Subscribers based on the user's live geolocation.",
+          "From time to time, AdRadarHQ may activate promotional Timed Free Access campaigns (such as Free 15 Minutes, Free 30 Minutes, Free 1 Hour, or Free 24 Hours windows) exclusively for active Monthly Subscribers based on the user's live geolocation.",
           "The list of countries that receive free access changes from time to time at the sole discretion of AdRadarHQ, so it is best to message AdRadarHQ directly via the platform's messaging system for a list of currently eligible countries.",
         ],
         bullets: [

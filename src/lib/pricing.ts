@@ -61,7 +61,21 @@ export function isCountryEligibleForFreeAccess(
 }
 
 /**
- * Returns true if the SuperAdmin-controlled Timed Free Access Window (15m, 30m, or 60m)
+ * Formats remaining seconds in a Timed Free Access countdown (e.g. `23h 59m 59s` or `14m 59s`).
+ */
+export function formatFreeAccessCountdown(remainingSec: number): string {
+  const safeSec = Math.max(0, Math.floor(remainingSec));
+  const hrs = Math.floor(safeSec / 3600);
+  const mins = Math.floor((safeSec % 3600) / 60);
+  const secs = safeSec % 60;
+  if (hrs > 0) {
+    return `${hrs}h ${String(mins).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s`;
+  }
+  return `${mins}m ${String(secs).padStart(2, "0")}s`;
+}
+
+/**
+ * Returns true if the SuperAdmin-controlled Timed Free Access Window (15m, 30m, 60m, or 1440m / 24h)
  * is currently toggled on and has not yet expired.
  */
 export function isFreeAccessWindowActive(
@@ -80,7 +94,7 @@ export function isFreeAccessWindowActive(
 /**
  * Returns true if paid token charging is active for the given user.
  * - If `isTokenSystemEnabled === false`, charging is disabled for all users.
- * - If a Timed Free Access Window (15m/30m/60m) is active, charging is disabled ONLY for Monthly Subscribers
+ * - If a Timed Free Access Window (15m/30m/60m/1440m) is active, charging is disabled ONLY for Monthly Subscribers
  *   whose country is included in `freeAccessWindow.allowedCountries`.
  */
 export function isChargingEnabled(

@@ -78,7 +78,7 @@ export async function PUT(req: Request) {
       const rawDuration = body.durationMinutes;
       const durationMinutes: FreeAccessDurationMinutes | null | undefined = !hasDuration
         ? undefined
-        : rawDuration === 15 || rawDuration === 30 || rawDuration === 60
+        : rawDuration === 15 || rawDuration === 30 || rawDuration === 60 || rawDuration === 1440
           ? rawDuration
           : null;
       const allowedCountries = Array.isArray(body.allowedCountries)

@@ -524,6 +524,7 @@ export const FreeAccessDurationMinutesSchema = z.union([
   z.literal(15),
   z.literal(30),
   z.literal(60),
+  z.literal(1440),
 ]);
 export type FreeAccessDurationMinutes = z.infer<typeof FreeAccessDurationMinutesSchema>;
 

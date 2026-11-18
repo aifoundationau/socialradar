@@ -34,6 +34,7 @@ const jiti = createJiti(`${ROOT}/e2e.js`, {
 const load = (p) => jiti.import(`${SRC}/${p}`);
 
 const { adminAuth, db } = await load("lib/firebase-admin.ts");
+const contracts = await load("lib/contracts.ts");
 const ledger = await load("lib/token-ledger.ts");
 const pricing = await load("lib/pricing.ts");
 const ragEngine = await load("lib/rag-engine.ts");
@@ -43,6 +44,7 @@ const routes = {
   checkout: await load("app/api/wallet/checkout/route.ts"),
   webhook: await load("app/api/webhooks/stripe/route.ts"),
   rag: await load("app/api/rag/route.ts"),
+  adminConfig: await load("app/api/admin/config/route.ts"),
 };
 const Stripe = require("stripe");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -381,6 +383,38 @@ try {
     publicAfter.status === 200 && publicAfter.json?.entries?.some((e) => e.ragId === pendingRagId),
     publicAfter.json?.stats,
   );
+
+  // ---------- Timed Free Access Window: Free 24 Hours (1440m, in-memory + RBAC gate) ----------
+  check(
+    "freeAccess schema: accepts 1440m (24h) and rejects 120m",
+    contracts.FreeAccessDurationMinutesSchema.safeParse(1440).success === true &&
+      contracts.FreeAccessDurationMinutesSchema.safeParse(120).success === false,
+  );
+  check(
+    "freeAccess countdown: formats >=1h and <1h cleanly",
+    pricing.formatFreeAccessCountdown(86399) === "23h 59m 59s" &&
+      pricing.formatFreeAccessCountdown(900) === "15m 00s",
+  );
+  const future24hIso = new Date(Date.now() + 86_400_000).toISOString();
+  check(
+    "freeAccess pricing: 1440m window waives charging for AU Monthly Subscribers",
+    pricing.isFreeAccessWindowActive({ enabled: true, durationMinutes: 1440, expiresAt: future24hIso, allowedCountries: ["ALL"] }) === true &&
+      pricing.isChargingEnabled(
+        {
+          isTokenSystemEnabled: true,
+          freeAccessWindow: { enabled: true, durationMinutes: 1440, expiresAt: future24hIso, allowedCountries: ["AU"] },
+        },
+        Date.now(),
+        { subscriptionStatus: "active", subscriptionPackId: "SUB_MONTHLY_1000" },
+        false,
+        "AU",
+      ) === false,
+  );
+  const nonSuperFree24 = await callUrl(routes.adminConfig, "PUT", "http://localhost:3000/api/admin/config", {
+    token,
+    body: { action: "SET_FREE_ACCESS_WINDOW", durationMinutes: 1440 },
+  });
+  check("admin config PUT SET_FREE_ACCESS_WINDOW (1440m): non-superadmin forbidden → 403", nonSuperFree24.status === 403, nonSuperFree24);
 } catch (err) {
   failures.push(`harness crashed: ${err.stack ?? err}`);
   console.log("CRASH", err);
