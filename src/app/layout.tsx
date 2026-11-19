@@ -50,7 +50,8 @@ export const metadata: Metadata = {
   publisher: "AdRadarHQ",
   category: "Marketing & Advertising Intelligence",
   classification: "Advertising Intelligence, Competitor Ad Research & AI Creative Software",
-  referrer: "origin-when-cross-origin",
+  // Same as the Referrer-Policy header in next.config.ts (a meta tag would otherwise override the header).
+  referrer: "strict-origin-when-cross-origin",
   formatDetection: {
     email: false,
     address: false,
