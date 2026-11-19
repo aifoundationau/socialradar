@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   experimental: {
     agentUpgrade: "security",
+    // Avoid Next.js 16.4.x Turbopack persistent dev-cache HMR "restart" reload loops on Windows
+    turbopackFileSystemCacheForDev: false,
   },
   images: {
     remotePatterns: [

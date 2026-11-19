@@ -463,6 +463,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 6. `faq_radar_overview`: *"What is Radar Feed?"* — Ad intelligence engine searching live ads (`category: "Radar"`, `order: 6`).
 7. `faq_brands_overview`: *"What is My Brands?"* — Brand configuration for tailored AI remixes (`category: "Brands"`, `order: 7`).
 8. `faq_tokens_overview`: *"How do Token Deductions Work?"* — Strict integer token ledger, 1 token standard paid rates, and refund request rules (`category: "General"`, `order: 8`).
+9. `faq_payment_gateways_phone_numbers`: *"Why might payment gateways reject my phone number during Stripe checkout?"* — *"Payment gateways may not allow new phone numbers, especially from low cost or pre-pay carriers, so it is best to not select save information for next time on Stripe or use a mobile phone from a contract carrier."* (`category: "Tokens & Wallet"`, `order: 22`).
 
 ### Header & Superadmin Integration
 - **Footer FAQs Button (`footer-btn-faqs`):** Displays in the bottom footer (`AppFooter.tsx`) across all routes. Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.
@@ -503,6 +504,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 6. `faq_radar_overview`: *"What is Radar Feed?"* — Ad intelligence engine searching live ads (`category: "Radar"`, `order: 6`).
 7. `faq_brands_overview`: *"What is My Brands?"* — Brand configuration for tailored AI remixes (`category: "Brands"`, `order: 7`).
 8. `faq_tokens_overview`: *"How do Token Deductions Work?"* — Strict integer token ledger, 1 token standard paid rates, and refund request rules (`category: "General"`, `order: 8`).
+9. `faq_payment_gateways_phone_numbers`: *"Why might payment gateways reject my phone number during Stripe checkout?"* — *"Payment gateways may not allow new phone numbers, especially from low cost or pre-pay carriers, so it is best to not select save information for next time on Stripe or use a mobile phone from a contract carrier."* (`category: "Tokens & Wallet"`, `order: 22`).
 
 ### Header & Superadmin Integration
 - **Footer FAQs Button (`footer-btn-faqs`):** Displays in the bottom footer (`AppFooter.tsx`) across all routes. Opens the user-facing `FaqModal` featuring live search, categorized chips, and expandable accordion items.

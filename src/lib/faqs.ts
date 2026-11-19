@@ -4,7 +4,7 @@ import { ApiError } from "./api";
 import type { CreateFaqRequest, FaqItem, UpdateFaqRequest } from "./contracts";
 
 const FAQS_DOC_PATH = "system_config/faqs";
-const FAQS_SCHEMA_VERSION = "customer_v1";
+const FAQS_SCHEMA_VERSION = "customer_v2";
 
 export const DEFAULT_FAQS: FaqItem[] = [
   // ---------- CATEGORY: RADAR SEARCH ----------
@@ -248,12 +248,23 @@ export const DEFAULT_FAQS: FaqItem[] = [
     updatedAt: "2026-11-03T00:00:00.000Z",
   },
   {
+    faqId: "faq_payment_gateways_phone_numbers",
+    question: "Why might payment gateways reject my phone number during Stripe checkout?",
+    answer:
+      "Payment gateways may not allow new phone numbers, especially from low cost or pre-pay carriers, so it is best to not select save information for next time on Stripe or use a mobile phone from a contract carrier.",
+    category: "Tokens & Wallet",
+    order: 22,
+    enabled: true,
+    createdAt: "2026-11-19T00:00:00.000Z",
+    updatedAt: "2026-11-19T00:00:00.000Z",
+  },
+  {
     faqId: "faq_aud_usd_currency",
     question: "Why are token packs priced in Australian Dollars (AUD), and how does USD conversion work?",
     answer:
       "Social Radar is headquartered in Australia and standardizes billing in Australian Dollars (AUD) for clear, non-volatile accounting. For international customers outside Australia and New Zealand, the platform displays live indicative USD prices alongside AUD amounts (e.g. 1 Token = $1 AUD ≈ $0.65 USD).",
     category: "Tokens & Wallet",
-    order: 22,
+    order: 23,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -264,7 +275,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "No, your purchased tokens never expire. You can view your live balance and complete ledger history (including every search deduction, remix, top-up, and refund) at any time by opening the 'Wallet' page.",
     category: "Tokens & Wallet",
-    order: 23,
+    order: 24,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -277,7 +288,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "No, you will never lose tokens on an incomplete action. If an upstream ad library encounters a timeout, connection issue, or monthly quota limitation, our token gate detects the error and automatically refunds your token back to your wallet instantly.",
     category: "Refunds & Support",
-    order: 24,
+    order: 25,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -288,7 +299,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "All digital token purchases and subscriptions are final and strictly non-refundable once processed through Stripe. Because digital tokens are delivered immediately upon checkout and never expire, change-of-mind refunds or cash redemptions for unused tokens are not provided. If a search or remix encounters an upstream technical failure, spent tokens are automatically credited back to your ledger instantly. For questions regarding statutory non-excludable guarantees under the Australian Consumer Law (ACL), you can send a free message directly to the Super Admin via 'Message Admin'.",
     category: "Refunds & Support",
-    order: 25,
+    order: 26,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-07T00:00:00.000Z",
@@ -299,7 +310,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Yes. Your account data, brand profiles, customized briefs, and generated remixes are isolated to your authenticated account and protected by strict database security rules. We comply with Australian Privacy Act standards and never share or resell your private advertising research.",
     category: "Refunds & Support",
-    order: 26,
+    order: 27,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -310,7 +321,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "The bottom bar is your local Geo & Time status widget. It displays your current suburb, local weather temperature, active currency indicator, and live real-time clock. Clicking the bar opens a settings popup where you can customize your suburb, state, date format, or toggle between 12-hour and 24-hour clock formats.",
     category: "Refunds & Support",
-    order: 27,
+    order: 28,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -321,7 +332,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Ad Agents are independent contractors, with no official employment by Ad Radar or AI Foundation. Their role is purely in an outsourced capacity and has no long-term contractual arrangement. Their individual pricing structure is theirs alone, and Ad Radar HQ does not have any control over their specialization and expert services. All advice, strategies, recommendations, and opinions expressed by Ad Agents are strictly their own independent views and do not represent Ad Radar HQ.",
     category: "Refunds & Support",
-    order: 28,
+    order: 29,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-11T00:00:00.000Z",
@@ -332,7 +343,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "All development, software architecture, code, algorithms, and design assets remain the sole proprietary ownership of AI Foundation, ABN 36 339 516 584. No part of this web app may be used, reproduced, copied, distributed, modified, or exploited without the express written prior consent of the developer and AI Foundation.",
     category: "Refunds & Support",
-    order: 29,
+    order: 30,
     enabled: true,
     createdAt: "2026-11-09T00:00:00.000Z",
     updatedAt: "2026-11-09T00:00:00.000Z",
