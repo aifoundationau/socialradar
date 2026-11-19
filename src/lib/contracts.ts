@@ -253,6 +253,9 @@ export const RemixDocSchema = AdRemixBlueprintSchema.extend({
   sourceAdvertiser: z.string().max(200).optional(),
   platform: PlatformSchema.optional(),
   createdAt: isoDate.optional(),
+  /** Private unless the creator makes it public; only public remixes are offered in the Library. */
+  isPublic: z.boolean().optional(),
+  publishedAt: isoDate.optional(),
 }).strict();
 export type RemixDoc = z.infer<typeof RemixDocSchema>;
 
@@ -312,6 +315,9 @@ export const RemixedAdTextDocSchema = z
     sourceAdvertiser: z.string().max(200),
     items: z.array(RemixedAdTextItemSchema).length(4),
     createdAt: isoDate,
+    /** Private unless the creator makes it public; only public ad texts are offered in the Library. */
+    isPublic: z.boolean().optional(),
+    publishedAt: isoDate.optional(),
   })
   .strict();
 export type RemixedAdTextDoc = z.infer<typeof RemixedAdTextDocSchema>;
@@ -677,6 +683,9 @@ export const StripePurchaseRecordSchema = z
     amountExGstCents: z.number().int().nonnegative().optional(),
     currency: z.string().trim().toLowerCase().min(3).max(4).default("aud"),
     createdAt: isoDate,
+    /** Set by Super Admin ("Mark Refunded") after a manual refund or chargeback: excluded from the ledger. */
+    refundedAt: isoDate.optional(),
+    refundedBy: z.string().max(254).optional(),
   })
   .strict();
 export type StripePurchaseRecord = z.infer<typeof StripePurchaseRecordSchema>;
@@ -703,7 +712,10 @@ export const RedistributiveLedgerSummarySchema = z
     totalGrossCents: z.number().int(),
     totalGrossAudCents: z.number().int(),
     totalGrossUsdCents: z.number().int(),
+    /** Purchases counted in the totals (refunded ones excluded). */
     totalPurchasesCount: z.number().int(),
+    /** Purchases marked refunded by Super Admin, left out of every figure. */
+    refundedPurchasesCount: z.number().int().optional(),
     allocatedPercentage: z.number(),
     treasuryPercentage: z.number(),
     treasuryTokens: tokenInt,
@@ -1495,6 +1507,10 @@ export const LibraryItemSummarySchema = z
     metricsLabel: z.string().max(120),
     createdAt: isoDate,
     purchased: z.boolean(),
+    /** The caller created this remix / ad text (they can view it free and choose whether it's public). */
+    isOwn: z.boolean().optional(),
+    /** Remixes and ad texts only: whether the creator has made it public (only public items are for sale). */
+    isPublic: z.boolean().optional(),
   })
   .strict();
 export type LibraryItemSummary = z.infer<typeof LibraryItemSummarySchema>;
@@ -1517,6 +1533,17 @@ export const LibraryPurchaseRequestSchema = z
   })
   .strict();
 export type LibraryPurchaseRequest = z.infer<typeof LibraryPurchaseRequestSchema>;
+
+/** The creator makes one of their remixes / remixed ad texts public (for sale in the Library) or private. */
+export const LibraryVisibilityRequestSchema = z
+  .object({
+    itemKey: LibraryItemKeySchema.refine((key) => !key.startsWith("search_"), {
+      message: "Only remixes and remixed ad texts can be made public or private",
+    }),
+    isPublic: z.boolean(),
+  })
+  .strict();
+export type LibraryVisibilityRequest = z.infer<typeof LibraryVisibilityRequestSchema>;
 
 export const LibraryPurchaseDocSchema = z
   .object({

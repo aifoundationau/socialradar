@@ -532,7 +532,8 @@ export async function assignUserRole(
 
 /**
  * Removes a user from Ad Radar: their users/{uid} record with everything under it (brands, Library purchases),
- * the community copies of their brands in global_brands, and their place in the Ad Agent routing list.
+ * the community copies of their brands in global_brands, and their place in the Ad Agent routing list. Their
+ * public remixes and remixed ad texts stop being offered in the Library (buyers keep what they bought).
  *
  * Their Firebase Auth account is deliberately left alone: it's shared with the other apps in the Firebase
  * project, so deleting it or revoking its sessions would remove them from those apps too. If they sign in to
@@ -624,6 +625,20 @@ export async function deleteRegisteredUser(
     }
   });
   await batch.commit();
+
+  // Their public remixes and remixed ad texts stop being offered in the Library.
+  const publishedSnaps = await Promise.all(
+    ownerUids.flatMap((uid) => [
+      db.collection("remixes").where("uid", "==", uid).where("isPublic", "==", true).get(),
+      db.collection("remixed_ad_texts").where("uid", "==", uid).where("isPublic", "==", true).get(),
+    ]),
+  );
+  const publishedRefs = publishedSnaps.flatMap((s) => s.docs.map((d) => d.ref));
+  for (let i = 0; i < publishedRefs.length; i += 400) {
+    const unpublish = db.batch();
+    for (const ref of publishedRefs.slice(i, i + 400)) unpublish.update(ref, { isPublic: false });
+    await unpublish.commit();
+  }
 
   // Their users/{uid} records with all subcollections (brands, library_purchases). Firestore doesn't delete a
   // document's subcollections with it, hence recursiveDelete.

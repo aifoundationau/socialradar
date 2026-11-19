@@ -1,6 +1,6 @@
 import "server-only";
 import { randomBytes } from "crypto";
-import type { DocumentData, QueryDocumentSnapshot } from "firebase-admin/firestore";
+import { FieldValue, type DocumentData, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { adminAuth, db } from "./firebase-admin";
 import {
   LINK_URL_PATTERN,
@@ -340,18 +340,28 @@ function purchaseAmounts(p: StripePurchaseRecord) {
   };
 }
 
-/** Purchased tokens and ex-GST revenue across purchases (strict integers). */
+/**
+ * Purchased tokens and ex-GST revenue across purchases (strict integers). Purchases Super Admin marked refunded
+ * (after a manual refund or chargeback) are left out, so partners aren't credited a share of refunded money.
+ */
 function sumPurchases(purchases: StripePurchaseRecord[]) {
   let totalTokens = 0;
   let exGstAudCents = 0;
   let exGstUsdCents = 0;
+  let countedPurchases = 0;
+  let refundedPurchases = 0;
   for (const p of purchases) {
+    if (p.refundedAt) {
+      refundedPurchases++;
+      continue;
+    }
     const amounts = purchaseAmounts(p);
     totalTokens += Math.max(0, Math.round(Number(p.tokens || 0)));
     exGstAudCents += amounts.exGstAudCents;
     exGstUsdCents += amounts.exGstUsdCents;
+    countedPurchases++;
   }
-  return { totalTokens, exGstAudCents, exGstUsdCents };
+  return { totalTokens, exGstAudCents, exGstUsdCents, countedPurchases, refundedPurchases };
 }
 
 /**
@@ -413,6 +423,8 @@ export async function getRedistributiveLedger(): Promise<RedistributiveLedgerSum
     totalTokens,
     exGstAudCents: totalGrossAudCents,
     exGstUsdCents: totalGrossUsdCents,
+    countedPurchases,
+    refundedPurchases,
   } = sumPurchases(purchases);
 
   const totalGrossCents = totalGrossAudCents;
@@ -460,7 +472,8 @@ export async function getRedistributiveLedger(): Promise<RedistributiveLedgerSum
     totalGrossCents,
     totalGrossAudCents,
     totalGrossUsdCents,
-    totalPurchasesCount: purchases.length,
+    totalPurchasesCount: countedPurchases,
+    refundedPurchasesCount: refundedPurchases,
     allocatedPercentage,
     treasuryPercentage,
     treasuryTokens,
@@ -469,6 +482,32 @@ export async function getRedistributiveLedger(): Promise<RedistributiveLedgerSum
     treasuryUsdCents,
     distributions,
   };
+}
+
+/**
+ * Super Admin marks a Stripe purchase refunded (after refunding it or losing a chargeback, which is done by hand
+ * in Stripe), or clears the mark. A refunded purchase is left out of the redistributive ledger. If a partner was
+ * already paid out a share of it, that share is deducted from what they're owed next. Tokens aren't touched: take
+ * them back separately with Remove Tokens.
+ */
+export async function setPurchaseRefunded(
+  purchaseId: string,
+  refunded: boolean,
+  byEmail: string,
+): Promise<void> {
+  const ref = db.collection(PURCHASES_COL).doc(purchaseId);
+  await db.runTransaction(async (t) => {
+    const snap = await t.get(ref);
+    if (!snap.exists) {
+      throw new ApiError("NOT_FOUND", `Purchase ${purchaseId} isn't in the redistributive ledger.`, 404);
+    }
+    t.update(
+      ref,
+      refunded
+        ? { refundedAt: new Date().toISOString(), refundedBy: byEmail.toLowerCase() }
+        : { refundedAt: FieldValue.delete(), refundedBy: FieldValue.delete() },
+    );
+  });
 }
 
 /**

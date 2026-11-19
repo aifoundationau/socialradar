@@ -514,6 +514,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [confirmDeletePartnerId, setConfirmDeletePartnerId] = useState<string | null>(null);
   const [confirmResetPartnerId, setConfirmResetPartnerId] = useState<string | null>(null);
   const [resettingPartnerId, setResettingPartnerId] = useState<string | null>(null);
+  const [confirmRefundPurchaseId, setConfirmRefundPurchaseId] = useState<string | null>(null);
+  const [markingRefundPurchaseId, setMarkingRefundPurchaseId] = useState<string | null>(null);
 
   // New & Edit Pack input state (Super Admin Only)
   const [newPack, setNewPack] = useState<TokenPackItem>({
@@ -2049,6 +2051,36 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       setErrorMsg(errorMessage(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  /** After a refund or lost chargeback (handled by hand in Stripe): leave the purchase out of the equity ledger. */
+  async function handleMarkPurchaseRefunded(purchase: StripePurchaseRecord, refunded: boolean) {
+    setMarkingRefundPurchaseId(purchase.purchaseId);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const data = await apiFetch<{
+        success: boolean;
+        ledger?: RedistributiveLedgerSummary;
+        recentPurchases?: StripePurchaseRecord[];
+      }>("/api/admin/config", {
+        method: "PUT",
+        body: { action: "MARK_PURCHASE_REFUNDED", purchaseId: purchase.purchaseId, refunded },
+      });
+      if (data.ledger) setLedger(data.ledger);
+      if (data.recentPurchases) setRecentPurchases(data.recentPurchases);
+      setConfirmRefundPurchaseId(null);
+      const buyer = purchase.email || purchase.uid;
+      setStatusMsg(
+        refunded
+          ? `Marked ${buyer}'s purchase refunded: it's now left out of the equity ledger. To take back the ${purchase.tokens.toLocaleString("en-AU")} tokens, use Remove Tokens.`
+          : `Refund mark removed: ${buyer}'s purchase counts in the equity ledger again.`,
+      );
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setMarkingRefundPurchaseId(null);
     }
   }
 
@@ -4237,6 +4269,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             </p>
                             <span className="text-[10px] text-on-surface-variant truncate block">
                               {ledger?.totalPurchasesCount ?? 0} transaction(s)
+                              {ledger?.refundedPurchasesCount
+                                ? ` · ${ledger.refundedPurchasesCount} refunded (excluded)`
+                                : ""}
                             </span>
                           </div>
 
@@ -4623,11 +4658,19 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   <th className="px-2.5 py-2">Buyer</th>
                                   <th className="px-2 py-2">Tokens</th>
                                   <th className="px-2.5 py-2 text-right">Ex-GST (AUD)</th>
+                                  {isSuper && <th className="px-2.5 py-2 text-right">Refund</th>}
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-white/[0.04] font-mono">
-                                {recentPurchases.map((p) => (
-                                  <tr key={p.purchaseId} className="hover:bg-white/[0.02]">
+                                {recentPurchases.map((p) => {
+                                  const isRefunded = Boolean(p.refundedAt);
+                                  const isMarking = markingRefundPurchaseId === p.purchaseId;
+                                  return (
+                                  <tr
+                                    key={p.purchaseId}
+                                    data-agent-id={`ledger-purchase-row-${p.purchaseId}`}
+                                    className={`hover:bg-white/[0.02] ${isRefunded ? "opacity-60" : ""}`}
+                                  >
                                     <td className="px-2.5 py-2 text-on-surface-variant whitespace-nowrap">
                                       {new Date(p.createdAt).toLocaleDateString("en-AU", { day: "2-digit", month: "short" })}
                                     </td>
@@ -4637,11 +4680,78 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     <td className="px-2 py-2 text-primary font-semibold whitespace-nowrap">
                                       ⚡ {p.tokens.toLocaleString("en-AU")}
                                     </td>
-                                    <td className="px-2.5 py-2 text-on-surface text-right font-semibold whitespace-nowrap">
+                                    <td
+                                      className={`px-2.5 py-2 text-on-surface text-right font-semibold whitespace-nowrap ${isRefunded ? "line-through" : ""}`}
+                                    >
                                       {formatPrice(p.amountExGstCents ?? p.amountCents)}
                                     </td>
+                                    {isSuper && (
+                                      <td className="px-2.5 py-2 text-right whitespace-nowrap">
+                                        {isRefunded ? (
+                                          <div className="inline-flex items-center gap-1">
+                                            <span
+                                              title={`Marked refunded ${p.refundedAt ? new Date(p.refundedAt).toLocaleDateString("en-AU") : ""}${p.refundedBy ? ` by ${p.refundedBy}` : ""}. Left out of the equity ledger.`}
+                                              className="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-300"
+                                            >
+                                              Refunded
+                                            </span>
+                                            <button
+                                              type="button"
+                                              disabled={isMarking}
+                                              onClick={() => void handleMarkPurchaseRefunded(p, false)}
+                                              data-agent-id={`undo-refund-purchase-btn-${p.purchaseId}`}
+                                              data-testid={`undo-refund-purchase-btn-${p.purchaseId}`}
+                                              aria-label={`Undo refund mark on purchase by ${p.email || p.uid}`}
+                                              title="Count this purchase in the equity ledger again."
+                                              className="rounded-lg border border-white/15 bg-surface-container-highest px-2 py-0.5 text-[10px] text-on-surface-variant hover:text-on-surface disabled:opacity-50"
+                                            >
+                                              {isMarking ? "Saving…" : "Undo"}
+                                            </button>
+                                          </div>
+                                        ) : confirmRefundPurchaseId === p.purchaseId ? (
+                                          <div className="inline-flex items-center gap-1">
+                                            <button
+                                              type="button"
+                                              disabled={isMarking}
+                                              onClick={() => void handleMarkPurchaseRefunded(p, true)}
+                                              data-agent-id={`confirm-refund-purchase-btn-${p.purchaseId}`}
+                                              data-testid={`confirm-refund-purchase-btn-${p.purchaseId}`}
+                                              aria-label={`Confirm marking purchase by ${p.email || p.uid} refunded`}
+                                              title="Leaves this purchase out of the equity ledger. Tokens aren't removed: use Remove Tokens for that."
+                                              className="rounded-lg bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-rose-400 disabled:opacity-50"
+                                            >
+                                              {isMarking ? "Saving…" : "Confirm Refunded"}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              disabled={isMarking}
+                                              onClick={() => setConfirmRefundPurchaseId(null)}
+                                              data-agent-id={`cancel-refund-purchase-btn-${p.purchaseId}`}
+                                              data-testid={`cancel-refund-purchase-btn-${p.purchaseId}`}
+                                              aria-label="Cancel marking this purchase refunded"
+                                              className="rounded-lg border border-white/15 bg-surface-container-highest px-2 py-0.5 text-[10px] text-on-surface-variant hover:text-on-surface"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => setConfirmRefundPurchaseId(p.purchaseId)}
+                                            data-agent-id={`mark-refunded-purchase-btn-${p.purchaseId}`}
+                                            data-testid={`mark-refunded-purchase-btn-${p.purchaseId}`}
+                                            aria-label={`Mark purchase by ${p.email || p.uid} refunded`}
+                                            title="After refunding this purchase in Stripe or losing a chargeback: leave it out of the equity ledger."
+                                            className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/20"
+                                          >
+                                            Mark Refunded
+                                          </button>
+                                        )}
+                                      </td>
+                                    )}
                                   </tr>
-                                ))}
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { verifyRequest } from "@/lib/firebase-admin";
 import { ApiError, errorResponse, readJson } from "@/lib/api";
 import {
@@ -11,6 +12,7 @@ import {
   resetPartnerTokens,
   resetRedistributiveLedger,
   setFreeAccessWindow,
+  setPurchaseRefunded,
   updateEquityPartner,
   updateSystemConfig,
   type AdminSystemConfig,
@@ -34,10 +36,16 @@ const LEDGER_ACTIONS = new Set([
   "RESET_REDISTRIBUTIVE_LEDGER",
 ]);
 
+/** Most recent Stripe purchases listed in the ledger (each can be marked refunded from the list). */
+const RECENT_PURCHASES_LIMIT = 200;
+
 /** Equity partners, ledger figures and Stripe purchases are only for callers with the ledger permission. */
 async function ledgerView(permissions: Set<RbacPermission>) {
   if (!permissions.has("manage_ledger")) return {};
-  const [ledger, recentPurchases] = await Promise.all([getRedistributiveLedger(), getStripePurchases(50)]);
+  const [ledger, recentPurchases] = await Promise.all([
+    getRedistributiveLedger(),
+    getStripePurchases(RECENT_PURCHASES_LIMIT),
+  ]);
   return { ledger, recentPurchases };
 }
 
@@ -86,6 +94,19 @@ export async function PUT(req: Request) {
         : undefined;
       const updated = await setFreeAccessWindow(durationMinutes, caller.email, allowedCountries);
       return NextResponse.json({ success: true, config: updated, ...(await ledgerView(permissions)) });
+    }
+
+    if (action === "MARK_PURCHASE_REFUNDED") {
+      // After a refund or chargeback (done by hand in Stripe): leave the purchase out of the equity ledger.
+      if (caller.claims.isSuperAdmin !== true) {
+        throw new ApiError("FORBIDDEN", "Only Super Admin can mark a purchase refunded.", 403);
+      }
+      const purchaseId = z.string().trim().min(1).max(128).parse(body.purchaseId);
+      if (typeof body.refunded !== "boolean") {
+        throw new ApiError("INVALID_INPUT", "refunded must be true or false.", 400);
+      }
+      await setPurchaseRefunded(purchaseId, body.refunded, caller.email);
+      return NextResponse.json({ success: true, purchaseId, refunded: body.refunded, ...(await ledgerView(permissions)) });
     }
 
     if (action === "FLUSH_CACHE") {
@@ -169,7 +190,7 @@ export async function POST(req: Request) {
     const [config, ledger, recentPurchases] = await Promise.all([
       getSystemConfig(),
       getRedistributiveLedger(),
-      getStripePurchases(50),
+      getStripePurchases(RECENT_PURCHASES_LIMIT),
     ]);
 
     return NextResponse.json({

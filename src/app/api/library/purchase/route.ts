@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, verifyRequest } from "@/lib/firebase-admin";
-import { errorResponse, readJson, requireIdempotencyKey } from "@/lib/api";
+import { ApiError, errorResponse, readJson, requireIdempotencyKey } from "@/lib/api";
 import {
   LibraryPurchaseRequestSchema,
   type LibraryPurchaseRequest,
@@ -8,8 +8,8 @@ import {
 } from "@/lib/contracts";
 import { getSystemConfig } from "@/lib/admin";
 import {
+  getLibraryItemAccess,
   getUnlockedLibraryItem,
-  hasPurchasedLibraryItem,
   recordLibraryPurchase,
 } from "@/lib/library";
 import { isChargingEnabled } from "@/lib/pricing";
@@ -17,7 +17,8 @@ import { withTokenGate } from "@/lib/token-ledger";
 
 /**
  * Unlocks and purchases a Library item using the SuperAdmin-configured `serviceCosts.libraryItems` fee.
- * Already-unlocked items return immediately at 0 extra tokens.
+ * Items the caller already bought, or created themselves, open at 0 extra tokens. A remix or remixed ad text is
+ * only for sale once its creator has made it public.
  */
 export async function POST(req: Request) {
   let input: LibraryPurchaseRequest;
@@ -31,11 +32,11 @@ export async function POST(req: Request) {
     const caller = await verifyRequest(req);
     requireIdempotencyKey(req);
 
-    // Never double-charge if the user already unlocked this Library item earlier.
-    const alreadyPurchased = await hasPurchasedLibraryItem(caller.uid, input.itemKey);
-    if (alreadyPurchased) {
+    // Never charge for something the caller already has: an item bought earlier, or their own creation.
+    const access = await getLibraryItemAccess(caller.uid, input.itemKey);
+    if (access.purchased || access.isOwn) {
       const [payload, userSnap] = await Promise.all([
-        getUnlockedLibraryItem(caller.uid, input.itemKey, true),
+        getUnlockedLibraryItem(caller.uid, input.itemKey, access.purchased),
         db.collection("users").doc(caller.uid).get(),
       ]);
       const balanceAfter = Math.max(
@@ -43,13 +44,17 @@ export async function POST(req: Request) {
         Math.round(Number(userSnap.exists ? userSnap.get("tokenBalance") ?? 0 : 0)),
       );
       return NextResponse.json({
-        item: { ...payload.summary, purchased: true },
+        item: { ...payload.summary, purchased: access.purchased },
         detail: payload.detail,
         fileName: payload.fileName,
         txtContent: payload.txtContent,
         balanceAfter,
         alreadyPurchased: true,
       } satisfies LibraryPurchaseResponse);
+    }
+    // Remixes are written from their creator's private brand profile, so they're private until made public.
+    if (!access.isPublic) {
+      throw new ApiError("FORBIDDEN", "This item is private: its creator hasn't made it public.", 403);
     }
   } catch (err) {
     return errorResponse(err);

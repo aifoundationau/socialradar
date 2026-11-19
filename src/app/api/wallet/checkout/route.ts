@@ -12,19 +12,15 @@ import {
 } from "@/lib/pricing";
 import { getSystemConfig } from "@/lib/admin";
 import { buildCheckoutParams, getStripe } from "@/lib/stripe";
+import { edgeCountry } from "@/lib/request-geo";
 
 /** Returns the active public pricing configuration (AUD base rate, service token amounts, packs, and detected geolocation country). */
 export async function GET(req: Request) {
   try {
     // Touch request headers so Next.js treats this route as dynamic on-demand
     void req.headers.get("accept");
-    const detectedCountry = (
-      req.headers.get("x-user-country") ||
-      req.headers.get("x-vercel-ip-country") ||
-      req.headers.get("cf-ipcountry") ||
-      req.headers.get("x-country-code") ||
-      ""
-    )
+    // Display only (GST wording): the browser's own detected country, else the platform's trusted edge header.
+    const detectedCountry = (req.headers.get("x-user-country") || edgeCountry(req.headers))
       .trim()
       .toUpperCase();
     const config = await getSystemConfig();
@@ -55,15 +51,8 @@ export async function POST(req: Request) {
   try {
     const body = CheckoutRequestSchema.parse(await readJson(req));
     const { packId, customTokens } = body;
-    const headerCountry = (
-      req.headers.get("x-vercel-ip-country") ||
-      req.headers.get("cf-ipcountry") ||
-      req.headers.get("x-country-code") ||
-      ""
-    )
-      .toUpperCase()
-      .trim();
-    const buyerCountry = (body.buyerCountry || headerCountry || "AU").toUpperCase().trim();
+    // Stripe metadata only: Stripe Tax works out the GST from the buyer's address at checkout.
+    const buyerCountry = (body.buyerCountry || edgeCountry(req.headers) || "AU").toUpperCase().trim();
 
     // Monthly Search Subscription is a SuperAdmin and MainAdmin function only
     const caller = await verifyRequest(req, packId === "SUB_MONTHLY_1000" ? { requireRole: "admin" } : undefined);

@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
 import { db, verifyRequest } from "@/lib/firebase-admin";
-import { ApiError, errorResponse } from "@/lib/api";
+import { ApiError, errorResponse, readJson } from "@/lib/api";
 import {
   LibraryItemKeySchema,
   LibraryListQuerySchema,
+  LibraryVisibilityRequestSchema,
   type FreeAccessWindow,
   type LibraryListResponse,
   type UserDoc,
 } from "@/lib/contracts";
 import { getSystemConfig } from "@/lib/admin";
-import { getUnlockedLibraryItem, hasPurchasedLibraryItem, listLibraryItems } from "@/lib/library";
+import {
+  getLibraryItemAccess,
+  getUnlockedLibraryItem,
+  listLibraryItems,
+  setLibraryItemVisibility,
+} from "@/lib/library";
 import {
   ALL_COUNTRIES_CODE,
   isChargingEnabled,
@@ -32,22 +38,23 @@ export async function GET(req: Request) {
 
     if (rawItemKey) {
       const itemKey = LibraryItemKeySchema.parse(rawItemKey);
-      const unlockedBefore = await hasPurchasedLibraryItem(caller.uid, itemKey);
-      if (!unlockedBefore) {
+      // Open to the item's buyer, or to its creator (their own remix, public or private).
+      const access = await getLibraryItemAccess(caller.uid, itemKey);
+      if (!access.purchased && !access.isOwn) {
         throw new ApiError(
           "FORBIDDEN",
           "Purchase this Library item first to view or download its full contents.",
           403,
         );
       }
-      const payload = await getUnlockedLibraryItem(caller.uid, itemKey, true);
+      const payload = await getUnlockedLibraryItem(caller.uid, itemKey, access.purchased);
       return NextResponse.json(
         {
           item: payload.summary,
           detail: payload.detail,
           fileName: payload.fileName,
           txtContent: payload.txtContent,
-          alreadyPurchased: true,
+          alreadyPurchased: access.purchased,
         },
         { headers: { "Cache-Control": "no-store, max-age=0" } },
       );
@@ -72,7 +79,8 @@ export async function GET(req: Request) {
     const countryMatters =
       isFreeAccessWindowActive(freeWindow) &&
       !normalizeAllowedCountries(freeWindow?.allowedCountries).includes(ALL_COUNTRIES_CODE);
-    const userCountry = countryMatters ? (await resolveRequestCountry(req)) || "AU" : ALL_COUNTRIES_CODE;
+    // "" (country unknown) means the limited window doesn't apply, matching what withTokenGate charges.
+    const userCountry = countryMatters ? await resolveRequestCountry(req) : ALL_COUNTRIES_CODE;
 
     const charging = isChargingEnabled(
       config,
@@ -94,6 +102,21 @@ export async function GET(req: Request) {
       } satisfies LibraryListResponse,
       { headers: { "Cache-Control": "no-store, max-age=0" } },
     );
+  } catch (err) {
+    return errorResponse(err);
+  }
+}
+
+/**
+ * The creator makes one of their remixes / remixed ad texts public (other users can then buy a copy in the
+ * Library) or private again. Body: `{ itemKey, isPublic }`.
+ */
+export async function PATCH(req: Request) {
+  try {
+    const caller = await verifyRequest(req);
+    const { itemKey, isPublic } = LibraryVisibilityRequestSchema.parse(await readJson(req));
+    await setLibraryItemVisibility(caller.uid, itemKey, isPublic);
+    return NextResponse.json({ itemKey, isPublic });
   } catch (err) {
     return errorResponse(err);
   }

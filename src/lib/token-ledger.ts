@@ -326,13 +326,14 @@ export async function withTokenGate(
       const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
       const sys = sysSnap?.exists ? sysSnap.data() : null;
       if (sys) {
-        // The country only matters during a free window limited to some countries. It is
-        // worked out on the server (edge header or IP lookup), never taken from a browser-supplied header.
+        // The country only matters during a free window limited to some countries. It is worked out on the
+        // server (trusted edge header or IP lookup), never taken from a browser-supplied header. When it can't be
+        // determined ("") the window doesn't apply and the action is charged normally (fail closed).
         const freeWindow = sys.freeAccessWindow as Partial<FreeAccessWindow> | undefined;
         const countryMatters =
           isFreeAccessWindowActive(freeWindow) &&
           !normalizeAllowedCountries(freeWindow?.allowedCountries).includes(ALL_COUNTRIES_CODE);
-        const userCountry = countryMatters ? (await resolveRequestCountry(req)) || "AU" : ALL_COUNTRIES_CODE;
+        const userCountry = countryMatters ? await resolveRequestCountry(req) : ALL_COUNTRIES_CODE;
         if (!isChargingEnabled(sys, Date.now(), userData, caller.claims.isSuperAdmin, userCountry)) {
           effectiveCost = 0;
         }

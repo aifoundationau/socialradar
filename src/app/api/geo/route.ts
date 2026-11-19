@@ -1,5 +1,15 @@
 import { NextResponse } from "next/server";
-import { clientIp } from "@/lib/request-geo";
+import { clientIp, edgeCountry, getGeoTrust } from "@/lib/request-geo";
+
+/** Decodes a URL-encoded header value; a malformed one reads as "". */
+function decodeHeader(value: string | null): string {
+  if (!value) return "";
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return "";
+  }
+}
 
 function weatherCodeToCondition(code: number): string {
   if (code === 0) return "Clear Sky";
@@ -37,18 +47,16 @@ function cleanState(region: string, regionCode?: string): string {
 export async function GET(req: Request) {
   const headers = new Headers(req.headers);
 
-  // 1. Try Vercel edge IP headers if deployed
-  let country = (
-    headers.get("x-vercel-ip-country") ||
-    headers.get("cf-ipcountry") ||
-    headers.get("x-country-code") ||
-    ""
-  ).toUpperCase().trim();
-
-  let city = headers.get("x-vercel-ip-city") ? decodeURIComponent(headers.get("x-vercel-ip-city")!) : "";
-  let region = headers.get("x-vercel-ip-country-region") ? decodeURIComponent(headers.get("x-vercel-ip-country-region")!) : "";
-  let lat = headers.get("x-vercel-ip-latitude") ? parseFloat(headers.get("x-vercel-ip-latitude")!) : null;
-  let lon = headers.get("x-vercel-ip-longitude") ? parseFloat(headers.get("x-vercel-ip-longitude")!) : null;
+  // 1. The platform's trusted geo headers only (Vercel's own; see getGeoTrust). Headers a browser can set itself
+  //    are ignored, so they can't change what this reports.
+  let country = edgeCountry(headers);
+  const vercelGeo = getGeoTrust() === "vercel";
+  let city = vercelGeo ? decodeHeader(headers.get("x-vercel-ip-city")) : "";
+  let region = vercelGeo ? decodeHeader(headers.get("x-vercel-ip-country-region")) : "";
+  const latHeader = vercelGeo ? parseFloat(headers.get("x-vercel-ip-latitude") ?? "") : NaN;
+  const lonHeader = vercelGeo ? parseFloat(headers.get("x-vercel-ip-longitude") ?? "") : NaN;
+  let lat: number | null = Number.isFinite(latHeader) ? latHeader : null;
+  let lon: number | null = Number.isFinite(lonHeader) ? lonHeader : null;
 
   // 2. If edge headers are missing, look up the visitor's IP. With no visitor IP, only local development
   //    may look up "self" (the server is the visitor's machine there); in production that would be the

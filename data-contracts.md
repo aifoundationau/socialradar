@@ -358,6 +358,8 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 | `amountExGstCents` | integer | `amountCents - taxCents`: the revenue the redistributive ledger shares out |
 | `currency` | string | `"aud" | "usd"` |
 | `createdAt` | ISO-8601 | |
+| `refundedAt` | ISO-8601 | optional. Set by Super Admin with **Mark Refunded** after a manual refund or lost chargeback; the purchase is then left out of every ledger figure. Cleared by **Undo** |
+| `refundedBy` | string | optional. Email of the Super Admin who marked it refunded |
 
 ### Redistributive Calculation Rules
 - **Total Tokens from Stripe Pool (Strict Integers Only)**: Sum of `tokens` across all recorded Stripe purchases in `stripe_purchases` (`totalTokens`). Strict integers only (`Math.round`).
@@ -366,6 +368,7 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
   - `totalGrossAudCents`: Sum of `amountExGstCents` across all Stripe purchases in AUD cents (USD amounts converted at standard FX `0.65`).
   - `totalGrossUsdCents`: Sum of `amountExGstCents` across all Stripe purchases in USD cents (AUD amounts converted at standard FX `0.65`).
   - A purchase whose GST couldn't be looked up yet counts at its GST-inclusive amount until the lookup succeeds.
+  - **Refunds and chargebacks are handled manually.** After refunding in Stripe (or losing a chargeback), Super Admin marks the purchase refunded in the ledger's Stripe purchases list (`PUT /api/admin/config` action `MARK_PURCHASE_REFUNDED` `{ purchaseId, refunded }`, Super Admin only; two-step **Mark Refunded** → **Confirm Refunded**, reversible with **Undo**). Refunded purchases are excluded from `totalTokens`, revenue and `totalPurchasesCount` (reported separately as `refundedPurchasesCount`). If a partner had already been paid a share of it, that share is deducted from what they're owed next. Tokens are not touched: take them back with Remove Tokens. The list shows the 200 most recent purchases.
   - Claimed amounts recorded before GST was excluded (`claimedBasis` absent) are scaled by the ex-GST / GST-inclusive ratio of the purchases made up to the partner's `lastResetAt`.
 - **Partner Entitlement**:
   - `grossTokens = Math.round(totalTokens * (percentage / 100))` (Strict integer)
@@ -1198,6 +1201,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
     1. **All Countries Dropdown (`free-access-country-dropdown`):** Lists `"ALL"` (`🌐 All Countries (Worldwide)`) plus all 249 ISO 3166-1 alpha-2 world countries (`WORLD_COUNTRIES` in `src/lib/countries.ts`) so Super Admin can select which countries receive free use and remove or reset countries at any time.
     2. **Four Timed Toggle Buttons:** **Free 15 Minutes** (`15`), **Free 30 Minutes** (`30`), **Free Hour** (`60`), and **Free 24 Hours** (`1440`), plus **Turn Off Free Access Now** (`null`).
   - While `enabled === true` and `Date.parse(expiresAt) > Date.now()`, `isChargingEnabled(config, nowMs, userData, isSuperAdmin, userCountry)` returns `false` for **ALL Subscribers in the selected countries** (`isCountryEligibleForFreeAccess(config.freeAccessWindow, userCountry)`), and `withTokenGate` forces `effectiveCost = 0` across all endpoints (`RADAR_SEARCH`, `AI_REMIX`, `REGENERATE_VARIATIONS`, `BRAND_CLONE`, `CUSTOMIZE_SERVICE`).
+  - **Country check (server-side only, `resolveRequestCountry` in `src/lib/request-geo.ts`):** the platform's trusted edge header, otherwise an ipwho.is lookup of the visitor's trusted IP. Which headers are trusted is set by `GEO_TRUST` (`vercel` | `cloudflare` | `none`; default `vercel` on Vercel, `none` elsewhere), because a header is only trustworthy where the platform overwrites it. Browser-supplied headers (`x-user-country`, or `x-vercel-ip-country` / `cf-ipcountry` on a host that doesn't set them) are never used. **Fail closed:** when the country can't be determined, a country-limited window doesn't apply and actions are charged normally. Windows open to `"ALL"` countries need no country check.
 - **Global Top Red Banner (`src/components/layout/FreeAccessTopBanner.tsx` & `src/app/layout.tsx`):**
   - Mounted at the root of `<body>` in `src/app/layout.tsx` (`data-agent-id="free-access-red-top-banner"`).
   - Queries public `GET /api/wallet/checkout` (`no-store`) and checks `isCountryEligibleForFreeAccess(freeAccessWindow, userCountry)` so whenever the Timed Free Access Window (`15m`, `30m`, `60m`, `1440m`) is active for the user's country, a full-width Red Banner (`bg-gradient-to-r from-red-700 via-red-600 to-red-700`) is displayed across the top of the entire web app — including the front start page (`/`) and before logging in — stating `"AdRadarHQ is currently FREE TO USE for ALL Subscribers!"` along with the active countries badge and live countdown timer (`hh:mm:ss` / `mm:ss`).
@@ -1473,10 +1477,13 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 
 ### 31.1 Library Sources & Automatic Archiving
 - Top Navbar button **`Library`** (`/library`) appears in both the dashboard navbar (`src/components/layout/nav.ts` -> `TopNavWallet.tsx` and 4-tab `MobileTabBar.tsx`: `/brands`, `/radar`, `/customize`, `/library`) and `PublicStartNavbar.tsx`. The dedicated `Wallet` top-navbar link is omitted, while the `tokens / Top-up` `TokenPill` (`header-token-pill` -> `/wallet` & `/wallet#packs`) remains on the far right of `TopNavWallet.tsx`.
-- Every saved result across the platform populates `/library` automatically:
-  1. **Previous Searches (`PREVIOUS_SEARCH`, `search_<id>`):** Archived permanently in `library_searches/{archiveId}` on every search returning `>= 1` result alongside existing `radar_cache` entries (deduplicated by platform + query + country + mediaType).
-  2. **Remix Studio (`REMIX_STUDIO`, `remix_<id>`):** Saved automatically in `remixes/{txId}` (including `brandName`, `sourceAdvertiser`, `platform`, and `createdAt`, with fallback resolution for historical remixes).
-  3. **Remixed Ad Text (`REMIXED_AD_TEXT`, `adtext_<id>`):** Generated by `Build Remixed Ad Text` and saved automatically in `remixed_ad_texts/{txId}`.
+- Library sources:
+  1. **Previous Searches (`PREVIOUS_SEARCH`, `search_<id>`):** Archived permanently in `library_searches/{archiveId}` on every search returning `>= 1` result alongside existing `radar_cache` entries (deduplicated by platform + query + country + mediaType). These are public ad library results and are always for sale.
+  2. **Remix Studio (`REMIX_STUDIO`, `remix_<id>`):** Saved in `remixes/{txId}` (including `brandName`, `sourceAdvertiser`, `platform`, and `createdAt`, with fallback resolution for historical remixes).
+  3. **Remixed Ad Text (`REMIXED_AD_TEXT`, `adtext_<id>`):** Generated by `Build Remixed Ad Text` and saved in `remixed_ad_texts/{txId}`.
+- **Remixes and remixed ad texts are private unless their creator makes them public** (they're written from the creator's private brand profile). The `isPublic` flag (with `publishedAt`) is set only by the creator via `PATCH /api/library` `{ itemKey, isPublic }` (the **Make public / Make private** button, `data-agent-id="library-visibility-<itemKey>"`). Records without the flag, including all created before it existed, are private.
+- `GET /api/library` lists Previous Searches, plus remixes / ad texts that are public, the caller's own (`isOwn: true`, opened free with a `Yours · Public|Private` badge), and the caller's purchases. `POST /api/library/purchase` refuses private items (`403`) and never charges a creator for their own item. A buyer keeps access to a purchased item even if its creator later makes it private. The platform keeps the full Library fee; creators are not paid for sales.
+- When a user is removed from Ad Radar, their public remixes and ad texts are made private.
 
 ### 31.2 Summary & Purchase Data Contracts (`additionalProperties: false`)
 ```json
@@ -1533,7 +1540,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 
 ### 31.3 SuperAdmin `'Library Items'` Fee, Security & DOM Bindings
 - **Configurable Fee (`serviceCosts.libraryItems`):** Managed in SuperAdmin Panel (`service-cost-card-libraryItems`, labeled **`Library Items`**, default `1` integer token). Recorded in `token_transactions` under `type: "LIBRARY_ITEM_PURCHASE"`.
-- **Redaction & Permanent Unlock Guarantee:** `GET /api/library` never exposes unpurchased full search ad arrays, remix scripts/storyboards, or 4-platform ad text bodies, and never exposes creator UIDs/emails. `POST /api/library/purchase` records permanent unlocks under `users/{uid}/library_purchases/{itemKey}` via Firebase Admin SDK (`firestore.rules` default-deny blocks all direct client writes/reads outside owner-scoped documents), so already-purchased items open via `GET /api/library?itemKey=...` at `0` additional tokens, while missing items return `404` with automatic token refund.
+- **Redaction & Permanent Unlock Guarantee:** `GET /api/library` never exposes unpurchased full search ad arrays, remix scripts/storyboards, or 4-platform ad text bodies, and never exposes creator emails (remix item keys do contain the creator's opaque uid). `POST /api/library/purchase` records permanent unlocks under `users/{uid}/library_purchases/{itemKey}` via Firebase Admin SDK (`firestore.rules` default-deny blocks all direct client writes/reads outside owner-scoped documents), so already-purchased items open via `GET /api/library?itemKey=...` at `0` additional tokens, while missing items return `404` with automatic token refund.
 - **Interactive DOM Bindings:**
   - `data-agent-id="nav-link-library"`, `data-testid="nav-link-library"`, `data-agent-id="start-navbar-library-link"`, `data-testid="mobile-tab-library"`
   - `data-agent-id="library-price-badge"`, `data-agent-id="library-refresh-button"`

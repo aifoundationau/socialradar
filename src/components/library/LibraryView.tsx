@@ -145,7 +145,8 @@ export function LibraryView() {
     setPendingKey(item.itemKey);
     setPurchaseError(null);
     try {
-      if (item.purchased) {
+      // Bought earlier, or the caller's own remix: open it without charging.
+      if (item.purchased || item.isOwn) {
         const res = await apiFetch<{
           item: LibraryItemSummary;
           detail: LibraryUnlockedDetail;
@@ -181,6 +182,39 @@ export function LibraryView() {
           : libraryItemFee > 0
             ? `Unlocked item (-${libraryItemFee} ${libraryItemFee === 1 ? "token" : "tokens"})`
             : "Unlocked item (Free)",
+      );
+    } catch (err) {
+      setPurchaseError({
+        message: errorMessage(err),
+        code: err instanceof ApiClientError ? err.code : "INTERNAL",
+      });
+    } finally {
+      setPendingKey(null);
+    }
+  }
+
+  /** The creator makes their remix / ad text public (other users can buy a copy) or private again. */
+  async function handleToggleVisibility(item: LibraryItemSummary) {
+    const nextPublic = !item.isPublic;
+    setPendingKey(item.itemKey);
+    setPurchaseError(null);
+    try {
+      await apiFetch<{ itemKey: string; isPublic: boolean }>("/api/library", {
+        method: "PATCH",
+        body: { itemKey: item.itemKey, isPublic: nextPublic },
+      });
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: prev.items.map((x) => (x.itemKey === item.itemKey ? { ...x, isPublic: nextPublic } : x)),
+            }
+          : prev,
+      );
+      showToast(
+        nextPublic
+          ? "Made public: other users can now buy a copy"
+          : "Made private: no longer offered to other users",
       );
     } catch (err) {
       setPurchaseError({
@@ -306,9 +340,10 @@ export function LibraryView() {
             </span>
           </div>
           <p className="text-body text-on-surface-variant max-w-2xl">
-            Every saved <strong>Previous Search</strong>, <strong>Remix Studio</strong> blueprint, and{" "}
-            <strong>Remixed Ad Text</strong> build is stored here and available to unlock for instant viewing and{" "}
-            <code>.txt</code> download.
+            Unlock saved <strong>Previous Searches</strong>, plus the <strong>Remix Studio</strong> blueprints and{" "}
+            <strong>Remixed Ad Text</strong> builds their creators have made public, for instant viewing and{" "}
+            <code>.txt</code> download. Your own remixes are listed here too: they stay private until you make
+            them public.
           </p>
         </div>
 
@@ -469,14 +504,34 @@ export function LibraryView() {
                         </span>
                       )}
                     </div>
-                    {item.purchased && (
+                    {item.isOwn ? (
                       <span
-                        data-agent-id={`library-unlocked-badge-${item.itemKey}`}
-                        className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300"
+                        data-agent-id={`library-own-badge-${item.itemKey}`}
+                        data-testid={`library-own-badge-${item.itemKey}`}
+                        title={
+                          item.isPublic
+                            ? "Your remix is public: other users can buy a copy."
+                            : "Your remix is private: only you can see it."
+                        }
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold ${
+                          item.isPublic
+                            ? "border-primary/40 bg-primary/15 text-primary"
+                            : "border-white/15 bg-white/[0.06] text-on-surface-variant"
+                        }`}
                       >
-                        <Icon name="checkCircle" className="size-3" />
-                        Unlocked
+                        <Icon name={item.isPublic ? "globe" : "shield"} className="size-3" />
+                        {item.isPublic ? "Yours · Public" : "Yours · Private"}
                       </span>
+                    ) : (
+                      item.purchased && (
+                        <span
+                          data-agent-id={`library-unlocked-badge-${item.itemKey}`}
+                          className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300"
+                        >
+                          <Icon name="checkCircle" className="size-3" />
+                          Unlocked
+                        </span>
+                      )
                     )}
                   </div>
 
@@ -503,7 +558,7 @@ export function LibraryView() {
                   </div>
                 </div>
 
-                <div className="border-t border-white/[0.08] pt-3 flex items-center justify-between gap-2">
+                <div className="border-t border-white/[0.08] pt-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-mono text-[11px] font-semibold text-on-surface truncate">
                       {item.metricsLabel}
@@ -513,7 +568,39 @@ export function LibraryView() {
                     </p>
                   </div>
 
-                  {item.purchased ? (
+                  {item.isOwn ? (
+                    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void handleToggleVisibility(item)}
+                        data-agent-id={`library-visibility-${item.itemKey}`}
+                        data-testid={`library-visibility-${item.itemKey}`}
+                        aria-label={`${item.isPublic ? "Make private" : "Make public"}: ${item.title}`}
+                        title={
+                          item.isPublic
+                            ? "Stop offering this to other users. Copies already bought stay with their buyers."
+                            : "Let other users buy a copy of this in the Library. AdRadarHQ keeps the fee."
+                        }
+                        className={`${btnSecondary} shrink-0`}
+                      >
+                        <Icon name={item.isPublic ? "shield" : "globe"} />
+                        <span>{busy ? "Saving…" : item.isPublic ? "Make private" : "Make public"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void handlePurchaseOrOpen(item)}
+                        data-agent-id={`library-view-${item.itemKey}`}
+                        data-testid={`library-view-${item.itemKey}`}
+                        aria-label={`View your Library item ${item.title}`}
+                        className={`${btnSecondary} shrink-0`}
+                      >
+                        <Icon name="fileText" />
+                        <span>View</span>
+                      </button>
+                    </div>
+                  ) : item.purchased ? (
                     <button
                       type="button"
                       disabled={busy}

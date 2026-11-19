@@ -50,7 +50,8 @@ async function handleGlobalBrands(req: Request) {
     const countryMatters =
       isFreeAccessWindowActive(freeWindow) &&
       !normalizeAllowedCountries(freeWindow?.allowedCountries).includes(ALL_COUNTRIES_CODE);
-    const userCountry = countryMatters ? (await resolveRequestCountry(req)) || "AU" : ALL_COUNTRIES_CODE;
+    // "" (country unknown) means the limited window doesn't apply, matching what withTokenGate charges.
+    const userCountry = countryMatters ? await resolveRequestCountry(req) : ALL_COUNTRIES_CODE;
     const charging = isChargingEnabled(config, Date.now(), userData, caller.claims.isSuperAdmin, userCountry);
     const brandCloneFee = charging
       ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 1))

@@ -1,5 +1,10 @@
 import "server-only";
-import type { DocumentData, DocumentReference, QueryDocumentSnapshot } from "firebase-admin/firestore";
+import type {
+  DocumentData,
+  DocumentReference,
+  DocumentSnapshot,
+  QueryDocumentSnapshot,
+} from "firebase-admin/firestore";
 import { db } from "./firebase-admin";
 import { ApiError } from "./api";
 import {
@@ -26,6 +31,8 @@ import { buildDeconstructTextFileContent, getDeconstructFileName } from "./decon
 import { buildSearchMixTextFileContent } from "./searchmix-text-file";
 
 const MAX_SOURCE_SCAN = 80;
+/** Most public / own remixes (and, separately, ad texts) listed per request. */
+const MAX_LISTED_PER_SOURCE = 200;
 const GET_ALL_CHUNK = 100;
 
 interface SearchArchiveDoc {
@@ -158,6 +165,7 @@ function buildRemixSummary(
     platform?: Platform;
     createdAt: string;
     purchased: boolean;
+    isOwn: boolean;
   },
 ): LibraryItemSummary {
   const itemKey = `remix_${sourceId}`;
@@ -184,6 +192,8 @@ function buildRemixSummary(
     metricsLabel: `3 Variations · ${remix.deconstruction.pacingStructure.length} beats`,
     createdAt: opts.createdAt,
     purchased: opts.purchased,
+    isOwn: opts.isOwn,
+    isPublic: remix.isPublic === true,
   });
 }
 
@@ -192,6 +202,7 @@ function buildAdTextSummary(
   doc: RemixedAdTextDoc,
   platform: Platform | undefined,
   purchased: boolean,
+  isOwn: boolean,
 ): LibraryItemSummary {
   const itemKey = `adtext_${sourceId}`;
   const breakdown = doc.items.map((x) => `${x.platformLabel} (${x.wordCount}w)`).join(" · ");
@@ -218,6 +229,8 @@ function buildAdTextSummary(
     metricsLabel: "4 Platforms · Max 150w each",
     createdAt: doc.createdAt,
     purchased,
+    isOwn,
+    isPublic: doc.isPublic === true,
   });
 }
 
@@ -240,24 +253,53 @@ async function getDocsMap<T>(
 }
 
 /**
- * Lists all saved Library items from Previous Searches (`library_searches` + `radar_cache`),
- * Remix Studio (`remixes`), and Remixed Ad Text (`remixed_ad_texts`).
+ * Remixes or remixed ad texts the caller may see in the Library: the ones their creators have made public, the
+ * caller's own (public or private), and any the caller has bought (a purchase stays available even if the
+ * creator later makes it private).
+ */
+async function visibleCreations(
+  collection: "remixes" | "remixed_ad_texts",
+  uid: string,
+  purchasedIds: string[],
+): Promise<DocumentSnapshot[]> {
+  const col = db.collection(collection);
+  const [publicSnap, ownSnap] = await Promise.all([
+    col.where("isPublic", "==", true).limit(MAX_LISTED_PER_SOURCE).get(),
+    col.where("uid", "==", uid).limit(MAX_LISTED_PER_SOURCE).get(),
+  ]);
+  const byId = new Map<string, DocumentSnapshot>();
+  for (const snap of [...publicSnap.docs, ...ownSnap.docs]) byId.set(snap.id, snap);
+  const missing = purchasedIds.filter((id) => !byId.has(id));
+  for (let i = 0; i < missing.length; i += GET_ALL_CHUNK) {
+    const snaps = await db.getAll(...missing.slice(i, i + GET_ALL_CHUNK).map((id) => col.doc(id)));
+    for (const snap of snaps) if (snap.exists) byId.set(snap.id, snap);
+  }
+  return [...byId.values()];
+}
+
+/**
+ * Lists Library items: Previous Searches (`library_searches` + `radar_cache`: public ad library results), plus
+ * Remix Studio blueprints (`remixes`) and Remixed Ad Texts (`remixed_ad_texts`) that their creators have made
+ * public, the caller's own, and the caller's purchases. Remixes are private unless their creator makes them
+ * public, because they're written from that creator's private brand profile.
  * Strict redaction: unpurchased items expose metadata/teasers only (no full ads, scripts, or copy).
  */
 export async function listLibraryItems(uid: string, query: LibraryListQuery) {
-  const [searchesSnap, cacheSnap, remixesSnap, adTextsSnap, purchasesSnap] = await Promise.all([
+  const purchasesSnap = await db.collection("users").doc(uid).collection("library_purchases").get();
+  const purchasedSet = new Set(purchasesSnap.docs.map((d) => d.id));
+  const purchasedIds = (prefix: "remix" | "adtext") =>
+    [...purchasedSet].filter((key) => key.startsWith(`${prefix}_`)).map((key) => key.slice(prefix.length + 1));
+
+  const [searchesSnap, cacheSnap, remixSnaps, adTextSnaps] = await Promise.all([
     db.collection("library_searches").limit(MAX_SOURCE_SCAN).get(),
     db.collection("radar_cache").limit(MAX_SOURCE_SCAN).get(),
-    db.collection("remixes").limit(MAX_SOURCE_SCAN).get(),
-    db.collection("remixed_ad_texts").limit(MAX_SOURCE_SCAN).get(),
-    db.collection("users").doc(uid).collection("library_purchases").get(),
+    visibleCreations("remixes", uid, purchasedIds("remix")),
+    visibleCreations("remixed_ad_texts", uid, purchasedIds("adtext")),
   ]);
-
-  const purchasedSet = new Set(purchasesSnap.docs.map((d) => d.id));
 
   // Parse remixes & ad texts first so we can batch-resolve any referenced ads/brands without N+1 reads.
   const parsedRemixes: Array<{ id: string; doc: RemixDoc; createdAt: string }> = [];
-  for (const snap of remixesSnap.docs) {
+  for (const snap of remixSnaps) {
     const parsed = RemixDocSchema.safeParse(snap.data());
     if (!parsed.success) continue;
     parsedRemixes.push({
@@ -268,7 +310,7 @@ export async function listLibraryItems(uid: string, query: LibraryListQuery) {
   }
 
   const parsedAdTexts: Array<{ id: string; doc: RemixedAdTextDoc }> = [];
-  for (const snap of adTextsSnap.docs) {
+  for (const snap of adTextSnaps) {
     const parsed = RemixedAdTextDocSchema.safeParse(snap.data());
     if (!parsed.success) continue;
     parsedAdTexts.push({ id: snap.id, doc: parsed.data });
@@ -334,6 +376,7 @@ export async function listLibraryItems(uid: string, query: LibraryListQuery) {
         platform: doc.platform ?? ad?.platform,
         createdAt,
         purchased: purchasedSet.has(key),
+        isOwn: doc.uid === uid,
       }),
     );
   }
@@ -342,7 +385,7 @@ export async function listLibraryItems(uid: string, query: LibraryListQuery) {
   for (const { id, doc } of parsedAdTexts) {
     const ad = adsMap.get(db.collection("normalized_ads").doc(doc.sourceAdId).path);
     const key = `adtext_${id}`;
-    items.push(buildAdTextSummary(id, doc, ad?.platform, purchasedSet.has(key)));
+    items.push(buildAdTextSummary(id, doc, ad?.platform, purchasedSet.has(key), doc.uid === uid));
   }
 
   items.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
@@ -507,6 +550,7 @@ export async function getUnlockedLibraryItem(
         platform: remix.platform ?? sourceAd?.platform,
         createdAt,
         purchased,
+        isOwn: remix.uid === uid,
       }),
       detail: {
         kind: "REMIX_STUDIO",
@@ -534,7 +578,7 @@ export async function getUnlockedLibraryItem(
   const sourceAd = parsedAd?.success ? parsedAd.data : null;
 
   return {
-    summary: buildAdTextSummary(sourceId, remixedAdText, sourceAd?.platform, purchased),
+    summary: buildAdTextSummary(sourceId, remixedAdText, sourceAd?.platform, purchased, remixedAdText.uid === uid),
     detail: {
       kind: "REMIXED_AD_TEXT",
       remixedAdText,
@@ -543,6 +587,42 @@ export async function getUnlockedLibraryItem(
     fileName: `adradar-remixed-ad-text-${safeFileSlug(remixedAdText.brandName)}.txt`,
     txtContent: buildRemixedAdTextFileContent(remixedAdText),
   };
+}
+
+const creationsCollection = (prefix: "remix" | "adtext") => (prefix === "remix" ? "remixes" : "remixed_ad_texts");
+
+/**
+ * What the caller may do with a Library item. Previous Searches (public ad library results) are always for sale.
+ * A remix or remixed ad text is for sale only once its creator has made it public; the creator can always open
+ * their own, and a buyer keeps access to what they bought even if it's made private later.
+ */
+export async function getLibraryItemAccess(
+  uid: string,
+  itemKey: string,
+): Promise<{ purchased: boolean; isOwn: boolean; isPublic: boolean }> {
+  const { prefix, sourceId } = parseItemKey(itemKey);
+  const purchased = await hasPurchasedLibraryItem(uid, itemKey);
+  if (prefix === "search") return { purchased, isOwn: false, isPublic: true };
+  const snap = await db.collection(creationsCollection(prefix)).doc(sourceId).get();
+  if (!snap.exists) throw new ApiError("NOT_FOUND", "That Library item no longer exists.", 404);
+  return { purchased, isOwn: snap.get("uid") === uid, isPublic: snap.get("isPublic") === true };
+}
+
+/** The creator makes one of their remixes / remixed ad texts public (offered for sale in the Library) or private. */
+export async function setLibraryItemVisibility(uid: string, itemKey: string, isPublic: boolean): Promise<void> {
+  const { prefix, sourceId } = parseItemKey(itemKey);
+  if (prefix === "search") {
+    throw new ApiError("INVALID_INPUT", "Only remixes and remixed ad texts can be made public or private.", 400);
+  }
+  const ref = db.collection(creationsCollection(prefix)).doc(sourceId);
+  await db.runTransaction(async (t) => {
+    const snap = await t.get(ref);
+    if (!snap.exists) throw new ApiError("NOT_FOUND", "That Library item no longer exists.", 404);
+    if (snap.get("uid") !== uid) {
+      throw new ApiError("FORBIDDEN", "Only the person who created this can change whether it's public.", 403);
+    }
+    t.update(ref, isPublic ? { isPublic: true, publishedAt: new Date().toISOString() } : { isPublic: false });
+  });
 }
 
 export async function hasPurchasedLibraryItem(uid: string, itemKey: string): Promise<boolean> {

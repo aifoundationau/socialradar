@@ -88,6 +88,7 @@ export const POLICIES: Record<string, PolicyDoc> = {
         paragraphs: [
           "AdRadarHQ indexes public transparency repositories provided by Meta, TikTok, and Google. Users agree not to scrape, reverse-engineer, or attempt to bypass cryptographic token authentication gates.",
           "You retain full ownership of all customized Brand Profiles and AI-remixed creative assets generated for your brand.",
+          "Remixes you create are private to your account unless you choose to make one public in the Library. When you make a remix public, you allow AdRadarHQ to offer copies of it to other users, who may use the copies they buy. AdRadarHQ keeps the full Library fee for each copy sold; creators are not paid for sales. You can make it private again at any time; copies already bought stay with their buyers.",
         ],
       },
       {
@@ -183,7 +184,7 @@ export const POLICIES: Record<string, PolicyDoc> = {
         heading: "3. Zero Third-Party Data Selling",
         paragraphs: [
           "We do not sell, rent, or trade your personal data, brand identity details, or proprietary creative inputs to data brokers or advertising exchanges.",
-          "Your Brand Profiles and remixed campaigns are strictly private and accessible only by your authenticated user ID.",
+          "Your Brand Profiles and remixed campaigns are private to your account. A remix is shown to other users only if you choose to make it public in the Library, where other users can buy a copy; you can make it private again at any time.",
         ],
       },
     ],
