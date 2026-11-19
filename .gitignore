@@ -60,3 +60,6 @@ stripewebhooks.txt
 
 .vercel
 .env*
+
+# Local review notes: never committed or pushed
+recommendations.txt
