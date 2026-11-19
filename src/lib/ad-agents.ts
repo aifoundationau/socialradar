@@ -224,7 +224,6 @@ export async function registerOrUpdateAdAgent(params: {
   uid: string;
   callerEmail?: string;
   email: string;
-  currentRole: RbacRole | string;
   name: string;
   phone: string;
   location: AdAgentLocation;
@@ -236,7 +235,6 @@ export async function registerOrUpdateAdAgent(params: {
   const now = new Date().toISOString();
   const isSuper = isDatabaseAdminEmail(cleanEmail);
   const isSameAsCaller = cleanEmail === cleanCallerEmail;
-  const isMainAdmin = isSameAsCaller && params.currentRole === "admin";
 
   // Check if an Ad Agent record already exists STRICTLY by email
   // Every email gets its own distinct Ad Agent profile and personal details.
@@ -317,25 +315,22 @@ export async function registerOrUpdateAdAgent(params: {
 
   await db.collection(AD_AGENTS_COL).doc(agentId).set(nextAgent, { merge: true });
 
-  // Preserve any existing multi-roles assigned by Super Admin while ensuring "ad_agent" is included
+  // Preserve the roles Super Admin has recorded on users/{uid} while ensuring "ad_agent" is included.
+  // Registering never grants Main Admin: "admin" is kept only if it's already on the record.
   let existingUserRoles: RbacRole[] = [];
   let existingTier = "supporter";
   if (targetUid) {
-    try {
-      const userSnap = await db.collection("users").doc(targetUid).get();
-      if (userSnap.exists) {
-        const uData = userSnap.data() || {};
-        if (Array.isArray(uData.roles)) {
-          existingUserRoles = uData.roles as RbacRole[];
-        } else if (typeof uData.role === "string") {
-          existingUserRoles = [uData.role as RbacRole];
-        }
-        if (typeof uData.tier === "string") {
-          existingTier = uData.tier;
-        }
+    const userSnap = await db.collection("users").doc(targetUid).get();
+    if (userSnap.exists) {
+      const uData = userSnap.data() || {};
+      if (Array.isArray(uData.roles)) {
+        existingUserRoles = uData.roles as RbacRole[];
+      } else if (typeof uData.role === "string") {
+        existingUserRoles = [uData.role as RbacRole];
       }
-    } catch {
-      // non-blocking
+      if (typeof uData.tier === "string") {
+        existingTier = uData.tier;
+      }
     }
   }
 
@@ -345,8 +340,7 @@ export async function registerOrUpdateAdAgent(params: {
     roleSet.add("admin");
     roleSet.add("ad_agent");
     roleSet.add("supporter");
-  } else if (isMainAdmin || roleSet.has("admin")) {
-    roleSet.add("admin");
+  } else if (roleSet.has("admin")) {
     roleSet.add("ad_agent");
     roleSet.add("supporter");
   } else {
@@ -369,43 +363,25 @@ export async function registerOrUpdateAdAgent(params: {
       ? "agency"
       : "supporter";
 
-  if (!isSuper && targetUid) {
-    try {
-      await adminAuth.setCustomUserClaims(targetUid, {
-        role: assignedRole,
-        roles: mergedRoles,
-        tier: resolvedTier,
-        isSuperAdmin: false,
-        admin: mergedRoles.includes("admin"),
-        ad_agent: true,
-        superadmin: false,
-      });
-    } catch (err) {
-      console.warn("[ad-agents] setCustomUserClaims failed", err);
-    }
-  }
-
+  // users/{uid} is the only record of Ad Radar roles (claims on the shared Auth account aren't written), so
+  // this write must succeed for the Ad Agent role to take effect.
   if (targetUid) {
-    try {
-      await db
-        .collection("users")
-        .doc(targetUid)
-        .set(
-          {
-            email: cleanEmail,
-            displayName: params.name.trim(),
-            role: assignedRole,
-            roles: mergedRoles,
-            tier: resolvedTier,
-            isAdAgent: true,
-            adAgentId: agentId,
-            updatedAt: now,
-          },
-          { merge: true },
-        );
-    } catch {
-      // ignore if user doc update fails
-    }
+    await db
+      .collection("users")
+      .doc(targetUid)
+      .set(
+        {
+          email: cleanEmail,
+          displayName: params.name.trim(),
+          role: assignedRole,
+          roles: mergedRoles,
+          tier: resolvedTier,
+          isAdAgent: true,
+          adAgentId: agentId,
+          updatedAt: now,
+        },
+        { merge: true },
+      );
   }
 
   return { agent: nextAgent, assignedRole, isNewRegistration };
@@ -477,54 +453,29 @@ export async function superAdminUpsertAdAgent(params: {
 
   await db.collection(AD_AGENTS_COL).doc(agentId).set(nextAgent, { merge: true });
 
-  // If this user exists in Firebase Auth and is a supporter, grant them ad_agent role
+  // If this user has an account, add the ad_agent role to their users/{uid} record (the only record of Ad Radar
+  // roles), keeping any roles Super Admin already gave them (e.g. admin, agency, moderator).
   if (matchedUid && !isDatabaseAdminEmail(cleanEmail)) {
-    try {
-      const authUser = await adminAuth.getUser(matchedUid);
-      const claims = (authUser.customClaims ?? {}) as Record<string, unknown>;
-      const currentRole = (claims.role as string) || "supporter";
-      if (currentRole !== "superadmin" && currentRole !== "admin") {
-        // Add ad_agent while keeping any other roles already assigned (e.g. agency, moderator), and write
-        // the same roles to the token claims and users/{uid} so the client sees them in sync.
-        const roles = normalizeUserRoles(
-          [...(Array.isArray(claims.roles) ? claims.roles : []), "ad_agent"],
-          currentRole,
-          false,
-        );
-        const tier = roles.includes("agency") || roles.includes("admin") ? "agency" : "supporter";
-        await adminAuth.setCustomUserClaims(matchedUid, {
-          role: roles[0],
-          roles,
-          tier,
-          isSuperAdmin: false,
-          admin: roles.includes("admin"),
-          ad_agent: true,
-          superadmin: false,
-        });
-        await db.collection("users").doc(matchedUid).set(
-          {
-            role: roles[0],
-            roles,
-            tier,
-            isAdAgent: true,
-            adAgentId: agentId,
-            updatedAt: now,
-          },
-          { merge: true },
-        );
-      } else {
-        await db.collection("users").doc(matchedUid).set(
-          {
-            isAdAgent: true,
-            adAgentId: agentId,
-            updatedAt: now,
-          },
-          { merge: true },
-        );
-      }
-    } catch {
-      // ignore
-    }
+    const userRef = db.collection("users").doc(matchedUid);
+    const userSnap = await userRef.get();
+    const roles = normalizeUserRoles(
+      [...(Array.isArray(userSnap.get("roles")) ? userSnap.get("roles") : []), "ad_agent"],
+      userSnap.get("role"),
+      false,
+    );
+    const tier = roles.includes("agency") || roles.includes("admin") ? "agency" : "supporter";
+    await userRef.set(
+      {
+        email: cleanEmail,
+        role: roles[0],
+        roles,
+        tier,
+        isAdAgent: true,
+        adAgentId: agentId,
+        updatedAt: now,
+      },
+      { merge: true },
+    );
   }
 
   return nextAgent;

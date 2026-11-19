@@ -5,7 +5,7 @@ import { recordStripePurchase } from "@/lib/admin";
 import { db } from "@/lib/firebase-admin";
 import { jsonError } from "@/lib/api";
 import { TopupMetadataSchema } from "@/lib/contracts";
-import { fulfillCheckoutSession, getStripe } from "@/lib/stripe";
+import { fulfillCheckoutSession, getStripe, invoiceTaxCents } from "@/lib/stripe";
 
 type SubscriptionStatus = "active" | "past_due" | "canceled";
 
@@ -93,8 +93,7 @@ export async function POST(req: Request) {
         meta.data.buyerCountry ||
         "AU"
       ).toUpperCase();
-      const totalExcludingTax = invoice.total_excluding_tax ?? invoice.subtotal_excluding_tax ?? null;
-      const taxCents = totalExcludingTax !== null ? Math.max(0, invoice.total - totalExcludingTax) : 0;
+      const taxCents = invoiceTaxCents(invoice);
       const taxApplied = taxCents > 0;
       const renewalTaxLabel = taxApplied ? "+ 10% GST" : `No Tax · ${buyerCountry}`;
 
@@ -121,6 +120,9 @@ export async function POST(req: Request) {
         packId: meta.data.packId,
         tokens: meta.data.tokens,
         amountCents,
+        // The redistributive ledger shares out revenue excluding GST, which is owed to the ATO.
+        taxCents,
+        amountExGstCents: Math.max(0, amountCents - taxCents),
         currency: invoice.currency ?? "aud",
         createdAt: new Date().toISOString(),
       });

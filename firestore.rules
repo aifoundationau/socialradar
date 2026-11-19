@@ -3,6 +3,10 @@ rules_version = '2';
 // Ad Radar — rules for the `ad-radar` Firestore database only (see firebase.json).
 // Write authority: every write goes through the Firebase Admin SDK, which bypasses
 // these rules. Clients get owner-scoped, read-only access. Anything not matched is denied.
+//
+// The Firebase project (so its Auth accounts and their custom claims) is shared with other apps, so no rule
+// trusts a custom claim. Super Admin is the database admin's verified email; Main Admin is whoever Super
+// Admin appointed, as recorded on users/{uid} in this database (which only the server writes).
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -17,13 +21,31 @@ service cloud.firestore {
       return signedIn() && resource.data.uid == request.auth.uid;
     }
 
-    function isAdmin() {
+    // True when the caller's verified email is `email` (stored emails are lower-case).
+    function hasVerifiedEmail(email) {
+      return signedIn()
+        && email is string && email.size() > 0
+        && request.auth.token.get('email_verified', false) == true
+        && request.auth.token.get('email', '').lower() == email;
+    }
+
+    // Keep this list the same as DATABASE_ADMIN_EMAILS in src/lib/firebase-admin.ts.
+    function isSuperAdmin() {
+      return signedIn()
+        && request.auth.token.get('email_verified', false) == true
+        && request.auth.token.get('email', '').lower() in ['davidrobertson.info@gmail.com', 'support@aifoundation.net.au'];
+    }
+
+    // Appointed by Super Admin in Role Permissions; recorded on the caller's users/{uid} in this database.
+    function isMainAdmin() {
       return signedIn() && (
-        request.auth.token.role in ['admin', 'superadmin'] ||
-        request.auth.token.isSuperAdmin == true ||
-        request.auth.token.admin == true ||
-        request.auth.token.superadmin == true
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin' ||
+        'admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('roles', [])
       );
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || isMainAdmin();
     }
 
     match /users/{uid} {
@@ -68,17 +90,21 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Ad Agents registry: any signed-in user can read available agents.
-    // Mutations are server-only via Firebase Admin SDK.
+    // Ad Agent records hold bank / PayID details: only the Ad Agent themself (by uid, or by verified email
+    // when the record has no uid yet) and Super Admin may read them. Mutations are server-only.
     match /ad_agents/{agentId} {
-      allow read: if signedIn();
+      allow read: if isSuperAdmin()
+        || (signedIn() && resource.data.get('uid', '') == request.auth.uid)
+        || hasVerifiedEmail(resource.data.get('email', ''));
       allow write: if false;
     }
 
-    // Ad Agent Contractors registry: any signed-in user can read available contractors.
-    // Mutations are server-only via Firebase Admin SDK.
+    // Contractor records hold the contractor's PayID details: only the Ad Agent who added them and Super
+    // Admin may read them. Mutations are server-only via /api/contractors.
     match /ad_agent_contractors/{contractorId} {
-      allow read: if signedIn();
+      allow read: if isSuperAdmin()
+        || (signedIn() && resource.data.get('agentUid', '') == request.auth.uid)
+        || hasVerifiedEmail(resource.data.get('agentEmail', ''));
       allow write: if false;
     }
 

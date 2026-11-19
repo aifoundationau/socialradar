@@ -1177,7 +1177,9 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
         return next;
       });
       reloadAdAgents();
-      setStatusMsg(`Deleted user ${targetUser.email || targetUser.uid}.`);
+      setStatusMsg(
+        `Removed ${targetUser.email || targetUser.uid} from Ad Radar. Their sign-in for other apps is not affected.`,
+      );
     } catch (err) {
       setErrorMsg(errorMessage(err));
     } finally {
@@ -4124,7 +4126,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           </span>
                         </div>
                         <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                          Calculates equity partner ownership from total Stripe token revenue and purchased tokens.
+                          Calculates equity partner ownership from Stripe token revenue excluding GST, and purchased tokens.
                         </p>
                       </button>
                       <button
@@ -4229,7 +4231,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           </div>
 
                           <div className={`${card} p-3 lg:py-2.5 lg:px-3.5`}>
-                            <span className="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">Sum Amount (AUD)</span>
+                            <span className="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">Sum Amount ex-GST (AUD)</span>
                             <p className="mt-0.5 text-title-sm lg:text-title-md font-bold text-on-surface">
                               {formatAud(ledger?.totalGrossAudCents ?? ledger?.totalGrossCents ?? 0)}
                             </p>
@@ -4239,7 +4241,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           </div>
 
                           <div className={`${card} p-3 lg:py-2.5 lg:px-3.5`}>
-                            <span className="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">Sum Amount (USD)</span>
+                            <span className="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">Sum Amount ex-GST (USD)</span>
                             <p className="mt-0.5 text-title-sm lg:text-title-md font-bold text-on-surface">
                               {formatUsd(ledger?.totalGrossUsdCents ?? Math.round((ledger?.totalGrossCents ?? 0) * 0.65))}
                             </p>
@@ -4620,7 +4622,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   <th className="px-2.5 py-2">Date</th>
                                   <th className="px-2.5 py-2">Buyer</th>
                                   <th className="px-2 py-2">Tokens</th>
-                                  <th className="px-2.5 py-2 text-right">Gross (AUD)</th>
+                                  <th className="px-2.5 py-2 text-right">Ex-GST (AUD)</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-white/[0.04] font-mono">
@@ -4636,7 +4638,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                       ⚡ {p.tokens.toLocaleString("en-AU")}
                                     </td>
                                     <td className="px-2.5 py-2 text-on-surface text-right font-semibold whitespace-nowrap">
-                                      {formatPrice(p.amountCents)}
+                                      {formatPrice(p.amountExGstCents ?? p.amountCents)}
                                     </td>
                                   </tr>
                                 ))}
@@ -7440,6 +7442,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                                     data-agent-id={`delete-user-btn-${user.uid}`}
                                                     data-testid={`delete-user-btn-${user.uid}`}
                                                     aria-label={`Delete user ${user.email || user.uid}`}
+                                                    title="Deletes this person's Ad Radar data (profile, brands, tokens). Their sign-in, which your other apps share, is not touched."
                                                     className="inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 font-mono text-[10px] font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 transition whitespace-nowrap"
                                                   >
                                                     <Icon name="trash" className="size-3" />

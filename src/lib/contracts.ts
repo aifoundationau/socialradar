@@ -631,6 +631,8 @@ export const EquityPartnerSchema = z
     claimedTokens: z.number().int().nonnegative().optional(),
     claimedAudCents: z.number().int().nonnegative().optional(),
     claimedUsdCents: z.number().int().nonnegative().optional(),
+    /** "exGst" once claimed amounts are recorded on the ex-GST revenue; absent = recorded on GST-inclusive totals. */
+    claimedBasis: z.literal("exGst").optional(),
     lastResetAt: z.string().optional(),
     lastResetBy: z.string().optional(),
   })
@@ -667,7 +669,12 @@ export const StripePurchaseRecordSchema = z
     email: z.string().trim().toLowerCase().email().max(254).optional(),
     packId: z.string().min(1).max(64),
     tokens: tokenInt.positive(),
+    /** What the customer paid, GST included. */
     amountCents: z.number().int().nonnegative(),
+    /** GST Stripe charged (0 outside Australia). Absent on purchases recorded before it was stored. */
+    taxCents: z.number().int().nonnegative().optional(),
+    /** amountCents minus taxCents: the revenue the redistributive ledger shares out. */
+    amountExGstCents: z.number().int().nonnegative().optional(),
     currency: z.string().trim().toLowerCase().min(3).max(4).default("aud"),
     createdAt: isoDate,
   })
@@ -689,6 +696,7 @@ export const PartnerDistributionSchema = z
   .strict();
 export type PartnerDistribution = z.infer<typeof PartnerDistributionSchema>;
 
+/** All money figures exclude GST (the "Gross" field names are kept for compatibility). */
 export const RedistributiveLedgerSummarySchema = z
   .object({
     totalTokens: tokenInt,

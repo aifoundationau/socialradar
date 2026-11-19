@@ -16,7 +16,8 @@
 
 ## 1. UserAuth & Token Ledger (`users/{uid}` & `token_transactions/{txId}`)
 
-### Custom Claims (Firebase Admin)
+### Roles (`users/{uid}` — not Firebase custom claims)
+The Firebase project, and so its Auth accounts and custom claims, is shared with other apps. Ad Radar therefore never reads or writes custom claims for authorization. A caller's roles are the `role` / `roles` (and `isAdAgent`) fields on their `users/{uid}` document in the `ad-radar` database, which only the server writes, and which only Super Admin can set to Main Admin (`admin`). `verifyRequest` reads that document on every API call and the Firestore rules read it in `isMainAdmin()`, so an appointment or removal applies immediately. `verifyRequest` returns the resolved roles in this shape (`caller.claims`):
 ```json
 {
   "role": "superadmin" | "admin" | "ad_agent" | "moderator" | "agency" | "supporter" | "user",
@@ -33,7 +34,7 @@
   - *Main Admin View (`admin`):* Simulates the exact 5-tab Main Admin Panel, Main Admin badge, and operational controls.
   - *Supporter View (`supporter`):* Simulates the exact 3-tab Supporter Admin Panel (Tokens, Buy More Tokens, Messages only), Supporter badge, and customer navigation.
   - Dynamic notification banner in the top navigation and 1-click "Return to Super Admin" reset in the header, account menu, and modals.
-- **Main Admin Authority (`role: "admin"`):** Operational administrators assigned the `"admin"` role. Main Admin has access to the Main Admin Panel with 5 operational control tabs:
+- **Main Admin Authority (`role: "admin"`):** Operational administrators whom Super Admin has manually assigned the `"admin"` role (RBAC → assign roles; recorded on `users/{uid}`). No other path grants it: registering as an Ad Agent only keeps an existing `admin` role, and claims set by other apps are ignored. Main Admin has access to the Main Admin Panel with 5 operational control tabs:
   1. **Currency Controls:** System currency toggles (Token Economy, AUD, USD) and Base Token Price (AUD).
   2. **Service Pricing:** Product and service token amounts (Search, Remix, Regenerate, Customize).
   3. **Token Packs:** Token pack catalog and Stripe pricing management.
@@ -41,7 +42,7 @@
   5. **FAQ Development:** Creating, editing, reordering, and maintaining customer-facing FAQ questions and answers.
   - *Super Admin-Exclusive Protections:* Main Admin is strictly barred from viewing or mutating the Redistributive Ledger (equity partners, profit distributions, simulated purchases, order refunds, gift tokens), the RBAC Matrix (elevating accounts or altering security permissions), and Developer Diagnostics (flushing query caches, granting admin claims).
 - **Supporter Level (Default):** All first-time and standard users start at supporter level `{ "role": "supporter", "tier": "supporter", "isSuperAdmin": false, "admin": false }`.
-- Missing/unassigned claims automatically fall back to `{ role: "supporter", tier: "supporter" }`.
+- A missing `users/{uid}` document or missing role fields fall back to `{ role: "supporter", tier: "supporter" }`.
 - UI displays a "Super Admin" badge for database admins, a "Main Admin" badge for main admins, and a "Supporter" badge for standard users.
 - The Admin Panel button in the account menu displays "Super Admin Panel" for Super Admin and "Main Admin Panel" for Main Admin. Non-admin supporters see "Supporter Admin Panel".
 
@@ -340,6 +341,7 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 | `claimedTokens` | integer | Cumulative tokens claimed/cleared via Individual Reset (Strict integer) |
 | `claimedAudCents` | integer | Cumulative AUD cents claimed/cleared via Individual Reset |
 | `claimedUsdCents` | integer | Cumulative USD cents claimed/cleared via Individual Reset |
+| `claimedBasis` | `"exGst"` | optional. Set when the claimed amounts are on ex-GST revenue; absent = recorded on GST-inclusive totals (scaled to ex-GST when the ledger is calculated) |
 | `lastResetAt` | ISO-8601 | optional, timestamp of last reset to 0 tokens |
 | `lastResetBy` | string | optional, email of admin who performed the reset |
 
@@ -351,16 +353,20 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 | `email` | string | Optional buyer email |
 | `packId` | string | Token pack id purchased |
 | `tokens` | integer | Tokens purchased (positive integer) |
-| `amountCents` | integer | Amount paid in cents (AUD/USD) |
+| `amountCents` | integer | Amount paid in cents (AUD/USD), GST included |
+| `taxCents` | integer | GST Stripe charged (0 outside Australia). Purchases recorded before this field existed are back-filled from Stripe the first time the ledger is loaded |
+| `amountExGstCents` | integer | `amountCents - taxCents`: the revenue the redistributive ledger shares out |
 | `currency` | string | `"aud" | "usd"` |
 | `createdAt` | ISO-8601 | |
 
 ### Redistributive Calculation Rules
 - **Total Tokens from Stripe Pool (Strict Integers Only)**: Sum of `tokens` across all recorded Stripe purchases in `stripe_purchases` (`totalTokens`). Strict integers only (`Math.round`).
 - **Gifted Tokens Exclusion**: Gifted tokens (added at no charge via `giftTokensToUser` or logged with `type: "GIFT"` in `token_transactions`) **NEVER** show in the Redistributive Ledger and are **NEVER** counted in `totalTokens` or partner distributions. Only legitimate Stripe-purchased tokens are aggregated.
-- **Total Revenue Pool (Dual Currency)**:
-  - `totalGrossAudCents`: Sum of all Stripe purchases in AUD cents (USD amounts converted at standard FX `0.65`).
-  - `totalGrossUsdCents`: Sum of all Stripe purchases in USD cents (AUD amounts converted at standard FX `0.65`).
+- **Total Revenue Pool (Dual Currency, excluding GST)**: GST collected on Australian sales is owed to the ATO, so it is never shared out. The field names keep the word "Gross" for compatibility.
+  - `totalGrossAudCents`: Sum of `amountExGstCents` across all Stripe purchases in AUD cents (USD amounts converted at standard FX `0.65`).
+  - `totalGrossUsdCents`: Sum of `amountExGstCents` across all Stripe purchases in USD cents (AUD amounts converted at standard FX `0.65`).
+  - A purchase whose GST couldn't be looked up yet counts at its GST-inclusive amount until the lookup succeeds.
+  - Claimed amounts recorded before GST was excluded (`claimedBasis` absent) are scaled by the ex-GST / GST-inclusive ratio of the purchases made up to the partner's `lastResetAt`.
 - **Partner Entitlement**:
   - `grossTokens = Math.round(totalTokens * (percentage / 100))` (Strict integer)
   - `ownedTokens = Math.max(0, grossTokens - (claimedTokens || 0))` (Strict integer)
@@ -938,12 +944,15 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   - The **Master Order Ledger** (`data-agent-id="master-order-ledger-section"`) remains collapsible (`data-agent-id="toggle-master-order-ledger-btn"`) and provides inline **`Refund Tokens` -> `Confirm Refund`** on deduction orders.
   - In **All Users & Multi-Role RBAC Assignment (`USERS` tab)**:
     - The standalone **`Super Admin Quick Assign Multiple Roles by Email`** panel (`users-tab-quick-assign-card`) has been removed from the `USERS` tab; all user search and multi-role assignment controls live inside the **All Users & Multi-Role RBAC Directory Table** (`data-agent-id="all-users-rbac-table"`).
-    - Inside the expanded **All Users & Multi-Role RBAC Directory Table**, an integrated **Email & Name Search Bar** (`data-agent-id="all-users-search-input"`, `placeholder="Search by email or name..."`, clear button `data-agent-id="clear-all-users-search-btn"`, and live counter `data-agent-id="all-users-match-count"`) filters users across `email`, resolved `displayName` (hydrated in `getRbacUsersList()` from Firebase Auth, `users` `displayName`/`name`, and `ad_agents` `name` plus live `adAgentLedger` studio names), `uid`, and assigned RBAC roles, with an empty-state row (`data-agent-id="all-users-empty-row"`).
+    - Inside the expanded **All Users & Multi-Role RBAC Directory Table**, an integrated **Email & Name Search Bar** (`data-agent-id="all-users-search-input"`, `placeholder="Search by email or name..."`, clear button `data-agent-id="clear-all-users-search-btn"`, and live counter `data-agent-id="all-users-match-count"`) filters users across `email`, resolved `displayName` (hydrated in `getRbacUsersList()` from the Firebase Auth record of each Ad Radar user, `users` `displayName`/`name`, and `ad_agents` `name` plus live `adAgentLedger` studio names), `uid`, and assigned RBAC roles, with an empty-state row (`data-agent-id="all-users-empty-row"`).
     - Every user row displays live non-negative integer `tokenBalance` (`tokenBalance >= 0`) alongside Super Admin inline controls with mandatory confirmation: **`+ Add Tokens` -> `Confirm Add`**, **`- Tokens` -> `Confirm`**, and **`Reset to Zero` -> `Confirm Reset to Zero`**.
   - **User Deletion with Mandatory Confirmation (`DELETE /api/admin/rbac`, `DeleteUserRequestSchema`):**
     - Every deletable user row in **All Users** renders **`Delete`** (`data-agent-id="delete-user-btn-<uid>"`) which expands a mandatory two-step **`Confirm Delete`** (`data-agent-id="confirm-delete-user-btn-<uid>"`) + **`Cancel`** (`data-agent-id="cancel-delete-user-btn-<uid>"`) prompt.
     - Validated strictly via `DeleteUserRequestSchema` (`action: "DELETE_USER"`, `uid`, optional `email`, `confirmDelete: true`, `additionalProperties: false`).
-    - Permanently blocks deleting the permanent database Super Admin account or the caller's own active session, revokes refresh tokens and deletes the Firebase Auth record + Firestore `users/{uid}` and private `brands` docs, deactivates any active Ad Agent routing entry (`inActiveLedger: false`, `status: "inactive"`), and preserves statutory 7-year compliance ledgers (`token_transactions`, `stripe_purchases`, `admin_messages`).
+    - Permanently blocks deleting the permanent database Super Admin account or the caller's own active session. Main Admin can't delete a Main Admin (roles read from `users/{uid}`).
+    - Removes the person from **Ad Radar only**: recursively deletes their `users/{uid}` record(s) with all subcollections (`brands`, `library_purchases`), deletes the `global_brands` copies they authored, and deactivates any Ad Agent routing entry (`inActiveLedger: false`, `status: "inactive"`). Preserves the statutory 7-year compliance records (`token_transactions`, `stripe_purchases`, `admin_messages`, `customize_requests`).
+    - Their **Firebase Auth account is never deleted and its sessions are never revoked**: the Firebase project is shared with other apps, so that would remove them from those apps too. If they sign in to Ad Radar again, they start over as a new Supporter.
+  - **Who appears in the table:** only people with a `users/{uid}` record in the `ad-radar` database (signed in to Ad Radar, or given a role or tokens here). `getRbacUsersList()` reads that collection and looks up Auth names/photos for those users only (`getUsers`, 100 per call); it never lists the shared project's Auth users.
 
 ## 23. Hard Non-Negative Token Balance & Zero-Balance Purchase Requirement Contract (`tokenBalance >= 0`)
 - **Hard Non-Negative Rule (`tokenBalance >= 0`):**

@@ -73,50 +73,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Everyone else starts at supporter level.
   const isSuper = isSuperAdminEmail(user?.email) && user?.emailVerified === true;
   const myProfileData = user && profile?.uid === user.uid ? profile.value : null;
-  const userRolesList = Array.isArray(myProfileData?.roles)
-    ? myProfileData.roles
-    : Array.isArray(myClaims?.roles)
-      ? (myClaims.roles as string[])
-      : [];
-  const isMainAdmin =
-    !isSuper &&
-    (myClaims?.role === "admin" ||
-      myClaims?.admin === true ||
-      myProfileData?.role === "admin" ||
-      userRolesList.includes("admin"));
+  // Roles come only from the live users/{uid} record, which only the server writes (Super Admin appoints Main
+  // Admins there) and which the API checks on every request. Custom claims on the Firebase Auth account are
+  // ignored: that account is shared with other apps in the Firebase project.
+  const userRolesList: string[] = Array.isArray(myProfileData?.roles) ? myProfileData.roles : [];
+  const isMainAdmin = !isSuper && (myProfileData?.role === "admin" || userRolesList.includes("admin"));
   const isAdAgentRole =
     !isSuper &&
     !isMainAdmin &&
-    (myClaims?.role === "ad_agent" ||
-      myProfileData?.role === "ad_agent" ||
-      userRolesList.includes("ad_agent"));
+    (myProfileData?.role === "ad_agent" ||
+      userRolesList.includes("ad_agent") ||
+      myProfileData?.isAdAgent === true);
   const realRole: ActiveRole = isSuper ? "superadmin" : isMainAdmin ? "admin" : isAdAgentRole ? "ad_agent" : "supporter";
-
-  // users/{uid} is only written by the server, right after it changes this user's custom claims. When the
-  // roles there no longer match the ID token's claims, force-refresh the token so the API (which reads the
-  // token) agrees with the UI straight away instead of up to an hour later.
-  const rolesKey = (roles: unknown, role: unknown) =>
-    (Array.isArray(roles) && roles.length > 0 ? roles.map(String) : typeof role === "string" && role ? [role] : [])
-      .sort()
-      .join(",");
-  const profileRolesKey = myProfileData ? rolesKey(myProfileData.roles, myProfileData.role) : "";
-  const claimRolesKey = myClaims ? rolesKey(myClaims.roles, myClaims.role) : "";
-  const claimsOutOfDate = Boolean(user && myClaims && profileRolesKey && profileRolesKey !== claimRolesKey);
-
-  useEffect(() => {
-    if (!user || !claimsOutOfDate) return;
-    let cancelled = false;
-    user
-      .getIdToken(true)
-      .then(() => user.getIdTokenResult())
-      .then((res) => {
-        if (!cancelled) setClaims({ uid: user.uid, value: res.claims || {} });
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [user, claimsOutOfDate, profileRolesKey]);
 
   const [actingAsRole, setActingAsRoleState] = useState<ActiveRole | null>(null);
 

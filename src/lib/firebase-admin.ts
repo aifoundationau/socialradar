@@ -2,8 +2,8 @@ import "server-only";
 import dns from "node:dns";
 import { cert, getApps, initializeApp, applicationDefault, type App } from "firebase-admin/app";
 import { getAuth, type DecodedIdToken } from "firebase-admin/auth";
-import { getFirestore, initializeFirestore, type Firestore } from "firebase-admin/firestore";
-import { CustomClaimsSchema, type CustomClaims } from "./contracts";
+import { getFirestore, initializeFirestore, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
+import type { CustomClaims } from "./contracts";
 
 // Prevent 21–44s IPv6 connection timeouts to Google Cloud / Firebase endpoints on Windows
 try {
@@ -123,11 +123,36 @@ const TOKEN_REJECTED_CODES = new Set([
   "auth/user-not-found",
 ]);
 
+/** Ad Radar roles other than Super Admin, highest first. */
+const APP_ROLES = ["admin", "ad_agent", "moderator", "agency", "supporter"] as const;
+type AppRole = (typeof APP_ROLES)[number];
+
 /**
- * Step 1 of the gate: verify the Bearer ID token (revocation checked) and
- * resolve custom claims.
- * The only superadmin is the person who is the admin of the Firebase database.
- * Everyone else starts off as 'Supporters'.
+ * The caller's Ad Radar roles, read only from users/{uid} in this app's own database, which only this server
+ * writes. Only Super Admin can appoint a Main Admin (by hand, in Role Permissions); the other roles come from
+ * Ad Radar's own approval flows. Custom claims on the Firebase Auth account are ignored on purpose: that
+ * account is shared with the other apps in the Firebase project, and a claim one of them sets (e.g.
+ * admin: true) must never grant anything in Ad Radar.
+ */
+async function loadAppRoles(uid: string): Promise<AppRole[]> {
+  let snap: DocumentSnapshot;
+  try {
+    snap = await db.collection("users").doc(uid).get();
+  } catch (err) {
+    console.error("[auth] could not read the caller's roles", err);
+    throw new AuthError("UPSTREAM_FAILURE", "Couldn't verify your session right now. Please try again.");
+  }
+  const storedRoles: unknown = snap.get("roles");
+  const held = new Set<unknown>([snap.get("role"), ...(Array.isArray(storedRoles) ? storedRoles : [])]);
+  if (snap.get("isAdAgent") === true) held.add("ad_agent");
+  const roles = APP_ROLES.filter((r) => held.has(r));
+  return roles.length > 0 ? roles : ["supporter"];
+}
+
+/**
+ * Step 1 of the gate: verify the Bearer ID token (revocation checked) and resolve the caller's roles.
+ * The only Super Admin is the Firebase database admin (verified email). Every other role comes from the
+ * caller's users/{uid} record (see loadAppRoles); everyone starts as a Supporter.
  */
 export async function verifyRequest(
   req: Request,
@@ -171,15 +196,6 @@ export async function verifyRequest(
   }
 
   const isSuper = isDatabaseAdmin(token);
-  const rawRole = (token as Record<string, unknown>)?.role;
-  const rawRoles = Array.isArray((token as Record<string, unknown>)?.roles)
-    ? ((token as Record<string, unknown>).roles as string[])
-    : [];
-  const isMainAdmin =
-    !isSuper &&
-    (rawRole === "admin" ||
-      rawRoles.includes("admin") ||
-      (token as Record<string, unknown>)?.admin === true);
   let claims: CustomClaims;
   if (isSuper) {
     claims = {
@@ -190,27 +206,15 @@ export async function verifyRequest(
       admin: true,
       superadmin: true,
     };
-  } else if (isMainAdmin) {
-    claims = {
-      role: "admin",
-      roles: rawRoles.length > 0 ? (rawRoles as CustomClaims["roles"]) : ["admin"],
-      tier: "agency",
-      isSuperAdmin: false,
-      admin: true,
-      superadmin: false,
-    };
   } else {
-    const validRole =
-      typeof rawRole === "string" &&
-      ["ad_agent", "moderator", "agency", "supporter"].includes(rawRole)
-        ? (rawRole as CustomClaims["role"])
-        : "supporter";
+    const roles = await loadAppRoles(token.uid);
+    const isMainAdmin = roles.includes("admin");
     claims = {
-      role: validRole,
-      roles: rawRoles.length > 0 ? (rawRoles as CustomClaims["roles"]) : [validRole],
-      tier: validRole === "agency" || rawRoles.includes("agency") ? "agency" : "supporter",
+      role: roles[0],
+      roles,
+      tier: isMainAdmin || roles.includes("agency") ? "agency" : "supporter",
       isSuperAdmin: false,
-      admin: false,
+      admin: isMainAdmin,
       superadmin: false,
     };
   }
@@ -218,14 +222,9 @@ export async function verifyRequest(
   if (opts.requireRole === "superadmin" && !isSuper) {
     throw new AuthError("FORBIDDEN", "Super admin role required");
   }
-  if (opts.requireRole === "admin" && !isSuper && !isMainAdmin) {
+  if (opts.requireRole === "admin" && !isSuper && claims.admin !== true) {
     throw new AuthError("FORBIDDEN", "Main Admin or Super Admin role required");
   }
 
   return { uid: token.uid, email: (token.email ?? "").toLowerCase(), claims, token };
-}
-
-/** Admin-only helper to assign RBAC claims (used by scripts / admin routes). */
-export async function setUserClaims(uid: string, claims: Partial<CustomClaims> & { role: CustomClaims["role"]; tier: CustomClaims["tier"] }) {
-  await adminAuth.setCustomUserClaims(uid, CustomClaimsSchema.parse(claims));
 }

@@ -1,6 +1,6 @@
 import "server-only";
 import { randomBytes } from "crypto";
-import type { DocumentData } from "firebase-admin/firestore";
+import type { DocumentData, QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { adminAuth, db } from "./firebase-admin";
 import {
   LINK_URL_PATTERN,
@@ -276,12 +276,124 @@ export async function recordStripePurchase(record: StripePurchaseRecord): Promis
   }
 }
 
-/** Fetches recent recorded Stripe purchases. */
+/** A purchase whose GST lookup failed is retried at most this often (per server instance). */
+const GST_LOOKUP_RETRY_MS = 60 * 60 * 1000;
+const gstLookupFailedAt = new Map<string, number>();
+
+/**
+ * Purchases recorded before the GST split was saved only have the GST-inclusive total. For those, looks up
+ * the tax Stripe actually charged (Checkout Session `cs_…`, or subscription renewal Invoice `in_…`) and saves
+ * it on the record, so each purchase is looked up once. A purchase Stripe can't answer for right now keeps
+ * its GST-inclusive total in this calculation and is retried later.
+ */
+async function withGstBreakdown(docs: QueryDocumentSnapshot[]): Promise<StripePurchaseRecord[]> {
+  const records = docs.map((d) => d.data() as StripePurchaseRecord);
+  const now = Date.now();
+  const missing = docs.flatMap((doc, i) =>
+    typeof records[i].amountExGstCents !== "number" &&
+    /^(cs|in)_/.test(doc.id) &&
+    now - (gstLookupFailedAt.get(doc.id) ?? 0) > GST_LOOKUP_RETRY_MS
+      ? [{ doc, i }]
+      : [],
+  );
+  if (missing.length === 0) return records;
+
+  // Imported here rather than at the top because stripe.ts imports this module.
+  const { getStripe, invoiceTaxCents } = await import("./stripe");
+  let stripe: ReturnType<typeof getStripe>;
+  try {
+    stripe = getStripe();
+  } catch (err) {
+    console.warn("[admin] Stripe isn't configured, so older purchases keep their GST-inclusive totals", err);
+    return records;
+  }
+
+  for (let start = 0; start < missing.length; start += 8) {
+    await Promise.all(
+      missing.slice(start, start + 8).map(async ({ doc, i }) => {
+        try {
+          const taxCents = doc.id.startsWith("cs_")
+            ? ((await stripe.checkout.sessions.retrieve(doc.id)).total_details?.amount_tax ?? 0)
+            : invoiceTaxCents(await stripe.invoices.retrieve(doc.id));
+          const amountExGstCents = Math.max(0, Math.round(Number(records[i].amountCents || 0)) - taxCents);
+          await doc.ref.update({ taxCents, amountExGstCents });
+          records[i] = { ...records[i], taxCents, amountExGstCents };
+        } catch (err) {
+          gstLookupFailedAt.set(doc.id, Date.now());
+          console.warn("[admin] couldn't look up the GST charged on purchase", doc.id, err);
+        }
+      }),
+    );
+  }
+  return records;
+}
+
+/** A purchase's ex-GST revenue in AUD and USD cents, and its GST-inclusive total in AUD cents. */
+function purchaseAmounts(p: StripePurchaseRecord) {
+  const isUsd = (p.currency || "aud").toLowerCase() === "usd";
+  const total = Math.max(0, Math.round(Number(p.amountCents || 0)));
+  const exGst = typeof p.amountExGstCents === "number" ? Math.max(0, Math.round(p.amountExGstCents)) : total;
+  return {
+    exGstAudCents: isUsd ? Math.round(exGst / 0.65) : exGst,
+    exGstUsdCents: isUsd ? exGst : Math.round(exGst * 0.65),
+    totalAudCents: isUsd ? Math.round(total / 0.65) : total,
+  };
+}
+
+/** Purchased tokens and ex-GST revenue across purchases (strict integers). */
+function sumPurchases(purchases: StripePurchaseRecord[]) {
+  let totalTokens = 0;
+  let exGstAudCents = 0;
+  let exGstUsdCents = 0;
+  for (const p of purchases) {
+    const amounts = purchaseAmounts(p);
+    totalTokens += Math.max(0, Math.round(Number(p.tokens || 0)));
+    exGstAudCents += amounts.exGstAudCents;
+    exGstUsdCents += amounts.exGstUsdCents;
+  }
+  return { totalTokens, exGstAudCents, exGstUsdCents };
+}
+
+/**
+ * A partner's claimed (already cleared) amounts on the ex-GST basis. Claims recorded before GST was taken out
+ * of the ledger were a share of GST-inclusive totals, so they're scaled by the ex-GST/total ratio of the
+ * purchases that existed at the partner's last reset. Otherwise what they're owed now would be understated.
+ */
+function claimedExGst(
+  partner: EquityPartner,
+  purchases: StripePurchaseRecord[],
+): { audCents: number; usdCents: number } {
+  const audCents = Math.max(0, Math.round(Number(partner.claimedAudCents || 0)));
+  const usdCents = Math.max(0, Math.round(Number(partner.claimedUsdCents || 0)));
+  const resetAt = partner.lastResetAt;
+  if (partner.claimedBasis === "exGst" || !resetAt || (audCents === 0 && usdCents === 0)) {
+    return { audCents, usdCents };
+  }
+  let totalAud = 0;
+  let exGstAud = 0;
+  for (const p of purchases) {
+    if (p.createdAt > resetAt) continue;
+    const amounts = purchaseAmounts(p);
+    totalAud += amounts.totalAudCents;
+    exGstAud += amounts.exGstAudCents;
+  }
+  if (totalAud <= 0) return { audCents, usdCents };
+  const ratio = exGstAud / totalAud;
+  return { audCents: Math.round(audCents * ratio), usdCents: Math.round(usdCents * ratio) };
+}
+
+/** Every recorded Stripe purchase, with its GST split filled in where possible. */
+async function loadLedgerPurchases(): Promise<StripePurchaseRecord[]> {
+  const snap = await db.collection(PURCHASES_COL).get();
+  return withGstBreakdown(snap.docs);
+}
+
+/** Fetches recent recorded Stripe purchases (with their GST split, as the ledger uses them). */
 export async function getStripePurchases(limit = 100): Promise<StripePurchaseRecord[]> {
   try {
     const snap = await db.collection(PURCHASES_COL).orderBy("createdAt", "desc").limit(limit).get();
     if (snap.empty) return [];
-    return snap.docs.map((d) => d.data() as StripePurchaseRecord);
+    return await withGstBreakdown(snap.docs);
   } catch (err) {
     console.warn("[admin] failed to fetch stripe purchases", err);
     return [];
@@ -293,34 +405,15 @@ export async function getStripePurchases(limit = 100): Promise<StripePurchaseRec
  * CRITICAL RULE: Only legitimate Stripe purchases recorded in `stripe_purchases`
  * are counted. Gifted tokens from Super Admin NEVER show in the Redistributive Ledger
  * or in the Total Tokens count. Strict integers only.
+ * Money is shared out EXCLUDING GST: GST collected on Australian sales is owed to the ATO, not revenue.
  */
 export async function getRedistributiveLedger(): Promise<RedistributiveLedgerSummary> {
-  const [config, purchasesSnap] = await Promise.all([
-    getSystemConfig(),
-    db.collection(PURCHASES_COL).get(),
-  ]);
-
-  let totalTokens = 0;
-  let totalGrossAudCents = 0;
-  let totalGrossUsdCents = 0;
-
-  for (const doc of purchasesSnap.docs) {
-    const data = doc.data() as StripePurchaseRecord;
-    // Strict verification: only legitimate Stripe purchases with positive tokens are counted
-    const tokens = Math.max(0, Math.round(Number(data.tokens || 0)));
-    const rawCents = Math.max(0, Math.round(Number(data.amountCents || 0)));
-    const curr = (data.currency || "aud").toLowerCase();
-
-    totalTokens += tokens;
-
-    if (curr === "usd") {
-      totalGrossUsdCents += rawCents;
-      totalGrossAudCents += Math.round(rawCents / 0.65);
-    } else {
-      totalGrossAudCents += rawCents;
-      totalGrossUsdCents += Math.round(rawCents * 0.65);
-    }
-  }
+  const [config, purchases] = await Promise.all([getSystemConfig(), loadLedgerPurchases()]);
+  const {
+    totalTokens,
+    exGstAudCents: totalGrossAudCents,
+    exGstUsdCents: totalGrossUsdCents,
+  } = sumPurchases(purchases);
 
   const totalGrossCents = totalGrossAudCents;
 
@@ -342,12 +435,11 @@ export async function getRedistributiveLedger(): Promise<RedistributiveLedgerSum
     const grossUsdCents = isActive ? Math.round(totalGrossUsdCents * (pct / 100)) : 0;
 
     const claimedTokens = Math.round(Number(p.claimedTokens || 0));
-    const claimedAudCents = Math.round(Number(p.claimedAudCents || 0));
-    const claimedUsdCents = Math.round(Number(p.claimedUsdCents || 0));
+    const claimed = claimedExGst(p, purchases);
 
     const ownedTokens = Math.max(0, grossTokens - claimedTokens);
-    const ownedAudCents = Math.max(0, grossAudCents - claimedAudCents);
-    const ownedUsdCents = Math.max(0, grossUsdCents - claimedUsdCents);
+    const ownedAudCents = Math.max(0, grossAudCents - claimed.audCents);
+    const ownedUsdCents = Math.max(0, grossUsdCents - claimed.usdCents);
     const ownedCents = ownedAudCents;
 
     return {
@@ -368,7 +460,7 @@ export async function getRedistributiveLedger(): Promise<RedistributiveLedgerSum
     totalGrossCents,
     totalGrossAudCents,
     totalGrossUsdCents,
-    totalPurchasesCount: purchasesSnap.size,
+    totalPurchasesCount: purchases.length,
     allocatedPercentage,
     treasuryPercentage,
     treasuryTokens,
@@ -420,6 +512,7 @@ export async function resetRedistributiveLedger(callerUid?: string): Promise<{
       claimedTokens: 0,
       claimedAudCents: 0,
       claimedUsdCents: 0,
+      claimedBasis: "exGst" as const,
     })),
   }));
 
@@ -444,28 +537,12 @@ export async function resetPartnerTokens(params: {
   clearedTokens: number;
   partnerEmail: string;
 }> {
-  const purchasesSnap = await db.collection(PURCHASES_COL).get();
-
-  let totalTokens = 0;
-  let totalGrossAudCents = 0;
-  let totalGrossUsdCents = 0;
-
-  for (const doc of purchasesSnap.docs) {
-    const data = doc.data() as StripePurchaseRecord;
-    const tokens = Math.round(Number(data.tokens || 0));
-    const rawCents = Math.round(Number(data.amountCents || 0));
-    const curr = (data.currency || "aud").toLowerCase();
-
-    totalTokens += tokens;
-
-    if (curr === "usd") {
-      totalGrossUsdCents += rawCents;
-      totalGrossAudCents += Math.round(rawCents / 0.65);
-    } else {
-      totalGrossAudCents += rawCents;
-      totalGrossUsdCents += Math.round(rawCents * 0.65);
-    }
-  }
+  // Same ex-GST totals as getRedistributiveLedger, so what's marked as claimed is exactly what was shown as owed.
+  const {
+    totalTokens,
+    exGstAudCents: totalGrossAudCents,
+    exGstUsdCents: totalGrossUsdCents,
+  } = sumPurchases(await loadLedgerPurchases());
 
   // Purchase totals are read first; the partner itself is updated inside the config transaction.
   const outcome = { clearedTokens: 0, partnerEmail: "" };
@@ -493,6 +570,7 @@ export async function resetPartnerTokens(params: {
       claimedTokens: grossTokens,
       claimedAudCents: grossAudCents,
       claimedUsdCents: grossUsdCents,
+      claimedBasis: "exGst",
       lastResetAt: new Date().toISOString(),
       lastResetBy: params.resetByEmail,
     };

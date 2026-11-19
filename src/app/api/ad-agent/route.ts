@@ -233,7 +233,6 @@ export async function POST(req: Request) {
         uid: caller.uid,
         callerEmail: viewer.email,
         email: targetEmail,
-        currentRole: caller.claims.role,
         name: parsed.name,
         phone: parsed.phone,
         location: parsed.location,

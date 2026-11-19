@@ -152,6 +152,12 @@ export function buildCheckoutParams(opts: {
   };
 }
 
+/** GST (tax) on an invoice in cents: its total minus its total excluding tax. */
+export function invoiceTaxCents(invoice: Stripe.Invoice): number {
+  const totalExcludingTax = invoice.total_excluding_tax ?? invoice.subtotal_excluding_tax ?? null;
+  return totalExcludingTax !== null ? Math.max(0, invoice.total - totalExcludingTax) : 0;
+}
+
 export interface CheckoutFulfillmentResult {
   fulfilled: boolean;
   credited: boolean;
@@ -236,6 +242,9 @@ export async function fulfillCheckoutSession(
     packId: meta.data.packId,
     tokens: meta.data.tokens,
     amountCents,
+    // The redistributive ledger shares out revenue excluding GST, which is owed to the ATO.
+    taxCents,
+    amountExGstCents: Math.max(0, amountCents - taxCents),
     currency: session.currency ?? "aud",
     createdAt: new Date().toISOString(),
   });

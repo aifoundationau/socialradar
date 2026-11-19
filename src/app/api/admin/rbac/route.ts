@@ -25,10 +25,7 @@ export async function GET(req: Request) {
     const permissions = await getCallerPermissions(caller);
     if (!permissions.has("manage_users")) assertPermission(permissions, "manage_rbac");
 
-    const [rbacConfig, users] = await Promise.all([
-      getRbacConfig(),
-      getRbacUsersList(100),
-    ]);
+    const [rbacConfig, users] = await Promise.all([getRbacConfig(), getRbacUsersList()]);
 
     return NextResponse.json({
       success: true,
@@ -95,7 +92,7 @@ export async function PUT(req: Request) {
         caller.email,
         { allowMainAdmin: isEffectiveSuperAdmin },
       );
-      const users = await getRbacUsersList(100);
+      const users = await getRbacUsersList();
       return NextResponse.json({
         success: true,
         message: `Assigned roles (${assigned.roles.join(", ")}) to ${parsed.email}`,
@@ -137,10 +134,10 @@ export async function DELETE(req: Request) {
       },
     );
 
-    const users = await getRbacUsersList(100);
+    const users = await getRbacUsersList();
     return NextResponse.json({
       success: true,
-      message: `Deleted user ${deleted.deletedEmail}`,
+      message: `Removed ${deleted.deletedEmail} from Ad Radar. Their sign-in for other apps is not affected.`,
       deleted,
       users,
     });

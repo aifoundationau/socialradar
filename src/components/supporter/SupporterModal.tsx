@@ -32,19 +32,16 @@ export type SupporterTab = "TOKENS" | "BUY_TOKENS" | "MESSAGES" | "DISTRIBUTIONS
 
 export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalProps) {
   const isClient = useIsClient();
-  const { user, profile, role, realRole, actingAsRole, isSuperAdmin, claims, resetRole } = useSession();
+  const { user, profile, role, realRole, actingAsRole, isSuperAdmin, resetRole } = useSession();
   const uid = user?.uid;
 
+  // From the users/{uid} record only (see SessionProvider): claims on the shared Auth account don't count.
   const profileRoles = Array.isArray(profile?.roles) ? profile.roles : [];
-  const claimRoles = Array.isArray(claims?.roles) ? (claims.roles as string[]) : [];
   const hasUnderlyingAdAgentRole =
     realRole === "ad_agent" ||
     profile?.role === "ad_agent" ||
     profile?.isAdAgent === true ||
-    profileRoles.includes("ad_agent") ||
-    claims?.role === "ad_agent" ||
-    claims?.ad_agent === true ||
-    claimRoles.includes("ad_agent");
+    profileRoles.includes("ad_agent");
 
   // Show the extra 'Distributions' tab whenever the viewer is an Ad Agent
   // (unless Super Admin is explicitly previewing pure 'Supporter' role).

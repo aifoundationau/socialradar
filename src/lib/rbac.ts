@@ -1,4 +1,5 @@
 import "server-only";
+import type { UserRecord } from "firebase-admin/auth";
 import { adminAuth, db, isDatabaseAdminEmail, type VerifiedCaller } from "./firebase-admin";
 import { ApiError } from "./api";
 import {
@@ -405,7 +406,8 @@ export async function assignUserRole(
     throw new ApiError("FORBIDDEN", "Cannot modify permanent database superadmin account", 403);
   }
 
-  const allowMainAdmin = options?.allowMainAdmin !== false;
+  // Only Super Admin may grant or remove Main Admin; the caller must say so explicitly.
+  const allowMainAdmin = options?.allowMainAdmin === true;
   const inputArray = Array.isArray(targetRoleOrRoles) ? targetRoleOrRoles : [targetRoleOrRoles];
   if (!allowMainAdmin && inputArray.includes("admin")) {
     throw new ApiError(
@@ -421,69 +423,46 @@ export async function assignUserRole(
   const primaryRole = roles[0] || "supporter";
   const tier = roles.includes("agency") || roles.includes("admin") ? "agency" : "supporter";
 
-  const newClaims = {
-    role: primaryRole,
-    roles,
-    tier,
-    isSuperAdmin: false,
-    admin: roles.includes("admin"),
-    ad_agent: roles.includes("ad_agent"),
-    superadmin: false,
-  };
-
-  let uid = `email:${normEmail}`;
-  let authUid: string | null = null;
-  let previousRoles: RbacRole[] = [];
+  let uid: string;
   try {
-    const userRecord = await adminAuth.getUserByEmail(normEmail);
-    uid = userRecord.uid;
-    authUid = userRecord.uid;
-    previousRoles = normalizeUserRoles(userRecord.customClaims?.roles, userRecord.customClaims?.role, false);
+    uid = (await adminAuth.getUserByEmail(normEmail)).uid;
   } catch {
     // User might exist in Firestore users collection before Firebase Auth sync
     const snap = await db.collection("users").where("email", "==", normEmail).limit(1).get();
-    if (!snap.empty) {
-      uid = snap.docs[0].id;
-    } else {
+    if (snap.empty) {
       throw new ApiError("NOT_FOUND", `No registered user found with email ${normEmail}`, 404);
     }
+    uid = snap.docs[0].id;
   }
 
-  if (authUid) {
-    await adminAuth.setCustomUserClaims(authUid, newClaims);
-    // A removed role must stop working now, not when the user's ID token next refreshes (up to an hour):
-    // revoking makes verifyRequest (which checks revocation) reject the old token, so they sign in again.
-    if (previousRoles.some((r) => r !== "supporter" && !roles.includes(r))) {
-      await adminAuth.revokeRefreshTokens(authUid);
-    }
-  }
-
-  // Keep users/{uid} in sync with both `role` (primary) and `roles` (all assigned roles)
+  // users/{uid} in this database is the only record of a person's Ad Radar roles: verifyRequest and the
+  // Firestore rules read it on every request, so a change (including a removed role) applies immediately.
+  // Custom claims on the Firebase Auth account are deliberately left alone, because that account is shared
+  // with the other apps in the Firebase project.
   const now = new Date().toISOString();
-  let userDisplayName = "";
-  try {
-    const existingUserSnap = await db.collection("users").doc(uid).get();
-    if (existingUserSnap.exists) {
-      userDisplayName = String(existingUserSnap.data()?.displayName || "").trim();
-    }
-    await db
-      .collection("users")
-      .doc(uid)
-      .set(
-        {
-          email: normEmail,
-          role: primaryRole,
-          roles,
-          tier,
-          isAdAgent: roles.includes("ad_agent"),
-          updatedAt: now,
-          roleUpdatedBy: updatedBy,
-        },
-        { merge: true },
-      );
-  } catch {
-    // Non-blocking fallback
+  const existingUserSnap = await db.collection("users").doc(uid).get();
+  const existingRoles = normalizeUserRoles(existingUserSnap.get("roles"), existingUserSnap.get("role"), false);
+  if (!allowMainAdmin && existingRoles.includes("admin")) {
+    throw new ApiError("FORBIDDEN", "Only Super Admin can change a Main Admin's roles.", 403);
   }
+  const userDisplayName = existingUserSnap.exists
+    ? String(existingUserSnap.data()?.displayName || "").trim()
+    : "";
+  await db
+    .collection("users")
+    .doc(uid)
+    .set(
+      {
+        email: normEmail,
+        role: primaryRole,
+        roles,
+        tier,
+        isAdAgent: roles.includes("ad_agent"),
+        updatedAt: now,
+        roleUpdatedBy: updatedBy,
+      },
+      { merge: true },
+    );
 
   // If the user is granted the "ad_agent" role, ensure their Ad Agent record exists in `ad_agents`
   // so they are always available in the Ad Agent panel records and can be activated one-by-one when required.
@@ -551,7 +530,15 @@ export async function assignUserRole(
   };
 }
 
-/** Deletes a registered user account from Firebase Authentication and Firestore `users` directory. */
+/**
+ * Removes a user from Ad Radar: their users/{uid} record with everything under it (brands, Library purchases),
+ * the community copies of their brands in global_brands, and their place in the Ad Agent routing list.
+ *
+ * Their Firebase Auth account is deliberately left alone: it's shared with the other apps in the Firebase
+ * project, so deleting it or revoking its sessions would remove them from those apps too. If they sign in to
+ * Ad Radar again they start over as a new Supporter. token_transactions, stripe_purchases, admin_messages and
+ * customize_requests are kept for the 7-year statutory retention period.
+ */
 export async function deleteRegisteredUser(
   params: { uid: string; email?: string },
   caller: { uid: string; email: string; allowDeleteAdmin?: boolean },
@@ -559,9 +546,8 @@ export async function deleteRegisteredUser(
   const rawUid = params.uid.trim();
   let normEmail = (params.email || "").trim().toLowerCase();
 
+  // Read-only Auth lookups, used only to find which users/{uid} records and email belong to this person.
   let authUid: string | null = null;
-  let targetRoles: RbacRole[] = [];
-
   if (!rawUid.startsWith("email:")) {
     try {
       const authRecord = await adminAuth.getUser(rawUid);
@@ -569,36 +555,42 @@ export async function deleteRegisteredUser(
       if (authRecord.email) {
         normEmail = authRecord.email.trim().toLowerCase();
       }
-      targetRoles = normalizeUserRoles(authRecord.customClaims?.roles, authRecord.customClaims?.role, false);
     } catch {
       // May only exist in Firestore `users`
     }
   }
-
   if (!authUid && normEmail) {
     try {
-      const authByEmail = await adminAuth.getUserByEmail(normEmail);
-      authUid = authByEmail.uid;
-      targetRoles = normalizeUserRoles(authByEmail.customClaims?.roles, authByEmail.customClaims?.role, false);
+      authUid = (await adminAuth.getUserByEmail(normEmail)).uid;
     } catch {
       // Not in Firebase Auth
     }
   }
 
-  const userDocSnap = await db.collection("users").doc(rawUid).get();
-  if (userDocSnap.exists) {
-    const docData = userDocSnap.data() || {};
-    if (!normEmail && typeof docData.email === "string") {
-      normEmail = docData.email.trim().toLowerCase();
-    }
-    if (targetRoles.length === 0) {
-      targetRoles = normalizeUserRoles(docData.roles, docData.role, false);
-    }
+  // The person's Ad Radar records: by uid, by Auth uid, and any other record with the same email.
+  const recordSnaps = [await db.collection("users").doc(rawUid).get()];
+  if (authUid && authUid !== rawUid) recordSnaps.push(await db.collection("users").doc(authUid).get());
+  for (const snap of recordSnaps) {
+    const docEmail = snap.get("email");
+    if (!normEmail && typeof docEmail === "string") normEmail = docEmail.trim().toLowerCase();
+  }
+  if (normEmail) {
+    const byEmailSnap = await db.collection("users").where("email", "==", normEmail).get();
+    recordSnaps.push(...byEmailSnap.docs);
+  }
+  const records = new Map(recordSnaps.filter((s) => s.exists).map((s) => [s.id, s]));
+  if (records.size === 0) {
+    throw new ApiError("NOT_FOUND", "This person has no Ad Radar account.", 404);
   }
 
-  if (!authUid && !userDocSnap.exists && !normEmail) {
-    throw new ApiError("NOT_FOUND", "User account not found", 404);
+  // Roles come from those records (where Super Admin appoints Main Admins), never from Auth claims.
+  const roleCandidates: unknown[] = [];
+  for (const snap of records.values()) {
+    const docRoles: unknown = snap.get("roles");
+    if (Array.isArray(docRoles)) roleCandidates.push(...docRoles);
+    roleCandidates.push(snap.get("role"));
   }
+  const targetRoles: RbacRole[] = normalizeUserRoles(roleCandidates, undefined, false);
 
   if (normEmail && isDatabaseAdminEmail(normEmail)) {
     throw new ApiError("FORBIDDEN", "Cannot delete permanent database Super Admin account", 403);
@@ -606,7 +598,7 @@ export async function deleteRegisteredUser(
 
   const callerEmailNorm = (caller.email || "").trim().toLowerCase();
   if (
-    rawUid === caller.uid ||
+    records.has(caller.uid) ||
     (authUid && authUid === caller.uid) ||
     (normEmail && callerEmailNorm && normEmail === callerEmailNorm)
   ) {
@@ -617,53 +609,27 @@ export async function deleteRegisteredUser(
     throw new ApiError("FORBIDDEN", "Main Admin cannot delete Super Admin or Main Admin accounts", 403);
   }
 
-  if (authUid) {
-    await adminAuth.revokeRefreshTokens(authUid).catch(() => undefined);
-    await adminAuth.deleteUser(authUid).catch((err: { code?: string }) => {
-      if (err?.code !== "auth/user-not-found") {
-        throw err;
-      }
-    });
-  }
-
-  const docIdsToDelete = new Set<string>([rawUid]);
-  if (authUid) docIdsToDelete.add(authUid);
-  if (normEmail) {
-    docIdsToDelete.add(`email:${normEmail}`);
-    const byEmailSnap = await db.collection("users").where("email", "==", normEmail).get();
-    byEmailSnap.forEach((d) => docIdsToDelete.add(d.id));
-  }
-
+  // Community copies of their brands (found by author while the brands still exist) and Ad Agent routing.
+  const ownerUids = [...records.keys()].filter((id) => !id.startsWith("email:"));
+  const [globalCopySnaps, agentSnap] = await Promise.all([
+    Promise.all(ownerUids.map((uid) => db.collection("global_brands").where("authorUid", "==", uid).get())),
+    normEmail ? db.collection("ad_agents").where("email", "==", normEmail).get() : Promise.resolve(null),
+  ]);
   const batch = db.batch();
-  for (const id of docIdsToDelete) {
-    batch.delete(db.collection("users").doc(id));
-  }
-
-  const targetUids = Array.from(new Set([rawUid, ...(authUid ? [authUid] : [])]));
-  for (const tUid of targetUids) {
-    const brandsSnap = await db.collection("brands").where("uid", "==", tUid).limit(100).get();
-    brandsSnap.forEach((bDoc) => batch.delete(bDoc.ref));
-  }
-
-  if (normEmail) {
-    const agentSnap = await db.collection("ad_agents").where("email", "==", normEmail).get();
-    const now = new Date().toISOString();
-    agentSnap.forEach((aDoc) => {
-      if (aDoc.data()?.isSuperAdminBuiltIn !== true) {
-        batch.set(
-          aDoc.ref,
-          {
-            inActiveLedger: false,
-            status: "inactive",
-            updatedAt: now,
-          },
-          { merge: true },
-        );
-      }
-    });
-  }
-
+  for (const snap of globalCopySnaps) snap.forEach((d) => batch.delete(d.ref));
+  const now = new Date().toISOString();
+  agentSnap?.forEach((aDoc) => {
+    if (aDoc.data()?.isSuperAdminBuiltIn !== true) {
+      batch.set(aDoc.ref, { inActiveLedger: false, status: "inactive", updatedAt: now }, { merge: true });
+    }
+  });
   await batch.commit();
+
+  // Their users/{uid} records with all subcollections (brands, library_purchases). Firestore doesn't delete a
+  // document's subcollections with it, hence recursiveDelete.
+  for (const ref of [...records.values()].map((s) => s.ref)) {
+    await db.recursiveDelete(ref);
+  }
 
   return {
     deletedUid: authUid || rawUid,
@@ -671,147 +637,92 @@ export async function deleteRegisteredUser(
   };
 }
 
-/** Lists registered users for the RBAC management table. */
-export async function getRbacUsersList(limitCount = 100): Promise<RbacUserItem[]> {
+/**
+ * Lists Ad Radar's users for the RBAC table: everyone with a users/{uid} record in this database (they've signed
+ * in to Ad Radar, or been given a role or tokens here). People who only use the other apps in the shared Firebase
+ * project never appear. Names, photos and sign-up dates are looked up in Auth for these users only.
+ */
+export async function getRbacUsersList(): Promise<RbacUserItem[]> {
   try {
-    const [listResult, usersSnap, adAgentsSnap] = await Promise.all([
-      adminAuth.listUsers(limitCount),
+    const [usersSnap, adAgentsSnap] = await Promise.all([
       db.collection("users").get(),
       db.collection("ad_agents").get().catch(() => null),
     ]);
 
-    const nameMap = new Map<string, string>();
+    // Auth details for Ad Radar's users only (getUsers takes up to 100 uids per call). Best effort: a failed
+    // lookup just means no photo or Auth name for those rows.
+    const authUsers = new Map<string, UserRecord>();
+    const uids = usersSnap.docs.map((d) => d.id).filter((id) => !id.startsWith("email:"));
+    for (let i = 0; i < uids.length; i += 100) {
+      const { users } = await adminAuth
+        .getUsers(uids.slice(i, i + 100).map((uid) => ({ uid })))
+        .catch((err) => {
+          console.warn("[rbac] couldn't look up Auth details for some users", err);
+          return { users: [] as UserRecord[] };
+        });
+      for (const u of users) authUsers.set(u.uid, u);
+    }
+
+    const agentNames = new Map<string, string>();
     adAgentsSnap?.forEach((doc) => {
       const data = doc.data();
       const agentName = typeof data.name === "string" ? data.name.trim() : "";
       if (!agentName || agentName === "Ad Agent") return;
-      nameMap.set(doc.id, agentName);
+      agentNames.set(doc.id, agentName);
       if (typeof data.uid === "string" && data.uid.trim()) {
-        nameMap.set(data.uid.trim(), agentName);
+        agentNames.set(data.uid.trim(), agentName);
       }
       if (typeof data.email === "string" && data.email.trim()) {
-        nameMap.set(data.email.toLowerCase().trim(), agentName);
+        agentNames.set(data.email.toLowerCase().trim(), agentName);
       }
     });
 
-    const balanceMap = new Map<string, number>();
-    const firestoreRoleMap = new Map<string, RbacRole>();
-    const firestoreRolesMap = new Map<string, RbacRole[]>();
+    // Records backed by an Auth account come first, so if two records share an email the real account is shown.
+    const docs = [...usersSnap.docs].sort((a, b) => Number(authUsers.has(b.id)) - Number(authUsers.has(a.id)));
+    const seenEmails = new Set<string>();
     const healPromises: Promise<unknown>[] = [];
-    usersSnap.forEach((doc) => {
+    const list: RbacUserItem[] = [];
+    for (const doc of docs) {
       const data = doc.data();
-      const docName =
-        (typeof data.displayName === "string" ? data.displayName.trim() : "") ||
-        (typeof data.name === "string" ? data.name.trim() : "");
-      if (docName) {
-        nameMap.set(doc.id, docName);
-        if (data.email) {
-          nameMap.set(String(data.email).toLowerCase().trim(), docName);
-        }
-      }
+      const auth = authUsers.get(doc.id);
+      const email = String(data.email || auth?.email || "").toLowerCase().trim();
+      if (email && seenEmails.has(email)) continue;
+      if (email) seenEmails.add(email);
+
       const rawBal = Number(data.tokenBalance ?? 0);
       if (!Number.isFinite(rawBal) || rawBal < 0) {
         healPromises.push(
-          doc.ref.update({
-            tokenBalance: 0,
-            updatedAt: new Date().toISOString(),
-          }).catch(() => undefined),
+          doc.ref.update({ tokenBalance: 0, updatedAt: new Date().toISOString() }).catch(() => undefined),
         );
       }
-      const bal = Math.max(0, Math.round(Number.isFinite(rawBal) ? rawBal : 0));
-      balanceMap.set(doc.id, bal);
-      const docRoles = Array.isArray(data.roles)
-        ? (data.roles.filter((r: unknown) => typeof r === "string" && RBAC_ROLES_LIST.includes(r as RbacRole)) as RbacRole[])
-        : undefined;
-      if (data.email) {
-        const cleanEmail = String(data.email).toLowerCase().trim();
-        balanceMap.set(cleanEmail, bal);
-        if (data.role && RBAC_ROLES_LIST.includes(data.role as RbacRole)) {
-          firestoreRoleMap.set(cleanEmail, data.role as RbacRole);
-        }
-        if (docRoles && docRoles.length > 0) {
-          firestoreRolesMap.set(cleanEmail, docRoles);
-        }
-      }
-      if (data.role && RBAC_ROLES_LIST.includes(data.role as RbacRole)) {
-        firestoreRoleMap.set(doc.id, data.role as RbacRole);
-      }
-      if (docRoles && docRoles.length > 0) {
-        firestoreRolesMap.set(doc.id, docRoles);
-      }
-    });
+      const isSuper = isDatabaseAdminEmail(email);
+      // The roles Ad Radar acts on: this users/{uid} record. Claims on the shared Auth account are ignored.
+      const roles = normalizeUserRoles(data.roles, data.role || (isSuper ? "superadmin" : "supporter"), isSuper);
+      const docName =
+        (typeof data.displayName === "string" ? data.displayName.trim() : "") ||
+        (typeof data.name === "string" ? data.name.trim() : "");
+
+      list.push({
+        uid: doc.id,
+        email,
+        displayName:
+          auth?.displayName?.trim() || docName || agentNames.get(doc.id) || agentNames.get(email) || undefined,
+        photoUrl: auth?.photoURL || undefined,
+        role: isSuper ? "superadmin" : roles[0] || "supporter",
+        roles,
+        tier: roles.includes("agency") || roles.includes("admin") || isSuper ? "agency" : "supporter",
+        createdAt:
+          auth?.metadata.creationTime ||
+          (typeof data.createdAt === "string" ? data.createdAt : new Date().toISOString()),
+        isPermanentSuperAdmin: isSuper,
+        tokenBalance: Math.max(0, Math.round(Number.isFinite(rawBal) ? rawBal : 0)),
+      });
+    }
     if (healPromises.length > 0) {
       await Promise.all(healPromises);
     }
 
-    const seenEmails = new Set<string>();
-    const combined: RbacUserItem[] = listResult.users.map((u) => {
-      const email = (u.email || "").toLowerCase().trim();
-      if (email) seenEmails.add(email);
-      const isSuper = isDatabaseAdminEmail(email);
-      const claimRole = u.customClaims?.role as RbacRole | undefined;
-      const claimRoles = u.customClaims?.roles as RbacRole[] | undefined;
-      const docRole = firestoreRoleMap.get(u.uid) || firestoreRoleMap.get(email);
-      const docRoles = firestoreRolesMap.get(u.uid) || firestoreRolesMap.get(email);
-      const rawRole = claimRole || docRole || (isSuper ? "superadmin" : "supporter");
-      const roles = normalizeUserRoles(docRoles || claimRoles, rawRole, isSuper);
-      const role: RbacRole = isSuper ? "superadmin" : roles[0] || "supporter";
-      const tier =
-        (u.customClaims?.tier as string) ||
-        (roles.includes("agency") || roles.includes("admin") || isSuper ? "agency" : "supporter");
-      const tokenBalance = balanceMap.get(u.uid) ?? balanceMap.get(email) ?? 0;
-      const resolvedName =
-        (u.displayName ? u.displayName.trim() : "") ||
-        nameMap.get(u.uid) ||
-        nameMap.get(email) ||
-        undefined;
-
-      return {
-        uid: u.uid,
-        email,
-        displayName: resolvedName,
-        photoUrl: u.photoURL || undefined,
-        role,
-        roles,
-        tier,
-        createdAt: u.metadata.creationTime || new Date().toISOString(),
-        isPermanentSuperAdmin: isSuper,
-        tokenBalance,
-      };
-    });
-
-    // Also include any Firestore user documents not yet in listResult.users
-    usersSnap.forEach((doc) => {
-      const data = doc.data();
-      const email = String(data.email || "").toLowerCase().trim();
-      if (!email || seenEmails.has(email)) return;
-      seenEmails.add(email);
-      const isSuper = isDatabaseAdminEmail(email);
-      const rawRole = (data.role as RbacRole) || (isSuper ? "superadmin" : "supporter");
-      const roles = normalizeUserRoles(data.roles, rawRole, isSuper);
-      const role: RbacRole = isSuper ? "superadmin" : roles[0] || "supporter";
-      const tier = roles.includes("agency") || roles.includes("admin") || isSuper ? "agency" : "supporter";
-      const tokenBalance = balanceMap.get(doc.id) ?? balanceMap.get(email) ?? 0;
-      const resolvedName =
-        (typeof data.displayName === "string" ? data.displayName.trim() : "") ||
-        (typeof data.name === "string" ? data.name.trim() : "") ||
-        nameMap.get(doc.id) ||
-        nameMap.get(email) ||
-        undefined;
-      combined.push({
-        uid: doc.id,
-        email,
-        displayName: resolvedName,
-        role,
-        roles,
-        tier,
-        createdAt: typeof data.createdAt === "string" ? data.createdAt : new Date().toISOString(),
-        isPermanentSuperAdmin: isSuper,
-        tokenBalance,
-      });
-    });
-
-    return combined;
+    return list;
   } catch (err) {
     console.error("[rbac] failed to list users for rbac", err);
     return [];
