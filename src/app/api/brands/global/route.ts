@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, verifyRequest } from "@/lib/firebase-admin";
 import { errorResponse } from "@/lib/api";
-import { searchGlobalBrands } from "@/lib/brands";
+import { redactCommunityBrandForListing, searchGlobalBrands } from "@/lib/brands";
 import { GlobalBrandSearchQuerySchema, type FreeAccessWindow, type UserDoc } from "@/lib/contracts";
 import { getSystemConfig } from "@/lib/admin";
 import {
@@ -60,8 +60,17 @@ async function handleGlobalBrands(req: Request) {
       ? Math.max(0, Math.round(config.serviceCosts?.brandTxtDownload ?? 1))
       : 0;
 
+    const redactedBrands = brands.map((b) =>
+      redactCommunityBrandForListing(b, {
+        callerUid: caller.uid,
+        isSuperAdmin: caller.claims.isSuperAdmin === true,
+        cloneCharging: brandCloneFee > 0,
+        txtDownloadCharging: brandTxtDownloadFee > 0,
+      }),
+    );
+
     return NextResponse.json({
-      brands,
+      brands: redactedBrands,
       brandCloneFee,
       brandTxtDownloadFee,
       audCentsPerToken: config.audCentsPerToken ?? 100,

@@ -1,5 +1,5 @@
 import type { AdAgentDistributionItem } from "./contracts";
-import { audToUsdCents } from "./pricing";
+import { audToUsdCents, netAudCentsAfterStripeFee } from "./pricing";
 
 /**
  * Computes consistent display metrics for an Ad Agent row across both the
@@ -7,6 +7,8 @@ import { audToUsdCents } from "./pricing";
  * own `Distributions` tab.
  *
  * - Enforces strict integer tokens (`Math.round`, non-negative).
+ * - Calculates AUD/USD payout amounts after deducting Stripe processing fees
+ *   (1.75% + $0.30 AUD per order).
  * - Reflects Super Admin's `Reset 0 ⚡` action (`lastResetAt` with `0` unpaid tokens)
  *   immediately by setting Redistribution Amount to `0`, and accrues only new
  *   unpaid customizations completed after `lastResetAt`.
@@ -40,11 +42,15 @@ export function computeAdAgentDisplayItem(
       ? Math.max(0, Math.round(agent.redistributionTokens))
       : Math.max(0, Math.round((totalCustomizationsTokens * pct) / 100));
 
+  const netCustomizationsAudCents = netAudCentsAfterStripeFee(
+    totalCustomizationsAudCents,
+    effectiveOrdersCount,
+  );
   const redistributionAudCents = isResetToZero
     ? 0
     : hasPostResetUnpaid
       ? Math.max(0, Math.round(agent.redistributionAudCents))
-      : Math.max(0, Math.round((totalCustomizationsAudCents * pct) / 100));
+      : Math.max(0, Math.round((netCustomizationsAudCents * pct) / 100));
 
   const redistributionUsdCents = isResetToZero
     ? 0
@@ -62,4 +68,3 @@ export function computeAdAgentDisplayItem(
     redistributionUsdCents,
   };
 }
-

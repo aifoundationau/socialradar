@@ -318,7 +318,11 @@ export async function withTokenGate(
     const rawCost = customCost !== undefined ? customCost : ACTION_COSTS[action];
     let effectiveCost = Math.max(0, toInt(rawCost));
 
-    if (effectiveCost > 0) {
+    // Professional Customize Service orders are never free and are excluded from Timed Free Access Windows
+    // and global free-mode waivers. Customization AI Assistant also honors the configured Customization AI Fee directly.
+    if (action === "CUSTOMIZE_SERVICE") {
+      effectiveCost = Math.max(1, effectiveCost || ACTION_COSTS.CUSTOMIZE_SERVICE);
+    } else if (effectiveCost > 0 && action !== "CUSTOMIZE_AI_ASSISTANT") {
       const [sysSnap, userSnap] = await Promise.all([
         sysConfigDoc().get().catch(() => null),
         usersCol().doc(caller.uid).get().catch(() => null),
@@ -341,25 +345,47 @@ export async function withTokenGate(
     }
 
     if (effectiveCost === 0) {
-      const balance = Math.max(0, toInt(Number((await usersCol().doc(caller.uid).get()).get("tokenBalance") ?? 0)));
       const txId = buildTxId(caller.uid, key);
+      const txRef = txCol().doc(txId);
+      const refundRef = txCol().doc(`${txId}_refund`);
+      const [txSnap, refundSnap, userSnap] = await Promise.all([
+        txRef.get(),
+        refundRef.get(),
+        usersCol().doc(caller.uid).get(),
+      ]);
+      if (refundSnap.exists) {
+        throw new ApiError("FORBIDDEN", "That request was refunded. Send it again with a new idempotency key.", 409);
+      }
+      const trimmedRef = ref.slice(0, 256);
+      if (txSnap.exists) {
+        const prev = txSnap.data() as TokenTransactionDoc;
+        if (
+          prev.uid !== caller.uid ||
+          prev.type !== action ||
+          prev.referenceId !== trimmedRef ||
+          prev.delta !== 0
+        ) {
+          throw new ApiError("FORBIDDEN", "Idempotency key conflict", 409);
+        }
+        const prevBalance = Math.max(0, toInt(prev.balanceAfter));
+        return await handler({ caller, txId, balanceAfter: prevBalance, replayed: true, cost: 0 });
+      }
+
+      const balance = Math.max(0, toInt(Number(userSnap.get("tokenBalance") ?? 0)));
       const res = await handler({ caller, txId, balanceAfter: balance, replayed: false, cost: 0 });
       try {
-        await txCol().doc(txId).set(
-          {
-            txId,
-            uid: caller.uid,
-            email: caller.email.toLowerCase(),
-            type: action,
-            delta: 0,
-            balanceAfter: balance,
-            referenceId: ref.slice(0, 256),
-            createdAt: new Date().toISOString(),
-          } satisfies TokenTransactionDoc,
-          { merge: true }
-        );
+        await txRef.create({
+          txId,
+          uid: caller.uid,
+          email: caller.email.toLowerCase(),
+          type: action,
+          delta: 0,
+          balanceAfter: balance,
+          referenceId: trimmedRef,
+          createdAt: new Date().toISOString(),
+        } satisfies TokenTransactionDoc);
       } catch {
-        // Non-fatal if logging 0-token order fails
+        // Non-fatal if logging 0-token order fails or already created concurrently
       }
       return res;
     }

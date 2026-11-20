@@ -137,7 +137,8 @@ export const ACTION_COSTS: Record<
   | "BRAND_TXT_DOWNLOAD"
   | "SEARCHMIX_DOWNLOAD"
   | "DECONSTRUCT_DOWNLOAD"
-  | "CUSTOMIZE_SERVICE",
+  | "CUSTOMIZE_SERVICE"
+  | "CUSTOMIZE_AI_ASSISTANT",
   number
 > = {
   RADAR_SEARCH: 1,
@@ -150,6 +151,7 @@ export const ACTION_COSTS: Record<
   SEARCHMIX_DOWNLOAD: 1,
   DECONSTRUCT_DOWNLOAD: 0,
   CUSTOMIZE_SERVICE: 55,
+  CUSTOMIZE_AI_ASSISTANT: 1,
 };
 export type ChargeableAction = keyof typeof ACTION_COSTS;
 
@@ -205,6 +207,22 @@ export function audToUsdCents(audCents: number, fxRate: number = FX_AUD_TO_USD):
 export function usdToAudCents(usdCents: number, fxRate: number = FX_AUD_TO_USD): number {
   const rate = typeof fxRate === "number" && fxRate > 0 ? fxRate : FX_AUD_TO_USD;
   return Math.round(usdCents / rate);
+}
+
+/** Standard Stripe Australia online card processing fee: 1.75% + $0.30 AUD (30 cents) per order. */
+export const STRIPE_AU_FEE_RATE = 0.0175;
+export const STRIPE_AU_FIXED_FEE_CENTS = 30;
+
+/**
+ * Returns net customization revenue in AUD cents after deducting Stripe processing fees
+ * (1.75% + $0.30 AUD per customization order). Never returns negative cents.
+ */
+export function netAudCentsAfterStripeFee(grossAudCents: number, orderCount = 1): number {
+  const gross = Math.max(0, Math.round(grossAudCents));
+  if (gross <= 0) return 0;
+  const orders = Math.max(1, Math.round(orderCount));
+  const stripeFeeCents = Math.round(gross * STRIPE_AU_FEE_RATE) + orders * STRIPE_AU_FIXED_FEE_CENTS;
+  return Math.max(0, gross - stripeFeeCents);
 }
 
 export function formatTokenEstimateHover(

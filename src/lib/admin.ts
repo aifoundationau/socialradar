@@ -75,6 +75,7 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
     searchMixDownload: 1,
     deconstructDownload: 0,
     customizeService: 55,
+    customizeAiAssistant: 1,
   },
   tokenPacks: [
     { id: "PACK_10", name: "Quick Pack (10)", tokens: TOKEN_PACKS.PACK_10.tokens, priceCents: TOKEN_PACKS.PACK_10.priceCents, enabled: true },
@@ -616,17 +617,7 @@ export async function resetPartnerTokens(params: {
     return { equityPartners: updatedPartners };
   });
 
-  // If partner has a user wallet account, also reset their tokenBalance to 0 (intended behaviour)
-  try {
-    await resetTokensForUser({
-      recipientEmail: outcome.partnerEmail,
-      note: `Owner Redistribution cleared to 0 by Admin (${params.resetByEmail})`,
-      resetByEmail: params.resetByEmail,
-    });
-  } catch {
-    // Non-fatal if no user wallet registered under this email yet
-  }
-
+  // Only reset the partner's redistribution payout ledger; preserve their personal user wallet balance.
   return {
     equityPartners: updated.equityPartners,
     clearedTokens: outcome.clearedTokens,
@@ -955,11 +946,17 @@ export async function submitCustomizeRequest(params: {
     .map((p, idx) => `  ${idx + 1}. ${sanitizeForPlainTextArchive(p)}`)
     .join("\n");
 
+  const rawPhone = (assignedAgent.phone || "").trim();
+  const hasRealAgentPhone =
+    Boolean(rawPhone) &&
+    rawPhone.toLowerCase() !== "not specified" &&
+    rawPhone !== "+61 2 8000 0000";
+
   const staffBriefRaw = [
     `CUSTOMIZE SERVICE BRIEF (${requestId})`,
     `Customer: ${sanitizeForPlainTextArchive(cleanEmail)} | Fee Paid: ${params.tokensCharged} Tokens`,
     `Customer Geolocation: ${sanitizeForPlainTextArchive(customerLocationLabel)}`,
-    `Assigned Closest Ad Agent: ${sanitizeForPlainTextArchive(assignedAgent.name)} (${sanitizeForPlainTextArchive(assignedAgent.email)} | Phone: ${sanitizeForPlainTextArchive(assignedAgent.phone)} | Location: ${sanitizeForPlainTextArchive(assignedAgentLocation)} | Distance: ${closest.distanceKm} km)`,
+    `Assigned Closest Ad Agent: ${sanitizeForPlainTextArchive(assignedAgent.name)} (${sanitizeForPlainTextArchive(assignedAgent.email)}${hasRealAgentPhone ? ` | Phone: ${sanitizeForPlainTextArchive(rawPhone)}` : ""} | Location: ${sanitizeForPlainTextArchive(assignedAgentLocation)} | Distance: ${closest.distanceKm} km)`,
     `Brand Name: ${sanitizeForPlainTextArchive(params.input.brandName)}`,
     `Tone of Voice: ${params.input.toneOfVoice}${params.input.version ? ` | Version/Tag: ${sanitizeForPlainTextArchive(params.input.version)}` : ""}`,
     ``,
@@ -1027,7 +1024,7 @@ export async function submitCustomizeRequest(params: {
     `YOUR ASSIGNED CLOSEST AD AGENT:`,
     `Based on your geolocation (${sanitizeForPlainTextArchive(customerLocationLabel)}), we have selected our closest Ad Agent to handle your customization:`,
     `- Ad Agent Name: ${sanitizeForPlainTextArchive(assignedAgent.name)}`,
-    `- Ad Agent Phone: ${sanitizeForPlainTextArchive(assignedAgent.phone)}`,
+    hasRealAgentPhone ? `- Ad Agent Phone: ${sanitizeForPlainTextArchive(rawPhone)}` : null,
     `- Ad Agent Location: ${sanitizeForPlainTextArchive(assignedAgentLocation)} (${closest.distanceKm} km from your location)`,
     ``,
     `SUMMARY OF YOUR BRIEF IN QUEUE:`,
@@ -1037,7 +1034,9 @@ export async function submitCustomizeRequest(params: {
     ``,
     `WHAT HAPPENS NEXT:`,
     `Your assigned Ad Agent (${sanitizeForPlainTextArchive(assignedAgent.name)}) is reviewing your product positioning, buyer avatar, pain points, and extra notes to craft your customized brand & ad strategy package. As soon as your bespoke work is ready, it will be delivered right here in your Message Panel.`,
-  ].join("\n");
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 
   const customerConfirmationMessage = await sendSuperadminMessage({
     superadminUid: "system_customize_concierge",

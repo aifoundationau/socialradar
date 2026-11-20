@@ -56,6 +56,7 @@ export function TokenPacks() {
     searchMixDownload: ACTION_COSTS.SEARCHMIX_DOWNLOAD,
     deconstructDownload: ACTION_COSTS.DECONSTRUCT_DOWNLOAD,
     customizeService: ACTION_COSTS.CUSTOMIZE_SERVICE,
+    customizeAiAssistant: ACTION_COSTS.CUSTOMIZE_AI_ASSISTANT,
   });
 
   useEffect(() => {
@@ -295,6 +296,12 @@ export function TokenPacks() {
             Customize Service:{" "}
             <strong className="text-primary">
               {(serviceCosts.customizeService ?? 55) === 0 ? "Free (0)" : `+${serviceCosts.customizeService ?? 55} tok`}
+            </strong>
+          </span>
+          <span>
+            Customization AI Fee:{" "}
+            <strong className="text-primary">
+              {(serviceCosts.customizeAiAssistant ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.customizeAiAssistant ?? 1} tok`}
             </strong>
           </span>
         </div>

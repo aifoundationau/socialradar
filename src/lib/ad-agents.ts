@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { adminAuth, db, isDatabaseAdminEmail } from "./firebase-admin";
 import { normalizeUserRoles } from "./rbac";
+import { audToUsdCents, netAudCentsAfterStripeFee } from "./pricing";
 import {
   AD_AGENT_REDISTRIBUTION_PERCENTS,
   type AdAgentDistributionItem,
@@ -76,6 +77,9 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
     ]);
     const agents: AdAgentProfile[] = [];
     const seenEmails = new Set<string>();
+    const PLACEHOLDER_AGENT_PHONE = "+61 2 8000 0000";
+    const sanitizeAgentPhone = (phone?: string) =>
+      !phone || !phone.trim() || phone.trim() === PLACEHOLDER_AGENT_PHONE ? "Not specified" : phone.trim();
     const sortedDocs = [...snap.docs].sort((a, b) => {
       const aData = a.data() as Partial<AdAgentProfile>;
       const bData = b.data() as Partial<AdAgentProfile>;
@@ -93,9 +97,13 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
       const cleanEmail = (d.email || "").toLowerCase().trim();
       if (cleanEmail && seenEmails.has(cleanEmail)) continue;
       if (cleanEmail) seenEmails.add(cleanEmail);
+      if (d.phone === PLACEHOLDER_AGENT_PHONE) {
+        void doc.ref.update({ phone: "Not specified" }).catch(() => undefined);
+      }
       agents.push({
         ...d,
         agentId: d.agentId || doc.id,
+        phone: sanitizeAgentPhone(d.phone),
         email: cleanEmail,
         inActiveLedger: d.inActiveLedger !== false,
         redistributionPercentage: normalizeRedistributionPercent(d.redistributionPercentage),
@@ -173,7 +181,7 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
       const builtInSuperAgent: AdAgentProfile = {
         agentId: "agent_superadmin_default",
         name: "Super Admin (AdRadarHQ Lead Strategist)",
-        phone: "+61 2 8000 0000",
+        phone: "Not specified",
         email: superEmail,
         location: DEFAULT_SUPERADMIN_LOCATION,
         redistributionPercentage: 30,
@@ -199,7 +207,7 @@ export async function getAdAgents(): Promise<AdAgentProfile[]> {
       {
         agentId: "agent_superadmin_default",
         name: "Super Admin (AdRadarHQ Lead Strategist)",
-        phone: "+61 2 8000 0000",
+        phone: "Not specified",
         email: "support@aifoundation.net.au",
         location: DEFAULT_SUPERADMIN_LOCATION,
         redistributionPercentage: 30,
@@ -645,9 +653,13 @@ export async function resetAdAgentRedistributionToZero(
   if (!item) return;
 
   const pct = normalizeRedistributionPercent(item.redistributionPercentage);
+  const netAudCents = netAudCentsAfterStripeFee(
+    item.totalCustomizationsAudCents,
+    item.customizationsCount,
+  );
   const grossRedistTokens = Math.round(item.totalCustomizationsTokens * (pct / 100));
-  const grossRedistAudCents = Math.round(item.totalCustomizationsAudCents * (pct / 100));
-  const grossRedistUsdCents = Math.round(item.totalCustomizationsUsdCents * (pct / 100));
+  const grossRedistAudCents = Math.round(netAudCents * (pct / 100));
+  const grossRedistUsdCents = audToUsdCents(grossRedistAudCents);
 
   await db.collection(AD_AGENTS_COL).doc(agentId).set(
     {
@@ -808,11 +820,12 @@ export async function getAdAgentDistributionLedger(
       : matchedRequests;
     const unpaidCustomizationsTokens = unpaidRequests.reduce((sum, r) => sum + tokensOf(r), 0);
     const unpaidCustomizationsAudCents = unpaidCustomizationsTokens * audCentsPerToken;
-    const unpaidCustomizationsUsdCents = Math.round(unpaidCustomizationsAudCents * 0.65);
+    // Share Ad Agent customizations revenue after deducting Stripe processing fees (1.75% + $0.30 AUD per order).
+    const unpaidNetAudCents = netAudCentsAfterStripeFee(unpaidCustomizationsAudCents, unpaidRequests.length);
 
     const redistributionTokens = Math.max(0, Math.round(unpaidCustomizationsTokens * (pct / 100)));
-    const redistributionAudCents = Math.max(0, Math.round(unpaidCustomizationsAudCents * (pct / 100)));
-    const redistributionUsdCents = Math.max(0, Math.round(unpaidCustomizationsUsdCents * (pct / 100)));
+    const redistributionAudCents = Math.max(0, Math.round(unpaidNetAudCents * (pct / 100)));
+    const redistributionUsdCents = audToUsdCents(redistributionAudCents);
 
     return {
       agentId: agent.agentId,

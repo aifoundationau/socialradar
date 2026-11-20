@@ -19,6 +19,7 @@ import {
   formatUsd,
   getCountryName,
   isFreeAccessWindowActive,
+  netAudCentsAfterStripeFee,
   normalizeAllowedCountries,
 } from "@/lib/pricing";
 import type { CurrencyRateResponse } from "@/app/api/currency/route";
@@ -173,6 +174,7 @@ interface ServiceCosts {
   searchMixDownload?: number;
   deconstructDownload?: number;
   customizeService?: number;
+  customizeAiAssistant?: number;
 }
 
 interface TokenPackItem {
@@ -609,9 +611,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
           totalCustomizationsUsdCents: customizeServiceUsdCents,
           redistributionPercentage: 30,
           redistributionTokens: Math.round((customizeServiceUnitTokens * 30) / 100),
-          redistributionAudCents: Math.round((customizeServiceAudCents * 30) / 100),
+          redistributionAudCents: Math.round(
+            (netAudCentsAfterStripeFee(customizeServiceAudCents, 1) * 30) / 100
+          ),
           redistributionUsdCents: audToUsdCents(
-            Math.round((customizeServiceAudCents * 30) / 100),
+            Math.round((netAudCentsAfterStripeFee(customizeServiceAudCents, 1) * 30) / 100),
             liveEcbRate?.rate
           ),
           status: "inactive",
@@ -898,6 +902,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       `Total Customizations Value   : ${agent.totalCustomizationsTokens.toLocaleString("en-AU")} Tokens (${formatAud(
         agent.totalCustomizationsAudCents
       )} AUD / ${formatUsd(agent.totalCustomizationsUsdCents)} USD)`,
+      `Stripe Fee Deduction Basis   : 1.75% + $0.30 AUD per order (shared after Stripe fees)`,
       `Redistribution Percentage    : ${agent.redistributionPercentage}%`,
       "",
       "----------------------------------------------------------------------",
@@ -2010,12 +2015,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       setLedger(data.ledger);
       setConfirmResetPartnerId(null);
       setStatusMsg(
-        `Refreshed ${data.partnerEmail} to 0 tokens in the Owner Redistribution Breakdown (cleared ${data.clearedTokens.toLocaleString("en-AU")} ⚡ tokens).`
+        `Refreshed ${data.partnerEmail || email} to 0 in the Owner Redistribution Breakdown (cleared ${data.clearedTokens.toLocaleString("en-AU")} ⚡; personal user wallet unchanged).`
       );
-      setRbacUsers((prev) =>
-        prev.map((u) => (u.email.toLowerCase() === email.toLowerCase() ? { ...u, tokenBalance: 0 } : u))
-      );
-      window.dispatchEvent(new CustomEvent("wallet-updated"));
     } catch (err) {
       setErrorMsg(errorMessage(err));
     } finally {
@@ -2174,7 +2175,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     try {
       const data = await apiFetch<{
         success: boolean;
-        draft: { subject: string; body: string };
+        draft: { subject: string; body: string; isFallback?: boolean; fallbackReason?: string };
       }>("/api/admin/messages/ai-draft", {
         method: "POST",
         body: {
@@ -2197,7 +2198,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       if (selectedMessage) {
         setShowInlineReplyBox(true);
       }
-      setStatusMsg("AI Customized Reply Work Message generated! Review or edit below, then click Send Message.");
+      setStatusMsg(
+        data.draft.isFallback
+          ? data.draft.fallbackReason ||
+              "Template fallback draft loaded (live AI was unavailable) — please tailor before sending."
+          : "AI Customized Reply Work Message generated! Review or edit below, then click Send Message.",
+      );
     } catch (err) {
       setErrorMsg(errorMessage(err));
     } finally {
@@ -3105,6 +3111,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                           searchMixDownload: 0,
                                           deconstructDownload: 0,
                                           customizeService: 0,
+                                          customizeAiAssistant: 0,
                                         }
                                       : {
                                           searchStandard: 1,
@@ -3120,6 +3127,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                           searchMixDownload: 1,
                                           deconstructDownload: 0,
                                           customizeService: 55,
+                                          customizeAiAssistant: 1,
                                         },
                                   });
                                 }}
@@ -3231,6 +3239,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                               key: "customizeService" as const,
                               label: "Professional Customize Service",
                               desc: "Customer submits full brand brief + extra details for SuperAdmin & Main Admin strategy reply (Default: 55 tokens — automatically updates Customizations Total & Redist. Amount in Ad Agent Distribution Ledger)",
+                            },
+                            {
+                              key: "customizeAiAssistant" as const,
+                              label: "Customization AI Fee",
+                              desc: "Optional AI Agent assistant pop-up that asks guided questions and fills out all 10 fields of '1. Complete Your Customize Brief' (Default: 1 token)",
                             },
                           ].map(({ key, label: serviceLabel, desc }) => {
                             const defaultTok =
@@ -5911,6 +5924,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                         if (
                           orderFilter === "SERVICES" &&
                           tx.type !== "CUSTOMIZE_SERVICE" &&
+                          tx.type !== "CUSTOMIZE_AI_ASSISTANT" &&
                           tx.type !== "AI_REMIX" &&
                           tx.type !== "REGENERATE_VARIATIONS" &&
                           tx.type !== "BUILD_REMIXED_AD_TEXT" &&
@@ -6373,7 +6387,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
 
                     {isFeatureExpanded("messages_retention") && (
                       <div className="border-t border-secondary/25 pt-2.5 text-[12px] text-on-surface-variant leading-relaxed">
-                        In adherence with the Australian Corporations Act and financial record regulations, all user communications are cryptographically indexed with an immutable <code>retentionUntil</code> timestamp set 7 years from arrival. Messages cannot be destroyed before statutory expiry.
+                        In adherence with the Australian Corporations Act and financial record regulations, all user communications are indexed with a <code>retentionUntil</code> timestamp set 7 years from arrival. Administrative messages are retained for up to 7 years unless permanently deleted earlier by Super Admin.
                       </div>
                     )}
                   </div>

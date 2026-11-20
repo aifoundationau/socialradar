@@ -71,7 +71,7 @@ export const POLICIES: Record<string, PolicyDoc> = {
           "Because AI Foundation is an Australian registered business headquartered in Australia, the default currency of the platform is Australian Dollars (AUD), and all invoices and checkout transactions are issued and settled in Australian Dollars (AUD).",
           "We never ever use decimals for token balances and AUD invoices; all platform token quantities and AUD invoices strictly use whole numbers. For international visitors viewing foreign exchange estimates, the currency conversion can show up to 2 decimal places.",
           "Geolocation sets the user's default region. Australians and New Zealanders accessing the platform from Australia or New Zealand view billing strictly in AUD. If someone is outside of Australia or New Zealand, we use our currency converter for AUD to USD currency conversion to display the USD conversion (up to 2 decimal places) alongside the AUD amount, while all formal invoices remain in Australian Dollars (AUD).",
-          "Strict No Refunds Policy: All token purchases and subscription fees are final and strictly non-refundable upon payment confirmation. Because tokens are delivered immediately upon checkout and never expire, change-of-mind refunds and cash redemptions for unused balances are not provided. If a search or remix fails on our side due to upstream technical errors, tokens are refunded automatically back to your ledger. All formal communications sent to the Super Admin via the platform's secure messaging system are preserved under statutory 7-year audit retention and evaluated in accordance with non-excludable guarantees under the Australian Consumer Law (ACL).",
+          "Strict No Refunds Policy: All token purchases and subscription fees are final and strictly non-refundable upon payment confirmation. Because tokens are delivered immediately upon checkout and never expire, change-of-mind refunds and cash redemptions for unused balances are not provided. If a search or remix fails on our side due to upstream technical errors, tokens are refunded automatically back to your ledger. All formal communications sent to the Super Admin via the platform's secure messaging system are retained for up to seven (7) years under statutory record-keeping protocols (unless permanently deleted earlier by Super Admin) and evaluated in accordance with non-excludable guarantees under the Australian Consumer Law (ACL).",
         ],
         bullets: [
           "The price of Tokens can change at any time without notice.",
@@ -95,17 +95,18 @@ export const POLICIES: Record<string, PolicyDoc> = {
         heading: "4. Plain Text Communication & Security Rules",
         paragraphs: [
           "All in-app user communications and messages with the Super Admin are strictly restricted to plain text. External file uploads, executable binaries, and upload URLs are prohibited to prevent malicious injection.",
-          "In compliance with statutory requirements, administrative communications are securely backed up for a statutory period of 7 years.",
+          "In compliance with statutory requirements, administrative communications are archived for up to a 7-year retention period unless permanently deleted earlier by Super Admin.",
         ],
       },
       {
         heading: "5. Promotional Timed Free Access & Eligible Countries (ALL Subscribers)",
         paragraphs: [
-          "From time to time, AdRadarHQ may activate promotional Timed Free Access campaigns (such as Free 15 Minutes, Free 30 Minutes, Free 1 Hour, or Free 24 Hours windows) for ALL Subscribers based on the user's live geolocation.",
+          "From time to time, AdRadarHQ may activate promotional Timed Free Access campaigns (such as Free 15 Minutes, Free 30 Minutes, Free 1 Hour, or Free 24 Hours windows) for ALL Subscribers based on the user's live geolocation. During an active window, standard self-serve search, remix, and brand tool token charges are waived (0 tokens); however, Professional Customize Service orders are never free and are always excluded from free-access windows.",
           "The list of countries that receive free access changes from time to time at the sole discretion of AdRadarHQ, so it is best to message AdRadarHQ directly via the platform's messaging system for a list of currently eligible countries.",
         ],
         bullets: [
           "Timed Free Access campaigns apply to ALL Subscribers located within the campaign's selected countries as verified by user geolocation.",
+          "Professional Customize Service orders are never free and are excluded from Timed Free Access windows.",
           "The list of countries receiving free access changes from time to time — message AdRadarHQ for a list of countries.",
         ],
       },
@@ -176,8 +177,8 @@ export const POLICIES: Record<string, PolicyDoc> = {
       {
         heading: "2. Statutory 7-Year Retention on Compliance Records",
         paragraphs: [
-          "In adherence with the Australian Corporations Act and taxation regulations, financial transaction logs, token ledgers, and communications with the Superadmin are cryptographically preserved for seven (7) years in tamper-evident database backups.",
-          "Records cannot be prematurely deleted before their statutory expiry timestamp.",
+          "In adherence with the Australian Corporations Act and taxation regulations, financial transaction logs, token ledgers, and administrative communications (admin_messages) are stamped with a retentionUntil timestamp set seven (7) years from creation.",
+          "Financial transaction records and ledgers are preserved for 7 years; administrative messages are retained for up to seven (7) years unless permanently deleted earlier by Super Admin.",
         ],
       },
       {

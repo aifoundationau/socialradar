@@ -287,15 +287,53 @@ async function visibleCreations(
 export async function listLibraryItems(uid: string, query: LibraryListQuery) {
   const purchasesSnap = await db.collection("users").doc(uid).collection("library_purchases").get();
   const purchasedSet = new Set(purchasesSnap.docs.map((d) => d.id));
-  const purchasedIds = (prefix: "remix" | "adtext") =>
+  const purchasedIds = (prefix: "search" | "remix" | "adtext") =>
     [...purchasedSet].filter((key) => key.startsWith(`${prefix}_`)).map((key) => key.slice(prefix.length + 1));
 
   const [searchesSnap, cacheSnap, remixSnaps, adTextSnaps] = await Promise.all([
-    db.collection("library_searches").limit(MAX_SOURCE_SCAN).get(),
-    db.collection("radar_cache").limit(MAX_SOURCE_SCAN).get(),
+    db
+      .collection("library_searches")
+      .orderBy("updatedAt", "desc")
+      .limit(MAX_SOURCE_SCAN)
+      .get()
+      .catch(() => db.collection("library_searches").limit(MAX_SOURCE_SCAN).get()),
+    db
+      .collection("radar_cache")
+      .orderBy("createdAt", "desc")
+      .limit(MAX_SOURCE_SCAN)
+      .get()
+      .catch(() => db.collection("radar_cache").limit(MAX_SOURCE_SCAN).get()),
     visibleCreations("remixes", uid, purchasedIds("remix")),
     visibleCreations("remixed_ad_texts", uid, purchasedIds("adtext")),
   ]);
+
+  const seenSearchDocIds = new Set([
+    ...searchesSnap.docs.map((s) => s.id),
+    ...cacheSnap.docs.map((s) => s.id),
+  ]);
+  const missingPurchasedSearchIds = purchasedIds("search").filter((id) => !seenSearchDocIds.has(id));
+  const extraSearchSnaps: DocumentSnapshot[] = [];
+  if (missingPurchasedSearchIds.length > 0) {
+    const stillMissingFromArchive: string[] = [];
+    for (let i = 0; i < missingPurchasedSearchIds.length; i += GET_ALL_CHUNK) {
+      const chunkIds = missingPurchasedSearchIds.slice(i, i + GET_ALL_CHUNK);
+      const snaps = await db.getAll(...chunkIds.map((id) => db.collection("library_searches").doc(id)));
+      for (const snap of snaps) {
+        if (snap.exists) {
+          extraSearchSnaps.push(snap);
+        } else {
+          stillMissingFromArchive.push(snap.id);
+        }
+      }
+    }
+    for (let i = 0; i < stillMissingFromArchive.length; i += GET_ALL_CHUNK) {
+      const chunkIds = stillMissingFromArchive.slice(i, i + GET_ALL_CHUNK);
+      const snaps = await db.getAll(...chunkIds.map((id) => db.collection("radar_cache").doc(id)));
+      for (const snap of snaps) {
+        if (snap.exists) extraSearchSnaps.push(snap);
+      }
+    }
+  }
 
   // Parse remixes & ad texts first so we can batch-resolve any referenced ads/brands without N+1 reads.
   const parsedRemixes: Array<{ id: string; doc: RemixDoc; createdAt: string }> = [];
@@ -346,11 +384,12 @@ export async function listLibraryItems(uid: string, query: LibraryListQuery) {
 
   const items: LibraryItemSummary[] = [];
 
-  // 1. Previous Searches: merge `library_searches` + legacy `radar_cache` deduplicated by query signature.
+  // 1. Previous Searches: merge `library_searches` + legacy `radar_cache` + caller's purchased searches, deduplicated by query signature.
   const seenSearchSignatures = new Set<string>();
   const allSearchDocs = [
     ...searchesSnap.docs.map((s) => ({ snap: s, archive: parseSearchArchive(s) })),
     ...cacheSnap.docs.map((s) => ({ snap: s, archive: parseSearchArchive(s) })),
+    ...extraSearchSnaps.map((s) => ({ snap: s, archive: parseSearchArchive(s) })),
   ];
   for (const { snap, archive } of allSearchDocs) {
     if (!archive) continue;

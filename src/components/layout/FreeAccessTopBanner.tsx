@@ -10,7 +10,6 @@ import {
   isFreeAccessWindowActive,
   normalizeAllowedCountries,
 } from "@/lib/pricing";
-import { ensureUserGeolocationCountry, loadDetectedGeoCountry } from "@/lib/geo";
 import { Icon } from "@/components/ui/Icon";
 
 /**
@@ -23,21 +22,12 @@ export function FreeAccessTopBanner() {
   const [loaded, setLoaded] = useState(false);
   const [isTokenSystemEnabled, setIsTokenSystemEnabled] = useState<boolean>(true);
   const [freeAccessWindow, setFreeAccessWindow] = useState<FreeAccessWindow | null>(null);
-  const [userCountry, setUserCountry] = useState<string>("AU");
+  const [userCountry, setUserCountry] = useState<string>("");
   const [nowMs, setNowMs] = useState<number>(0);
 
   useEffect(() => {
     let active = true;
     setNowMs(Date.now());
-
-    function syncUserCountry() {
-      try {
-        const code = loadDetectedGeoCountry();
-        if (code) setUserCountry(code.trim().toUpperCase());
-      } catch {
-        // Fallback to AU
-      }
-    }
 
     async function fetchFreeStatus() {
       try {
@@ -51,6 +41,9 @@ export function FreeAccessTopBanner() {
         if (typeof data.isTokenSystemEnabled === "boolean") {
           setIsTokenSystemEnabled(data.isTokenSystemEnabled);
         }
+        setUserCountry(
+          typeof data.serverCountry === "string" ? data.serverCountry.trim().toUpperCase() : ""
+        );
         setFreeAccessWindow(data.freeAccessWindow ?? null);
         setNowMs(Date.now());
         setLoaded(true);
@@ -59,20 +52,14 @@ export function FreeAccessTopBanner() {
       }
     }
 
-    syncUserCountry();
-    void ensureUserGeolocationCountry().then((detected) => {
-      if (active && detected) setUserCountry(detected);
-    });
     void fetchFreeStatus();
     window.addEventListener("adradar:config-updated", fetchFreeStatus);
-    window.addEventListener("adradar:geo-updated", syncUserCountry);
     const pollTimer = setInterval(fetchFreeStatus, 10_000);
     const tickTimer = setInterval(() => setNowMs(Date.now()), 1_000);
 
     return () => {
       active = false;
       window.removeEventListener("adradar:config-updated", fetchFreeStatus);
-      window.removeEventListener("adradar:geo-updated", syncUserCountry);
       clearInterval(pollTimer);
       clearInterval(tickTimer);
     };

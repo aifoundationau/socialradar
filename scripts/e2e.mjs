@@ -38,6 +38,10 @@ const contracts = await load("lib/contracts.ts");
 const ledger = await load("lib/token-ledger.ts");
 const pricing = await load("lib/pricing.ts");
 const ragEngine = await load("lib/rag-engine.ts");
+const stripeLib = await load("lib/stripe.ts");
+const brandsLib = await load("lib/brands.ts");
+const adAgentsLib = await load("lib/ad-agents.ts");
+const adAgentDisplay = await load("lib/ad-agent-display.ts");
 const routes = {
   me: await load("app/api/me/route.ts"),
   brands: await load("app/api/brands/route.ts"),
@@ -45,6 +49,9 @@ const routes = {
   webhook: await load("app/api/webhooks/stripe/route.ts"),
   rag: await load("app/api/rag/route.ts"),
   adminConfig: await load("app/api/admin/config/route.ts"),
+  contractors: await load("app/api/contractors/route.ts"),
+  customize: await load("app/api/customize/route.ts"),
+  customizeAiAssist: await load("app/api/customize/ai-assist/route.ts"),
 };
 const Stripe = require("stripe");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -296,6 +303,26 @@ try {
   );
   const g9 = await ledger.withTokenGate(new Request("http://localhost/api/x", { headers: { "x-idempotency-key": key("gate_anon") } }), "RADAR_SEARCH", "q", async () => Response.json({}));
   check("gate: free action still requires sign-in → 401", g9.status === 401);
+
+  // H2: Free window / 0-cost calls must never overwrite earlier paid ledger rows or bypass idempotency checks
+  const gFreeOverwritePaid = await ledger.withTokenGate(okReq(gk), "RADAR_SEARCH", "q", async () => Response.json({}));
+  const origPaidTx = (await db.doc(`token_transactions/${UID}_${gk}`).get()).data();
+  check(
+    "gate: free action reusing earlier paid key → 409 and paid delta untouched",
+    gFreeOverwritePaid.status === 409 && origPaidTx?.delta === -5 && origPaidTx?.type === "AI_REMIX",
+    { status: gFreeOverwritePaid.status, origPaidTx },
+  );
+  let freeReplayFlag = null;
+  const gFreeReplay = await ledger.withTokenGate(okReq(freeKey), "RADAR_SEARCH", "q", async (ctx) => {
+    freeReplayFlag = ctx.replayed;
+    return Response.json({ balanceAfter: ctx.balanceAfter });
+  });
+  const gFreeConflictRef = await ledger.withTokenGate(okReq(freeKey), "RADAR_SEARCH", "other-q", async () => Response.json({}));
+  check(
+    "gate: free key replay → replayed:true; different ref → 409",
+    gFreeReplay.status === 200 && freeReplayFlag === true && gFreeConflictRef.status === 409,
+    { replayStatus: gFreeReplay.status, freeReplayFlag, conflictStatus: gFreeConflictRef.status },
+  );
   Object.assign(pricing.ACTION_COSTS, liveCosts);
 
   // ---------- RAG Studio, Mandatory Human Edit & Multi-Role Approval ----------
@@ -445,6 +472,218 @@ try {
     body: { action: "SET_FREE_ACCESS_WINDOW", durationMinutes: 1440 },
   });
   check("admin config PUT SET_FREE_ACCESS_WINDOW (1440m): non-superadmin forbidden → 403", nonSuperFree24.status === 403, nonSuperFree24);
+
+  // ---------- Security & hardening regressions (M4, H4, M6) ----------
+  const repeatCheckout = stripeLib.buildCheckoutParams({
+    uid: UID,
+    email: "e2e@example.com",
+    stripeCustomerId: "cus_TestCustomer123",
+    pack: { id: "PACK_100", name: "Growth Pack", tokens: 100, priceCents: 10000, priceUsdCents: 6500 },
+    appUrl: "http://localhost:3000",
+    buyerCountry: "AU",
+  });
+  check(
+    "stripe M4: repeat purchase reuses stored stripeCustomerId without creating duplicate customer",
+    repeatCheckout.customer === "cus_TestCustomer123" &&
+      repeatCheckout.customer_update?.address === "auto" &&
+      repeatCheckout.customer_email === undefined &&
+      repeatCheckout.customer_creation === undefined,
+    { customer: repeatCheckout.customer, customer_email: repeatCheckout.customer_email, customer_creation: repeatCheckout.customer_creation },
+  );
+
+  const sampleCommunityBrand = {
+    ...brandInput("Acme Community"),
+    brandId: "gb_test_redact",
+    productServiceDescription: "A".repeat(220),
+    targetAudienceAvatar: "B".repeat(140),
+    corePainPoints: ["Pain 1 " + "X".repeat(70), "Pain 2", "Pain 3", "Pain 4"],
+    uniqueMechanismOrOffer: "Secret 20-hour extraction formula worth $10,000",
+    landingPageUrls: ["https://example.com/a", "https://example.com/b"],
+    isGlobal: true,
+    authorUid: UID,
+    brandTextFileName: "Acme Community - 2026-11-20.txt",
+    brandTextFileContent: "FULL SECRET BRAND DOSSIER CONTENT",
+  };
+  const redactedForOther = brandsLib.redactCommunityBrandForListing(sampleCommunityBrand, {
+    callerUid: OTHER,
+    isSuperAdmin: false,
+    cloneCharging: true,
+    txtDownloadCharging: true,
+  });
+  const unredactedForOwner = brandsLib.redactCommunityBrandForListing(sampleCommunityBrand, {
+    callerUid: UID,
+    isSuperAdmin: false,
+    cloneCharging: true,
+    txtDownloadCharging: true,
+  });
+  check(
+    "brands H4: community listing redacts txt & offer for non-owner when paid, preserves for owner",
+    redactedForOther.brandTextFileContent === undefined &&
+      redactedForOther.uniqueMechanismOrOffer === "" &&
+      redactedForOther.landingPageUrls?.length === 1 &&
+      redactedForOther.productServiceDescription.length <= 160 &&
+      unredactedForOwner.brandTextFileContent === "FULL SECRET BRAND DOSSIER CONTENT" &&
+      unredactedForOwner.uniqueMechanismOrOffer === sampleCommunityBrand.uniqueMechanismOrOffer,
+  );
+
+  const contractorForbidden = await callUrl(routes.contractors, "POST", "http://localhost:3000/api/contractors", {
+    token,
+    body: {
+      action: "CREATE_CONTRACTOR",
+      contractor: {
+        name: "Unauthorized Contractor",
+        location: "Sydney, NSW",
+        email: "c@example.com",
+        phone: "+61 400 000 000",
+        expertise: "Video Editor",
+      },
+    },
+  });
+  check(
+    "contractors M6: non-Ad-Agent supporter forbidden → 403 FORBIDDEN",
+    contractorForbidden.status === 403 && contractorForbidden.json?.error?.code === "FORBIDDEN",
+    contractorForbidden,
+  );
+
+  // ---------- Customize never free (M2) & Ad Agent share after Stripe fees (H1) ----------
+  const custGetRes = await callUrl(routes.customize, "GET", "http://localhost:3000/api/customize", { token });
+  check(
+    "customize M2: GET /api/customize always returns costTokens >= 1",
+    custGetRes.status === 200 && Number(custGetRes.json?.costTokens) >= 1,
+    custGetRes.json?.costTokens,
+  );
+  await db.doc(`users/${UID}`).update({ tokenBalance: 0 });
+  const custZeroCostGate = await ledger.withTokenGate(
+    new Request("http://localhost/api/customize", {
+      headers: { Authorization: `Bearer ${token}`, "x-idempotency-key": key("cust_m2") },
+    }),
+    "CUSTOMIZE_SERVICE",
+    "cust_m2_ref",
+    async () => Response.json({ ok: true }),
+    0,
+  );
+  check(
+    "customize M2: CUSTOMIZE_SERVICE never free (0 cost clamped >=1 → 402 INSUFFICIENT_TOKENS)",
+    custZeroCostGate.status === 402 && (await custZeroCostGate.json()).error?.code === "INSUFFICIENT_TOKENS",
+    { status: custZeroCostGate.status },
+  );
+
+  const netAud55 = pricing.netAudCentsAfterStripeFee(5500, 1);
+  const sampleAgent = {
+    agentId: "agent_e2e_h1",
+    uid: UID,
+    name: "E2E Agent",
+    email: "e2e@example.com",
+    phone: "Not specified",
+    location: { suburb: "Sydney", state: "NSW", country: "AU", latitude: -33.8688, longitude: 151.2093, label: "Sydney, NSW, AU" },
+    redistributionPercentage: 30,
+    status: "active",
+    inActiveLedger: true,
+    isSuperAdminBuiltIn: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  const sampleCustomizeReq = {
+    requestId: "cust_e2e_h1",
+    uid: OTHER,
+    userEmail: "other@example.com",
+    tokensCharged: 55,
+    status: "pending",
+    assignedAgentId: "agent_e2e_h1",
+    assignedAgentEmail: "e2e@example.com",
+    brandName: "Acme",
+    productServiceDescription: "Cold brew",
+    targetAudienceAvatar: "Founders",
+    corePainPoints: ["Cost"],
+    uniqueMechanismOrOffer: "Slow steep",
+    toneOfVoice: "DIRECT_RESPONSE",
+    destinationUrl: "https://example.com",
+    extraDetailsAndNotes: "Test",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  const [ledgerH1] = await adAgentsLib.getAdAgentDistributionLedger(100, 55, {
+    agents: [sampleAgent],
+    requests: [sampleCustomizeReq],
+    partial: true,
+  });
+  const displayH1 = adAgentDisplay.computeAdAgentDisplayItem(ledgerH1, {
+    customizeServiceUnitTokens: 55,
+    audCentsPerTokenUnit: 100,
+  });
+  check(
+    "adAgents H1: share customization revenue after Stripe fees (net 5374c × 30% = 1612c)",
+    netAud55 === 5374 &&
+      ledgerH1.redistributionAudCents === 1612 &&
+      ledgerH1.redistributionUsdCents === pricing.audToUsdCents(1612) &&
+      displayH1.redistributionAudCents === 1612,
+    { netAud55, serverAud: ledgerH1.redistributionAudCents, displayAud: displayH1.redistributionAudCents },
+  );
+
+  // ---------- Optional Customize AI Agent Assistant & Customization AI Fee ----------
+  const aiFee = Number(custGetRes.json?.customizeAiFeeTokens);
+  check(
+    "customize AI: GET /api/customize returns customizeAiFeeTokens >= 0",
+    Number.isInteger(aiFee) && aiFee >= 0,
+    custGetRes.json?.customizeAiFeeTokens,
+  );
+  const aiAssistPayload = {
+    brandNameHint: "Acme Cold Brew",
+    whatYouSell: "Small-batch cold brew coffee concentrate for busy founders",
+    preferredTone: "AUTO",
+    idealCustomerAndPains: "Founders spending too much on slow cafes\nAfternoon energy crashes",
+    uniqueOfferOrMechanism: "20-hour cold steep with 60-day taste guarantee",
+    landingPageUrls: ["https://example.com/coffee"],
+    versionHint: "Q4 Launch",
+    location: {
+      suburb: "Sydney",
+      state: "NSW",
+      country: "AU",
+      latitude: -33.8688,
+      longitude: 151.2093,
+      label: "Sydney, NSW, AU",
+    },
+    strategistGoalsAndNotes: "Focus on morning speed and cafe savings for Meta video ads",
+  };
+  if (aiFee >= 1) {
+    const aiNoBal = await callUrl(routes.customizeAiAssist, "POST", "http://localhost:3000/api/customize/ai-assist", {
+      token,
+      key: key("cust_ai_nobal"),
+      body: aiAssistPayload,
+    });
+    check(
+      "customize AI: insufficient tokens → 402 INSUFFICIENT_TOKENS",
+      aiNoBal.status === 402 && aiNoBal.json?.error?.code === "INSUFFICIENT_TOKENS",
+      aiNoBal,
+    );
+  }
+  const startBal = aiFee + 5;
+  await db.doc(`users/${UID}`).update({ tokenBalance: startBal });
+  const aiKey = key("cust_ai_ok");
+  const aiRes = await callUrl(routes.customizeAiAssist, "POST", "http://localhost:3000/api/customize/ai-assist", {
+    token,
+    key: aiKey,
+    body: aiAssistPayload,
+  });
+  const aiParsed = contracts.CustomizeAiAssistResponseSchema.safeParse(aiRes.json?.brief);
+  const balAfterAi = (await userDoc(UID)).tokenBalance;
+  const aiReplay = await callUrl(routes.customizeAiAssist, "POST", "http://localhost:3000/api/customize/ai-assist", {
+    token,
+    key: aiKey,
+    body: aiAssistPayload,
+  });
+  check(
+    "customize AI: generates 10-field brief, charges Customization AI Fee once, replays idempotently",
+    aiRes.status === 200 &&
+      aiParsed.success &&
+      aiRes.json?.brief?.brandName === "Acme Cold Brew" &&
+      aiRes.json?.brief?.customerLocation?.suburb === "Sydney" &&
+      balAfterAi === startBal - aiFee &&
+      aiReplay.status === 200 &&
+      aiReplay.json?.replayed === true &&
+      (await userDoc(UID)).tokenBalance === balAfterAi,
+    { status: aiRes.status, parsedOk: aiParsed.success, balAfterAi, expectedBal: startBal - aiFee, replayed: aiReplay.json?.replayed },
+  );
 } catch (err) {
   failures.push(`harness crashed: ${err.stack ?? err}`);
   console.log("CRASH", err);
@@ -455,9 +694,11 @@ try {
   for (const uid of [UID, OTHER]) {
     const brands = await db.collection(`users/${uid}/brands`).listDocuments();
     const txs = await db.collection("token_transactions").where("uid", "==", uid).get();
+    const aiDrafts = await db.collection("customize_ai_drafts").where("uid", "==", uid).get();
     const batch = db.batch();
     brands.forEach((ref) => batch.delete(ref));
     txs.docs.forEach((d) => batch.delete(d.ref));
+    aiDrafts.docs.forEach((d) => batch.delete(d.ref));
     batch.delete(db.doc(`users/${uid}`));
     await batch.commit();
     await adminAuth.deleteUser(uid).catch(() => {});
@@ -465,6 +706,7 @@ try {
   const remainingCustomRag = await ragEngine.getCustomRagEntries();
   const ragLeftovers = remainingCustomRag.filter((e) => created.ragIds.includes(e.ragId)).length;
   const leftovers = (await db.collection("token_transactions").where("uid", "in", [UID, OTHER]).get()).size +
+    (await db.collection("customize_ai_drafts").where("uid", "in", [UID, OTHER]).get()).size +
     (await db.collection("users").where("uid", "in", [UID, OTHER]).get()).size +
     ragLeftovers;
   console.log(`\ncleanup: ${created.sessions.length} Stripe session(s) expired, ${created.ragIds.length} RAG test entry deleted, test docs deleted (leftovers: ${leftovers})`);

@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/styles";
 import { TONE_LABELS } from "./BrandForm";
 import { BrandSlideOver } from "./BrandSlideOver";
-import { ensureUserGeolocationCountry, loadDetectedGeoCountry } from "@/lib/geo";
 import { formatTokenEstimateHover, isChargingEnabled } from "@/lib/pricing";
 import { downloadBrandTextFile, getBrandTextAttachment } from "@/lib/brand-text-file";
 
@@ -42,7 +41,7 @@ function BrandTextFileAttachment({
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const attachment = getBrandTextAttachment(brand);
-  const canInspectInline = isUnlocked || txtDownloadFee === 0;
+  const canInspectInline = isUnlocked || (!isGlobalSource && txtDownloadFee === 0) || (txtDownloadFee === 0 && Boolean(brand.brandTextFileContent));
   const hoverTitle =
     txtDownloadFee === 0
       ? "Free to download"
@@ -181,7 +180,7 @@ export function BrandsManager() {
   const [serverTxtDownloadFee, setServerTxtDownloadFee] = useState<number>(1);
   const [isTokenSystemEnabled, setIsTokenSystemEnabled] = useState<boolean>(true);
   const [freeAccessWindow, setFreeAccessWindow] = useState<FreeAccessWindow | null>(null);
-  const [userCountry, setUserCountry] = useState<string>("AU");
+  const [userCountry, setUserCountry] = useState<string>("");
   const [nowMs, setNowMs] = useState<number>(0);
   const [downloadingTxtId, setDownloadingTxtId] = useState<string | null>(null);
   const [unlockedTxtIds, setUnlockedTxtIds] = useState<Record<string, boolean>>({});
@@ -282,8 +281,8 @@ export function BrandsManager() {
         audCentsPerToken?: number;
       }>(`/api/brands/global${queryStr ? `?${queryStr}` : ""}`, { method: "GET" });
       setGlobalBrands(res.brands);
-      if (typeof res.brandCloneFee === "number" && res.brandCloneFee > 0) setServerCloneFee(res.brandCloneFee);
-      if (typeof res.brandTxtDownloadFee === "number" && res.brandTxtDownloadFee > 0) setServerTxtDownloadFee(res.brandTxtDownloadFee);
+      if (typeof res.brandCloneFee === "number" && res.brandCloneFee >= 0) setServerCloneFee(res.brandCloneFee);
+      if (typeof res.brandTxtDownloadFee === "number" && res.brandTxtDownloadFee >= 0) setServerTxtDownloadFee(res.brandTxtDownloadFee);
       if (typeof res.audCentsPerToken === "number") setAudRate(res.audCentsPerToken);
     } catch (err) {
       setError(errorMessage(err));
@@ -357,6 +356,15 @@ export function BrandsManager() {
         fileName: res.fileName,
         content: res.content,
       });
+      setGlobalBrands((prev) =>
+        prev
+          ? prev.map((b) =>
+              b.brandId === targetBrand.brandId
+                ? { ...b, brandTextFileName: res.fileName, brandTextFileContent: res.content }
+                : b,
+            )
+          : prev,
+      );
       setUnlockedTxtIds((prev) => ({ ...prev, [targetBrand.brandId]: true }));
       setSuccessMsg(
         `Downloaded "${res.fileName}"${
@@ -372,15 +380,6 @@ export function BrandsManager() {
 
   useEffect(() => {
     let active = true;
-
-    function syncGeo() {
-      try {
-        const code = loadDetectedGeoCountry();
-        if (code && active) setUserCountry(code.trim().toUpperCase());
-      } catch {
-        // Fallback to AU
-      }
-    }
 
     function syncPricingConfig() {
       fetch("/api/wallet/checkout", { headers: { accept: "application/json" }, cache: "no-store" })
@@ -399,30 +398,26 @@ export function BrandsManager() {
           if (typeof data.isTokenSystemEnabled === "boolean") {
             setIsTokenSystemEnabled(data.isTokenSystemEnabled);
           }
+          if (typeof data.serverCountry === "string") {
+            setUserCountry(data.serverCountry.trim().toUpperCase());
+          }
           setFreeAccessWindow(data.freeAccessWindow ?? null);
           setNowMs(Date.now());
         })
         .catch(() => {});
     }
 
-    syncGeo();
-    void ensureUserGeolocationCountry().then((detected) => {
-      if (active && detected) setUserCountry(detected);
-    });
     syncPricingConfig();
 
     const handleConfigUpdated = () => {
-      syncGeo();
       syncPricingConfig();
       void fetchGlobalBrands(searchQuery, selectedTone);
     };
     window.addEventListener("adradar:config-updated", handleConfigUpdated);
-    window.addEventListener("adradar:geo-updated", handleConfigUpdated);
     const interval = setInterval(() => setNowMs(Date.now()), 5000);
     return () => {
       active = false;
       window.removeEventListener("adradar:config-updated", handleConfigUpdated);
-      window.removeEventListener("adradar:geo-updated", handleConfigUpdated);
       clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

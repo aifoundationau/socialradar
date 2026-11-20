@@ -67,24 +67,22 @@ export function WalletView() {
                 {profile ? currentBalance.toLocaleString("en-AU") : "–"}
               </p>
 
-              {!confirmRefreshOpen && (
-                <button
-                  type="button"
-                  disabled={!profile || currentBalance <= 0 || refreshing}
-                  onClick={() => {
-                    setStatusMsg(null);
-                    setErrorMsg(null);
-                    setConfirmRefreshOpen(true);
-                  }}
-                  data-agent-id="wallet-refresh-tokens-zero-btn"
-                  data-testid="wallet-refresh-tokens-zero-btn"
-                  aria-label="Refresh token balance to 0"
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 font-mono text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Icon name="refresh" className="size-3.5" />
-                  <span>Refresh Tokens to 0</span>
-                </button>
-              )}
+              <button
+                type="button"
+                disabled={!profile || currentBalance <= 0 || refreshing}
+                onClick={() => {
+                  setStatusMsg(null);
+                  setErrorMsg(null);
+                  setConfirmRefreshOpen(true);
+                }}
+                data-agent-id="wallet-refresh-tokens-zero-btn"
+                data-testid="wallet-refresh-tokens-zero-btn"
+                aria-label="Refresh token balance to 0"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 font-mono text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Icon name="refresh" className="size-3.5" />
+                <span>Refresh Tokens to 0</span>
+              </button>
             </div>
           </div>
           <div className="max-w-sm space-y-1.5 text-right sm:text-left">
@@ -124,66 +122,83 @@ export function WalletView() {
           </div>
         )}
 
-        {/* Mandatory Two-Step Confirmation Warning */}
+        {/* Mandatory Centered Pop-Up Confirmation Explaining Permanent Action */}
         {confirmRefreshOpen && (
           <div
-            role="alertdialog"
-            aria-labelledby="confirm-refresh-zero-title"
-            data-agent-id="wallet-confirm-refresh-zero-box"
-            data-testid="wallet-confirm-refresh-zero-box"
-            className="rounded-xl border border-rose-500/50 bg-rose-500/10 p-4 space-y-3"
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            onClick={() => {
+              if (!refreshing) setConfirmRefreshOpen(false);
+            }}
           >
-            <div className="flex items-start gap-2.5">
-              <Icon name="alert" className="mt-0.5 size-5 shrink-0 text-rose-300" />
-              <div className="space-y-1">
-                <h2
-                  id="confirm-refresh-zero-title"
-                  className="font-mono text-xs font-bold uppercase tracking-wider text-rose-200"
-                >
-                  Confirm Refresh Tokens to 0 — Permanent Action
-                </h2>
-                <p className="text-body-sm text-on-surface">
-                  You are about to refresh your token balance (
-                  <strong className="font-mono text-rose-200">
-                    {currentBalance.toLocaleString("en-AU")} tokens
-                  </strong>
-                  ) to <strong className="font-mono text-rose-200">0</strong>. Once confirmed,{" "}
-                  <strong>you cannot retrieve those unused tokens</strong>.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <button
-                type="button"
-                disabled={refreshing}
-                onClick={() => setConfirmRefreshOpen(false)}
-                data-agent-id="wallet-cancel-refresh-tokens-zero-btn"
-                data-testid="wallet-cancel-refresh-tokens-zero-btn"
-                aria-label="Cancel refreshing tokens to 0"
-                className={btnSecondary}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={refreshing}
-                onClick={handleConfirmRefreshToZero}
-                data-agent-id="wallet-confirm-refresh-tokens-zero-btn"
-                data-testid="wallet-confirm-refresh-tokens-zero-btn"
-                aria-label="Confirm refreshing tokens to 0 permanently"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/70 bg-rose-500/25 px-3.5 py-2 font-mono text-xs font-bold text-rose-100 transition hover:bg-rose-500/35 disabled:opacity-50"
-              >
-                <Icon
-                  name="refresh"
-                  className={`size-3.5 ${refreshing ? "animate-spin" : ""}`}
-                />
-                <span>
-                  {refreshing
-                    ? "Refreshing to 0…"
-                    : "Confirm Refresh to 0 (Cannot Retrieve Unused Tokens)"}
+            <div
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="confirm-refresh-zero-title"
+              data-agent-id="wallet-confirm-refresh-zero-box"
+              data-testid="wallet-confirm-refresh-zero-box"
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl border border-rose-500/60 bg-surface-container-high p-5 sm:p-6 shadow-2xl space-y-4"
+            >
+              <div className="flex items-start gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/20 text-rose-300">
+                  <Icon name="alert" className="size-5" />
                 </span>
-              </button>
+                <div className="space-y-2">
+                  <h2
+                    id="confirm-refresh-zero-title"
+                    className="font-mono text-xs font-bold uppercase tracking-wider text-rose-200"
+                  >
+                    Confirm Refresh Tokens to 0 — This Cannot Be Undone
+                  </h2>
+                  <p className="text-body-sm text-on-surface leading-relaxed">
+                    You are about to permanently clear your wallet balance of{" "}
+                    <strong className="font-mono text-rose-200">
+                      {currentBalance.toLocaleString("en-AU")} tokens
+                    </strong>{" "}
+                    down to <strong className="font-mono text-rose-200">0</strong>.
+                  </p>
+                  <p className="text-body-sm text-rose-100/90 leading-relaxed">
+                    <strong>This action cannot be undone.</strong> Purchased and bonus tokens
+                    never expire on their own, and once reset to 0, those forfeited tokens{" "}
+                    <strong>cannot be recovered, restored, or refunded</strong>.
+                  </p>
+                </div>
+              </div>
+
+              {errorMsg && <p className={alertError}>{errorMsg}</p>}
+
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  disabled={refreshing}
+                  onClick={() => setConfirmRefreshOpen(false)}
+                  data-agent-id="wallet-cancel-refresh-tokens-zero-btn"
+                  data-testid="wallet-cancel-refresh-tokens-zero-btn"
+                  aria-label="Cancel refreshing tokens to 0"
+                  className={btnSecondary}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={refreshing}
+                  onClick={handleConfirmRefreshToZero}
+                  data-agent-id="wallet-confirm-refresh-tokens-zero-btn"
+                  data-testid="wallet-confirm-refresh-tokens-zero-btn"
+                  aria-label="Confirm refreshing tokens to 0 permanently"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/70 bg-rose-500/25 px-3.5 py-2 font-mono text-xs font-bold text-rose-100 transition hover:bg-rose-500/35 disabled:opacity-50"
+                >
+                  <Icon
+                    name="refresh"
+                    className={`size-3.5 ${refreshing ? "animate-spin" : ""}`}
+                  />
+                  <span>
+                    {refreshing
+                      ? "Refreshing to 0…"
+                      : "Confirm Reset to 0 (Cannot Be Undone)"}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         )}

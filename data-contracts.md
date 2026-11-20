@@ -63,7 +63,7 @@ The Firebase project, and so its Auth accounts and custom claims, is shared with
 |---|---|---|
 | `txId` | string | idempotency key / deterministic id |
 | `uid` | string | |
-| `type` | enum | `"TOPUP" \| "RADAR_SEARCH" \| "AI_REMIX" \| "REGENERATE_VARIATIONS" \| "REFUND" \| "BRAND_CLONE" \| "BRAND_TXT_DOWNLOAD" \| "SEARCHMIX_DOWNLOAD" \| "DECONSTRUCT_DOWNLOAD"` |
+| `type` | enum | `"TOPUP" \| "RADAR_SEARCH" \| "AI_REMIX" \| "REGENERATE_VARIATIONS" \| "REFUND" \| "BRAND_CLONE" \| "BRAND_TXT_DOWNLOAD" \| "SEARCHMIX_DOWNLOAD" \| "DECONSTRUCT_DOWNLOAD" \| "CUSTOMIZE_SERVICE" \| "CUSTOMIZE_AI_ASSISTANT"` |
 | `delta` | integer | non-zero (e.g. `-2`, `-5`, `+100`) |
 | `balanceAfter` | integer | `>= 0` |
 | `referenceId` | string | queryHash, adId, stripeSessionId, globalBrandId, or refunded txId; max 256 |
@@ -116,6 +116,7 @@ Standard Paid Rates for all services, products, and surcharges across the platfo
 | `brandTxtDownload` (Download Brand Text File `.txt`) | 1 token | Downloading the attached `<Brand Name> - <YYYY-MM-DD>.txt` file from a Brand Postcard |
 | `searchMixDownload` (SearchMix Download) | 1 token | Downloading a SearchMix postcard `.txt` file (`<Title> - <YYYY-MM-DD>.txt`) from Radar search results |
 | `deconstructDownload` (Deconstructed Anatomy `.txt` Download) | 0 tokens (Free default) | Downloading `<brandname>deconstruct.txt` positioned on the left next to `Regenerate variations` in Remix Studio |
+| `customizeAiAssistant` (Customization AI Fee) | 1 token (Super Admin configurable) | Optional AI Agent pop-up assistant that asks 5 guided questions and auto-fills all 10 fields of `1. Complete Your Customize Brief` |
 
 From the SuperAdmin Control Panel, all rates can be dynamically set to free (`0 tokens`) using the "Set All Free (0)" preset or customized individually. A cost of `0` makes the action free: the caller must still be signed in and send an idempotency key, but nothing is written to the ledger and no balance check is made.
 
@@ -256,7 +257,7 @@ Every interactive pill binds `data-agent-id="radar-example-<item>"`, `data-testi
 
 ### Global Brands, Duplication & Brand `.txt` Download Endpoints
 - `POST /api/brands/duplicate`: `{ "brandId": string, "versionName"?: string }` clones a personal brand into a new version.
-- `GET /api/brands/global`: `?q=...&tone=...&limit=...` searches public community brands in `global_brands` and returns `{ brands, brandCloneFee, brandTxtDownloadFee, audCentsPerToken }`.
+- `GET /api/brands/global`: `?q=...&tone=...&limit=...` searches public community brands in `global_brands` and returns `{ brands, brandCloneFee, brandTxtDownloadFee, audCentsPerToken }`. When charging is active (`brandCloneFee > 0` or `brandTxtDownloadFee > 0`), full `.txt` attachments (`brandTextFileContent`), `uniqueMechanismOrOffer`, full copy/pain points, and extra landing URLs are redacted to teasers for non-owners (unless Super Admin) so paid clone/download fees cannot be bypassed by inspecting the free listing.
 - `POST /api/brands/clone`: `{ "globalBrandId": string }` copies a global brand into the caller's personal `users/{uid}/brands`.
 - `POST /api/brands/download-txt`: `{ "brandId": string, "isGlobalSource"?: boolean }` (token-gated with action `"BRAND_TXT_DOWNLOAD"`, fee configured via `serviceCosts.brandTxtDownload`, default `1` token) returns `{ brandId, brandName, fileName, savedDate, content, balanceAfter }` and triggers the download of `<Brand Name> - <YYYY-MM-DD>.txt`.
 
@@ -288,7 +289,7 @@ Returns `{ ads: NormalizedAd[], unfilteredCount, cached, queryHash, fetchedAt, n
 ```json
 { "adId": "meta_123", "brandId": "string" }
 ```
-Requires `x-idempotency-key`. Sends the stored ad (with its creative inline, or a YouTube link by reference) and the brand profile to Gemini (`GEMINI_MODEL`, default `gemini-flash-latest`) with `responseMimeType: "application/json"` and the `AdRemixBlueprint` schema, validates the reply, and stores it at `remixes/{txId}`. Returns `{ remix: RemixDoc, ad?: NormalizedAd, balanceAfter }` (`ad` is the source ad as remixed, so the client can show a Google ad's newly loaded creative). Upstream failures return `502 UPSTREAM_FAILURE` and refund any charge.
+Requires `x-idempotency-key`. Sends the stored ad (with its creative inline, or a YouTube link by reference) and the brand profile to Gemini (`GEMINI_MODEL`, pinned default `gemini-3.8-flash`) with `responseMimeType: "application/json"` and the `AdRemixBlueprint` schema, validates the reply, and stores it at `remixes/{txId}`. Returns `{ remix: RemixDoc, ad?: NormalizedAd, balanceAfter }` (`ad` is the source ad as remixed, so the client can show a Google ad's newly loaded creative). Upstream failures return `502 UPSTREAM_FAILURE` and refund any charge.
 
 ### `POST /api/radar/download-txt` (SearchMix Download)
 ```json
@@ -323,7 +324,7 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 
 ### Standard Error Envelope
 ```json
-{ "error": { "code": "UNAUTHENTICATED|FORBIDDEN|NOT_FOUND|INVALID_INPUT|INSUFFICIENT_TOKENS|UPSTREAM_FAILURE|INTERNAL", "message": "string" } }
+{ "error": { "code": "UNAUTHENTICATED|FORBIDDEN|NOT_FOUND|INVALID_INPUT|INSUFFICIENT_TOKENS|RATE_LIMITED|UPSTREAM_FAILURE|INTERNAL", "message": "string" } }
 ```
 
 ## 6. Redistributive Ledger & Equity Partners
@@ -375,10 +376,9 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
   - `ownedTokens = Math.max(0, grossTokens - (claimedTokens || 0))` (Strict integer)
   - `ownedAudCents = Math.max(0, Math.round(totalGrossAudCents * (percentage / 100)) - (claimedAudCents || 0))`
   - `ownedUsdCents = Math.max(0, Math.round(totalGrossUsdCents * (percentage / 100)) - (claimedUsdCents || 0))`
-- **Individual Partner Refresh to 0 Tokens (`PUT /api/admin/config` action `RESET_PARTNER_TOKENS`)**:
+- **Individual Partner Refresh to 0 (`PUT /api/admin/config` action `RESET_PARTNER_TOKENS`)**:
   - Sets `claimedTokens = grossTokens`, `claimedAudCents = grossAudCents`, `claimedUsdCents = grossUsdCents`, `lastResetAt = now`, `lastResetBy = caller.email`.
-  - Resets that partner's row in `Owner Redistribution Breakdown` to `⚡ 0` tokens.
-  - Also resets the partner's user wallet balance in `users/{uid}` to 0 tokens (if registered) and logs `ADMIN_RESET` in `token_transactions`.
+  - Resets that partner's row in `Owner Redistribution Breakdown` to `⚡ 0` tokens on `system_config/global` **without** emptying or modifying their personal `users/{uid}.tokenBalance` wallet.
   - Requires two-step UI confirmation (`reset-partner-tokens-{partnerId}` -> `confirm-reset-partner-{partnerId}`).
 - **Treasury Retained**:
   - `treasuryPercentage = 100% - sum(active partners percentage)`.
@@ -407,11 +407,11 @@ Stripe only (verified by `Stripe-Signature` + `STRIPE_WEBHOOK_SECRET`). Handles 
 | `body` | string | Plain text message body, max 10000 chars. **STRICTLY PLAIN TEXT ONLY: NO ATTACHMENTS, NO UPLOAD LINKS, NO URLS**. |
 | `status` | enum | `"unread" \| "read" \| "archived"` |
 | `createdAt` | ISO-8601 | Date message sent |
-| `retentionUntil` | ISO-8601 | **Strict 7-year statutory compliance date** (`createdAt + 7 years`). Messages are preserved for 7 years in database backup. |
+| `retentionUntil` | ISO-8601 | **7-year retention target date** (`createdAt + 7 years`). Administrative messages are retained for up to 7 years unless permanently deleted earlier by Super Admin. |
 
-### Statutory Compliance & Anti-Tamper Policies
+### Statutory Compliance & Super Admin Retention Controls
 - **Plain Text Only:** Zero HTML tags and zero links/URLs (`https?://`, `ftp://`, `www.`, `data:`, markdown `[text](url)`). Any message containing links or upload URLs is rejected.
-- **7-Year Retention:** All messages are indexed with an immutable `retentionUntil` set 7 years from creation.
+- **Up to 7-Year Retention:** Messages are stamped with `retentionUntil` set 7 years from creation and archived for up to 7 years unless permanently deleted earlier by Super Admin.
 - **Superadmin Authority:** Superadmin can message **anyone** (any email or registered user).
 
 ### `POST /api/contact`
@@ -532,7 +532,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 - **Copyright Button:** Interactive link button `2026 AI Foundation` navigating to `https://aifoundation.net.au/` (new tab, `rel="noopener noreferrer"`) with `· All rights reserved.`
 - **FAQs (`footer-btn-faqs`):** Bottom footer button opening `FaqModal` (featuring live search, language selector with RAG/Google translation, and SuperAdmin/MainAdmin shortcuts when signed in).
 - **Founder Welcome (`policy-btn-founder`):** Footer button labeled strictly `Founder Welcome` (no founder name attached on the button itself); clicking opens the `Founder Welcome` modal briefing introducing Founder David Robertson (Griffith University higher degree in research in AI and digital transformation; opening the AI Centre in Phnom Penh for development of regional AI infrastructure in Southeast Asia), stating solely that his web apps operate on a token system (with zero mention of token cost), and explaining that visitors can contact him by registering as a Supporter and sending a message from their admin panel.
-- **Privacy Policy:** Australian Privacy Principles (APPs) and Privacy Act 1988 (Cth) compliance, 7-year statutory data retention on financial logs, zero selling of personal data.
+- **Privacy Policy:** Australian Privacy Principles (APPs) and Privacy Act 1988 (Cth) compliance, 7-year statutory retention on financial transaction logs/ledgers, up to 7-year retention on administrative messages (unless deleted earlier by Super Admin), zero selling of personal data.
 - **Terms of Service:** Commercial contract specifying that all invoices are in Australian Dollars (AUD), the default currency is AUD, **contains zero references to any specific token price**, explicitly states that *"The price of Tokens can change at any time without notice"* (with product & service token requirements customizable by SuperAdmin), that the business never uses decimals, operating strictly on whole numbers, and that currency conversion can show up to 2 decimal places. Explains what tokens are: *"You exchange money for a token; tokens mean more flexible payment options, as a payment may be distributed to multiple service providers."* Specifies strict No Refunds policy on digital tokens and subscriptions (with automatic technical failure token refunds and Australian Consumer Law non-excludable guarantees). Explains independent contractor status of Ad Agents: Ad Agents are independent contractors with no official employment by Ad Radar; their role is purely in an outsourced capacity with no long-term contractual arrangement; **their individual pricing structure is theirs alone, and Ad Radar HQ does not have any control over their specialization and expert services**; and their advice, recommendations, strategies, and opinions are strictly their own and do not represent Ad Radar HQ. Enforces sole proprietary ownership: all development, source code, and assets remain the sole proprietary ownership of AI Foundation, ABN 36 339 516 584, and no part of this web app can be used without express written prior consent of the developer. Nations outside Australia and New Zealand view an AUD to USD currency conversion.
 - **AI Policy (ISO/IEC 42001):** Artificial Intelligence Management System compliance, model ethics, bias mitigations, and human-in-the-loop oversight.
 - **Security Policy (ISO/IEC 27001):** Information Security Management System standards, defense-in-depth, RBAC matrix, and encrypted storage.
@@ -579,7 +579,11 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 - **Routing to `SuperAdmin` and `Main Admin` (`admin` role):**
   - Submitting `/api/customize` stores `customize_requests/{requestId}`, creates an `admin_messages` entry (`requestType: "customize_request"`) visible to both `SuperAdmin` (`superadmin`) and `Main Admin` (`admin`), and immediately sends a customized confirmation message (`requestType: "customize_reply"`) to the customer's Message Panel.
 - **Automated Staff AI Reply Process (`POST /api/admin/messages/ai-draft`):**
-  - Implements `skills/custom-brand-strategist-reply/SKILL.md` (`src/lib/customize-ai.ts`), compatible across Gemini 2.5 Flash-Lite, Claude Haiku 4.5, and gpt-6-luna, producing a 7-year-archive-compliant plain-text 4-pillar strategy reply for staff to review and send to the customer's Message Panel.
+  - Uses pinned `GEMINI_MODEL` (default `gemini-3.8-flash`, `src/lib/customize-ai.ts`) to draft a 7-year-archive-compliant plain-text 4-pillar strategy reply (`AiCustomizeReplyDraftResponse`: `{ subject, body, isFallback?, fallbackReason? }`). When the AI model is unavailable and a deterministic template is returned instead, `isFallback: true` and `fallbackReason` are set so Admin / Ad Agent staff see an explicit warning before sending.
+- **Optional Customer AI Agent Customize Assistant (`POST /api/customize/ai-assist`, [`skills/customize-brief-ai-assistant/SKILL.md`](skills/customize-brief-ai-assistant/SKILL.md)):**
+  - Triggered from `customize-open-ai-assistant-btn` inside `1. Complete Your Customize Brief` (`CustomizeView.tsx` → `CustomizeAiAssistantModal.tsx`).
+  - Token-gated with `CUSTOMIZE_AI_ASSISTANT` at the Super Admin-configured **`Customization AI Fee`** (`system_config/global.serviceCosts.customizeAiAssistant`, default `1` token; excluded from Timed Free Access Windows, requires `x-idempotency-key`, caches replays in `customize_ai_drafts/{txId}`, auto-refunds on failure).
+  - Accepts `CustomizeAiAssistInputSchema` (5 guided interview questions, `additionalProperties: false`) and returns `CustomizeAiAssistResponseSchema` (populated values for all 10 Customize form fields across Gemini 3.5 Flash-Lite, Claude Haiku 4.5, gpt-6-luna, and pinned Gemini 3.8 Flash with deterministic fallback).
 
 ## 13. Master Order Ledger, Token Refunds & SuperAdmin / Main Admin Token Controls (`/api/admin/orders`)
 
@@ -595,6 +599,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   - `"REGENERATE_VARIATIONS"`
   - `"BRAND_CLONE"`
   - `"CUSTOMIZE_SERVICE"`
+  - `"CUSTOMIZE_AI_ASSISTANT"`
   - `"REFUND"`
 - **Fields (`additionalProperties: false` via `.strict()`):**
   - `txId`: string (1..128)
@@ -933,7 +938,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   }
 }
 ```
-- **Permanent Forfeit Confirmation:** Requires explicit two-step user confirmation (`confirmForfeit: true`) acknowledging that unused tokens cannot be retrieved once refreshed to 0. Atomically updates `users/{uid}.tokenBalance` to `0` and logs an immutable `ADMIN_RESET` transaction in `token_transactions`.
+- **Permanent Forfeit Confirmation:** Clicking `Refresh Tokens to 0` opens a centered confirmation pop-up modal (`wallet-confirm-refresh-zero-box` in `WalletView.tsx`, `supporter-confirm-refresh-zero-box` in `SupporterModal.tsx`) explaining that clearing unused tokens to `0` permanently forfeits them and **cannot be undone**, requiring explicit confirmation (`confirmForfeit: true`). Atomically updates `users/{uid}.tokenBalance` to `0` and logs an immutable `ADMIN_RESET` transaction in `token_transactions`.
 
 ## 22. Super Admin Exclusive Token Controls (`POST /api/admin/orders`)
 - **Strict Super Admin Authorization (`requireRole: "superadmin"`):** Only `role === "superadmin"` is authorized to execute token ledger mutations via `POST /api/admin/orders`.
@@ -1123,8 +1128,8 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 ```
 - **Ad Agent Exclusive `'Distributions'` Tab (`SupporterModal.tsx`, `AdAgentModal.tsx`, `AdAgentDistributionsPanel.tsx`):**
   - Regular Supporters see 3 tabs (`Tokens`, `Buy More Tokens`, `Messages`) in `SupporterModal.tsx`. Whenever a user holds the `ad_agent` role (`role === "ad_agent"` or `ad_agent` in `profile.roles` / `claims`, unless Super Admin is explicitly previewing pure `Supporter`), they see one extra tab: **`Distributions`** (`supporter-tab-distributions`), plus **`Distributions`** (`ad-agent-tab-distributions`) in `AdAgentModal.tsx`.
-  - Displays only the signed-in Ad Agent's own record from Super Admin's **Ad Agent & Customizations Value** ledger (`visibleLedger` strictly enforces `row.email === viewer.email || row.uid === viewer.uid` on the server): **Ad Agent Name**, **Redistribution Percentage**, **Customizations Total** (strict integer tokens `⚡` + AUD/USD hover estimate), and **Redistribution Amount** (strict integer tokens `⚡` + AUD/USD hover estimate).
-  - **Live Reset-to-Zero Sync (`SUPERADMIN_RESET_AGENT_ZERO` & `computeAdAgentDisplayItem`):** Subscribes to `ad_agents/{agentId}` via Firestore `onSnapshot` and `ad-agent-ledger-updated` events so when Super Admin resets an Ad Agent's redistribution balance to zero (`Reset 0 ⚡` -> `Confirm Reset 0 ⚡`), the Ad Agent's **Redistribution Amount** immediately updates to `⚡ 0` (`Refreshed to 0`), and only new unpaid customizations completed after `lastResetAt` accrue toward the unpaid redistribution balance.
+  - Displays only the signed-in Ad Agent's own record from Super Admin's **Ad Agent & Customizations Value** ledger (`visibleLedger` strictly enforces `row.email === viewer.email || row.uid === viewer.uid` on the server): **Ad Agent Name**, **Redistribution Percentage**, **Customizations Total** (strict integer tokens `⚡` + AUD/USD hover estimate), and **Redistribution Amount** (AUD/USD payouts calculated on net customization revenue after deducting Stripe processing fees `1.75% + $0.30 AUD` per order via `netAudCentsAfterStripeFee`).
+  - **Live Reset-to-Zero Sync (`SUPERADMIN_RESET_AGENT_ZERO` & `computeAdAgentDisplayItem`):** Super Admin uses `Reset 0 ⚡` -> `Confirm Reset 0 ⚡` after settling an Ad Agent payout (updating `claimed*` and `lastResetAt` on `ad_agents/{agentId}` without touching the Ad Agent's personal wallet). Subscribes to `ad_agents/{agentId}` via Firestore `onSnapshot` and `ad-agent-ledger-updated` events so the Ad Agent's **Redistribution Amount** immediately updates to `⚡ 0` (`Refreshed to 0`), and only new unpaid customizations completed after `lastResetAt` accrue toward the unpaid redistribution balance.
 
 ### 24.5 Terms of Service Independent Contractor & Account in Good Standing Clause
 - **Independent Contractor Status:** Ad Agents are outsourced independent contractors who are only associated with Ad Radar HQ by the way of independent contractors.
@@ -1200,11 +1205,11 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
   - Top panel under **Service Pricing** in `SuperAdminModal.tsx` (`feature-card-pricing-free-access`) provides:
     1. **All Countries Dropdown (`free-access-country-dropdown`):** Lists `"ALL"` (`🌐 All Countries (Worldwide)`) plus all 249 ISO 3166-1 alpha-2 world countries (`WORLD_COUNTRIES` in `src/lib/countries.ts`) so Super Admin can select which countries receive free use and remove or reset countries at any time.
     2. **Four Timed Toggle Buttons:** **Free 15 Minutes** (`15`), **Free 30 Minutes** (`30`), **Free Hour** (`60`), and **Free 24 Hours** (`1440`), plus **Turn Off Free Access Now** (`null`).
-  - While `enabled === true` and `Date.parse(expiresAt) > Date.now()`, `isChargingEnabled(config, nowMs, userData, isSuperAdmin, userCountry)` returns `false` for **ALL Subscribers in the selected countries** (`isCountryEligibleForFreeAccess(config.freeAccessWindow, userCountry)`), and `withTokenGate` forces `effectiveCost = 0` across all endpoints (`RADAR_SEARCH`, `AI_REMIX`, `REGENERATE_VARIATIONS`, `BRAND_CLONE`, `CUSTOMIZE_SERVICE`).
+  - While `enabled === true` and `Date.parse(expiresAt) > Date.now()`, `isChargingEnabled(config, nowMs, userData, isSuperAdmin, userCountry)` returns `false` for **ALL Subscribers in the selected countries** (`isCountryEligibleForFreeAccess(config.freeAccessWindow, userCountry)`), and `withTokenGate` forces `effectiveCost = 0` across self-serve actions (`RADAR_SEARCH`, `AI_REMIX`, `REGENERATE_VARIATIONS`, `BUILD_REMIXED_AD_TEXT`, `LIBRARY_ITEM_PURCHASE`, `BRAND_CLONE`, `BRAND_TXT_DOWNLOAD`, `SEARCHMIX_DOWNLOAD`). **Exception:** `CUSTOMIZE_SERVICE` is never free and is excluded from Timed Free Access Windows and free-mode waivers (always requires >= 1 token).
   - **Country check (server-side only, `resolveRequestCountry` in `src/lib/request-geo.ts`):** the platform's trusted edge header, otherwise an ipwho.is lookup of the visitor's trusted IP. Which headers are trusted is set by `GEO_TRUST` (`vercel` | `cloudflare` | `none`; default `vercel` on Vercel, `none` elsewhere), because a header is only trustworthy where the platform overwrites it. Browser-supplied headers (`x-user-country`, or `x-vercel-ip-country` / `cf-ipcountry` on a host that doesn't set them) are never used. **Fail closed:** when the country can't be determined, a country-limited window doesn't apply and actions are charged normally. Windows open to `"ALL"` countries need no country check.
 - **Global Top Red Banner (`src/components/layout/FreeAccessTopBanner.tsx` & `src/app/layout.tsx`):**
   - Mounted at the root of `<body>` in `src/app/layout.tsx` (`data-agent-id="free-access-red-top-banner"`).
-  - Queries public `GET /api/wallet/checkout` (`no-store`) and checks `isCountryEligibleForFreeAccess(freeAccessWindow, userCountry)` so whenever the Timed Free Access Window (`15m`, `30m`, `60m`, `1440m`) is active for the user's country, a full-width Red Banner (`bg-gradient-to-r from-red-700 via-red-600 to-red-700`) is displayed across the top of the entire web app — including the front start page (`/`) and before logging in — stating `"AdRadarHQ is currently FREE TO USE for ALL Subscribers!"` along with the active countries badge and live countdown timer (`hh:mm:ss` / `mm:ss`).
+  - Queries public `GET /api/wallet/checkout` (`no-store`) and checks `isCountryEligibleForFreeAccess(freeAccessWindow, serverCountry)` using the server-resolved `serverCountry` from `resolveRequestCountry(req)` (never browser-supplied `localStorage` or headers), ensuring banner visibility and client fee labels match server enforcement in `withTokenGate`. When active for the user's country, a full-width Red Banner (`bg-gradient-to-r from-red-700 via-red-600 to-red-700`) is displayed across the top of the entire web app — including the front start page (`/`) and before logging in — stating `"AdRadarHQ is currently FREE TO USE for ALL Subscribers!"` along with the active countries badge and live countdown timer (`hh:mm:ss` / `mm:ss`).
 
 ## 26. Ad Agent Contractors Directory (`ad_agent_contractors` & `/api/contractors`)
 
@@ -1247,8 +1252,8 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 ```
 
 ### Endpoints
-- `GET /api/contractors`: Authenticated Ad Agent / User retrieves their saved contractor directory (ordered newest first).
-- `POST /api/contractors`:
+- `GET /api/contractors`: Approved Ad Agent or Admin retrieves their saved contractor directory (ordered newest first; `403 FORBIDDEN` for non-Ad-Agent supporters).
+- `POST /api/contractors`: Restricted to approved Ad Agents or Admins (`403 FORBIDDEN` otherwise), rate-limited to 15 mutations per 60s per UID (`429 RATE_LIMITED`), and capped at 50 contractors per Ad Agent (`409 INVALID_INPUT`):
   - `action: "CREATE_CONTRACTOR"`: Validates and saves a new contractor to `ad_agent_contractors`.
   - `action: "UPDATE_CONTRACTOR"`: Updates contractor details (with caller ownership verification).
   - `action: "DELETE_CONTRACTOR"`: Deletes contractor (requires explicit UI confirm delete confirmation).
@@ -1478,7 +1483,7 @@ Requires Admin / Superadmin (`verifyRequest(req, { requireRole: "admin" })`). Pe
 ### 31.1 Library Sources & Automatic Archiving
 - Top Navbar button **`Library`** (`/library`) appears in both the dashboard navbar (`src/components/layout/nav.ts` -> `TopNavWallet.tsx` and 4-tab `MobileTabBar.tsx`: `/brands`, `/radar`, `/customize`, `/library`) and `PublicStartNavbar.tsx`. The dedicated `Wallet` top-navbar link is omitted, while the `tokens / Top-up` `TokenPill` (`header-token-pill` -> `/wallet` & `/wallet#packs`) remains on the far right of `TopNavWallet.tsx`.
 - Library sources:
-  1. **Previous Searches (`PREVIOUS_SEARCH`, `search_<id>`):** Archived permanently in `library_searches/{archiveId}` on every search returning `>= 1` result alongside existing `radar_cache` entries (deduplicated by platform + query + country + mediaType). These are public ad library results and are always for sale.
+  1. **Previous Searches (`PREVIOUS_SEARCH`, `search_<id>`):** Archived permanently in `library_searches/{archiveId}` on every search returning `>= 1` result alongside existing `radar_cache` entries (queried newest-first by `updatedAt` / `createdAt` up to 80 per source, plus any caller-purchased searches; deduplicated by platform + query + country + mediaType). These are public ad library results and are always for sale.
   2. **Remix Studio (`REMIX_STUDIO`, `remix_<id>`):** Saved in `remixes/{txId}` (including `brandName`, `sourceAdvertiser`, `platform`, and `createdAt`, with fallback resolution for historical remixes).
   3. **Remixed Ad Text (`REMIXED_AD_TEXT`, `adtext_<id>`):** Generated by `Build Remixed Ad Text` and saved in `remixed_ad_texts/{txId}`.
 - **Remixes and remixed ad texts are private unless their creator makes them public** (they're written from the creator's private brand profile). The `isPublic` flag (with `publishedAt`) is set only by the creator via `PATCH /api/library` `{ itemKey, isPublic }` (the **Make public / Make private** button, `data-agent-id="library-visibility-<itemKey>"`). Records without the flag, including all created before it existed, are private.

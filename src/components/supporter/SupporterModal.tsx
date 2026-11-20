@@ -254,7 +254,11 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
         rec.type !== "BUILD_REMIXED_AD_TEXT"
       ) return false;
       if (typeFilter === "LIBRARY_ITEM_PURCHASE" && rec.type !== "LIBRARY_ITEM_PURCHASE") return false;
-      if (typeFilter === "CUSTOMIZE_SERVICE" && rec.type !== "CUSTOMIZE_SERVICE") return false;
+      if (
+        typeFilter === "CUSTOMIZE_SERVICE" &&
+        rec.type !== "CUSTOMIZE_SERVICE" &&
+        rec.type !== "CUSTOMIZE_AI_ASSISTANT"
+      ) return false;
       if (typeFilter === "TOPUP" && rec.type !== "TOPUP") return false;
       if (typeFilter === "REFUND_GIFT" && rec.type !== "REFUND" && rec.type !== "GIFT") return false;
 
@@ -488,24 +492,22 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
                           Tokens
                         </span>
                       </div>
-                      {!confirmRefreshZeroOpen && (
-                        <button
-                          type="button"
-                          disabled={!profile || Math.max(0, Math.round(profile.tokenBalance)) <= 0 || refreshingZero}
-                          onClick={() => {
-                            setRefreshZeroMsg(null);
-                            setLedgerError(null);
-                            setConfirmRefreshZeroOpen(true);
-                          }}
-                          data-agent-id="supporter-refresh-tokens-zero-btn"
-                          data-testid="supporter-refresh-tokens-zero-btn"
-                          aria-label="Refresh token balance to 0"
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 font-mono text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <Icon name="refresh" className="size-3.5" />
-                          <span>Refresh Tokens to 0</span>
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        disabled={!profile || Math.max(0, Math.round(profile.tokenBalance)) <= 0 || refreshingZero}
+                        onClick={() => {
+                          setRefreshZeroMsg(null);
+                          setLedgerError(null);
+                          setConfirmRefreshZeroOpen(true);
+                        }}
+                        data-agent-id="supporter-refresh-tokens-zero-btn"
+                        data-testid="supporter-refresh-tokens-zero-btn"
+                        aria-label="Refresh token balance to 0"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 font-mono text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Icon name="refresh" className="size-3.5" />
+                        <span>Refresh Tokens to 0</span>
+                      </button>
                     </div>
                     <p className="text-compact text-on-surface-variant">
                       Standard paid rate is 1 Token = $1.00 AUD. Tokens never expire, deductions are atomic, and no account can have negative tokens.
@@ -558,56 +560,77 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
 
                 {confirmRefreshZeroOpen && (
                   <div
-                    role="alertdialog"
-                    data-agent-id="supporter-confirm-refresh-zero-box"
-                    data-testid="supporter-confirm-refresh-zero-box"
-                    className="rounded-xl border border-rose-500/50 bg-rose-500/10 p-4 space-y-3"
+                    className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+                    onClick={() => {
+                      if (!refreshingZero) setConfirmRefreshZeroOpen(false);
+                    }}
                   >
-                    <div className="flex items-start gap-2.5">
-                      <Icon name="alert" className="mt-0.5 size-5 shrink-0 text-rose-300" />
-                      <div className="space-y-1">
-                        <p className="font-mono text-xs font-bold uppercase tracking-wider text-rose-200">
-                          Confirm Refresh Tokens to 0 — Permanent Action
-                        </p>
-                        <p className="text-body-sm text-on-surface">
-                          You are about to refresh your token balance (
-                          <strong className="font-mono text-rose-200">
-                            {(profile?.tokenBalance ?? 0).toLocaleString("en-AU")} tokens
-                          </strong>
-                          ) to <strong className="font-mono text-rose-200">0</strong>. Once confirmed,{" "}
-                          <strong>you cannot retrieve those unused tokens</strong>.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        disabled={refreshingZero}
-                        onClick={() => setConfirmRefreshZeroOpen(false)}
-                        data-agent-id="supporter-cancel-refresh-tokens-zero-btn"
-                        data-testid="supporter-cancel-refresh-tokens-zero-btn"
-                        className={btnSecondary}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        disabled={refreshingZero}
-                        onClick={handleConfirmSelfRefreshZero}
-                        data-agent-id="supporter-confirm-refresh-tokens-zero-btn"
-                        data-testid="supporter-confirm-refresh-tokens-zero-btn"
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/70 bg-rose-500/25 px-3.5 py-2 font-mono text-xs font-bold text-rose-100 transition hover:bg-rose-500/35 disabled:opacity-50"
-                      >
-                        <Icon
-                          name="refresh"
-                          className={`size-3.5 ${refreshingZero ? "animate-spin" : ""}`}
-                        />
-                        <span>
-                          {refreshingZero
-                            ? "Refreshing to 0…"
-                            : "Confirm Refresh to 0 (Cannot Retrieve Unused Tokens)"}
+                    <div
+                      role="alertdialog"
+                      aria-modal="true"
+                      aria-labelledby="supporter-confirm-refresh-zero-title"
+                      data-agent-id="supporter-confirm-refresh-zero-box"
+                      data-testid="supporter-confirm-refresh-zero-box"
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-full max-w-md rounded-2xl border border-rose-500/60 bg-surface-container-high p-5 sm:p-6 shadow-2xl space-y-4"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/20 text-rose-300">
+                          <Icon name="alert" className="size-5" />
                         </span>
-                      </button>
+                        <div className="space-y-2">
+                          <h3
+                            id="supporter-confirm-refresh-zero-title"
+                            className="font-mono text-xs font-bold uppercase tracking-wider text-rose-200"
+                          >
+                            Confirm Refresh Tokens to 0 — This Cannot Be Undone
+                          </h3>
+                          <p className="text-body-sm text-on-surface leading-relaxed">
+                            You are about to permanently clear your wallet balance of{" "}
+                            <strong className="font-mono text-rose-200">
+                              {(profile?.tokenBalance ?? 0).toLocaleString("en-AU")} tokens
+                            </strong>{" "}
+                            down to <strong className="font-mono text-rose-200">0</strong>.
+                          </p>
+                          <p className="text-body-sm text-rose-100/90 leading-relaxed">
+                            <strong>This action cannot be undone.</strong> Purchased and bonus tokens
+                            never expire on their own, and once reset to 0, those forfeited tokens{" "}
+                            <strong>cannot be recovered, restored, or refunded</strong>.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-white/10">
+                        <button
+                          type="button"
+                          disabled={refreshingZero}
+                          onClick={() => setConfirmRefreshZeroOpen(false)}
+                          data-agent-id="supporter-cancel-refresh-tokens-zero-btn"
+                          data-testid="supporter-cancel-refresh-tokens-zero-btn"
+                          aria-label="Cancel refreshing tokens to 0"
+                          className={btnSecondary}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={refreshingZero}
+                          onClick={handleConfirmSelfRefreshZero}
+                          data-agent-id="supporter-confirm-refresh-tokens-zero-btn"
+                          data-testid="supporter-confirm-refresh-tokens-zero-btn"
+                          aria-label="Confirm refreshing tokens to 0 permanently"
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/70 bg-rose-500/25 px-3.5 py-2 font-mono text-xs font-bold text-rose-100 transition hover:bg-rose-500/35 disabled:opacity-50"
+                        >
+                          <Icon
+                            name="refresh"
+                            className={`size-3.5 ${refreshingZero ? "animate-spin" : ""}`}
+                          />
+                          <span>
+                            {refreshingZero
+                              ? "Refreshing to 0…"
+                              : "Confirm Reset to 0 (Cannot Be Undone)"}
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

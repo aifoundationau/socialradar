@@ -75,6 +75,7 @@ export const TokenTxTypeSchema = z.enum([
   "SEARCHMIX_DOWNLOAD",
   "DECONSTRUCT_DOWNLOAD",
   "CUSTOMIZE_SERVICE",
+  "CUSTOMIZE_AI_ASSISTANT",
   "ADMIN_DEDUCT",
   "ADMIN_RESET",
 ]);
@@ -488,6 +489,7 @@ export const ErrorCodeSchema = z.enum([
   "NOT_FOUND",
   "INVALID_INPUT",
   "INSUFFICIENT_TOKENS",
+  "RATE_LIMITED",
   "UPSTREAM_FAILURE",
   "INTERNAL",
 ]);
@@ -509,6 +511,7 @@ export const ServiceCostsSchema = z
     searchMixDownload: tokenInt.min(0).default(1),
     deconstructDownload: tokenInt.min(0).default(0),
     customizeService: tokenInt.min(0).default(55),
+    customizeAiAssistant: tokenInt.min(0).default(1),
   })
   .strict();
 export type ServiceCosts = z.infer<typeof ServiceCostsSchema>;
@@ -601,6 +604,7 @@ export const AdminConfigPatchSchema = z
         searchMixDownload: serviceCostValue.optional(),
         deconstructDownload: serviceCostValue.optional(),
         customizeService: serviceCostValue.optional(),
+        customizeAiAssistant: serviceCostValue.optional(),
       })
       .optional(),
     tokenPacks: z
@@ -1275,9 +1279,44 @@ export const AiCustomizeReplyDraftResponseSchema = z
   .object({
     subject: z.string().trim().min(1).max(150),
     body: z.string().trim().min(1).max(10000),
+    isFallback: z.boolean().optional(),
+    fallbackReason: z.string().max(240).optional(),
   })
   .strict();
 export type AiCustomizeReplyDraftResponse = z.infer<typeof AiCustomizeReplyDraftResponseSchema>;
+
+export const CustomizeAiAssistInputSchema = z
+  .object({
+    brandNameHint: safeText(1, 100),
+    whatYouSell: safeText(2, 1500),
+    preferredTone: z.union([z.literal("AUTO"), ToneOfVoiceSchema]).default("AUTO"),
+    idealCustomerAndPains: safeText(2, 1500),
+    uniqueOfferOrMechanism: safeText(2, 1000),
+    landingPageUrls: z.array(httpsUrl).min(1).max(10),
+    versionHint: z.string().trim().max(50).optional(),
+    location: AdAgentLocationSchema,
+    strategistGoalsAndNotes: safeText(2, 1500),
+  })
+  .strict();
+export type CustomizeAiAssistInput = z.infer<typeof CustomizeAiAssistInputSchema>;
+
+export const CustomizeAiAssistResponseSchema = z
+  .object({
+    brandName: safeText(1, 100),
+    toneOfVoice: ToneOfVoiceSchema,
+    productServiceDescription: safeText(1, 2000),
+    targetAudienceAvatar: safeText(1, 2000),
+    corePainPoints: z.array(safeText(1, 300)).min(1).max(10),
+    uniqueMechanismOrOffer: safeText(1, 1000),
+    destinationUrl: httpsUrl,
+    landingPageUrls: z.array(httpsUrl).min(1).max(10),
+    version: z.string().trim().max(50).optional(),
+    customerLocation: AdAgentLocationSchema,
+    extraDetailsAndNotes: safeText(1, 2000),
+    isFallback: z.boolean().optional(),
+  })
+  .strict();
+export type CustomizeAiAssistResponse = z.infer<typeof CustomizeAiAssistResponseSchema>;
 
 // ---------- 12. Master Order Ledger, Token Refunds & SuperAdmin Gift Tokens ----------
 export const AdminGiftTokensRequestSchema = z

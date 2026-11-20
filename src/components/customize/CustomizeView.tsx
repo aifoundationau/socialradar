@@ -3,19 +3,21 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useSession } from "@/components/auth/SessionProvider";
+import { TONE_LABELS } from "@/components/brands/BrandForm";
+import { AdAgentModal, QUICK_GEO_PRESETS } from "@/components/ad-agent/AdAgentModal";
+import { CustomizeAiAssistantModal } from "@/components/customize/CustomizeAiAssistantModal";
+import { apiFetch, errorMessage, newIdempotencyKey } from "@/lib/api-client";
+import { autofindUserLocation, loadGeoConfig } from "@/lib/geo";
+import { formatTokenEstimateHover } from "@/lib/pricing";
 import {
   CustomizeRequestInputSchema,
   ToneOfVoiceSchema,
   type AdminMessage,
   type BrandProfile,
+  type CustomizeAiAssistResponse,
   type CustomizeRequestDoc,
   type CustomizeRequestInput,
 } from "@/lib/contracts";
-import { TONE_LABELS } from "@/components/brands/BrandForm";
-import { AdAgentModal, QUICK_GEO_PRESETS } from "@/components/ad-agent/AdAgentModal";
-import { apiFetch, errorMessage, newIdempotencyKey } from "@/lib/api-client";
-import { autofindUserLocation, loadGeoConfig } from "@/lib/geo";
-import { formatTokenEstimateHover } from "@/lib/pricing";
 import { Icon } from "@/components/ui/Icon";
 import {
   alertError,
@@ -81,8 +83,10 @@ export function CustomizeView() {
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [lastAssignedRequest, setLastAssignedRequest] = useState<CustomizeRequestDoc | null>(null);
   const [isAdAgentModalOpen, setIsAdAgentModalOpen] = useState(false);
+  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
 
   const [costTokens, setCostTokens] = useState<number>(55);
+  const [customizeAiFeeTokens, setCustomizeAiFeeTokens] = useState<number>(1);
   const [audCentsPerToken, setAudCentsPerToken] = useState<number>(100);
   const [requests, setRequests] = useState<CustomizeRequestDoc[]>([]);
   const [messages, setMessages] = useState<AdminMessage[]>([]);
@@ -157,10 +161,14 @@ export function CustomizeView() {
         requests: CustomizeRequestDoc[];
         messages: AdminMessage[];
         costTokens: number;
+        customizeAiFeeTokens?: number;
         audCentsPerToken: number;
         agents?: PublicAdAgent[];
       }>("/api/customize", { method: "GET" });
       if (typeof data.costTokens === "number") setCostTokens(Math.round(data.costTokens));
+      if (typeof data.customizeAiFeeTokens === "number") {
+        setCustomizeAiFeeTokens(Math.max(0, Math.round(data.customizeAiFeeTokens)));
+      }
       if (typeof data.audCentsPerToken === "number") setAudCentsPerToken(Math.round(data.audCentsPerToken));
       if (Array.isArray(data.requests)) setRequests(data.requests);
       if (Array.isArray(data.messages)) setMessages(data.messages);
@@ -224,6 +232,33 @@ export function CustomizeView() {
     setPrimaryUrlIndex(0);
     setVersion(brand.version ?? "");
     setErrors({});
+  }
+
+  function applyAiAssistantBrief(brief: CustomizeAiAssistResponse) {
+    setBrandName(brief.brandName);
+    setToneOfVoice(brief.toneOfVoice);
+    setProductServiceDescription(brief.productServiceDescription);
+    setTargetAudienceAvatar(brief.targetAudienceAvatar);
+    setCorePainPoints(brief.corePainPoints.join("\n"));
+    setUniqueMechanismOrOffer(brief.uniqueMechanismOrOffer);
+    setLandingUrls(
+      brief.landingPageUrls && brief.landingPageUrls.length > 0
+        ? brief.landingPageUrls
+        : [brief.destinationUrl],
+    );
+    setPrimaryUrlIndex(0);
+    setVersion(brief.version ?? "");
+    setCustSuburb(brief.customerLocation.suburb);
+    setCustState(brief.customerLocation.state);
+    setCustCountry(brief.customerLocation.country);
+    setCustLat(brief.customerLocation.latitude);
+    setCustLon(brief.customerLocation.longitude);
+    setExtraDetailsAndNotes(brief.extraDetailsAndNotes);
+    setErrors({});
+    setSubmitError(null);
+    setSubmitSuccess(
+      `AI Agent Assistant filled all 10 fields of your Customize Brief for "${brief.brandName}" (${brief.customerLocation.suburb}, ${brief.customerLocation.state}). Review the details below and click "Submit Customize Request" when ready.`,
+    );
   }
 
   function addLandingUrl() {
@@ -417,41 +452,62 @@ export function CustomizeView() {
               </p>
             </div>
 
-            {brands && brands.length > 0 && (
-              <div className="flex items-center gap-2">
-                <select
-                  aria-label="Pre-fill from an existing brand card"
-                  data-testid="customize-prefill-brand-select"
-                  data-agent-id="customize-prefill-brand-select"
-                  value={selectedBrandId}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    setSelectedBrandId(id);
-                    const found = brands.find((b) => b.brandId === id);
-                    if (found) applyBrandTemplate(found);
-                  }}
-                  className={`${field} py-1.5 text-compact sm:w-52`}
-                >
-                  <option value="">Pre-fill from Brand Card…</option>
-                  {brands.map((b) => (
-                    <option key={b.brandId} value={b.brandId}>
-                      {b.brandName}
-                    </option>
-                  ))}
-                </select>
-                {activeBrand && !selectedBrandId && (
-                  <button
-                    type="button"
-                    onClick={() => applyBrandTemplate(activeBrand)}
-                    data-testid="customize-use-active-brand-btn"
-                    data-agent-id="customize-use-active-brand-btn"
-                    className="shrink-0 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1.5 font-mono text-[11px] font-semibold text-primary hover:bg-primary/20 transition"
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAiAssistantOpen(true)}
+                title={formatTokenEstimateHover(customizeAiFeeTokens, false, audCentsPerToken)}
+                data-testid="customize-open-ai-assistant-btn"
+                data-agent-id="customize-open-ai-assistant-btn"
+                aria-label="Open optional AI Agent Assistant to fill Customize brief"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-primary/45 bg-primary/15 px-3 py-1.5 font-mono text-xs font-bold text-primary hover:bg-primary/25 transition"
+              >
+                <Icon name="sparkles" className="size-3.5" />
+                <span>AI Agent Assistant</span>
+                <span className="rounded-full bg-black/30 px-2 py-0.5 text-[10px] font-bold text-secondary">
+                  ⚡{" "}
+                  {customizeAiFeeTokens <= 0
+                    ? "Free"
+                    : `${customizeAiFeeTokens} ${customizeAiFeeTokens === 1 ? "token" : "tokens"}`}
+                </span>
+              </button>
+
+              {brands && brands.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <select
+                    aria-label="Pre-fill from an existing brand card"
+                    data-testid="customize-prefill-brand-select"
+                    data-agent-id="customize-prefill-brand-select"
+                    value={selectedBrandId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setSelectedBrandId(id);
+                      const found = brands.find((b) => b.brandId === id);
+                      if (found) applyBrandTemplate(found);
+                    }}
+                    className={`${field} py-1.5 text-compact sm:w-52`}
                   >
-                    Use Active
-                  </button>
-                )}
-              </div>
-            )}
+                    <option value="">Pre-fill from Brand Card…</option>
+                    {brands.map((b) => (
+                      <option key={b.brandId} value={b.brandId}>
+                        {b.brandName}
+                      </option>
+                    ))}
+                  </select>
+                  {activeBrand && !selectedBrandId && (
+                    <button
+                      type="button"
+                      onClick={() => applyBrandTemplate(activeBrand)}
+                      data-testid="customize-use-active-brand-btn"
+                      data-agent-id="customize-use-active-brand-btn"
+                      className="shrink-0 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1.5 font-mono text-[11px] font-semibold text-primary hover:bg-primary/20 transition"
+                    >
+                      Use Active
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {submitError && <p className={alertError}>{submitError}</p>}
@@ -1102,6 +1158,32 @@ export function CustomizeView() {
           loadCustomizeState();
         }}
       />
+
+      {isAiAssistantOpen && (
+        <CustomizeAiAssistantModal
+          onClose={() => setIsAiAssistantOpen(false)}
+          aiFeeTokens={customizeAiFeeTokens}
+          audCentsPerToken={audCentsPerToken}
+          brands={brands}
+          initialValues={{
+            brandName,
+            toneOfVoice,
+            productServiceDescription,
+            targetAudienceAvatar,
+            corePainPoints,
+            uniqueMechanismOrOffer,
+            landingUrls,
+            version,
+            suburb: custSuburb,
+            state: custState,
+            country: custCountry,
+            latitude: custLat,
+            longitude: custLon,
+            extraDetailsAndNotes,
+          }}
+          onApplyBrief={applyAiAssistantBrief}
+        />
+      )}
     </div>
   );
 }

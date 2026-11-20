@@ -60,6 +60,8 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       draft,
+      isFallback: Boolean(draft.isFallback),
+      ...(draft.fallbackReason ? { fallbackReason: draft.fallbackReason } : {}),
     });
   } catch (err) {
     return errorResponse(err);

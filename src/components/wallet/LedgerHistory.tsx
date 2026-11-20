@@ -22,6 +22,7 @@ const TYPE_LABELS: Record<TokenTxType, string> = {
   SEARCHMIX_DOWNLOAD: "SearchMix download (.txt)",
   DECONSTRUCT_DOWNLOAD: "Deconstructed Anatomy download (.txt)",
   CUSTOMIZE_SERVICE: "Professional customize service",
+  CUSTOMIZE_AI_ASSISTANT: "Customization AI Agent assistant",
 };
 
 const HISTORY_LIMIT = 50;

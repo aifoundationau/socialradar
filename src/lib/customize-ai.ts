@@ -7,7 +7,7 @@ import {
 } from "./contracts";
 import { sanitizeForPlainTextArchive } from "./admin";
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 
 const REPLY_JSON_SCHEMA = {
   type: "object",
@@ -94,6 +94,9 @@ function buildDeterministicStaffReply(params: {
   return {
     subject: sanitizeForPlainTextArchive(rawSubject).slice(0, 145),
     body: sanitizeForPlainTextArchive(rawBody).slice(0, 9500),
+    isFallback: true,
+    fallbackReason:
+      "AI model was unavailable; generated a deterministic template draft — please review and tailor before sending.",
   };
 }
 
@@ -159,7 +162,7 @@ export async function generateCustomizeStaffReply(params: {
       body: cleanBody,
     });
     if (validated.success) {
-      return validated.data;
+      return { ...validated.data, isFallback: false };
     }
   } catch (err) {
     console.warn("[customize-ai] falling back to deterministic staff reply", err);

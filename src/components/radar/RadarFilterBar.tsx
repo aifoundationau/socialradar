@@ -19,7 +19,6 @@ import {
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { btnPrimary } from "@/components/ui/styles";
 import { useSession } from "@/components/auth/SessionProvider";
-import { ensureUserGeolocationCountry, loadDetectedGeoCountry } from "@/lib/geo";
 import { COUNTRIES, MEDIA_FILTERS, PLATFORMS, PLATFORM_ORDER, SORTS, type SortKey } from "./options";
 
 export type RadarFilters = RadarSearchRequest;
@@ -132,21 +131,12 @@ export function RadarFilterBar({
   const [liveServiceCosts, setLiveServiceCosts] = useState<ServiceCosts | undefined>(undefined);
   const [isTokenSystemEnabled, setIsTokenSystemEnabled] = useState<boolean>(true);
   const [freeAccessWindow, setFreeAccessWindow] = useState<FreeAccessWindow | null>(null);
-  const [userCountry, setUserCountry] = useState<string>("AU");
+  const [userCountry, setUserCountry] = useState<string>("");
   const [nowMs, setNowMs] = useState<number>(0);
 
   useEffect(() => {
     let active = true;
     setNowMs(Date.now());
-
-    function syncGeo() {
-      try {
-        const code = loadDetectedGeoCountry();
-        if (code) setUserCountry(code.trim().toUpperCase());
-      } catch {
-        // Fallback to AU
-      }
-    }
 
     function syncPricingConfig() {
       fetch("/api/wallet/checkout", { headers: { accept: "application/json" }, cache: "no-store" })
@@ -155,24 +145,19 @@ export function RadarFilterBar({
           if (!data || !active) return;
           if (data.serviceCosts) setLiveServiceCosts(data.serviceCosts);
           if (typeof data.isTokenSystemEnabled === "boolean") setIsTokenSystemEnabled(data.isTokenSystemEnabled);
+          if (typeof data.serverCountry === "string") setUserCountry(data.serverCountry.trim().toUpperCase());
           setFreeAccessWindow(data.freeAccessWindow ?? null);
           setNowMs(Date.now());
         })
         .catch(() => {});
     }
 
-    syncGeo();
-    void ensureUserGeolocationCountry().then((detected) => {
-      if (active && detected) setUserCountry(detected);
-    });
     syncPricingConfig();
     window.addEventListener("adradar:config-updated", syncPricingConfig);
-    window.addEventListener("adradar:geo-updated", syncGeo);
     const interval = setInterval(() => setNowMs(Date.now()), 5000);
     return () => {
       active = false;
       window.removeEventListener("adradar:config-updated", syncPricingConfig);
-      window.removeEventListener("adradar:geo-updated", syncGeo);
       clearInterval(interval);
     };
   }, []);

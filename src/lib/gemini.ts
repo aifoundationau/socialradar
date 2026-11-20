@@ -15,8 +15,9 @@ import {
 } from "./contracts";
 import { UpstreamError } from "./token-ledger";
 
-/** Override with GEMINI_MODEL; the default alias tracks Google's current Flash model. */
-const MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
+/** Override with GEMINI_MODEL; pinned by default to Google's stable Flash release. */
+export const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
+const MODEL = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
 /** Inline media limit, kept well under Gemini's 20 MB request cap once base64-encoded. */
 const MAX_INLINE_BYTES = 12 * 1024 * 1024;
 const MAX_AD_TEXT_WORDS = 150;

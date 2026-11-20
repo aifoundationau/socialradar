@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
-import { db, verifyRequest } from "@/lib/firebase-admin";
+import { verifyRequest } from "@/lib/firebase-admin";
 import { ApiError, errorResponse, readJson } from "@/lib/api";
 import {
   getCustomizeRequestById,
@@ -10,37 +10,25 @@ import {
   submitCustomizeRequest,
 } from "@/lib/admin";
 import { formatAgentLocationLabel, getAdAgents } from "@/lib/ad-agents";
-import { CustomizeRequestInputSchema, type FreeAccessWindow, type UserDoc } from "@/lib/contracts";
+import { CustomizeRequestInputSchema } from "@/lib/contracts";
 import { withTokenGate } from "@/lib/token-ledger";
-import {
-  ALL_COUNTRIES_CODE,
-  isChargingEnabled,
-  isFreeAccessWindowActive,
-  normalizeAllowedCountries,
-} from "@/lib/pricing";
-import { resolveRequestCountry } from "@/lib/request-geo";
 
 export async function GET(req: Request) {
   try {
     const caller = await verifyRequest(req);
-    const [config, requests, messages, agents, userSnap] = await Promise.all([
+    const [config, requests, messages, agents] = await Promise.all([
       getSystemConfig(),
       getUserCustomizeRequests(caller.uid, 30),
       getUserMessages(caller.email, caller.uid, 50),
       getAdAgents(),
-      db.collection("users").doc(caller.uid).get().catch(() => null),
     ]);
 
-    const userData = userSnap?.exists ? (userSnap.data() as Partial<UserDoc>) : null;
-    const freeWindow = config.freeAccessWindow as Partial<FreeAccessWindow> | undefined;
-    const countryMatters =
-      isFreeAccessWindowActive(freeWindow) &&
-      !normalizeAllowedCountries(freeWindow?.allowedCountries).includes(ALL_COUNTRIES_CODE);
-    // "" (country unknown) means the limited window doesn't apply, matching what withTokenGate charges.
-    const userCountry = countryMatters ? await resolveRequestCountry(req) : ALL_COUNTRIES_CODE;
-    const costTokens = isChargingEnabled(config, Date.now(), userData, caller.claims.isSuperAdmin, userCountry)
-      ? Math.max(0, Math.round(config.serviceCosts?.customizeService ?? 55))
-      : 0;
+    // Customizations are never free and are excluded from Timed Free Access Windows.
+    const costTokens = Math.max(1, Math.round(config.serviceCosts?.customizeService ?? 55));
+    const customizeAiFeeTokens = Math.max(
+      0,
+      Math.round(config.serviceCosts?.customizeAiAssistant ?? 1),
+    );
 
     const activeAgents = agents
       .filter((a) => a.status === "active")
@@ -58,6 +46,7 @@ export async function GET(req: Request) {
       requests,
       messages,
       costTokens,
+      customizeAiFeeTokens,
       audCentsPerToken: config.audCentsPerToken ?? 100,
       agents: activeAgents,
     });
@@ -75,9 +64,8 @@ export async function POST(req: Request) {
     const body = await readJson(req);
     const input = CustomizeRequestInputSchema.parse(body);
     const config = await getSystemConfig();
-    const costTokens = isChargingEnabled(config)
-      ? Math.max(0, Math.round(config.serviceCosts?.customizeService ?? 55))
-      : 0;
+    // Customizations are never free and are excluded from Timed Free Access Windows.
+    const costTokens = Math.max(1, Math.round(config.serviceCosts?.customizeService ?? 55));
 
     return await withTokenGate(
       req,
@@ -102,7 +90,7 @@ export async function POST(req: Request) {
         const result = await submitCustomizeRequest({
           uid: caller.uid,
           userEmail: caller.email,
-          // What the token gate actually charged (0 during a free-access window), not the list price.
+          // What the token gate actually charged (always >= 1 token; Customizations are never free).
           tokensCharged: cost,
           input,
           requestId,

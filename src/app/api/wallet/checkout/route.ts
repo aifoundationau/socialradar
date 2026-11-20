@@ -12,15 +12,18 @@ import {
 } from "@/lib/pricing";
 import { getSystemConfig } from "@/lib/admin";
 import { buildCheckoutParams, getStripe } from "@/lib/stripe";
-import { edgeCountry } from "@/lib/request-geo";
+import { edgeCountry, resolveRequestCountry } from "@/lib/request-geo";
 
 /** Returns the active public pricing configuration (AUD base rate, service token amounts, packs, and detected geolocation country). */
 export async function GET(req: Request) {
   try {
     // Touch request headers so Next.js treats this route as dynamic on-demand
     void req.headers.get("accept");
-    // Display only (GST wording): the browser's own detected country, else the platform's trusted edge header.
-    const detectedCountry = (req.headers.get("x-user-country") || edgeCountry(req.headers))
+    // Authoritative server-side country (trusted edge header or server IP lookup, "" if unknown) —
+    // matches what withTokenGate uses for Timed Free Access Windows.
+    const serverCountry = await resolveRequestCountry(req);
+    // Display only (GST wording): server-resolved country, else browser-detected hint.
+    const detectedCountry = (serverCountry || req.headers.get("x-user-country") || "")
       .trim()
       .toUpperCase();
     const config = await getSystemConfig();
@@ -37,6 +40,7 @@ export async function GET(req: Request) {
         isTokenSystemEnabled: config.isTokenSystemEnabled,
         isAudEnabled: config.isAudEnabled,
         isUsdEnabled: config.isUsdEnabled,
+        serverCountry,
         ...(detectedCountry ? { detectedCountry } : {}),
       },
       { headers: { "Cache-Control": "no-store, max-age=0" } }

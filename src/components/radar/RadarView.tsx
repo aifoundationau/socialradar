@@ -189,6 +189,7 @@ export function RadarView() {
   const [isTokenSystemEnabled, setIsTokenSystemEnabled] = useState<boolean>(true);
   const [freeAccessWindow, setFreeAccessWindow] = useState<FreeAccessWindow | null>(null);
   const [userCountry, setUserCountry] = useState<string>("AU");
+  const [serverCountry, setServerCountry] = useState<string>("");
   const studio = useRef<HTMLElement>(null);
   const resultsTop = useRef<HTMLDivElement>(null);
 
@@ -212,6 +213,9 @@ export function RadarView() {
           if (typeof data.isTokenSystemEnabled === "boolean") {
             setIsTokenSystemEnabled(data.isTokenSystemEnabled);
           }
+          if (typeof data.serverCountry === "string") {
+            setServerCountry(data.serverCountry.trim().toUpperCase());
+          }
           setFreeAccessWindow(data.freeAccessWindow ?? null);
         })
         .catch(() => {});
@@ -231,7 +235,7 @@ export function RadarView() {
     Date.now(),
     profile,
     isSuperAdmin,
-    userCountry
+    serverCountry
   );
   const searchMixFee = chargingActive
     ? Math.max(0, Math.round(liveServiceCosts?.searchMixDownload ?? ACTION_COSTS.SEARCHMIX_DOWNLOAD))

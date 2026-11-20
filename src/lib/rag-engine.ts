@@ -1,5 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
+import { GoogleGenAI } from "@google/genai";
 import { db } from "./firebase-admin";
 import { ApiError } from "./api";
 import { getFaqs, createFaq } from "./faqs";
@@ -771,8 +772,13 @@ export async function getFullRagCorpus(options?: {
   };
 }
 
+const TRANSLATE_GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+
 /**
- * Instant Google Translator service using Google Translate's GTX endpoint.
+ * Official Google translation service:
+ * 1. Official Google Cloud Translation v2 REST API (when `GOOGLE_TRANSLATE_API_KEY` is configured).
+ * 2. Official `@google/genai` SDK with pinned `TRANSLATE_GEMINI_MODEL` (`gemini-2.5-flash`).
+ * 3. Best-effort public GTX fallback only when neither API key is set or official endpoints fail.
  * Translates text (and optional FAQ question) into targetLang, ready for Human Edit prior to RAG ingestion.
  */
 export async function translateWithGoogleTranslator(params: {
@@ -791,11 +797,115 @@ export async function translateWithGoogleTranslator(params: {
   const tl = params.targetLang;
   const langMeta = getRagLanguageMeta(tl);
 
+  if (tl.toLowerCase() === "en" && sl.toLowerCase() === "en") {
+    return {
+      translatedText: params.text,
+      translatedQuestion: params.question,
+      languageCode: langMeta.code,
+      languageName: `${langMeta.name} (${langMeta.nativeName})`,
+      provider: "Google Translate",
+    };
+  }
+
+  // 1. Official Google Cloud Translation v2 API
+  const cloudTranslateKey = process.env.GOOGLE_TRANSLATE_API_KEY?.trim();
+  if (cloudTranslateKey) {
+    try {
+      const inputs = params.question ? [params.text, params.question] : [params.text];
+      const res = await fetch(
+        `https://translation.googleapis.com/language/translate/v2?key=${encodeURIComponent(cloudTranslateKey)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            q: inputs,
+            target: tl,
+            ...(sl && sl !== "auto" ? { source: sl } : {}),
+            format: "text",
+          }),
+          cache: "no-store",
+          signal: AbortSignal.timeout(10_000),
+        }
+      );
+      if (res.ok) {
+        const json = (await res.json()) as {
+          data?: { translations?: Array<{ translatedText?: string }> };
+        };
+        const list = json?.data?.translations ?? [];
+        const translatedText = list[0]?.translatedText?.trim();
+        const translatedQuestion = params.question ? list[1]?.translatedText?.trim() : undefined;
+        if (translatedText) {
+          return {
+            translatedText,
+            translatedQuestion,
+            languageCode: langMeta.code,
+            languageName: `${langMeta.name} (${langMeta.nativeName})`,
+            provider: "Google Cloud Translation API",
+          };
+        }
+      }
+    } catch (err) {
+      console.warn("[rag-engine] Cloud Translation API failed, trying Gemini translation:", err);
+    }
+  }
+
+  // 2. Official Google Gemini SDK (@google/genai) with pinned model
+  const geminiKey = process.env.GEMINI_API_KEY?.trim();
+  if (geminiKey) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: geminiKey, httpOptions: { timeout: 15_000 } });
+      const res = await ai.models.generateContent({
+        model: TRANSLATE_GEMINI_MODEL,
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `Translate the following ${sl === "auto" ? "source" : sl} FAQ copy accurately into ${langMeta.name} (${langMeta.nativeName}, BCP-47 code: ${langMeta.code}). Preserve brand names (AdRadarHQ, Social Radar, Stripe, Meta, TikTok, Google), numbers, and currency codes (AUD, USD). Return plain text only.\n\nTEXT:\n${params.text}${params.question ? `\n\nQUESTION:\n${params.question}` : ""}`,
+              },
+            ],
+          },
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseJsonSchema: {
+            type: "object",
+            properties: {
+              translatedText: { type: "string" },
+              ...(params.question ? { translatedQuestion: { type: "string" } } : {}),
+            },
+            required: params.question ? ["translatedText", "translatedQuestion"] : ["translatedText"],
+            additionalProperties: false,
+          },
+          temperature: 0.1,
+        },
+      });
+      const parsed = JSON.parse(res.text ?? "{}") as {
+        translatedText?: string;
+        translatedQuestion?: string;
+      };
+      const translatedText = typeof parsed.translatedText === "string" ? parsed.translatedText.trim() : "";
+      const translatedQuestion =
+        params.question && typeof parsed.translatedQuestion === "string"
+          ? parsed.translatedQuestion.trim()
+          : undefined;
+      if (translatedText && (!params.question || translatedQuestion)) {
+        return {
+          translatedText,
+          translatedQuestion,
+          languageCode: langMeta.code,
+          languageName: `${langMeta.name} (${langMeta.nativeName})`,
+          provider: `Google Gemini (${TRANSLATE_GEMINI_MODEL})`,
+        };
+      }
+    } catch (err) {
+      console.warn("[rag-engine] Gemini translation failed, falling back:", err);
+    }
+  }
+
+  // 3. Best-effort fallback when official translation keys aren't configured or fail
   async function callGoogleGtx(input: string): Promise<string> {
     if (!input.trim()) return "";
-    if (tl.toLowerCase() === "en" && sl.toLowerCase() === "en") {
-      return input;
-    }
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(
       sl
     )}&tl=${encodeURIComponent(tl)}&dt=t&q=${encodeURIComponent(input)}`;

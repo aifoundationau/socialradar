@@ -40,11 +40,16 @@ export function buildCheckoutParams(opts: {
   const {
     uid,
     email,
+    stripeCustomerId,
     pack,
     appUrl,
     subscriptionName,
     buyerCountry = "AU",
   } = opts;
+  const existingCustomer =
+    stripeCustomerId && /^cus_[A-Za-z0-9]+$/.test(stripeCustomerId.trim())
+      ? stripeCustomerId.trim()
+      : undefined;
   const isSubscription = pack.id === "SUB_MONTHLY_1000";
   const tokensFormatted = pack.tokens.toLocaleString("en-AU");
   const priceFormatted = (pack.priceCents / 100).toFixed(2);
@@ -76,7 +81,11 @@ export function buildCheckoutParams(opts: {
         metadata,
       },
       automatic_tax: { enabled: true },
-      ...(email ? { customer_email: email } : {}),
+      ...(existingCustomer
+        ? { customer: existingCustomer, customer_update: { address: "auto" } }
+        : email
+          ? { customer_email: email }
+          : {}),
       line_items: [
         {
           quantity: 1,
@@ -130,8 +139,12 @@ export function buildCheckoutParams(opts: {
       description: lineDescription,
       metadata,
     },
-    customer_creation: "always",
-    ...(email ? { customer_email: email } : {}),
+    ...(existingCustomer
+      ? { customer: existingCustomer, customer_update: { address: "auto" } }
+      : {
+          customer_creation: "always",
+          ...(email ? { customer_email: email } : {}),
+        }),
     line_items: [
       {
         quantity: 1,

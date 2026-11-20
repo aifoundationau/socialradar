@@ -37,6 +37,45 @@ function communityCopy(brand: BrandProfile): BrandProfile {
 }
 
 /**
+ * Redacts full downloadable/clonable brand details on the free `/api/brands/global` listing
+ * when charging is active and the caller isn't the creator or Super Admin, so paid clone/download
+ * fees cannot be bypassed by scraping the listing response.
+ */
+export function redactCommunityBrandForListing(
+  brand: BrandProfile,
+  opts: {
+    callerUid: string;
+    isSuperAdmin?: boolean;
+    cloneCharging: boolean;
+    txtDownloadCharging: boolean;
+  },
+): BrandProfile {
+  if (brand.authorUid === opts.callerUid || opts.isSuperAdmin || (!opts.cloneCharging && !opts.txtDownloadCharging)) {
+    return brand;
+  }
+  const copy: BrandProfile = { ...brand };
+  if (opts.txtDownloadCharging) {
+    delete copy.brandTextFileContent;
+  }
+  if (opts.cloneCharging) {
+    copy.uniqueMechanismOrOffer = "";
+    copy.productServiceDescription =
+      brand.productServiceDescription.length > 160
+        ? `${brand.productServiceDescription.slice(0, 157)}...`
+        : brand.productServiceDescription;
+    copy.targetAudienceAvatar =
+      brand.targetAudienceAvatar.length > 90
+        ? `${brand.targetAudienceAvatar.slice(0, 87)}...`
+        : brand.targetAudienceAvatar;
+    copy.corePainPoints = brand.corePainPoints
+      .slice(0, 3)
+      .map((p) => (p.length > 60 ? `${p.slice(0, 57)}...` : p));
+    copy.landingPageUrls = [brand.destinationUrl];
+  }
+  return copy;
+}
+
+/**
  * Creates a brand under `users/{uid}/brands`. The first brand becomes the active one.
  * If `isGlobal` is true, syncs to `global_brands/{brandId}` for community discovery.
  * Replays with the same idempotency key return the brand created by the first call.

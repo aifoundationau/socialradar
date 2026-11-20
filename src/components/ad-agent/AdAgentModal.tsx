@@ -776,6 +776,12 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
       if (res.draft) {
         setReplySubject(res.draft.subject);
         setReplyBody(res.draft.body);
+        if (res.draft.isFallback) {
+          setStatusMsg(
+            res.draft.fallbackReason ||
+              "Template fallback draft loaded (live AI was unavailable) — please tailor before sending.",
+          );
+        }
       }
     } catch (err) {
       setErrorMsg(errorMessage(err));
