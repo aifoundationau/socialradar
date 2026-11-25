@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "@/components/auth/SessionProvider";
 import { apiFetch, errorMessage } from "@/lib/api-client";
-import type { BrandProfile, FreeAccessWindow } from "@/lib/contracts";
+import type { AdAgentServiceCosts, BrandProfile, FreeAccessWindow, ServiceCosts } from "@/lib/contracts";
 import { Icon } from "@/components/ui/Icon";
 import {
   alertError,
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/styles";
 import { TONE_LABELS } from "./BrandForm";
 import { BrandSlideOver } from "./BrandSlideOver";
-import { formatTokenEstimateHover, isChargingEnabled } from "@/lib/pricing";
+import { formatTokenEstimateHover, isChargingEnabled, resolveServiceCostsForRole } from "@/lib/pricing";
 import { downloadBrandTextFile, getBrandTextAttachment } from "@/lib/brand-text-file";
 
 interface BrandTextFileAttachmentProps {
@@ -162,7 +162,7 @@ type SlideOverState =
 type BrandsTab = "personal" | "global";
 
 export function BrandsManager() {
-  const { brands, profile, isAdmin } = useSession();
+  const { brands, profile, isAdmin, role } = useSession();
   const [activeTab, setActiveTab] = useState<BrandsTab>("personal");
   const [slideOver, setSlideOver] = useState<SlideOverState>({ isOpen: false });
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -176,8 +176,10 @@ export function BrandsManager() {
   // Global Brands Library State
   const [globalBrands, setGlobalBrands] = useState<BrandProfile[] | null>(null);
   const [globalLoading, setGlobalLoading] = useState(false);
-  const [serverCloneFee, setServerCloneFee] = useState<number>(1);
-  const [serverTxtDownloadFee, setServerTxtDownloadFee] = useState<number>(1);
+  const [liveServiceCosts, setLiveServiceCosts] = useState<ServiceCosts | undefined>(undefined);
+  const [liveAdAgentServiceCosts, setLiveAdAgentServiceCosts] = useState<AdAgentServiceCosts | undefined>(undefined);
+  const [listingCloneFee, setListingCloneFee] = useState<number | null>(null);
+  const [listingTxtDownloadFee, setListingTxtDownloadFee] = useState<number | null>(null);
   const [isTokenSystemEnabled, setIsTokenSystemEnabled] = useState<boolean>(true);
   const [freeAccessWindow, setFreeAccessWindow] = useState<FreeAccessWindow | null>(null);
   const [userCountry, setUserCountry] = useState<string>("");
@@ -196,8 +198,20 @@ export function BrandsManager() {
     isAdmin,
     userCountry
   );
-  const cloneFee = chargingActive ? serverCloneFee : 0;
-  const txtDownloadFee = chargingActive ? serverTxtDownloadFee : 0;
+  const resolvedRoleCosts = resolveServiceCostsForRole(
+    { serviceCosts: liveServiceCosts, adAgentServiceCosts: liveAdAgentServiceCosts },
+    role === "ad_agent"
+  );
+  const cloneFee = chargingActive
+    ? (liveServiceCosts || liveAdAgentServiceCosts
+        ? resolvedRoleCosts.brandClone
+        : (listingCloneFee ?? resolvedRoleCosts.brandClone))
+    : 0;
+  const txtDownloadFee = chargingActive
+    ? (liveServiceCosts || liveAdAgentServiceCosts
+        ? resolvedRoleCosts.brandTxtDownload
+        : (listingTxtDownloadFee ?? resolvedRoleCosts.brandTxtDownload))
+    : 0;
 
   async function run(brandId: string, action: () => Promise<unknown>) {
     setBusyId(brandId);
@@ -281,8 +295,8 @@ export function BrandsManager() {
         audCentsPerToken?: number;
       }>(`/api/brands/global${queryStr ? `?${queryStr}` : ""}`, { method: "GET" });
       setGlobalBrands(res.brands);
-      if (typeof res.brandCloneFee === "number" && res.brandCloneFee >= 0) setServerCloneFee(res.brandCloneFee);
-      if (typeof res.brandTxtDownloadFee === "number" && res.brandTxtDownloadFee >= 0) setServerTxtDownloadFee(res.brandTxtDownloadFee);
+      if (typeof res.brandCloneFee === "number" && res.brandCloneFee >= 0) setListingCloneFee(res.brandCloneFee);
+      if (typeof res.brandTxtDownloadFee === "number" && res.brandTxtDownloadFee >= 0) setListingTxtDownloadFee(res.brandTxtDownloadFee);
       if (typeof res.audCentsPerToken === "number") setAudRate(res.audCentsPerToken);
     } catch (err) {
       setError(errorMessage(err));
@@ -386,12 +400,8 @@ export function BrandsManager() {
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (!data || !active) return;
-          if (typeof data.serviceCosts?.brandClone === "number") {
-            setServerCloneFee(Math.max(0, Math.round(data.serviceCosts.brandClone)));
-          }
-          if (typeof data.serviceCosts?.brandTxtDownload === "number") {
-            setServerTxtDownloadFee(Math.max(0, Math.round(data.serviceCosts.brandTxtDownload)));
-          }
+          if (data.serviceCosts) setLiveServiceCosts(data.serviceCosts);
+          if (data.adAgentServiceCosts) setLiveAdAgentServiceCosts(data.adAgentServiceCosts);
           if (typeof data.audCentsPerToken === "number" && data.audCentsPerToken >= 1) {
             setAudRate(data.audCentsPerToken);
           }

@@ -496,7 +496,43 @@ export const ErrorCodeSchema = z.enum([
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 
 // ---------- 6. Super Admin & System Config ----------
+export const TIERED_SERVICE_COST_KEYS = [
+  "searchStandard",
+  "searchProvenWinners",
+  "searchExtendedDays",
+  "searchEliteScore",
+  "aiRemix",
+  "regenerateVariations",
+  "buildRemixedAdText",
+  "libraryItems",
+  "brandClone",
+  "brandTxtDownload",
+  "searchMixDownload",
+  "deconstructDownload",
+] as const;
+export type TieredServiceCostKey = (typeof TIERED_SERVICE_COST_KEYS)[number];
+
 export const ServiceCostsSchema = z
+  .object({
+    searchStandard: tokenInt.min(0).default(2),
+    searchProvenWinners: tokenInt.min(0).default(2),
+    searchExtendedDays: tokenInt.min(0).default(2),
+    searchEliteScore: tokenInt.min(0).default(2),
+    aiRemix: tokenInt.min(0).default(2),
+    regenerateVariations: tokenInt.min(0).default(2),
+    buildRemixedAdText: tokenInt.min(0).default(2),
+    libraryItems: tokenInt.min(0).default(2),
+    brandClone: tokenInt.min(0).default(2),
+    brandTxtDownload: tokenInt.min(0).default(2),
+    searchMixDownload: tokenInt.min(0).default(2),
+    deconstructDownload: tokenInt.min(0).default(2),
+    customizeService: tokenInt.min(0).default(55),
+    customizeAiAssistant: tokenInt.min(0).default(1),
+  })
+  .strict();
+export type ServiceCosts = z.infer<typeof ServiceCostsSchema>;
+
+export const AdAgentServiceCostsSchema = z
   .object({
     searchStandard: tokenInt.min(0).default(1),
     searchProvenWinners: tokenInt.min(0).default(1),
@@ -509,12 +545,10 @@ export const ServiceCostsSchema = z
     brandClone: tokenInt.min(0).default(1),
     brandTxtDownload: tokenInt.min(0).default(1),
     searchMixDownload: tokenInt.min(0).default(1),
-    deconstructDownload: tokenInt.min(0).default(0),
-    customizeService: tokenInt.min(0).default(55),
-    customizeAiAssistant: tokenInt.min(0).default(1),
+    deconstructDownload: tokenInt.min(0).default(1),
   })
   .strict();
-export type ServiceCosts = z.infer<typeof ServiceCostsSchema>;
+export type AdAgentServiceCosts = z.infer<typeof AdAgentServiceCostsSchema>;
 
 export const MonthlySubscriptionConfigSchema = z
   .object({
@@ -557,6 +591,7 @@ export const SystemConfigSchema = z
     audCentsPerToken: tokenInt.min(1).default(100),
     usdCentsPerToken: tokenInt.min(1).optional(),
     serviceCosts: ServiceCostsSchema,
+    adAgentServiceCosts: AdAgentServiceCostsSchema.optional(),
     monthlySubscription: MonthlySubscriptionConfigSchema.optional(),
     freeAccessWindow: FreeAccessWindowSchema.optional(),
     updatedAt: isoDate,
@@ -605,6 +640,22 @@ export const AdminConfigPatchSchema = z
         deconstructDownload: serviceCostValue.optional(),
         customizeService: serviceCostValue.optional(),
         customizeAiAssistant: serviceCostValue.optional(),
+      })
+      .optional(),
+    adAgentServiceCosts: z
+      .object({
+        searchStandard: serviceCostValue.optional(),
+        searchProvenWinners: serviceCostValue.optional(),
+        searchExtendedDays: serviceCostValue.optional(),
+        searchEliteScore: serviceCostValue.optional(),
+        aiRemix: serviceCostValue.optional(),
+        regenerateVariations: serviceCostValue.optional(),
+        buildRemixedAdText: serviceCostValue.optional(),
+        libraryItems: serviceCostValue.optional(),
+        brandClone: serviceCostValue.optional(),
+        brandTxtDownload: serviceCostValue.optional(),
+        searchMixDownload: serviceCostValue.optional(),
+        deconstructDownload: serviceCostValue.optional(),
       })
       .optional(),
     tokenPacks: z

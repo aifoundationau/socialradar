@@ -12,7 +12,7 @@ import {
   getUnlockedLibraryItem,
   recordLibraryPurchase,
 } from "@/lib/library";
-import { isChargingEnabled } from "@/lib/pricing";
+import { isAdAgentPricingRole, isChargingEnabled, resolveServiceCostsForRole } from "@/lib/pricing";
 import { withTokenGate } from "@/lib/token-ledger";
 
 /**
@@ -61,8 +61,10 @@ export async function POST(req: Request) {
   }
 
   const config = await getSystemConfig();
-  const configuredFee = config.serviceCosts?.libraryItems ?? 1;
-  const cost = isChargingEnabled(config) ? Math.max(0, Math.round(configuredFee)) : 0;
+  const resolveCost = (caller: { claims: Parameters<typeof isAdAgentPricingRole>[0] }) => {
+    const costs = resolveServiceCostsForRole(config, isAdAgentPricingRole(caller.claims));
+    return isChargingEnabled(config) ? Math.max(0, Math.round(costs.libraryItems)) : 0;
+  };
 
   return withTokenGate(
     req,
@@ -89,6 +91,6 @@ export async function POST(req: Request) {
         alreadyPurchased: replayed,
       } satisfies LibraryPurchaseResponse);
     },
-    cost,
+    resolveCost,
   );
 }

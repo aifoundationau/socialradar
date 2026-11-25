@@ -4,6 +4,8 @@ import { FieldValue, type DocumentData, type QueryDocumentSnapshot } from "fireb
 import { adminAuth, db } from "./firebase-admin";
 import {
   LINK_URL_PATTERN,
+  TIERED_SERVICE_COST_KEYS,
+  type AdAgentServiceCosts,
   type AdminMessage,
   type CustomizeRequestDoc,
   type CustomizeRequestInput,
@@ -19,6 +21,8 @@ import {
 } from "./contracts";
 import { ApiError } from "./api";
 import {
+  DEFAULT_AD_AGENT_SERVICE_COSTS,
+  DEFAULT_SUPPORTER_SERVICE_COSTS,
   ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE,
   TOKEN_PACKS,
   isFreeAccessWindowActive,
@@ -44,6 +48,7 @@ export interface AdminSystemConfig extends SystemConfig {
   tokenPacks: ExtendedTokenPack[];
   equityPartners: EquityPartner[];
   freeAccessWindow: FreeAccessWindow;
+  adAgentServiceCosts: AdAgentServiceCosts;
 }
 
 export const DEFAULT_FREE_ACCESS_WINDOW: FreeAccessWindow = {
@@ -61,22 +66,8 @@ export const DEFAULT_CONFIG: AdminSystemConfig = {
   isUsdEnabled: true,
   audCentsPerToken: 100,
   usdCentsPerToken: 100,
-  serviceCosts: {
-    searchStandard: 1,
-    searchProvenWinners: 1,
-    searchExtendedDays: 1,
-    searchEliteScore: 1,
-    aiRemix: 1,
-    regenerateVariations: 1,
-    buildRemixedAdText: 1,
-    libraryItems: 1,
-    brandClone: 1,
-    brandTxtDownload: 1,
-    searchMixDownload: 1,
-    deconstructDownload: 0,
-    customizeService: 55,
-    customizeAiAssistant: 1,
-  },
+  serviceCosts: { ...DEFAULT_SUPPORTER_SERVICE_COSTS },
+  adAgentServiceCosts: { ...DEFAULT_AD_AGENT_SERVICE_COSTS },
   tokenPacks: [
     { id: "PACK_10", name: "Quick Pack (10)", tokens: TOKEN_PACKS.PACK_10.tokens, priceCents: TOKEN_PACKS.PACK_10.priceCents, enabled: true },
     { id: "PACK_50", name: "Creator Pack (50)", tokens: TOKEN_PACKS.PACK_50.tokens, priceCents: TOKEN_PACKS.PACK_50.priceCents, enabled: true },
@@ -107,12 +98,45 @@ function normalizeConfig(data: DocumentData): AdminSystemConfig {
     freeAccessWindow = { ...DEFAULT_FREE_ACCESS_WINDOW, allowedCountries: savedCountries };
   }
 
+  const rawServiceCosts = (data.serviceCosts || {}) as Partial<AdminSystemConfig["serviceCosts"]>;
+  const rawAdAgentCosts = (data.adAgentServiceCosts || {}) as Partial<AdAgentServiceCosts>;
+  const hasAdAgentTierSaved =
+    data.adAgentServiceCosts !== undefined && data.adAgentServiceCosts !== null;
+  const isLegacyUniformOneToken =
+    !hasAdAgentTierSaved &&
+    TIERED_SERVICE_COST_KEYS.every((k) => {
+      const val = rawServiceCosts[k];
+      if (k === "deconstructDownload") return val === undefined || val === 0 || val === 1;
+      return val === undefined || val === 1;
+    });
+
+  const normalizedServiceCosts = {
+    ...DEFAULT_CONFIG.serviceCosts,
+    ...rawServiceCosts,
+  };
+  if (isLegacyUniformOneToken) {
+    for (const k of TIERED_SERVICE_COST_KEYS) {
+      normalizedServiceCosts[k] = DEFAULT_SUPPORTER_SERVICE_COSTS[k];
+    }
+  } else {
+    if (rawAdAgentCosts.searchMixDownload === undefined && rawServiceCosts.searchMixDownload === 1) {
+      normalizedServiceCosts.searchMixDownload = DEFAULT_SUPPORTER_SERVICE_COSTS.searchMixDownload;
+    }
+    if (
+      rawAdAgentCosts.deconstructDownload === undefined &&
+      (rawServiceCosts.deconstructDownload === undefined || rawServiceCosts.deconstructDownload === 0)
+    ) {
+      normalizedServiceCosts.deconstructDownload = DEFAULT_SUPPORTER_SERVICE_COSTS.deconstructDownload;
+    }
+  }
+
   return {
     ...DEFAULT_CONFIG,
     ...data,
-    serviceCosts: {
-      ...DEFAULT_CONFIG.serviceCosts,
-      ...(data.serviceCosts || {}),
+    serviceCosts: normalizedServiceCosts,
+    adAgentServiceCosts: {
+      ...DEFAULT_CONFIG.adAgentServiceCosts,
+      ...((data.adAgentServiceCosts || {}) as Partial<AdAgentServiceCosts>),
     },
     equityPartners: Array.isArray(data.equityPartners) ? data.equityPartners : [],
     audCentsPerToken: typeof data.audCentsPerToken === "number" ? data.audCentsPerToken : DEFAULT_CONFIG.audCentsPerToken,
@@ -202,9 +226,13 @@ export async function setFreeAccessWindow(
   });
 }
 
-/** A config change; serviceCosts and monthlySubscription may be partial and are merged into the current values. */
-export type SystemConfigUpdate = Omit<Partial<AdminSystemConfig>, "serviceCosts" | "monthlySubscription"> & {
+/** A config change; serviceCosts, adAgentServiceCosts, and monthlySubscription may be partial and are merged into the current values. */
+export type SystemConfigUpdate = Omit<
+  Partial<AdminSystemConfig>,
+  "serviceCosts" | "adAgentServiceCosts" | "monthlySubscription"
+> & {
   serviceCosts?: Partial<AdminSystemConfig["serviceCosts"]>;
+  adAgentServiceCosts?: Partial<AdminSystemConfig["adAgentServiceCosts"]>;
   monthlySubscription?: Partial<NonNullable<AdminSystemConfig["monthlySubscription"]>>;
 };
 
@@ -228,6 +256,10 @@ export async function updateSystemConfig(
       serviceCosts: {
         ...current.serviceCosts,
         ...(patch.serviceCosts ?? {}),
+      },
+      adAgentServiceCosts: {
+        ...current.adAgentServiceCosts,
+        ...(patch.adAgentServiceCosts ?? {}),
       },
       monthlySubscription: patch.monthlySubscription
         ? {

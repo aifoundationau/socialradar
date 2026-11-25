@@ -4,7 +4,9 @@ import type { ErrorCode, FreeAccessWindow, RbacPermission, TokenTransactionDoc, 
 import { ApiError, errorResponse, jsonError, requireIdempotencyKey } from "./api";
 import {
   ACTION_COSTS,
+  AD_AGENT_ACTION_COSTS,
   ALL_COUNTRIES_CODE,
+  isAdAgentPricingRole,
   isChargingEnabled,
   isFreeAccessWindowActive,
   normalizeAllowedCountries,
@@ -304,7 +306,7 @@ export async function withTokenGate(
   action: ChargeableAction,
   referenceId: string | ((caller: VerifiedCaller) => string),
   handler: (ctx: GateContext) => Promise<Response>,
-  customCost?: number,
+  customCost?: number | ((caller: VerifiedCaller) => number | Promise<number>),
 ): Promise<Response> {
   let charged: LedgerResult | null = null;
   try {
@@ -315,7 +317,9 @@ export async function withTokenGate(
     const key = requireIdempotencyKey(req);
     const ref = typeof referenceId === "function" ? referenceId(caller) : referenceId;
 
-    const rawCost = customCost !== undefined ? customCost : ACTION_COSTS[action];
+    const resolvedCustomCost = typeof customCost === "function" ? await customCost(caller) : customCost;
+    const roleDefaultCosts = isAdAgentPricingRole(caller.claims) ? AD_AGENT_ACTION_COSTS : ACTION_COSTS;
+    const rawCost = resolvedCustomCost !== undefined ? resolvedCustomCost : roleDefaultCosts[action];
     let effectiveCost = Math.max(0, toInt(rawCost));
 
     // Professional Customize Service orders are never free and are excluded from Timed Free Access Windows

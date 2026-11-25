@@ -94,8 +94,10 @@ export function RemixStudio({
   error,
   brand,
   remixBrandName,
+  aiRemixFee,
+  regenerateVariationsFee,
   deconstructFee = 0,
-  buildRemixedAdTextFee = 1,
+  buildRemixedAdTextFee = 2,
   isFree = false,
   isAuNz = true,
   audRate = 100,
@@ -113,6 +115,8 @@ export function RemixStudio({
   brand: BrandProfile | null;
   /** Brand the shown remix was written for (it may differ from the active brand). */
   remixBrandName: string | null;
+  aiRemixFee?: number;
+  regenerateVariationsFee?: number;
   deconstructFee?: number;
   buildRemixedAdTextFee?: number;
   isFree?: boolean;
@@ -299,7 +303,7 @@ export function RemixStudio({
             >
               <Icon name="sparkles" />
               {error ? "Try again" : "Generate remix"}
-              <CostTag action="AI_REMIX" free={isFree} />
+              <CostTag action="AI_REMIX" free={isFree} cost={aiRemixFee} />
             </button>
           ) : (
             <Link
@@ -463,7 +467,7 @@ export function RemixStudio({
                 >
                   <Icon name="refresh" />
                   Regenerate variations
-                  <CostTag action="REGENERATE_VARIATIONS" free={isFree} />
+                  <CostTag action="REGENERATE_VARIATIONS" free={isFree} cost={regenerateVariationsFee} />
                 </button>
               </div>
             )}

@@ -13,11 +13,11 @@ import { assertRemixConfigured, generateRemix } from "@/lib/gemini";
 import { enrichGoogleAd, needsGoogleDetails } from "@/lib/radar";
 import { withTokenGate } from "@/lib/token-ledger";
 import { getSystemConfig } from "@/lib/admin";
-import { isChargingEnabled } from "@/lib/pricing";
+import { isAdAgentPricingRole, isChargingEnabled, resolveServiceCostsForRole } from "@/lib/pricing";
 
 /**
  * Deconstructs a searched ad and writes 3 variations for one of the caller's brands.
- * Uses the SuperAdmin-configured `serviceCosts.aiRemix` token amount.
+ * Uses the SuperAdmin-configured `serviceCosts.aiRemix` / `adAgentServiceCosts.aiRemix` token amount.
  * Body: `{ adId, brandId }`. The ad is read from `normalized_ads`, never taken from the client.
  * The result is stored at `remixes/{txId}`, so a replayed key returns it without charging again.
  */
@@ -31,12 +31,11 @@ export async function POST(req: Request) {
 
   const config = await getSystemConfig();
   const isRegen = Boolean(input.isRegenerate);
-  const configuredCost = isRegen
-    ? (config.serviceCosts?.regenerateVariations ?? config.serviceCosts?.aiRemix ?? 1)
-    : (config.serviceCosts?.aiRemix ?? 1);
-  const remixCost = isChargingEnabled(config)
-    ? Math.max(0, Math.round(configuredCost))
-    : 0;
+  const resolveRemixCost = (caller: { claims: Parameters<typeof isAdAgentPricingRole>[0] }) => {
+    const costs = resolveServiceCostsForRole(config, isAdAgentPricingRole(caller.claims));
+    const configuredCost = isRegen ? costs.regenerateVariations : costs.aiRemix;
+    return isChargingEnabled(config) ? Math.max(0, Math.round(configuredCost)) : 0;
+  };
 
   return withTokenGate(
     req,
@@ -79,6 +78,6 @@ export async function POST(req: Request) {
       await ref.set(remix);
       return NextResponse.json({ remix, ad, balanceAfter } satisfies RemixResponse);
     },
-    remixCost,
+    resolveRemixCost,
   );
 }

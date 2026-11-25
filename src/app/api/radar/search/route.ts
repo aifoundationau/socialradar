@@ -4,7 +4,12 @@ import { RadarSearchRequestSchema, type RadarSearchRequest, type RadarSearchResp
 import { radarQueryHash, replayRadarSearch, runRadarSearch } from "@/lib/radar";
 import { withTokenGate } from "@/lib/token-ledger";
 import { getBrand } from "@/lib/brands";
-import { calculateSearchCost, isChargingEnabled } from "@/lib/pricing";
+import {
+  calculateSearchCost,
+  isAdAgentPricingRole,
+  isChargingEnabled,
+  resolveServiceCostsForRole,
+} from "@/lib/pricing";
 import { getSystemConfig } from "@/lib/admin";
 
 /**
@@ -21,9 +26,12 @@ export async function POST(req: Request) {
   const queryHash = radarQueryHash(input);
 
   const config = await getSystemConfig();
-  const searchCost = isChargingEnabled(config)
-    ? calculateSearchCost(input, config.serviceCosts)
-    : 0;
+  const resolveSearchCost = (caller: { claims: Parameters<typeof isAdAgentPricingRole>[0] }) => {
+    const isAdAgent = isAdAgentPricingRole(caller.claims);
+    return isChargingEnabled(config)
+      ? calculateSearchCost(input, resolveServiceCostsForRole(config, isAdAgent), isAdAgent)
+      : 0;
+  };
 
   // Also the idempotency reference: it must include every option that changes the price or the results,
   // so a replayed key can't fetch a differently filtered (e.g. surcharged) search for free.
@@ -52,6 +60,6 @@ export async function POST(req: Request) {
         : await runRadarSearch(input, queryHash, brand);
       return NextResponse.json({ ...result, balanceAfter } satisfies RadarSearchResponse);
     },
-    searchCost,
+    resolveSearchCost,
   );
 }

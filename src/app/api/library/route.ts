@@ -18,9 +18,11 @@ import {
 } from "@/lib/library";
 import {
   ALL_COUNTRIES_CODE,
+  isAdAgentPricingRole,
   isChargingEnabled,
   isFreeAccessWindowActive,
   normalizeAllowedCountries,
+  resolveServiceCostsForRole,
 } from "@/lib/pricing";
 import { resolveRequestCountry } from "@/lib/request-geo";
 
@@ -89,8 +91,10 @@ export async function GET(req: Request) {
       caller.claims.isSuperAdmin,
       userCountry,
     );
+    const isAdAgent = isAdAgentPricingRole(caller.claims) || isAdAgentPricingRole(userData);
+    const resolvedCosts = resolveServiceCostsForRole(config, isAdAgent);
     const libraryItemFee = charging
-      ? Math.max(0, Math.round(config.serviceCosts?.libraryItems ?? 1))
+      ? Math.max(0, Math.round(resolvedCosts.libraryItems))
       : 0;
 
     return NextResponse.json(

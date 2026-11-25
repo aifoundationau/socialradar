@@ -259,71 +259,100 @@ try {
   );
 
   // ---------- Phase 1 ledger gate (used by Phase 3/4 routes) ----------
-  // The app may run with free actions; the paid path is exercised with fixed costs.
+  // The app may run with free actions or an active freeAccessWindow; the paid path is exercised with fixed costs.
   const liveCosts = { ...pricing.ACTION_COSTS };
-  Object.assign(pricing.ACTION_COSTS, { RADAR_SEARCH: 2, AI_REMIX: 5 });
+  const sysCfgRef = db.doc("system_config/global");
+  const sysCfgBefore = (await sysCfgRef.get()).data() ?? null;
+  const sysCfgHadFreeOverride =
+    sysCfgBefore &&
+    (sysCfgBefore.isTokenSystemEnabled === false || sysCfgBefore.freeAccessWindow?.enabled === true);
+  if (sysCfgHadFreeOverride) {
+    await sysCfgRef.set(
+      {
+        isTokenSystemEnabled: true,
+        freeAccessWindow: {
+          ...(sysCfgBefore.freeAccessWindow ?? {}),
+          enabled: false,
+        },
+      },
+      { merge: true },
+    );
+  }
   const okReq = (k) => new Request("http://localhost/api/x", { headers: { Authorization: `Bearer ${token}`, "x-idempotency-key": k } });
-  const g1 = await ledger.withTokenGate(okReq(key("gate_ok")), "RADAR_SEARCH", "q", async (ctx) => Response.json({ balanceAfter: ctx.balanceAfter }));
-  check("gate: successful search charges 2 (500 → 498)", g1.status === 200 && (await userDoc(UID)).tokenBalance === 498);
-  const failKey = key("gate_fail");
-  const g2 = await ledger.withTokenGate(okReq(failKey), "AI_REMIX", "ad", async () => {
-    throw new ledger.UpstreamError("Gemini 503");
-  });
-  check("gate: upstream failure → 502 + auto-refund (stays 498)", g2.status === 502 && (await userDoc(UID)).tokenBalance === 498, await g2.clone().json());
-  const gk = key("gate_replay");
-  await ledger.withTokenGate(okReq(gk), "AI_REMIX", "ad", async () => Response.json({}));
-  let replayed = null;
-  await ledger.withTokenGate(okReq(gk), "AI_REMIX", "ad", async (ctx) => {
-    replayed = ctx.replayed;
-    return Response.json({});
-  });
-  check("gate: retried key charges once (498 → 493)", replayed === true && (await userDoc(UID)).tokenBalance === 493);
-  await db.doc(`users/${UID}`).update({ tokenBalance: 1 });
-  const g4 = await ledger.withTokenGate(okReq(key("gate_poor")), "AI_REMIX", "ad", async () => Response.json({}));
-  check("gate: insufficient balance → 402 INSUFFICIENT_TOKENS", g4.status === 402 && (await g4.json()).error.code === "INSUFFICIENT_TOKENS");
-  await db.doc(`users/${UID}`).update({ tokenBalance: 50 });
-  const g5 = await ledger.withTokenGate(okReq(`${failKey}_refund`), "AI_REMIX", "ad", async () => Response.json({}));
-  check("gate: key matching a refund record → 409, not a free replay", g5.status === 409 && (await userDoc(UID)).tokenBalance === 50);
-  const g6 = await ledger.withTokenGate(okReq(failKey), "AI_REMIX", "ad", async () => Response.json({}));
-  check("gate: replaying a refunded key → 409", g6.status === 409 && (await userDoc(UID)).tokenBalance === 50);
-  const g7 = await ledger.withTokenGate(okReq(gk), "AI_REMIX", "other-ad", async () => Response.json({}));
-  check("gate: paid key reused for another reference → 409", g7.status === 409 && (await userDoc(UID)).tokenBalance === 50);
+  try {
+    Object.assign(pricing.ACTION_COSTS, { RADAR_SEARCH: 2, AI_REMIX: 5 });
+    const g1 = await ledger.withTokenGate(okReq(key("gate_ok")), "RADAR_SEARCH", "q", async (ctx) => Response.json({ balanceAfter: ctx.balanceAfter }));
+    check("gate: successful search charges 2 (500 → 498)", g1.status === 200 && (await userDoc(UID)).tokenBalance === 498);
+    const failKey = key("gate_fail");
+    const g2 = await ledger.withTokenGate(okReq(failKey), "AI_REMIX", "ad", async () => {
+      throw new ledger.UpstreamError("Gemini 503");
+    });
+    check("gate: upstream failure → 502 + auto-refund (stays 498)", g2.status === 502 && (await userDoc(UID)).tokenBalance === 498, await g2.clone().json());
+    const gk = key("gate_replay");
+    await ledger.withTokenGate(okReq(gk), "AI_REMIX", "ad", async () => Response.json({}));
+    let replayed = null;
+    await ledger.withTokenGate(okReq(gk), "AI_REMIX", "ad", async (ctx) => {
+      replayed = ctx.replayed;
+      return Response.json({});
+    });
+    check("gate: retried key charges once (498 → 493)", replayed === true && (await userDoc(UID)).tokenBalance === 493);
+    await db.doc(`users/${UID}`).update({ tokenBalance: 1 });
+    const g4 = await ledger.withTokenGate(okReq(key("gate_poor")), "AI_REMIX", "ad", async () => Response.json({}));
+    check("gate: insufficient balance → 402 INSUFFICIENT_TOKENS", g4.status === 402 && (await g4.json()).error.code === "INSUFFICIENT_TOKENS");
+    await db.doc(`users/${UID}`).update({ tokenBalance: 50 });
+    const g5 = await ledger.withTokenGate(okReq(`${failKey}_refund`), "AI_REMIX", "ad", async () => Response.json({}));
+    check("gate: key matching a refund record → 409, not a free replay", g5.status === 409 && (await userDoc(UID)).tokenBalance === 50);
+    const g6 = await ledger.withTokenGate(okReq(failKey), "AI_REMIX", "ad", async () => Response.json({}));
+    check("gate: replaying a refunded key → 409", g6.status === 409 && (await userDoc(UID)).tokenBalance === 50);
+    const g7 = await ledger.withTokenGate(okReq(gk), "AI_REMIX", "other-ad", async () => Response.json({}));
+    check("gate: paid key reused for another reference → 409", g7.status === 409 && (await userDoc(UID)).tokenBalance === 50);
 
-  Object.assign(pricing.ACTION_COSTS, { RADAR_SEARCH: 0, AI_REMIX: 0 });
-  const freeKey = key("gate_free");
-  const g8 = await ledger.withTokenGate(okReq(freeKey), "RADAR_SEARCH", "q", async (ctx) => Response.json({ balanceAfter: ctx.balanceAfter }));
-  const freeTx = (await db.doc(`token_transactions/${UID}_${freeKey}`).get()).data();
-  check(
-    "gate: free action runs with no charge and delta 0 ledger entry",
-    g8.status === 200 &&
-      (await g8.json()).balanceAfter === 50 &&
-      (await userDoc(UID)).tokenBalance === 50 &&
-      freeTx?.delta === 0,
-    freeTx,
-  );
-  const g9 = await ledger.withTokenGate(new Request("http://localhost/api/x", { headers: { "x-idempotency-key": key("gate_anon") } }), "RADAR_SEARCH", "q", async () => Response.json({}));
-  check("gate: free action still requires sign-in → 401", g9.status === 401);
+    Object.assign(pricing.ACTION_COSTS, { RADAR_SEARCH: 0, AI_REMIX: 0 });
+    const freeKey = key("gate_free");
+    const g8 = await ledger.withTokenGate(okReq(freeKey), "RADAR_SEARCH", "q", async (ctx) => Response.json({ balanceAfter: ctx.balanceAfter }));
+    const freeTx = (await db.doc(`token_transactions/${UID}_${freeKey}`).get()).data();
+    check(
+      "gate: free action runs with no charge and delta 0 ledger entry",
+      g8.status === 200 &&
+        (await g8.json()).balanceAfter === 50 &&
+        (await userDoc(UID)).tokenBalance === 50 &&
+        freeTx?.delta === 0,
+      freeTx,
+    );
+    const g9 = await ledger.withTokenGate(new Request("http://localhost/api/x", { headers: { "x-idempotency-key": key("gate_anon") } }), "RADAR_SEARCH", "q", async () => Response.json({}));
+    check("gate: free action still requires sign-in → 401", g9.status === 401);
 
-  // H2: Free window / 0-cost calls must never overwrite earlier paid ledger rows or bypass idempotency checks
-  const gFreeOverwritePaid = await ledger.withTokenGate(okReq(gk), "RADAR_SEARCH", "q", async () => Response.json({}));
-  const origPaidTx = (await db.doc(`token_transactions/${UID}_${gk}`).get()).data();
-  check(
-    "gate: free action reusing earlier paid key → 409 and paid delta untouched",
-    gFreeOverwritePaid.status === 409 && origPaidTx?.delta === -5 && origPaidTx?.type === "AI_REMIX",
-    { status: gFreeOverwritePaid.status, origPaidTx },
-  );
-  let freeReplayFlag = null;
-  const gFreeReplay = await ledger.withTokenGate(okReq(freeKey), "RADAR_SEARCH", "q", async (ctx) => {
-    freeReplayFlag = ctx.replayed;
-    return Response.json({ balanceAfter: ctx.balanceAfter });
-  });
-  const gFreeConflictRef = await ledger.withTokenGate(okReq(freeKey), "RADAR_SEARCH", "other-q", async () => Response.json({}));
-  check(
-    "gate: free key replay → replayed:true; different ref → 409",
-    gFreeReplay.status === 200 && freeReplayFlag === true && gFreeConflictRef.status === 409,
-    { replayStatus: gFreeReplay.status, freeReplayFlag, conflictStatus: gFreeConflictRef.status },
-  );
-  Object.assign(pricing.ACTION_COSTS, liveCosts);
+    // H2: Free window / 0-cost calls must never overwrite earlier paid ledger rows or bypass idempotency checks
+    const gFreeOverwritePaid = await ledger.withTokenGate(okReq(gk), "RADAR_SEARCH", "q", async () => Response.json({}));
+    const origPaidTx = (await db.doc(`token_transactions/${UID}_${gk}`).get()).data();
+    check(
+      "gate: free action reusing earlier paid key → 409 and paid delta untouched",
+      gFreeOverwritePaid.status === 409 && origPaidTx?.delta === -5 && origPaidTx?.type === "AI_REMIX",
+      { status: gFreeOverwritePaid.status, origPaidTx },
+    );
+    let freeReplayFlag = null;
+    const gFreeReplay = await ledger.withTokenGate(okReq(freeKey), "RADAR_SEARCH", "q", async (ctx) => {
+      freeReplayFlag = ctx.replayed;
+      return Response.json({ balanceAfter: ctx.balanceAfter });
+    });
+    const gFreeConflictRef = await ledger.withTokenGate(okReq(freeKey), "RADAR_SEARCH", "other-q", async () => Response.json({}));
+    check(
+      "gate: free key replay → replayed:true; different ref → 409",
+      gFreeReplay.status === 200 && freeReplayFlag === true && gFreeConflictRef.status === 409,
+      { replayStatus: gFreeReplay.status, freeReplayFlag, conflictStatus: gFreeConflictRef.status },
+    );
+  } finally {
+    Object.assign(pricing.ACTION_COSTS, liveCosts);
+    if (sysCfgHadFreeOverride && sysCfgBefore) {
+      await sysCfgRef.set(
+        {
+          isTokenSystemEnabled: sysCfgBefore.isTokenSystemEnabled,
+          freeAccessWindow: sysCfgBefore.freeAccessWindow,
+        },
+        { merge: true },
+      );
+    }
+  }
 
   // ---------- RAG Studio, Mandatory Human Edit & Multi-Role Approval ----------
   check(

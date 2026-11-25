@@ -2,16 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch, errorMessage } from "@/lib/api-client";
-import type { ServiceCosts, TokenPackId } from "@/lib/contracts";
+import { useSession } from "@/components/auth/SessionProvider";
+import type { AdAgentServiceCosts, ServiceCosts, TokenPackId } from "@/lib/contracts";
 import {
-  ACTION_COSTS,
+  DEFAULT_AD_AGENT_SERVICE_COSTS,
   DEFAULT_AUD_CENTS_PER_TOKEN,
-  SERVICE_SURCHARGES,
+  DEFAULT_SUPPORTER_SERVICE_COSTS,
   TOKEN_PACKS,
   audToUsdCents,
   buildTokenPack,
   formatAud,
   formatUsd,
+  resolveServiceCostsForRole,
 } from "@/lib/pricing";
 import { DEFAULT_AU_GEO, loadGeoConfig, type GeoConfig } from "@/lib/geo";
 import { Icon } from "@/components/ui/Icon";
@@ -34,6 +36,7 @@ const DEFAULT_CONFIGURED_PACKS: ConfiguredPackItem[] = [
 ];
 
 export function TokenPacks() {
+  const { role } = useSession();
   const [pending, setPending] = useState<TokenPackId | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [geo, setGeo] = useState<GeoConfig>(DEFAULT_AU_GEO);
@@ -42,22 +45,17 @@ export function TokenPacks() {
   const [audCentsPerToken, setAudCentsPerToken] = useState<number>(DEFAULT_AUD_CENTS_PER_TOKEN);
   const [ecbRate, setEcbRate] = useState<number | undefined>(undefined);
   const [configuredPacks, setConfiguredPacks] = useState<ConfiguredPackItem[]>(DEFAULT_CONFIGURED_PACKS);
-  const [serviceCosts, setServiceCosts] = useState<ServiceCosts>({
-    searchStandard: ACTION_COSTS.RADAR_SEARCH,
-    searchProvenWinners: SERVICE_SURCHARGES.PROVEN_WINNERS,
-    searchExtendedDays: SERVICE_SURCHARGES.EXTENDED_DAYS,
-    searchEliteScore: SERVICE_SURCHARGES.ELITE_SCORE,
-    aiRemix: ACTION_COSTS.AI_REMIX,
-    regenerateVariations: ACTION_COSTS.REGENERATE_VARIATIONS,
-    buildRemixedAdText: ACTION_COSTS.BUILD_REMIXED_AD_TEXT,
-    libraryItems: ACTION_COSTS.LIBRARY_ITEM_PURCHASE,
-    brandClone: ACTION_COSTS.BRAND_CLONE,
-    brandTxtDownload: ACTION_COSTS.BRAND_TXT_DOWNLOAD,
-    searchMixDownload: ACTION_COSTS.SEARCHMIX_DOWNLOAD,
-    deconstructDownload: ACTION_COSTS.DECONSTRUCT_DOWNLOAD,
-    customizeService: ACTION_COSTS.CUSTOMIZE_SERVICE,
-    customizeAiAssistant: ACTION_COSTS.CUSTOMIZE_AI_ASSISTANT,
+  const [supporterServiceCosts, setSupporterServiceCosts] = useState<ServiceCosts>({
+    ...DEFAULT_SUPPORTER_SERVICE_COSTS,
   });
+  const [adAgentServiceCosts, setAdAgentServiceCosts] = useState<AdAgentServiceCosts>({
+    ...DEFAULT_AD_AGENT_SERVICE_COSTS,
+  });
+  const isAdAgentTier = role === "ad_agent";
+  const serviceCosts = resolveServiceCostsForRole(
+    { serviceCosts: supporterServiceCosts, adAgentServiceCosts },
+    isAdAgentTier
+  );
 
   useEffect(() => {
     setGeo(loadGeoConfig());
@@ -78,7 +76,10 @@ export function TokenPacks() {
             setAudCentsPerToken(data.audCentsPerToken);
           }
           if (data.serviceCosts) {
-            setServiceCosts(data.serviceCosts);
+            setSupporterServiceCosts(data.serviceCosts);
+          }
+          if (data.adAgentServiceCosts) {
+            setAdAgentServiceCosts(data.adAgentServiceCosts);
           }
           if (Array.isArray(data.tokenPacks) && data.tokenPacks.length > 0) {
             setConfiguredPacks(
@@ -104,20 +105,28 @@ export function TokenPacks() {
     // Fetch live SuperAdmin-configured AUD base rate, service token amounts, and token packs
     fetchPricingAndPacks();
 
-    // Fetch live ECB exchange rate via Frankfurter API
-    fetch("/api/currency")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && typeof data.rate === "number" && data.rate > 0) {
-          setEcbRate(data.rate);
-        }
-      })
-      .catch(() => {});
+    // Fetch live ECB exchange rate via Frankfurter API (updates daily, bypasses browser cache)
+    function fetchDailyCurrencyRate() {
+      fetch("/api/currency", { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && typeof data.rate === "number" && data.rate > 0) {
+            setEcbRate(data.rate);
+          }
+        })
+        .catch(() => {});
+    }
+
+    fetchDailyCurrencyRate();
+    window.addEventListener("focus", fetchDailyCurrencyRate);
+    const rateInterval = setInterval(fetchDailyCurrencyRate, 60 * 60 * 1000);
 
     return () => {
       window.removeEventListener("adradar:geo-updated", handleGeoUpdated);
       window.removeEventListener("storage", handleGeoUpdated);
       window.removeEventListener("adradar:config-updated", fetchPricingAndPacks);
+      window.removeEventListener("focus", fetchDailyCurrencyRate);
+      clearInterval(rateInterval);
     };
   }, []);
 
@@ -217,7 +226,9 @@ export function TokenPacks() {
       >
         <span className="font-semibold text-on-surface flex items-center gap-1.5">
           <Icon name="sliders" className="size-3.5 text-primary" />
-          <span>Active Product & Service Token Rates:</span>
+          <span>
+            Active Product & Service Token Rates ({isAdAgentTier ? "Ad Agent Rate" : "Supporter Rate"}):
+          </span>
         </span>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <span>
@@ -229,7 +240,7 @@ export function TokenPacks() {
           <span>
             Proven 28+d:{" "}
             <strong className="text-primary">
-              {(serviceCosts.searchProvenWinners ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.searchProvenWinners ?? 1} tok`}
+              {serviceCosts.searchProvenWinners === 0 ? "Free (0)" : `+${serviceCosts.searchProvenWinners} tok`}
             </strong>
           </span>
           <span>
@@ -253,43 +264,43 @@ export function TokenPacks() {
           <span>
             Regenerate Variations:{" "}
             <strong className="text-primary">
-              {(serviceCosts.regenerateVariations ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.regenerateVariations ?? 1} tok`}
+              {serviceCosts.regenerateVariations === 0 ? "Free (0)" : `+${serviceCosts.regenerateVariations} tok`}
             </strong>
           </span>
           <span>
             Build Remixed Ad Text:{" "}
             <strong className="text-primary">
-              {(serviceCosts.buildRemixedAdText ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.buildRemixedAdText ?? 1} tok`}
+              {serviceCosts.buildRemixedAdText === 0 ? "Free (0)" : `+${serviceCosts.buildRemixedAdText} tok`}
             </strong>
           </span>
           <span>
             Library Items:{" "}
             <strong className="text-primary">
-              {(serviceCosts.libraryItems ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.libraryItems ?? 1} tok`}
+              {serviceCosts.libraryItems === 0 ? "Free (0)" : `+${serviceCosts.libraryItems} tok`}
             </strong>
           </span>
           <span>
             Global Brand Copy:{" "}
             <strong className="text-primary">
-              {(serviceCosts.brandClone ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.brandClone ?? 1} tok`}
+              {serviceCosts.brandClone === 0 ? "Free (0)" : `+${serviceCosts.brandClone} tok`}
             </strong>
           </span>
           <span>
             Brand .txt Download:{" "}
             <strong className="text-primary">
-              {(serviceCosts.brandTxtDownload ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.brandTxtDownload ?? 1} tok`}
+              {serviceCosts.brandTxtDownload === 0 ? "Free (0)" : `+${serviceCosts.brandTxtDownload} tok`}
             </strong>
           </span>
           <span>
             SearchMix Download:{" "}
             <strong className="text-primary">
-              {(serviceCosts.searchMixDownload ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.searchMixDownload ?? 1} tok`}
+              {serviceCosts.searchMixDownload === 0 ? "Free (0)" : `+${serviceCosts.searchMixDownload} tok`}
             </strong>
           </span>
           <span>
             Deconstructed Anatomy (.txt):{" "}
             <strong className="text-primary">
-              {(serviceCosts.deconstructDownload ?? 0) === 0 ? "Free (0)" : `+${serviceCosts.deconstructDownload ?? 0} tok`}
+              {serviceCosts.deconstructDownload === 0 ? "Free (0)" : `+${serviceCosts.deconstructDownload} tok`}
             </strong>
           </span>
           <span>

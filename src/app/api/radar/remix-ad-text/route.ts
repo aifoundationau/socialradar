@@ -15,12 +15,12 @@ import { assertRemixConfigured, generateRemixedAdTexts } from "@/lib/gemini";
 import { enrichGoogleAd, needsGoogleDetails } from "@/lib/radar";
 import { withTokenGate } from "@/lib/token-ledger";
 import { getSystemConfig } from "@/lib/admin";
-import { isChargingEnabled } from "@/lib/pricing";
+import { isAdAgentPricingRole, isChargingEnabled, resolveServiceCostsForRole } from "@/lib/pricing";
 
 /**
  * Generates 4 platform-tailored social media ad text descriptions (TikTok, Facebook, Instagram & Google Ads),
  * each strictly <= 150 words, from the active Brand Profile + current modeling ad (+ optional deconstruction).
- * Uses the SuperAdmin-configured `serviceCosts.buildRemixedAdText` token amount (default 1 token).
+ * Uses the SuperAdmin-configured `buildRemixedAdText` token amount (2 for Supporters, 1 for Ad Agents).
  * Results persist in `remixed_ad_texts/{txId}` so idempotent retries return cached output with zero extra charge.
  */
 export async function POST(req: Request) {
@@ -32,8 +32,10 @@ export async function POST(req: Request) {
   }
 
   const config = await getSystemConfig();
-  const configuredCost = config.serviceCosts?.buildRemixedAdText ?? 1;
-  const cost = isChargingEnabled(config) ? Math.max(0, Math.round(configuredCost)) : 0;
+  const resolveCost = (caller: { claims: Parameters<typeof isAdAgentPricingRole>[0] }) => {
+    const costs = resolveServiceCostsForRole(config, isAdAgentPricingRole(caller.claims));
+    return isChargingEnabled(config) ? Math.max(0, Math.round(costs.buildRemixedAdText)) : 0;
+  };
 
   return withTokenGate(
     req,
@@ -96,6 +98,6 @@ export async function POST(req: Request) {
       await ref.set(remixedAdText);
       return NextResponse.json({ remixedAdText, ad, balanceAfter } satisfies BuildRemixedAdTextResponse);
     },
-    cost,
+    resolveCost,
   );
 }

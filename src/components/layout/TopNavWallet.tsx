@@ -605,6 +605,33 @@ export function TopNavWallet() {
           <Suspense fallback={<NavItems pathname={null} />}>
             <NavLinks />
           </Suspense>
+          <div className="group relative flex items-center">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("adradar:open-faq"))}
+              data-agent-id="nav-link-faqs"
+              data-testid="nav-link-faqs"
+              aria-label="Open Frequently Asked Questions"
+              className="rounded px-3 py-1.5 text-body text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface cursor-pointer"
+            >
+              FAQs
+            </button>
+            <div
+              role="tooltip"
+              data-agent-id="nav-tooltip-faqs"
+              data-testid="nav-tooltip-faqs"
+              className="pointer-events-none absolute top-full left-1/2 z-50 mt-2.5 w-64 -translate-x-1/2 rounded-xl border border-white/[0.14] bg-surface-container-highest p-3 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100"
+            >
+              <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-primary">
+                <Icon name="helpCircle" className="size-3 shrink-0" />
+                <span>FAQs</span>
+              </div>
+              <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant font-normal">
+                Frequently Asked Questions — Browse multilingual platform FAQs, token pricing guides, and AI Remix Studio documentation.
+              </p>
+              <div className="absolute -top-1 left-1/2 -translate-x-1/2 size-2 rotate-45 border-t border-l border-white/[0.14] bg-surface-container-highest" />
+            </div>
+          </div>
           {ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE && isAdmin && isSubscriptionEnabled && (
             <div className="group relative flex items-center">
               <button
@@ -666,6 +693,18 @@ export function TopNavWallet() {
             </div>
           )}
           <BrandSwitcher className="hidden lg:flex" />
+          {/* Mobile quick access to FAQs in top navbar */}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("adradar:open-faq"))}
+            aria-label="Open Frequently Asked Questions"
+            data-agent-id="mobile-header-faqs-btn"
+            data-testid="mobile-header-faqs-btn"
+            className="flex h-9 items-center gap-1 rounded-lg border border-white/[0.1] bg-surface-container-low px-2 text-on-surface-variant hover:border-primary/40 hover:bg-surface-container-high hover:text-on-surface transition-colors text-compact font-medium md:hidden cursor-pointer"
+          >
+            <Icon name="helpCircle" className="size-3.5 text-primary shrink-0" />
+            <span className="text-xs font-mono font-semibold">FAQs</span>
+          </button>
           {/* Download App / Install PWA Button */}
           <div className="group relative flex items-center">
             <button

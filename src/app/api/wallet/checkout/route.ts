@@ -31,6 +31,7 @@ export async function GET(req: Request) {
       {
         audCentsPerToken: config.audCentsPerToken ?? DEFAULT_AUD_CENTS_PER_TOKEN,
         serviceCosts: config.serviceCosts,
+        adAgentServiceCosts: config.adAgentServiceCosts,
         tokenPacks: config.tokenPacks,
         monthlySubscription: config.monthlySubscription,
         // Public endpoint: never expose who switched the window on.

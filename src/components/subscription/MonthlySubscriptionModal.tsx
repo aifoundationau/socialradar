@@ -55,8 +55,8 @@ export function MonthlySubscriptionModal({
     try {
       const [checkoutRes, fxRes] = await Promise.allSettled([
         fetch("/api/wallet/checkout", { method: "GET", cache: "no-store" }),
-        // Same source as the rest of the app: ECB rates via /api/currency (cached server-side).
-        fetch("/api/currency"),
+        // Same source as the rest of the app: daily ECB rates via /api/currency.
+        fetch("/api/currency", { cache: "no-store" }),
       ]);
 
       if (checkoutRes.status === "fulfilled" && checkoutRes.value.ok) {

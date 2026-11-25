@@ -6,6 +6,7 @@ import { useSession } from "@/components/auth/SessionProvider";
 import { ApiClientError, apiFetch, errorMessage } from "@/lib/api-client";
 import {
   PROVEN_WINNER_DAYS,
+  type AdAgentServiceCosts,
   type BuildRemixedAdTextResponse,
   type FreeAccessWindow,
   type NormalizedAd,
@@ -15,7 +16,7 @@ import {
   type RemixResponse,
   type ServiceCosts,
 } from "@/lib/contracts";
-import { ACTION_COSTS, isChargingEnabled } from "@/lib/pricing";
+import { isChargingEnabled, resolveServiceCostsForRole } from "@/lib/pricing";
 import { triggerSearchMixFileDownload } from "@/lib/searchmix-text-file";
 import { loadDetectedGeoCountry } from "@/lib/geo";
 import { CostTag } from "@/components/ui/CostTag";
@@ -167,7 +168,7 @@ function SkeletonGrid() {
 
 /** Radar Feed: search one ad library, browse the winners, then model one in the Remix Studio. */
 export function RadarView() {
-  const { user, profile, isSuperAdmin, activeBrand, brands } = useSession();
+  const { user, profile, isSuperAdmin, activeBrand, brands, role } = useSession();
   const uid = user?.uid ?? "";
   const [saved] = useState(() => (uid ? loadSaved(uid) : null));
   const [filters, setFilters] = useState<RadarFilters>(saved?.filters ?? DEFAULT_FILTERS);
@@ -185,6 +186,7 @@ export function RadarView() {
   const [downloadingAdId, setDownloadingAdId] = useState<string | null>(null);
   const [downloadSuccessMsg, setDownloadSuccessMsg] = useState<string | null>(null);
   const [liveServiceCosts, setLiveServiceCosts] = useState<ServiceCosts | undefined>(undefined);
+  const [liveAdAgentServiceCosts, setLiveAdAgentServiceCosts] = useState<AdAgentServiceCosts | undefined>(undefined);
   const [audRate, setAudRate] = useState<number>(100);
   const [isTokenSystemEnabled, setIsTokenSystemEnabled] = useState<boolean>(true);
   const [freeAccessWindow, setFreeAccessWindow] = useState<FreeAccessWindow | null>(null);
@@ -207,6 +209,7 @@ export function RadarView() {
         .then((data) => {
           if (!data || !active) return;
           if (data.serviceCosts) setLiveServiceCosts(data.serviceCosts);
+          if (data.adAgentServiceCosts) setLiveAdAgentServiceCosts(data.adAgentServiceCosts);
           if (typeof data.audCentsPerToken === "number" && data.audCentsPerToken >= 1) {
             setAudRate(data.audCentsPerToken);
           }
@@ -237,14 +240,23 @@ export function RadarView() {
     isSuperAdmin,
     serverCountry
   );
+  const effectiveCosts = resolveServiceCostsForRole(
+    { serviceCosts: liveServiceCosts, adAgentServiceCosts: liveAdAgentServiceCosts },
+    role === "ad_agent"
+  );
+  const searchStandardFee = chargingActive ? Math.max(0, Math.round(effectiveCosts.searchStandard)) : 0;
+  const aiRemixFee = chargingActive ? Math.max(0, Math.round(effectiveCosts.aiRemix)) : 0;
+  const regenerateVariationsFee = chargingActive
+    ? Math.max(0, Math.round(effectiveCosts.regenerateVariations))
+    : 0;
   const searchMixFee = chargingActive
-    ? Math.max(0, Math.round(liveServiceCosts?.searchMixDownload ?? ACTION_COSTS.SEARCHMIX_DOWNLOAD))
+    ? Math.max(0, Math.round(effectiveCosts.searchMixDownload))
     : 0;
   const deconstructFee = chargingActive
-    ? Math.max(0, Math.round(liveServiceCosts?.deconstructDownload ?? ACTION_COSTS.DECONSTRUCT_DOWNLOAD))
+    ? Math.max(0, Math.round(effectiveCosts.deconstructDownload))
     : 0;
   const buildRemixedAdTextFee = chargingActive
-    ? Math.max(0, Math.round(liveServiceCosts?.buildRemixedAdText ?? ACTION_COSTS.BUILD_REMIXED_AD_TEXT))
+    ? Math.max(0, Math.round(effectiveCosts.buildRemixedAdText))
     : 0;
   const isAuNz = userCountry === "AU" || userCountry === "NZ";
 
@@ -524,7 +536,7 @@ export function RadarView() {
                     }}
                   >
                     Show {hiddenNewer} newer {hiddenNewer === 1 ? "ad" : "ads"}
-                    <CostTag action="RADAR_SEARCH" free={!chargingActive} />
+                    <CostTag action="RADAR_SEARCH" free={!chargingActive} cost={searchStandardFee} />
                   </button>
                 )}
               </div>
@@ -539,6 +551,8 @@ export function RadarView() {
                 error={job?.error ?? null}
                 brand={activeBrand}
                 remixBrandName={remixBrandName}
+                aiRemixFee={aiRemixFee}
+                regenerateVariationsFee={regenerateVariationsFee}
                 deconstructFee={deconstructFee}
                 buildRemixedAdTextFee={buildRemixedAdTextFee}
                 isFree={!chargingActive}
@@ -607,8 +621,8 @@ export function RadarView() {
                 })}
               </div>
               <p className="font-mono text-mono-label text-outline">
-                {ACTION_COSTS.RADAR_SEARCH || ACTION_COSTS.AI_REMIX
-                  ? `Searches cost ${ACTION_COSTS.RADAR_SEARCH} ${ACTION_COSTS.RADAR_SEARCH === 1 ? "token" : "tokens"} · remixes cost ${ACTION_COSTS.AI_REMIX} ${ACTION_COSTS.AI_REMIX === 1 ? "token" : "tokens"}`
+                {searchStandardFee || aiRemixFee
+                  ? `Searches cost ${searchStandardFee} ${searchStandardFee === 1 ? "token" : "tokens"} · remixes cost ${aiRemixFee} ${aiRemixFee === 1 ? "token" : "tokens"}`
                   : "Searching and remixing are free right now"}
               </p>
             </div>

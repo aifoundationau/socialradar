@@ -5,16 +5,17 @@ import {
   PROVEN_WINNER_DAYS,
   EXTENDED_WINNER_DAYS,
   ELITE_SCORE_THRESHOLD,
+  type AdAgentServiceCosts,
   type BrandProfile,
   type FreeAccessWindow,
   type RadarSearchRequest,
   type ServiceCosts,
 } from "@/lib/contracts";
 import {
-  SERVICE_SURCHARGES,
   calculateSearchCost,
   formatTokenEstimateHover,
   isChargingEnabled,
+  resolveServiceCostsForRole,
 } from "@/lib/pricing";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { btnPrimary } from "@/components/ui/styles";
@@ -125,10 +126,11 @@ export function RadarFilterBar({
   summary: { total: number; winners: number } | null;
   brands?: BrandProfile[] | null;
 }) {
-  const { profile, isSuperAdmin } = useSession();
+  const { profile, isSuperAdmin, role } = useSession();
   const input = useRef<HTMLInputElement>(null);
   const apple = useSyncExternalStore(noSubscribe, isApple, () => false);
   const [liveServiceCosts, setLiveServiceCosts] = useState<ServiceCosts | undefined>(undefined);
+  const [liveAdAgentServiceCosts, setLiveAdAgentServiceCosts] = useState<AdAgentServiceCosts | undefined>(undefined);
   const [isTokenSystemEnabled, setIsTokenSystemEnabled] = useState<boolean>(true);
   const [freeAccessWindow, setFreeAccessWindow] = useState<FreeAccessWindow | null>(null);
   const [userCountry, setUserCountry] = useState<string>("");
@@ -144,6 +146,7 @@ export function RadarFilterBar({
         .then((data) => {
           if (!data || !active) return;
           if (data.serviceCosts) setLiveServiceCosts(data.serviceCosts);
+          if (data.adAgentServiceCosts) setLiveAdAgentServiceCosts(data.adAgentServiceCosts);
           if (typeof data.isTokenSystemEnabled === "boolean") setIsTokenSystemEnabled(data.isTokenSystemEnabled);
           if (typeof data.serverCountry === "string") setUserCountry(data.serverCountry.trim().toUpperCase());
           setFreeAccessWindow(data.freeAccessWindow ?? null);
@@ -169,7 +172,16 @@ export function RadarFilterBar({
     isSuperAdmin,
     userCountry
   );
-  const totalCost = chargingActive ? calculateSearchCost(filters, liveServiceCosts) : 0;
+  const isAdAgentTier = role === "ad_agent";
+  const effectiveCosts = resolveServiceCostsForRole(
+    { serviceCosts: liveServiceCosts, adAgentServiceCosts: liveAdAgentServiceCosts },
+    isAdAgentTier
+  );
+  const baseSearchCost = chargingActive ? effectiveCosts.searchStandard : 0;
+  const provenWinnersSurcharge = chargingActive ? effectiveCosts.searchProvenWinners : 0;
+  const extendedDaysSurcharge = chargingActive ? effectiveCosts.searchExtendedDays : 0;
+  const eliteScoreSurcharge = chargingActive ? effectiveCosts.searchEliteScore : 0;
+  const totalCost = chargingActive ? calculateSearchCost(filters, effectiveCosts, isAdAgentTier) : 0;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -247,19 +259,23 @@ export function RadarFilterBar({
                     <span className="font-semibold text-on-surface">
                       Search {totalCost} {totalCost === 1 ? "token" : "tokens"}:
                     </span>{" "}
-                    Queries live Meta, TikTok, or Google ad libraries. Base search is 1 token. Nobody can have negative tokens — if balance is 0, buy more tokens.
+                    Queries live Meta, TikTok, or Google ad libraries. Base search is {baseSearchCost}{" "}
+                    {baseSearchCost === 1 ? "token" : "tokens"}. Nobody can have negative tokens — if balance is 0, buy more tokens.
                   </li>
                   <li>
                     <span className="font-semibold text-winner">Proven ({PROVEN_WINNER_DAYS}+d):</span>{" "}
-                    Isolates profitable ads running continuously for {PROVEN_WINNER_DAYS}+ days, filtering out short split-tests (+{SERVICE_SURCHARGES.PROVEN_WINNERS} token).
+                    Isolates profitable ads running continuously for {PROVEN_WINNER_DAYS}+ days, filtering out short split-tests (+{provenWinnersSurcharge}{" "}
+                    {provenWinnersSurcharge === 1 ? "token" : "tokens"}).
                   </li>
                   <li>
                     <span className="font-semibold text-secondary">Extended ({EXTENDED_WINNER_DAYS}+d):</span>{" "}
-                    Uncovers evergreen flagship ads running continuously for {EXTENDED_WINNER_DAYS}+ days with sustained spend (+{SERVICE_SURCHARGES.EXTENDED_DAYS} token).
+                    Uncovers evergreen flagship ads running continuously for {EXTENDED_WINNER_DAYS}+ days with sustained spend (+{extendedDaysSurcharge}{" "}
+                    {extendedDaysSurcharge === 1 ? "token" : "tokens"}).
                   </li>
                   <li>
                     <span className="font-semibold text-hot">Top Winners ({ELITE_SCORE_THRESHOLD}%+):</span>{" "}
-                    Isolates the elite top 1% of ads scoring {ELITE_SCORE_THRESHOLD}%+ on longevity, reach &amp; scaling (+{SERVICE_SURCHARGES.ELITE_SCORE} token).
+                    Isolates the elite top 1% of ads scoring {ELITE_SCORE_THRESHOLD}%+ on longevity, reach &amp; scaling (+{eliteScoreSurcharge}{" "}
+                    {eliteScoreSurcharge === 1 ? "token" : "tokens"}).
                   </li>
                 </ul>
               </div>
@@ -309,7 +325,7 @@ export function RadarFilterBar({
                   </span>
                 </div>
                 <p className="mt-1.5 text-[11px] leading-snug text-on-surface-variant">
-                  Runs a live competitor ad search (1 token base + active filter surcharges = {totalCost} {totalCost === 1 ? "token" : "tokens"}). Nobody can have negative tokens — if your balance is 0, you must buy more tokens.
+                  Runs a live competitor ad search ({baseSearchCost} {baseSearchCost === 1 ? "token" : "tokens"} base + active filter surcharges = {totalCost} {totalCost === 1 ? "token" : "tokens"}). Nobody can have negative tokens — if your balance is 0, you must buy more tokens.
                 </p>
               </div>
             </div>
@@ -365,7 +381,7 @@ export function RadarFilterBar({
                   <span className="text-compact font-medium text-on-surface">Proven ({PROVEN_WINNER_DAYS}+d)</span>
                 </div>
                 <span className="ml-1 rounded bg-winner/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-winner">
-                  +{SERVICE_SURCHARGES.PROVEN_WINNERS}
+                  +{provenWinnersSurcharge}
                 </span>
               </button>
 
@@ -381,7 +397,7 @@ export function RadarFilterBar({
                     Proven ({PROVEN_WINNER_DAYS}+d)
                   </span>
                   <span className="rounded bg-winner/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-winner">
-                    +{SERVICE_SURCHARGES.PROVEN_WINNERS} token ({formatTokenEstimateHover(SERVICE_SURCHARGES.PROVEN_WINNERS, false)})
+                    +{provenWinnersSurcharge} {provenWinnersSurcharge === 1 ? "token" : "tokens"} ({formatTokenEstimateHover(provenWinnersSurcharge, false)})
                   </span>
                 </div>
                 <p className="mt-1.5 text-[11px] leading-snug text-on-surface-variant">
@@ -412,7 +428,7 @@ export function RadarFilterBar({
                   <span className="text-compact font-medium text-on-surface">Extended ({EXTENDED_WINNER_DAYS}+d)</span>
                 </div>
                 <span className="ml-1 rounded bg-secondary/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-secondary">
-                  +{SERVICE_SURCHARGES.EXTENDED_DAYS}
+                  +{extendedDaysSurcharge}
                 </span>
               </button>
 
@@ -428,7 +444,7 @@ export function RadarFilterBar({
                     Extended ({EXTENDED_WINNER_DAYS}+d)
                   </span>
                   <span className="rounded bg-secondary/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-secondary">
-                    +{SERVICE_SURCHARGES.EXTENDED_DAYS} token ({formatTokenEstimateHover(SERVICE_SURCHARGES.EXTENDED_DAYS, false)})
+                    +{extendedDaysSurcharge} {extendedDaysSurcharge === 1 ? "token" : "tokens"} ({formatTokenEstimateHover(extendedDaysSurcharge, false)})
                   </span>
                 </div>
                 <p className="mt-1.5 text-[11px] leading-snug text-on-surface-variant">
@@ -459,7 +475,7 @@ export function RadarFilterBar({
                   <span className="text-compact font-medium text-on-surface">Top Winners ({ELITE_SCORE_THRESHOLD}%+)</span>
                 </div>
                 <span className="ml-1 rounded bg-hot/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-hot">
-                  +{SERVICE_SURCHARGES.ELITE_SCORE}
+                  +{eliteScoreSurcharge}
                 </span>
               </button>
 
@@ -475,7 +491,7 @@ export function RadarFilterBar({
                     Top Winners ({ELITE_SCORE_THRESHOLD}%+)
                   </span>
                   <span className="rounded bg-hot/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-hot">
-                    +{SERVICE_SURCHARGES.ELITE_SCORE} token ({formatTokenEstimateHover(SERVICE_SURCHARGES.ELITE_SCORE, false)})
+                    +{eliteScoreSurcharge} {eliteScoreSurcharge === 1 ? "token" : "tokens"} ({formatTokenEstimateHover(eliteScoreSurcharge, false)})
                   </span>
                 </div>
                 <p className="mt-1.5 text-[11px] leading-snug text-on-surface-variant">

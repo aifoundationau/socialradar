@@ -6,9 +6,11 @@ import { GlobalBrandSearchQuerySchema, type FreeAccessWindow, type UserDoc } fro
 import { getSystemConfig } from "@/lib/admin";
 import {
   ALL_COUNTRIES_CODE,
+  isAdAgentPricingRole,
   isChargingEnabled,
   isFreeAccessWindowActive,
   normalizeAllowedCountries,
+  resolveServiceCostsForRole,
 } from "@/lib/pricing";
 import { resolveRequestCountry } from "@/lib/request-geo";
 
@@ -53,11 +55,13 @@ async function handleGlobalBrands(req: Request) {
     // "" (country unknown) means the limited window doesn't apply, matching what withTokenGate charges.
     const userCountry = countryMatters ? await resolveRequestCountry(req) : ALL_COUNTRIES_CODE;
     const charging = isChargingEnabled(config, Date.now(), userData, caller.claims.isSuperAdmin, userCountry);
+    const isAdAgent = isAdAgentPricingRole(caller.claims) || isAdAgentPricingRole(userData);
+    const resolvedCosts = resolveServiceCostsForRole(config, isAdAgent);
     const brandCloneFee = charging
-      ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 1))
+      ? Math.max(0, Math.round(resolvedCosts.brandClone))
       : 0;
     const brandTxtDownloadFee = charging
-      ? Math.max(0, Math.round(config.serviceCosts?.brandTxtDownload ?? 1))
+      ? Math.max(0, Math.round(resolvedCosts.brandTxtDownload))
       : 0;
 
     const redactedBrands = brands.map((b) =>

@@ -5,7 +5,8 @@
  * Never uses decimals: only whole numbers, with all amounts rounded up (Math.ceil).
  * For all nations except Australia and New Zealand, an AUD to USD conversion is shown.
  */
-import type { FreeAccessWindow, TokenPackId, UserDoc } from "./contracts";
+import type { AdAgentServiceCosts, FreeAccessWindow, ServiceCosts, TieredServiceCostKey, TokenPackId, UserDoc } from "./contracts";
+import { TIERED_SERVICE_COST_KEYS } from "./contracts";
 import {
   ALL_COUNTRIES_CODE,
   WORLD_COUNTRIES,
@@ -123,9 +124,13 @@ export function isChargingEnabled(
   return true;
 }
 
+export const SUPPORTER_DEFAULT_OPTION_TOKENS = 2;
+export const AD_AGENT_DEFAULT_OPTION_TOKENS = 1;
+
 /**
  * Server-authoritative action costs (integers only). 0 makes an action free: it still needs a
  * signed-in user but writes nothing to the ledger. Customizable via SuperAdmin Control Panel.
+ * Defaults apply to Supporters (2 tokens per tiered option); Ad Agents use AD_AGENT_ACTION_COSTS (1 token).
  */
 export const ACTION_COSTS: Record<
   | "RADAR_SEARCH"
@@ -141,25 +146,126 @@ export const ACTION_COSTS: Record<
   | "CUSTOMIZE_AI_ASSISTANT",
   number
 > = {
-  RADAR_SEARCH: 1,
-  AI_REMIX: 1,
-  REGENERATE_VARIATIONS: 1,
-  BUILD_REMIXED_AD_TEXT: 1,
-  LIBRARY_ITEM_PURCHASE: 1,
-  BRAND_CLONE: 1,
-  BRAND_TXT_DOWNLOAD: 1,
-  SEARCHMIX_DOWNLOAD: 1,
-  DECONSTRUCT_DOWNLOAD: 0,
+  RADAR_SEARCH: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  AI_REMIX: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  REGENERATE_VARIATIONS: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  BUILD_REMIXED_AD_TEXT: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  LIBRARY_ITEM_PURCHASE: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  BRAND_CLONE: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  BRAND_TXT_DOWNLOAD: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  SEARCHMIX_DOWNLOAD: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  DECONSTRUCT_DOWNLOAD: SUPPORTER_DEFAULT_OPTION_TOKENS,
   CUSTOMIZE_SERVICE: 55,
   CUSTOMIZE_AI_ASSISTANT: 1,
 };
 export type ChargeableAction = keyof typeof ACTION_COSTS;
 
-export const SERVICE_SURCHARGES = {
-  PROVEN_WINNERS: 1,
-  EXTENDED_DAYS: 1,
-  ELITE_SCORE: 1,
+export const AD_AGENT_ACTION_COSTS: Record<ChargeableAction, number> = {
+  RADAR_SEARCH: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  AI_REMIX: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  REGENERATE_VARIATIONS: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  BUILD_REMIXED_AD_TEXT: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  LIBRARY_ITEM_PURCHASE: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  BRAND_CLONE: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  BRAND_TXT_DOWNLOAD: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  SEARCHMIX_DOWNLOAD: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  DECONSTRUCT_DOWNLOAD: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  CUSTOMIZE_SERVICE: 55,
+  CUSTOMIZE_AI_ASSISTANT: 1,
 };
+
+export const SERVICE_SURCHARGES = {
+  PROVEN_WINNERS: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  EXTENDED_DAYS: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  ELITE_SCORE: SUPPORTER_DEFAULT_OPTION_TOKENS,
+};
+
+export const AD_AGENT_SERVICE_SURCHARGES = {
+  PROVEN_WINNERS: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  EXTENDED_DAYS: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  ELITE_SCORE: AD_AGENT_DEFAULT_OPTION_TOKENS,
+};
+
+export const DEFAULT_SUPPORTER_SERVICE_COSTS: ServiceCosts = {
+  searchStandard: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  searchProvenWinners: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  searchExtendedDays: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  searchEliteScore: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  aiRemix: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  regenerateVariations: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  buildRemixedAdText: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  libraryItems: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  brandClone: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  brandTxtDownload: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  searchMixDownload: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  deconstructDownload: SUPPORTER_DEFAULT_OPTION_TOKENS,
+  customizeService: 55,
+  customizeAiAssistant: 1,
+};
+
+export const DEFAULT_AD_AGENT_SERVICE_COSTS: AdAgentServiceCosts = {
+  searchStandard: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  searchProvenWinners: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  searchExtendedDays: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  searchEliteScore: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  aiRemix: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  regenerateVariations: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  buildRemixedAdText: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  libraryItems: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  brandClone: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  brandTxtDownload: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  searchMixDownload: AD_AGENT_DEFAULT_OPTION_TOKENS,
+  deconstructDownload: AD_AGENT_DEFAULT_OPTION_TOKENS,
+};
+
+/**
+ * Returns true if the user or claims subject should receive Ad Agent service pricing.
+ * For Super Admins, only true when explicitly acting as `"ad_agent"`.
+ */
+export function isAdAgentPricingRole(
+  subject?:
+    | string
+    | {
+        role?: string | null;
+        roles?: readonly string[] | null;
+        isAdAgent?: boolean | null;
+        isSuperAdmin?: boolean | null;
+      }
+    | null
+): boolean {
+  if (!subject) return false;
+  if (typeof subject === "string") return subject === "ad_agent";
+  if (subject.role === "ad_agent") return true;
+  if (subject.isSuperAdmin) return false;
+  return Boolean(
+    subject.isAdAgent === true ||
+      (Array.isArray(subject.roles) && subject.roles.includes("ad_agent"))
+  );
+}
+
+/** Resolves effective integer service costs for Supporters (default) or Ad Agents. */
+export function resolveServiceCostsForRole(
+  config?: {
+    serviceCosts?: Partial<ServiceCosts> | null;
+    adAgentServiceCosts?: Partial<AdAgentServiceCosts> | null;
+  } | null,
+  isAdAgent = false
+): ServiceCosts {
+  const base: ServiceCosts = {
+    ...DEFAULT_SUPPORTER_SERVICE_COSTS,
+    ...(config?.serviceCosts ?? {}),
+  };
+  if (isAdAgent) {
+    for (const key of TIERED_SERVICE_COST_KEYS) {
+      const overrideVal = config?.adAgentServiceCosts?.[key];
+      base[key] =
+        typeof overrideVal === "number" && Number.isFinite(overrideVal)
+          ? Math.max(0, Math.round(overrideVal))
+          : DEFAULT_AD_AGENT_SERVICE_COSTS[key as TieredServiceCostKey];
+    }
+  }
+  return base;
+}
 
 /** Calculates total token charge for a search including proven winners, longevity, and score filter surcharges. */
 export function calculateSearchCost(
@@ -169,12 +275,15 @@ export function calculateSearchCost(
     searchProvenWinners?: number;
     searchExtendedDays: number;
     searchEliteScore: number;
-  }
+  },
+  isAdAgent = false
 ): number {
-  const base = customServiceCosts ? customServiceCosts.searchStandard : ACTION_COSTS.RADAR_SEARCH;
-  const proven = customServiceCosts?.searchProvenWinners ?? SERVICE_SURCHARGES.PROVEN_WINNERS;
-  const ext = customServiceCosts ? customServiceCosts.searchExtendedDays : SERVICE_SURCHARGES.EXTENDED_DAYS;
-  const elite = customServiceCosts ? customServiceCosts.searchEliteScore : SERVICE_SURCHARGES.ELITE_SCORE;
+  const defaultAction = isAdAgent ? AD_AGENT_ACTION_COSTS : ACTION_COSTS;
+  const defaultSurcharges = isAdAgent ? AD_AGENT_SERVICE_SURCHARGES : SERVICE_SURCHARGES;
+  const base = customServiceCosts ? customServiceCosts.searchStandard : defaultAction.RADAR_SEARCH;
+  const proven = customServiceCosts?.searchProvenWinners ?? defaultSurcharges.PROVEN_WINNERS;
+  const ext = customServiceCosts ? customServiceCosts.searchExtendedDays : defaultSurcharges.EXTENDED_DAYS;
+  const elite = customServiceCosts ? customServiceCosts.searchEliteScore : defaultSurcharges.ELITE_SCORE;
 
   let cost = base;
   if (req?.provenWinnersOnly) cost += proven;

@@ -72,7 +72,11 @@ The Firebase project, and so its Auth accounts and custom claims, is shared with
 ### Token packs (server constants, `src/lib/pricing.ts`)
 One-off Stripe Checkout purchases. Tokens never expire.
 - **Default Currency & Base Rate:** The default platform currency is **AUD** (`aud`), and the default token price is **1 Token = AUD $1** (`100 cents AUD`, stored in `audCentsPerToken`).
-- **SuperAdmin Customization:** From the SuperAdmin Control Panel (`system_config/global`), both `audCentsPerToken` and the token amounts for each product and service (`serviceCosts`: `searchStandard`, `searchProvenWinners`, `searchExtendedDays`, `searchEliteScore`, `aiRemix`, `regenerateVariations`, `brandClone`, `brandTxtDownload`, `searchMixDownload`, `deconstructDownload`) are fully customizable.
+- **SuperAdmin Customization (Role-Tiered Pricing):** From the SuperAdmin Control Panel (`system_config/global`), both `audCentsPerToken` and the token amounts for each product and service (`serviceCosts` for Supporters/standard users and `adAgentServiceCosts` for Ad Agents) are fully customizable.
+  - **12 Tiered Service Options** (`searchStandard`, `searchProvenWinners`, `searchExtendedDays`, `searchEliteScore`, `aiRemix`, `regenerateVariations`, `buildRemixedAdText`, `libraryItems`, `brandClone`, `brandTxtDownload`, `searchMixDownload`, `deconstructDownload`):
+    - **1. Supporters (`serviceCosts`):** Default is **`2` tokens** per option.
+    - **2. Ad Agents (`adAgentServiceCosts`):** Default is **`1` token** per option.
+  - **Shared Non-Tiered Options (`serviceCosts`):** `customizeService` (default `55`) and `customizeAiAssistant` (default `1`).
 - **Base Currency & Invoicing:** All platform token fees and Stripe invoices operate strictly in Australian Dollars (**AUD**) with whole numbers.
 - **Geolocation & International Currency Conversion:**
   - If geolocation is in Australia or New Zealand (`AU` or `NZ`), users strictly see **AUD** prices (`$1 AUD` per token) with no currency conversion display.

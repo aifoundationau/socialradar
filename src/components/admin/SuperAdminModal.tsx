@@ -8,6 +8,8 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 import { alertError, alertInfo, btnDanger, btnPrimary, btnSecondary, card, field, label } from "@/components/ui/styles";
 import {
   ALL_COUNTRIES_CODE,
+  DEFAULT_AD_AGENT_SERVICE_COSTS,
+  DEFAULT_SUPPORTER_SERVICE_COSTS,
   ENABLE_MONTHLY_SUBSCRIPTIONS_FEATURE,
   WORLD_COUNTRIES,
   audToUsdCents,
@@ -26,6 +28,7 @@ import type { CurrencyRateResponse } from "@/app/api/currency/route";
 import type {
   AdAgentDistributionItem,
   AdAgentRedistributionPercent,
+  AdAgentServiceCosts,
   AdminMessage,
   EquityPartner,
   FaqItem,
@@ -38,6 +41,7 @@ import type {
   RbacRole,
   RedistributiveLedgerSummary,
   StripePurchaseRecord,
+  TieredServiceCostKey,
   TokenTransactionDoc,
 } from "@/lib/contracts";
 import {
@@ -192,6 +196,7 @@ interface AdminConfigData {
   audCentsPerToken?: number;
   usdCentsPerToken?: number;
   serviceCosts: ServiceCosts;
+  adAgentServiceCosts?: AdAgentServiceCosts;
   tokenPacks: TokenPackItem[];
   equityPartners: EquityPartner[];
   monthlySubscription?: MonthlySubscriptionConfig;
@@ -311,10 +316,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [liveEcbRate, setLiveEcbRate] = useState<CurrencyRateResponse | null>(null);
   const [isRateLoading, setIsRateLoading] = useState(false);
 
-  async function fetchLiveEcbRate() {
+  async function fetchLiveEcbRate(forceRefresh = false) {
     setIsRateLoading(true);
     try {
-      const res = await fetch("/api/currency", { cache: "no-store" });
+      const url = forceRefresh ? "/api/currency?refresh=1" : "/api/currency";
+      const res = await fetch(url, { cache: "no-store" });
       if (res.ok) {
         const json = (await res.json()) as CurrencyRateResponse;
         setLiveEcbRate(json);
@@ -1596,6 +1602,26 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
     };
   }, [isOpen, tab]);
 
+  // Automatically re-sync the live ECB exchange rate daily and on window focus while open
+  useEffect(() => {
+    if (!isOpen) return;
+    const syncRateIfStale = () => {
+      const todayKey = new Date().toISOString().split("T")[0];
+      const syncedDay = liveEcbRate?.syncedDate;
+      if (!syncedDay || syncedDay !== todayKey) {
+        void fetchLiveEcbRate(false);
+      }
+    };
+    const intervalId = setInterval(() => {
+      void fetchLiveEcbRate(false);
+    }, 60 * 60 * 1000);
+    window.addEventListener("focus", syncRateIfStale);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("focus", syncRateIfStale);
+    };
+  }, [isOpen, liveEcbRate?.syncedDate]);
+
   async function saveConfig(patch: Partial<AdminConfigData>) {
     if (!config) return;
     const optimisticNext: AdminConfigData = {
@@ -1604,6 +1630,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       serviceCosts: {
         ...config.serviceCosts,
         ...(patch.serviceCosts ?? {}),
+      },
+      adAgentServiceCosts: {
+        ...DEFAULT_AD_AGENT_SERVICE_COSTS,
+        ...(config.adAgentServiceCosts ?? {}),
+        ...(patch.adAgentServiceCosts ?? {}),
       },
     };
     setConfig(optimisticNext);
@@ -1621,7 +1652,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       });
       setConfig(data.config);
       if (data.ledger) setLedger(data.ledger);
-      if (patch.serviceCosts || patch.audCentsPerToken !== undefined) {
+      if (patch.serviceCosts || patch.adAgentServiceCosts || patch.audCentsPerToken !== undefined) {
         reloadAdAgents();
       }
       window.dispatchEvent(new CustomEvent("adradar:config-updated"));
@@ -2647,12 +2678,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           <div className="flex items-center gap-1.5 font-mono text-[11px] text-secondary">
                             <span className="size-1.5 rounded-full bg-secondary shrink-0 animate-pulse" />
                             <span>
-                              Live ECB Rate via Frankfurter: 1 AUD = {liveEcbRate?.rate ? Number(liveEcbRate.rate).toFixed(4) : "0.6500"} USD
+                              Live ECB Rate via Frankfurter (Updates Daily): 1 AUD = {liveEcbRate?.rate ? Number(liveEcbRate.rate).toFixed(4) : "0.6500"} USD
                               {liveEcbRate?.date ? ` (${liveEcbRate.date})` : ""}
                             </span>
                             <button
                               type="button"
-                              onClick={fetchLiveEcbRate}
+                              onClick={() => void fetchLiveEcbRate(true)}
                               disabled={isRateLoading}
                               title="Refresh live ECB exchange rate from Frankfurter API"
                               aria-label="Refresh live ECB exchange rate from Frankfurter API"
@@ -3054,11 +3085,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             Customizable Product &amp; Service Token Amounts
                           </h4>
                           <span className="rounded-full bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
-                            8 Services · Customize: ⚡ {config.serviceCosts?.customizeService ?? 55}
+                            12 Tiered Services (Supporters / Ad Agents) · Customize: ⚡ {config.serviceCosts?.customizeService ?? 55}
                           </span>
                         </div>
                         <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                          Customize the integer token amount required for each product and service. Default rate is 1 Token = {formatAud(config.audCentsPerToken ?? 100)} AUD (≈ {formatUsd(audToUsdCents(config.audCentsPerToken ?? 100, liveEcbRate?.rate))} USD for nations outside AU &amp; NZ).
+                          Set separate integer token amounts for 1. Supporters (default: 2 tokens) and 2. Ad Agents (default: 1 token) across core options. Base rate: 1 Token = {formatAud(config.audCentsPerToken ?? 100)} AUD (≈ {formatUsd(audToUsdCents(config.audCentsPerToken ?? 100, liveEcbRate?.rate))} USD for nations outside AU &amp; NZ).
                         </p>
                       </button>
                       <button
@@ -3086,8 +3117,8 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             <div className="flex items-center gap-1.5 rounded-xl border border-amber-400/50 bg-amber-500/15 px-2.5 py-1">
                               <span className="font-mono text-xs font-semibold text-amber-200">
                                 {confirmPresetPricingMode === "FREE"
-                                  ? "Reset all services to Free (0)?"
-                                  : "Reset to Standard Paid Rates?"}
+                                  ? "Reset all services to Free (0) for Supporters & Ad Agents?"
+                                  : "Reset to Default Rates (Supporters: 2 · Ad Agents: 1)?"}
                               </span>
                               <button
                                 type="button"
@@ -3113,22 +3144,23 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                           customizeService: 0,
                                           customizeAiAssistant: 0,
                                         }
-                                      : {
-                                          searchStandard: 1,
-                                          searchProvenWinners: 1,
-                                          searchExtendedDays: 1,
-                                          searchEliteScore: 1,
-                                          aiRemix: 1,
-                                          regenerateVariations: 1,
-                                          buildRemixedAdText: 1,
-                                          libraryItems: 1,
-                                          brandClone: 1,
-                                          brandTxtDownload: 1,
-                                          searchMixDownload: 1,
+                                      : { ...DEFAULT_SUPPORTER_SERVICE_COSTS },
+                                    adAgentServiceCosts: isFree
+                                      ? {
+                                          searchStandard: 0,
+                                          searchProvenWinners: 0,
+                                          searchExtendedDays: 0,
+                                          searchEliteScore: 0,
+                                          aiRemix: 0,
+                                          regenerateVariations: 0,
+                                          buildRemixedAdText: 0,
+                                          libraryItems: 0,
+                                          brandClone: 0,
+                                          brandTxtDownload: 0,
+                                          searchMixDownload: 0,
                                           deconstructDownload: 0,
-                                          customizeService: 55,
-                                          customizeAiAssistant: 1,
-                                        },
+                                        }
+                                      : { ...DEFAULT_AD_AGENT_SERVICE_COSTS },
                                   });
                                 }}
                                 data-agent-id="confirm-preset-pricing-btn"
@@ -3167,222 +3199,365 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 onClick={() => setConfirmPresetPricingMode("PAID")}
                                 className={btnPrimary}
                               >
-                                Standard Paid Rates (1 tok each)
+                                Default Tiered Rates (2 / 1)
                               </button>
                             </>
                           )}
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          {[
-                            {
-                              key: "searchStandard" as const,
-                              label: "Base Radar Search",
-                              desc: "Base platform ad library search across Meta, TikTok, or Google",
-                            },
-                            {
-                              key: "searchProvenWinners" as const,
-                              label: "Proven Winners (28+d) Surcharge",
-                              desc: "Additional tokens for filtering battle-tested 28+ day proven winner ads",
-                            },
-                            {
-                              key: "searchExtendedDays" as const,
-                              label: "Extended (60+d) Longevity Surcharge",
-                              desc: "Additional tokens for battle-tested 60+ day proven ads filter",
-                            },
-                            {
-                              key: "searchEliteScore" as const,
-                              label: "Top Winners (90%+) Surcharge",
-                              desc: "Additional tokens for elite tier ads with composite score >= 90%",
-                            },
-                            {
-                              key: "aiRemix" as const,
-                              label: "AI Creative Remix Studio",
-                              desc: "Gemini multimodal creative deconstruction, 3 hook variants & storyboard",
-                            },
-                            {
-                              key: "regenerateVariations" as const,
-                              label: "Regenerate Variations",
-                              desc: "Regenerate fresh angles & 3 script variations for an existing deconstructed ad in Remix Studio",
-                            },
-                            {
-                              key: "buildRemixedAdText" as const,
-                              label: "Build Remixed Ad Text",
-                              desc: "Generate 4 AI remixed social media ad text descriptions (TikTok, Facebook, Instagram & Google Ads — max 150 words each) on the left of Regenerate Variations in Remix Studio",
-                            },
-                            {
-                              key: "libraryItems" as const,
-                              label: "Library Items",
-                              desc: "Purchase price (in tokens) charged per item in the Library (Previous Searches, Remix Studio blueprints, and Remixed Ad Text packs)",
-                            },
-                            {
-                              key: "brandClone" as const,
-                              label: "Global Brand Card Copy",
-                              desc: "Token fee to copy a community brand card from the Global Library into personal account",
-                            },
-                            {
-                              key: "brandTxtDownload" as const,
-                              label: "Download Brand Text File (.txt)",
-                              desc: "Token fee to download the attached <Brand Name> - <Date>.txt brand file from a Brand Postcard",
-                            },
-                            {
-                              key: "searchMixDownload" as const,
-                              label: "SearchMix Download",
-                              desc: "Token fee to download a search postcard (.txt file based on title and date)",
-                            },
-                            {
-                              key: "deconstructDownload" as const,
-                              label: "Deconstructed Anatomy (.txt) Download",
-                              desc: "Token fee to download the <brandname>deconstruct.txt file next to Regenerate Variations (Default: 0 tokens / Free)",
-                            },
-                            {
-                              key: "customizeService" as const,
-                              label: "Professional Customize Service",
-                              desc: "Customer submits full brand brief + extra details for SuperAdmin & Main Admin strategy reply (Default: 55 tokens — automatically updates Customizations Total & Redist. Amount in Ad Agent Distribution Ledger)",
-                            },
-                            {
-                              key: "customizeAiAssistant" as const,
-                              label: "Customization AI Fee",
-                              desc: "Optional AI Agent assistant pop-up that asks guided questions and fills out all 10 fields of '1. Complete Your Customize Brief' (Default: 1 token)",
-                            },
-                          ].map(({ key, label: serviceLabel, desc }) => {
-                            const defaultTok =
-                              key === "customizeService" ? 55 : key === "deconstructDownload" ? 0 : 1;
-                            const tok = config.serviceCosts[key] ?? defaultTok;
-                            const displayVal = draftCostInputs[key] !== undefined ? draftCostInputs[key] : String(tok);
-                            const audCents = Math.round(tok * (config.audCentsPerToken ?? 100));
-                            const usdCents = audToUsdCents(audCents, liveEcbRate?.rate);
+                          {(
+                            [
+                              {
+                                key: "searchStandard",
+                                label: "Base Radar Search",
+                                desc: "Base platform ad library search across Meta, TikTok, or Google",
+                                tiered: true,
+                              },
+                              {
+                                key: "searchProvenWinners",
+                                label: "Proven Winners (28+d) Surcharge",
+                                desc: "Additional tokens for filtering battle-tested 28+ day proven winner ads",
+                                tiered: true,
+                              },
+                              {
+                                key: "searchExtendedDays",
+                                label: "Extended (60+d) Longevity Surcharge",
+                                desc: "Additional tokens for battle-tested 60+ day proven ads filter",
+                                tiered: true,
+                              },
+                              {
+                                key: "searchEliteScore",
+                                label: "Top Winners (90%+) Surcharge",
+                                desc: "Additional tokens for elite tier ads with composite score >= 90%",
+                                tiered: true,
+                              },
+                              {
+                                key: "aiRemix",
+                                label: "AI Creative Remix Studio",
+                                desc: "Gemini multimodal creative deconstruction, 3 hook variants & storyboard",
+                                tiered: true,
+                              },
+                              {
+                                key: "regenerateVariations",
+                                label: "Regenerate Variations",
+                                desc: "Regenerate fresh angles & 3 script variations for an existing deconstructed ad in Remix Studio",
+                                tiered: true,
+                              },
+                              {
+                                key: "buildRemixedAdText",
+                                label: "Build Remixed Ad Text",
+                                desc: "Generate 4 AI remixed social media ad text descriptions (TikTok, Facebook, Instagram & Google Ads — max 150 words each) on the left of Regenerate Variations in Remix Studio",
+                                tiered: true,
+                              },
+                              {
+                                key: "libraryItems",
+                                label: "Library Items",
+                                desc: "Purchase price (in tokens) charged per item in the Library (Previous Searches, Remix Studio blueprints, and Remixed Ad Text packs)",
+                                tiered: true,
+                              },
+                              {
+                                key: "brandClone",
+                                label: "Global Brand Card Copy",
+                                desc: "Token fee to copy a community brand card from the Global Library into personal account",
+                                tiered: true,
+                              },
+                              {
+                                key: "brandTxtDownload",
+                                label: "Download Brand Text File (.txt)",
+                                desc: "Token fee to download the attached <Brand Name> - <Date>.txt brand file from a Brand Postcard",
+                                tiered: true,
+                              },
+                              {
+                                key: "searchMixDownload",
+                                label: "SearchMix Download",
+                                desc: "Token fee to download a search postcard (.txt file based on title and date)",
+                                tiered: true,
+                              },
+                              {
+                                key: "deconstructDownload",
+                                label: "Deconstructed Anatomy (.txt) Download",
+                                desc: "Token fee to download the <brandname>deconstruct.txt file next to Regenerate Variations",
+                                tiered: true,
+                              },
+                              {
+                                key: "customizeService",
+                                label: "Professional Customize Service",
+                                desc: "Customer submits full brand brief + extra details for SuperAdmin & Main Admin strategy reply (Default: 55 tokens — automatically updates Customizations Total & Redist. Amount in Ad Agent Distribution Ledger)",
+                                tiered: false,
+                              },
+                              {
+                                key: "customizeAiAssistant",
+                                label: "Customization AI Fee",
+                                desc: "Optional AI Agent assistant pop-up that asks guided questions and fills out all 10 fields of '1. Complete Your Customize Brief' (Default: 1 token)",
+                                tiered: false,
+                              },
+                            ] as const
+                          ).map(({ key, label: serviceLabel, desc, tiered }) => {
+                            const supporterTok =
+                              config.serviceCosts[key] ?? DEFAULT_SUPPORTER_SERVICE_COSTS[key];
+                            const adAgentTok = tiered
+                              ? (config.adAgentServiceCosts?.[key as TieredServiceCostKey] ??
+                                  DEFAULT_AD_AGENT_SERVICE_COSTS[key as TieredServiceCostKey])
+                              : null;
 
-                            return (
-                              <div key={key} data-testid={`service-cost-card-${key}`} className={`${card} p-4 space-y-3`}>
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-body font-semibold text-on-surface">{serviceLabel}</span>
-                                  <span
-                                    title={formatTokenEstimateHover(tok, false, config.audCentsPerToken ?? 100)}
-                                    className="cursor-help rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 font-mono text-[12px] font-bold text-primary"
-                                  >
-                                    {tok} {tok === 1 ? "token" : "tokens"}
-                                  </span>
-                                </div>
-                                <p className="text-[12px] text-on-surface-variant">{desc}</p>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    aria-label={`Decrease ${serviceLabel} tokens`}
-                                    disabled={saving || tok <= 0}
-                                    onClick={() => {
-                                      if (costSaveTimersRef.current[key]) clearTimeout(costSaveTimersRef.current[key]);
-                                      setDraftCostInputs((prev) => {
-                                        const next = { ...prev };
-                                        delete next[key];
-                                        return next;
-                                      });
-                                      saveConfig({
-                                        serviceCosts: {
-                                          ...config.serviceCosts,
-                                          [key]: Math.max(0, tok - 1),
-                                        },
-                                      });
-                                    }}
-                                    className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-container-highest font-mono text-sm font-bold text-on-surface hover:border-primary/40 hover:text-primary disabled:opacity-40"
-                                  >
-                                    -
-                                  </button>
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    data-testid={`service-cost-input-${key}`}
-                                    value={displayVal}
-                                    onChange={(e) => {
-                                      const raw = e.target.value.replace(/[^0-9]/g, "");
-                                      setDraftCostInputs((prev) => ({ ...prev, [key]: raw }));
-                                      const val = raw === "" ? 0 : Math.max(0, Math.round(Number(raw) || 0));
-                                      setConfig((prev) =>
-                                        prev
-                                          ? {
-                                              ...prev,
-                                              serviceCosts: {
-                                                ...prev.serviceCosts,
-                                                [key]: val,
-                                              },
-                                            }
-                                          : prev
-                                      );
-                                      if (costSaveTimersRef.current[key]) {
-                                        clearTimeout(costSaveTimersRef.current[key]);
-                                      }
-                                      costSaveTimersRef.current[key] = setTimeout(() => {
-                                        setDraftCostInputs((prev) => {
-                                          const next = { ...prev };
-                                          delete next[key];
-                                          return next;
-                                        });
-                                        saveConfig({
-                                          serviceCosts: {
-                                            ...config.serviceCosts,
+                            const renderCostControl = (params: {
+                              tier: "supporter" | "ad_agent";
+                              tierHeading?: string;
+                              tok: number;
+                              testId: string;
+                              ariaTarget: string;
+                            }) => {
+                              const draftKey =
+                                params.tier === "ad_agent" ? `ad_agent:${key}` : key;
+                              const displayVal =
+                                draftCostInputs[draftKey] !== undefined
+                                  ? draftCostInputs[draftKey]
+                                  : String(params.tok);
+                              const audCents = Math.round(
+                                params.tok * (config.audCentsPerToken ?? 100)
+                              );
+                              const usdCents = audToUsdCents(audCents, liveEcbRate?.rate);
+
+                              const commitTierValue = (val: number) => {
+                                if (params.tier === "ad_agent") {
+                                  saveConfig({
+                                    adAgentServiceCosts: {
+                                      ...DEFAULT_AD_AGENT_SERVICE_COSTS,
+                                      ...(config.adAgentServiceCosts ?? {}),
+                                      [key]: val,
+                                    },
+                                  });
+                                } else {
+                                  saveConfig({
+                                    serviceCosts: {
+                                      ...config.serviceCosts,
+                                      [key]: val,
+                                    },
+                                  });
+                                }
+                              };
+
+                              const applyOptimisticTierValue = (val: number) => {
+                                setConfig((prev) =>
+                                  prev
+                                    ? params.tier === "ad_agent"
+                                      ? {
+                                          ...prev,
+                                          adAgentServiceCosts: {
+                                            ...DEFAULT_AD_AGENT_SERVICE_COSTS,
+                                            ...(prev.adAgentServiceCosts ?? {}),
                                             [key]: val,
                                           },
+                                        }
+                                      : {
+                                          ...prev,
+                                          serviceCosts: {
+                                            ...prev.serviceCosts,
+                                            [key]: val,
+                                          },
+                                        }
+                                    : prev
+                                );
+                              };
+
+                              return (
+                                <div
+                                  key={params.tier}
+                                  className={
+                                    tiered
+                                      ? "rounded-xl border border-white/[0.06] bg-surface-container-low/70 p-2.5 space-y-2"
+                                      : "space-y-2"
+                                  }
+                                >
+                                  {params.tierHeading && (
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-mono text-[11px] font-semibold text-on-surface">
+                                        {params.tierHeading}
+                                      </span>
+                                      <span
+                                        title={formatTokenEstimateHover(
+                                          params.tok,
+                                          false,
+                                          config.audCentsPerToken ?? 100
+                                        )}
+                                        className={`cursor-help rounded-full border px-2 py-0.5 font-mono text-[11px] font-bold ${
+                                          params.tier === "ad_agent"
+                                            ? "border-secondary/40 bg-secondary/10 text-secondary"
+                                            : "border-primary/30 bg-primary/10 text-primary"
+                                        }`}
+                                      >
+                                        {params.tok} {params.tok === 1 ? "token" : "tokens"}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      aria-label={`Decrease ${params.ariaTarget} tokens`}
+                                      disabled={saving || params.tok <= 0}
+                                      onClick={() => {
+                                        if (costSaveTimersRef.current[draftKey]) {
+                                          clearTimeout(costSaveTimersRef.current[draftKey]);
+                                        }
+                                        setDraftCostInputs((prev) => {
+                                          const next = { ...prev };
+                                          delete next[draftKey];
+                                          return next;
                                         });
-                                      }, 800);
-                                    }}
-                                    onBlur={() => {
-                                      if (draftCostInputs[key] === undefined) return;
-                                      if (costSaveTimersRef.current[key]) {
-                                        clearTimeout(costSaveTimersRef.current[key]);
-                                      }
-                                      const raw = draftCostInputs[key];
-                                      const val = raw === "" ? 0 : Math.max(0, Math.round(Number(raw) || 0));
-                                      setDraftCostInputs((prev) => {
-                                        const next = { ...prev };
-                                        delete next[key];
-                                        return next;
-                                      });
-                                      saveConfig({
-                                        serviceCosts: {
-                                          ...config.serviceCosts,
-                                          [key]: val,
-                                        },
-                                      });
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter") {
-                                        e.preventDefault();
-                                        (e.currentTarget as HTMLInputElement).blur();
-                                      }
-                                    }}
-                                    className={`${field} text-center font-mono`}
-                                  />
-                                  <button
-                                    type="button"
-                                    aria-label={`Increase ${serviceLabel} tokens`}
-                                    disabled={saving}
-                                    onClick={() => {
-                                      if (costSaveTimersRef.current[key]) clearTimeout(costSaveTimersRef.current[key]);
-                                      setDraftCostInputs((prev) => {
-                                        const next = { ...prev };
-                                        delete next[key];
-                                        return next;
-                                      });
-                                      saveConfig({
-                                        serviceCosts: {
-                                          ...config.serviceCosts,
-                                          [key]: tok + 1,
-                                        },
-                                      });
-                                    }}
-                                    className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-container-highest font-mono text-sm font-bold text-on-surface hover:border-primary/40 hover:text-primary disabled:opacity-40"
-                                  >
-                                    +
-                                  </button>
-                                  <span className="text-compact text-on-surface-variant whitespace-nowrap font-mono">
-                                    tokens
+                                        commitTierValue(Math.max(0, params.tok - 1));
+                                      }}
+                                      className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-container-highest font-mono text-sm font-bold text-on-surface hover:border-primary/40 hover:text-primary disabled:opacity-40"
+                                    >
+                                      -
+                                    </button>
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      pattern="[0-9]*"
+                                      data-agent-id={params.testId}
+                                      data-testid={params.testId}
+                                      aria-label={`${params.ariaTarget} tokens`}
+                                      value={displayVal}
+                                      onChange={(e) => {
+                                        const raw = e.target.value.replace(/[^0-9]/g, "");
+                                        setDraftCostInputs((prev) => ({
+                                          ...prev,
+                                          [draftKey]: raw,
+                                        }));
+                                        const val =
+                                          raw === ""
+                                            ? 0
+                                            : Math.max(0, Math.round(Number(raw) || 0));
+                                        applyOptimisticTierValue(val);
+                                        if (costSaveTimersRef.current[draftKey]) {
+                                          clearTimeout(costSaveTimersRef.current[draftKey]);
+                                        }
+                                        costSaveTimersRef.current[draftKey] = setTimeout(() => {
+                                          setDraftCostInputs((prev) => {
+                                            const next = { ...prev };
+                                            delete next[draftKey];
+                                            return next;
+                                          });
+                                          commitTierValue(val);
+                                        }, 800);
+                                      }}
+                                      onBlur={() => {
+                                        if (draftCostInputs[draftKey] === undefined) return;
+                                        if (costSaveTimersRef.current[draftKey]) {
+                                          clearTimeout(costSaveTimersRef.current[draftKey]);
+                                        }
+                                        const raw = draftCostInputs[draftKey];
+                                        const val =
+                                          raw === ""
+                                            ? 0
+                                            : Math.max(0, Math.round(Number(raw) || 0));
+                                        setDraftCostInputs((prev) => {
+                                          const next = { ...prev };
+                                          delete next[draftKey];
+                                          return next;
+                                        });
+                                        commitTierValue(val);
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          (e.currentTarget as HTMLInputElement).blur();
+                                        }
+                                      }}
+                                      className={`${field} text-center font-mono`}
+                                    />
+                                    <button
+                                      type="button"
+                                      aria-label={`Increase ${params.ariaTarget} tokens`}
+                                      disabled={saving}
+                                      onClick={() => {
+                                        if (costSaveTimersRef.current[draftKey]) {
+                                          clearTimeout(costSaveTimersRef.current[draftKey]);
+                                        }
+                                        setDraftCostInputs((prev) => {
+                                          const next = { ...prev };
+                                          delete next[draftKey];
+                                          return next;
+                                        });
+                                        commitTierValue(params.tok + 1);
+                                      }}
+                                      className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-container-highest font-mono text-sm font-bold text-on-surface hover:border-primary/40 hover:text-primary disabled:opacity-40"
+                                    >
+                                      +
+                                    </button>
+                                    <span className="text-compact text-on-surface-variant whitespace-nowrap font-mono">
+                                      tokens
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between pt-1 border-t border-white/[0.06] font-mono text-[11px] text-outline">
+                                    <span>
+                                      AU/NZ:{" "}
+                                      {params.tok === 0
+                                        ? "Free ($0 AUD)"
+                                        : `${formatAud(audCents)} AUD`}
+                                    </span>
+                                    <span>
+                                      Intl:{" "}
+                                      {params.tok === 0
+                                        ? "Free"
+                                        : `≈ ${formatUsd(usdCents)} USD`}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            };
+
+                            return (
+                              <div
+                                key={key}
+                                data-testid={`service-cost-card-${key}`}
+                                className={`${card} p-4 space-y-3`}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-body font-semibold text-on-surface">
+                                    {serviceLabel}
                                   </span>
+                                  {!tiered && (
+                                    <span
+                                      title={formatTokenEstimateHover(
+                                        supporterTok,
+                                        false,
+                                        config.audCentsPerToken ?? 100
+                                      )}
+                                      className="cursor-help rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 font-mono text-[12px] font-bold text-primary"
+                                    >
+                                      {supporterTok}{" "}
+                                      {supporterTok === 1 ? "token" : "tokens"}
+                                    </span>
+                                  )}
                                 </div>
-                                <div className="flex items-center justify-between pt-1 border-t border-white/[0.06] font-mono text-[11px] text-outline">
-                                  <span>AU/NZ: {tok === 0 ? "Free ($0 AUD)" : `${formatAud(audCents)} AUD`}</span>
-                                  <span>Intl: {tok === 0 ? "Free" : `≈ ${formatUsd(usdCents)} USD`}</span>
-                                </div>
+                                <p className="text-[12px] text-on-surface-variant">{desc}</p>
+                                {tiered && adAgentTok !== null ? (
+                                  <div className="space-y-2.5">
+                                    {renderCostControl({
+                                      tier: "supporter",
+                                      tierHeading: "1. Supporters (Default: 2 tokens)",
+                                      tok: supporterTok,
+                                      testId: `service-cost-input-${key}`,
+                                      ariaTarget: `${serviceLabel} Supporters`,
+                                    })}
+                                    {renderCostControl({
+                                      tier: "ad_agent",
+                                      tierHeading: "2. Ad Agents (Default: 1 token)",
+                                      tok: adAgentTok,
+                                      testId: `ad-agent-service-cost-input-${key}`,
+                                      ariaTarget: `${serviceLabel} Ad Agents`,
+                                    })}
+                                  </div>
+                                ) : (
+                                  renderCostControl({
+                                    tier: "supporter",
+                                    tok: supporterTok,
+                                    testId: `service-cost-input-${key}`,
+                                    ariaTarget: serviceLabel,
+                                  })
+                                )}
                               </div>
                             );
                           })}

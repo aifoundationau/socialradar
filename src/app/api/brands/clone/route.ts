@@ -4,7 +4,7 @@ import { cloneGlobalBrand } from "@/lib/brands";
 import { BrandCloneRequestSchema } from "@/lib/contracts";
 import { getSystemConfig } from "@/lib/admin";
 import { withTokenGate } from "@/lib/token-ledger";
-import { isChargingEnabled } from "@/lib/pricing";
+import { isAdAgentPricingRole, isChargingEnabled, resolveServiceCostsForRole } from "@/lib/pricing";
 
 export async function POST(req: Request) {
   let input;
@@ -15,9 +15,10 @@ export async function POST(req: Request) {
   }
 
   const config = await getSystemConfig();
-  const cost = isChargingEnabled(config)
-    ? Math.max(0, Math.round(config.serviceCosts?.brandClone ?? 1))
-    : 0;
+  const resolveCost = (caller: { claims: Parameters<typeof isAdAgentPricingRole>[0] }) => {
+    const costs = resolveServiceCostsForRole(config, isAdAgentPricingRole(caller.claims));
+    return isChargingEnabled(config) ? Math.max(0, Math.round(costs.brandClone)) : 0;
+  };
 
   return withTokenGate(
     req,
@@ -28,6 +29,6 @@ export async function POST(req: Request) {
       const { brand, replayed } = await cloneGlobalBrand(caller, input.globalBrandId, txId);
       return NextResponse.json({ brand, balanceAfter }, { status: replayed ? 200 : 201 });
     },
-    cost,
+    resolveCost,
   );
 }

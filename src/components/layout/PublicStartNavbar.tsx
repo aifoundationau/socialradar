@@ -59,6 +59,35 @@ export function PublicStartNavbar() {
           </div>
         </div>
 
+        {/* FAQs Button */}
+        <div className="group relative flex items-center">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("adradar:open-faq"))}
+            data-agent-id="start-navbar-faqs-btn"
+            data-testid="start-navbar-faqs-btn"
+            aria-label="Open Frequently Asked Questions"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.1] bg-surface-container-low/90 px-2.5 sm:px-3 text-body font-medium text-on-surface-variant transition-colors hover:border-primary/40 hover:bg-surface-container-high hover:text-on-surface cursor-pointer"
+          >
+            <Icon name="helpCircle" className="size-4 text-primary" />
+            <span>FAQs</span>
+          </button>
+          <div
+            role="tooltip"
+            data-agent-id="start-navbar-faqs-tooltip"
+            data-testid="start-navbar-faqs-tooltip"
+            className="pointer-events-none absolute top-full right-0 z-50 mt-2.5 w-64 rounded-xl border border-white/[0.14] bg-surface-container-highest p-3 text-left shadow-2xl opacity-0 scale-95 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:scale-100"
+          >
+            <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-primary">
+              <Icon name="helpCircle" className="size-3.5 shrink-0" />
+              <span>FAQs</span>
+            </div>
+            <p className="mt-1 text-[12px] leading-relaxed text-on-surface-variant font-normal">
+              Browse multilingual Frequently Asked Questions, token pricing guides, and platform help.
+            </p>
+          </div>
+        </div>
+
         {/* Download App / Install PWA Button */}
         <div className="group relative flex items-center">
           <button
