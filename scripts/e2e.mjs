@@ -157,6 +157,11 @@ try {
   const b1 = await call(routes.brands, "POST", { token, key: k1, body: brandInput("Brew Co") });
   check("brands POST: 201 + server brandId", b1.status === 201 && /^[a-f0-9]{24}$/.test(b1.json.brand.brandId), b1);
   const b1Id = b1.json.brand.brandId;
+  check(
+    "brands POST: defaults to in Library (isGlobal: true + synced to global_brands)",
+    b1.json.brand.isGlobal === true && (await db.doc(`global_brands/${b1Id}`).get()).exists,
+    b1.json.brand,
+  );
   const replay = await call(routes.brands, "POST", { token, key: k1, body: brandInput("Brew Co") });
   check("brands POST replay (same key): 200, same brand, no duplicate", replay.status === 200 && replay.json.brand.brandId === b1Id, replay);
   check("first brand auto-active", (await userDoc(UID)).activeBrandId === b1Id);
@@ -725,7 +730,10 @@ try {
     const txs = await db.collection("token_transactions").where("uid", "==", uid).get();
     const aiDrafts = await db.collection("customize_ai_drafts").where("uid", "==", uid).get();
     const batch = db.batch();
-    brands.forEach((ref) => batch.delete(ref));
+    brands.forEach((ref) => {
+      batch.delete(ref);
+      batch.delete(db.doc(`global_brands/${ref.id}`));
+    });
     txs.docs.forEach((d) => batch.delete(d.ref));
     aiDrafts.docs.forEach((d) => batch.delete(d.ref));
     batch.delete(db.doc(`users/${uid}`));

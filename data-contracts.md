@@ -239,7 +239,7 @@ Every interactive pill binds `data-agent-id="radar-example-<item>"`, `data-testi
 | `toneOfVoice` | enum | `"DIRECT_RESPONSE" \| "AUTHORITATIVE" \| "UGC_CASUAL" \| "URGENT"` |
 | `destinationUrl` | string | https URL (primary landing page) |
 | `landingPageUrls` | string[] | array of https URLs, max 50 (defaults to `[destinationUrl]`) |
-| `isGlobal` | boolean | `default: false` — when `true`, synced to `global_brands/{brandId}` for global discovery & cloning |
+| `isGlobal` | boolean | `default: true` — every created brand is placed in `global_brands/{brandId}` and the main Library (`BRAND_CARD`) by default; creator can toggle `false` anytime |
 | `version` | string | optional version tag or campaign identifier (e.g. "v1", "v2", "Q4 2026") |
 | `authorUid` | string | optional creator UID for attribution |
 | `authorEmail` | string | optional creator email for global display |

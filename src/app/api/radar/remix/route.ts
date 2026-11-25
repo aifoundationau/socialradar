@@ -64,6 +64,7 @@ export async function POST(req: Request) {
       }
       const brand = BrandProfileSchema.parse(brandSnap.data());
       const blueprint = await generateRemix(ad, brand);
+      const nowIso = new Date().toISOString();
       const remix = RemixDocSchema.parse({
         remixId: txId,
         uid: caller.uid,
@@ -72,7 +73,9 @@ export async function POST(req: Request) {
         brandName: brand.brandName,
         sourceAdvertiser: ad.advertiserName || "Selected Ad",
         platform: ad.platform,
-        createdAt: new Date().toISOString(),
+        createdAt: nowIso,
+        isPublic: true,
+        publishedAt: nowIso,
         ...blueprint,
       });
       await ref.set(remix);

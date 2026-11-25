@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { GoogleGenAI, type Part } from "@google/genai";
 import { z } from "zod";
 import {
@@ -10,6 +11,7 @@ import {
   type AdRemixBlueprint,
   type BrandProfile,
   type NormalizedAd,
+  type RadarSearchRequest,
   type RemixedAdTextItem,
   type RemixDoc,
 } from "./contracts";
@@ -322,4 +324,182 @@ async function download(url: string): Promise<{ mimeType: string; data: string }
   } catch {
     return null;
   }
+}
+
+export type GroundedAdDraft = Omit<NormalizedAd, "winningScore" | "highlightKeywords"> & {
+  duplicates: number;
+};
+
+const GroundedRawAdItemSchema = z.object({
+  advertiserName: z.string().min(1).max(300),
+  advertiserId: z.string().max(200).optional(),
+  headline: z.string().max(500).default(""),
+  primaryCopy: z.string().max(5000).default(""),
+  ctaText: z.string().max(100).default("Learn more"),
+  landingPageUrl: z.string().max(2048).default(""),
+  mediaType: z.enum(["VIDEO", "IMAGE", "CAROUSEL", "TEXT"]).optional(),
+  activeDaysCount: z.coerce.number().optional(),
+  duplicates: z.coerce.number().optional(),
+  totalViews: z.coerce.number().optional(),
+  totalLikes: z.coerce.number().optional(),
+});
+
+function extractJsonArrayFromText(raw: string): unknown[] {
+  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && typeof parsed === "object" && Array.isArray((parsed as { ads?: unknown[] }).ads)) {
+      return (parsed as { ads: unknown[] }).ads;
+    }
+  } catch {
+    // Fallback to bracket extraction
+  }
+  const start = cleaned.indexOf("[");
+  const end = cleaned.lastIndexOf("]");
+  if (start >= 0 && end > start) {
+    try {
+      const sliced = JSON.parse(cleaned.slice(start, end + 1));
+      if (Array.isArray(sliced)) return sliced;
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/**
+ * Low-cost / zero-third-party-scraper alternative to SearchApi.io using Gemini + Google Search Grounding.
+ * Queries live indexed brand & ad library signals on Meta Ad Library, TikTok Creative Center, or Google Ads
+ * and normalizes real advertiser entries into `GroundedAdDraft` objects.
+ */
+export async function searchAdsWithGeminiGrounding(
+  req: RadarSearchRequest,
+  suggestedDomains: string[] = [],
+): Promise<GroundedAdDraft[]> {
+  if (!process.env.GEMINI_API_KEY) return [];
+
+  const platformPortal =
+    req.platform === "META"
+      ? "Meta Ad Library (Facebook & Instagram ads)"
+      : req.platform === "TIKTOK"
+        ? "TikTok Creative Center Top Ads & TikTok Ads Library"
+        : "Google Ads Transparency Center, Google Search Sponsored Ads & YouTube Ads";
+
+  const domainHint =
+    suggestedDomains.length > 0 ? `\nKnown category domains to prioritize checking: ${suggestedDomains.slice(0, 6).join(", ")}` : "";
+
+  const formatHint =
+    req.mediaType === "VIDEO"
+      ? "Focus on VIDEO / Reels / YouTube / TikTok creative ads."
+      : req.mediaType === "IMAGE"
+        ? "Focus on static IMAGE / Carousel / Shopping ads."
+        : "Include a realistic mix of Video and Image formats.";
+
+  const prompt = `Use Google Search to find 9 to 12 REAL, currently active commercial advertisers and live ad campaigns on ${platformPortal} for the query "${req.query}" in country "${req.country}".
+${domainHint}
+${formatHint}
+
+STRICT RULES:
+- Only include REAL companies/brands you found in search results with their real https:// website domain.
+- Do NOT invent fake brands, fake metrics, or placeholder URLs.
+- Keep all copy plain text (no markdown, no hashtags spam).
+
+Return ONLY a valid JSON array (no prose before or after) where each element has:
+{
+  "advertiserName": "Real Brand Name",
+  "headline": "Short realistic campaign headline from their offer",
+  "primaryCopy": "Concise 1-3 sentence ad copy matching their real active offer",
+  "ctaText": "Shop Now" | "Learn More" | "Get Quote" | "Try Free" | "Book Now",
+  "landingPageUrl": "https://their-real-domain.com/...",
+  "mediaType": "${req.mediaType === "ALL" ? (req.platform === "TIKTOK" ? "VIDEO" : "IMAGE") : req.mediaType}",
+  "activeDaysCount": 35,
+  "duplicates": 2
+}`;
+
+  let textOut = "";
+  try {
+    const res = await getGemini().models.generateContent({
+      model: MODEL,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        tools: [{ googleSearch: {} }],
+        temperature: 0.3,
+      },
+    });
+    textOut = res.text ?? "";
+  } catch (err) {
+    console.warn("[gemini] grounded ad search failed", req.platform, req.query, err);
+    return [];
+  }
+
+  const rawItems = extractJsonArrayFromText(textOut);
+  const nowMs = Date.now();
+  const lastSeenIso = new Date(nowMs).toISOString();
+  const drafts: GroundedAdDraft[] = [];
+
+  for (const item of rawItems) {
+    const parsed = GroundedRawAdItemSchema.safeParse(item);
+    if (!parsed.success) continue;
+    const row = parsed.data;
+    const advertiserName = sanitizeText(row.advertiserName).slice(0, 300);
+    if (!advertiserName) continue;
+
+    const cleanLanding =
+      typeof row.landingPageUrl === "string" &&
+      row.landingPageUrl.length <= 2048 &&
+      /^https:\/\/[^\s<>"']+$/.test(row.landingPageUrl.trim())
+        ? row.landingPageUrl.trim()
+        : "";
+    if (!cleanLanding) continue;
+
+    const activeDaysCount = Math.max(1, Math.min(730, Math.round(row.activeDaysCount ?? 30)));
+    const firstSeenIso = new Date(nowMs - (activeDaysCount - 1) * 86_400_000).toISOString();
+    const duplicates = Math.max(0, Math.min(25, Math.round(row.duplicates ?? 1)));
+    const rawMedia = row.mediaType ?? (req.mediaType === "ALL" ? (req.platform === "TIKTOK" ? "VIDEO" : "IMAGE") : req.mediaType);
+    const mediaType: NormalizedAd["mediaType"] =
+      req.mediaType === "VIDEO" ? "VIDEO" : req.mediaType === "IMAGE" ? "IMAGE" : rawMedia;
+
+    const hashId = createHash("sha256")
+      .update(`${req.platform}:${req.query.toLowerCase()}:${advertiserName.toLowerCase()}:${cleanLanding}`)
+      .digest("hex")
+      .slice(0, 14);
+    const adId = `${req.platform.toLowerCase()}_gemini_${hashId}`;
+    const advertiserId =
+      row.advertiserId?.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 120) ||
+      advertiserName.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 60) ||
+      hashId;
+
+    const totalViews =
+      typeof row.totalViews === "number" && Number.isFinite(row.totalViews) && row.totalViews >= 0
+        ? Math.round(row.totalViews)
+        : undefined;
+    const totalLikes =
+      typeof row.totalLikes === "number" && Number.isFinite(row.totalLikes) && row.totalLikes >= 0
+        ? Math.round(row.totalLikes)
+        : undefined;
+
+    drafts.push({
+      adId,
+      platform: req.platform,
+      advertiserName,
+      advertiserId,
+      mediaType,
+      mediaUrls: [],
+      thumbnailUrl: "",
+      primaryCopy: sanitizeText(row.primaryCopy).slice(0, 5000) || `Explore ${advertiserName} (${cleanLanding}).`,
+      headline: sanitizeText(row.headline).slice(0, 500) || `${advertiserName} — ${req.query}`,
+      ctaText: sanitizeText(row.ctaText || "Learn more").slice(0, 100) || "Learn more",
+      landingPageUrl: cleanLanding,
+      countryCode: req.country,
+      firstSeenDate: firstSeenIso,
+      lastSeenDate: lastSeenIso,
+      activeDaysCount,
+      duplicates,
+      ...(totalViews !== undefined ? { totalViews } : {}),
+      ...(totalLikes !== undefined ? { totalLikes } : {}),
+    });
+  }
+
+  return drafts;
 }

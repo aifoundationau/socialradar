@@ -154,7 +154,7 @@ export const BrandProfileInputSchema = z
     toneOfVoice: ToneOfVoiceSchema,
     destinationUrl: httpsUrl,
     landingPageUrls: z.array(httpsUrl).max(50).default([]),
-    isGlobal: z.boolean().default(false),
+    isGlobal: z.boolean().default(true),
     version: z.string().max(50).optional(),
     authorUid: z.string().optional(),
     authorEmail: z.string().optional(),
@@ -254,8 +254,8 @@ export const RemixDocSchema = AdRemixBlueprintSchema.extend({
   sourceAdvertiser: z.string().max(200).optional(),
   platform: PlatformSchema.optional(),
   createdAt: isoDate.optional(),
-  /** Private unless the creator makes it public; only public remixes are offered in the Library. */
-  isPublic: z.boolean().optional(),
+  /** Public by default unless the creator makes it private. */
+  isPublic: z.boolean().default(true).optional(),
   publishedAt: isoDate.optional(),
 }).strict();
 export type RemixDoc = z.infer<typeof RemixDocSchema>;
@@ -316,8 +316,8 @@ export const RemixedAdTextDocSchema = z
     sourceAdvertiser: z.string().max(200),
     items: z.array(RemixedAdTextItemSchema).length(4),
     createdAt: isoDate,
-    /** Private unless the creator makes it public; only public ad texts are offered in the Library. */
-    isPublic: z.boolean().optional(),
+    /** Public by default unless the creator makes it private. */
+    isPublic: z.boolean().default(true).optional(),
     publishedAt: isoDate.optional(),
   })
   .strict();
@@ -1574,20 +1574,21 @@ export const LibraryItemKindSchema = z.enum([
   "PREVIOUS_SEARCH",
   "REMIX_STUDIO",
   "REMIXED_AD_TEXT",
+  "BRAND_CARD",
 ]);
 export type LibraryItemKind = z.infer<typeof LibraryItemKindSchema>;
 
 export const LibraryItemKeySchema = z
   .string()
   .trim()
-  .regex(/^(search|remix|adtext)_[A-Za-z0-9_-]{1,180}$/, "Invalid Library item key");
+  .regex(/^(search|remix|adtext|brand)_[A-Za-z0-9_-]{1,180}$/, "Invalid Library item key");
 
 export const LibraryItemSummarySchema = z
   .object({
     itemKey: LibraryItemKeySchema,
     sourceId: z.string().min(1).max(180),
     kind: LibraryItemKindSchema,
-    kindLabel: z.enum(["Previous Search", "Remix Studio", "Remixed Ad Text"]),
+    kindLabel: z.enum(["Previous Search", "Remix Studio", "Remixed Ad Text", "Brand Card"]),
     title: safeText(1, 200),
     subtitle: z.string().max(240),
     teaser: z.string().max(500),
@@ -1597,9 +1598,9 @@ export const LibraryItemSummarySchema = z
     metricsLabel: z.string().max(120),
     createdAt: isoDate,
     purchased: z.boolean(),
-    /** The caller created this remix / ad text (they can view it free and choose whether it's public). */
+    /** The caller created this remix / ad text / brand card (they can view it free and choose whether it's public). */
     isOwn: z.boolean().optional(),
-    /** Remixes and ad texts only: whether the creator has made it public (only public items are for sale). */
+    /** Remixes, ad texts, and brand cards: whether the creator has made it public in the Library. */
     isPublic: z.boolean().optional(),
   })
   .strict();
@@ -1609,7 +1610,7 @@ export const LibraryListQuerySchema = z
   .object({
     q: z.string().trim().max(120).optional(),
     kind: z
-      .enum(["ALL", "PREVIOUS_SEARCH", "REMIX_STUDIO", "REMIXED_AD_TEXT"])
+      .enum(["ALL", "PREVIOUS_SEARCH", "REMIX_STUDIO", "REMIXED_AD_TEXT", "BRAND_CARD"])
       .default("ALL"),
     platform: z.enum(["ALL", "META", "TIKTOK", "GOOGLE"]).default("ALL"),
     limit: tokenInt.min(1).max(200).default(120),
@@ -1624,11 +1625,11 @@ export const LibraryPurchaseRequestSchema = z
   .strict();
 export type LibraryPurchaseRequest = z.infer<typeof LibraryPurchaseRequestSchema>;
 
-/** The creator makes one of their remixes / remixed ad texts public (for sale in the Library) or private. */
+/** The creator makes one of their remixes / remixed ad texts / brand cards public (for sale in the Library) or private. */
 export const LibraryVisibilityRequestSchema = z
   .object({
     itemKey: LibraryItemKeySchema.refine((key) => !key.startsWith("search_"), {
-      message: "Only remixes and remixed ad texts can be made public or private",
+      message: "Only remixes, remixed ad texts, and brand cards can be made public or private",
     }),
     isPublic: z.boolean(),
   })
@@ -1667,6 +1668,10 @@ export type LibraryUnlockedDetail =
       kind: "REMIXED_AD_TEXT";
       remixedAdText: RemixedAdTextDoc;
       sourceAd: NormalizedAd | null;
+    }
+  | {
+      kind: "BRAND_CARD";
+      brand: BrandProfile;
     };
 
 export interface LibraryListResponse {
@@ -1676,6 +1681,7 @@ export interface LibraryListResponse {
     previousSearch: number;
     remixStudio: number;
     remixedAdText: number;
+    brandCard?: number;
   };
   libraryItemFee: number;
   audCentsPerToken: number;

@@ -84,6 +84,7 @@ export async function POST(req: Request) {
       }
 
       const items = await generateRemixedAdTexts(ad, brand, deconstruction);
+      const nowIso = new Date().toISOString();
       const remixedAdText = RemixedAdTextDocSchema.parse({
         remixedAdTextId: txId,
         uid: caller.uid,
@@ -92,7 +93,9 @@ export async function POST(req: Request) {
         brandName: brand.brandName,
         sourceAdvertiser: ad.advertiserName || "Selected Ad",
         items,
-        createdAt: new Date().toISOString(),
+        createdAt: nowIso,
+        isPublic: true,
+        publishedAt: nowIso,
       });
 
       await ref.set(remixedAdText);

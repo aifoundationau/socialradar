@@ -8,6 +8,7 @@ import type {
 import { db } from "./firebase-admin";
 import { ApiError } from "./api";
 import {
+  BrandProfileSchema,
   MediaFilterSchema,
   NormalizedAdSchema,
   PlatformSchema,
@@ -16,6 +17,7 @@ import {
   LibraryItemSummarySchema,
   LibraryPurchaseDocSchema,
   sanitizeText,
+  type BrandProfile,
   type LibraryItemKind,
   type LibraryItemSummary,
   type LibraryListQuery,
@@ -27,6 +29,7 @@ import {
   type RemixDoc,
   type RemixedAdTextDoc,
 } from "./contracts";
+import { buildBrandTextFileContent, getBrandTextFileName } from "./brand-text-file";
 import { buildDeconstructTextFileContent, getDeconstructFileName } from "./deconstruct-text-file";
 import { buildSearchMixTextFileContent } from "./searchmix-text-file";
 
@@ -193,7 +196,7 @@ function buildRemixSummary(
     createdAt: opts.createdAt,
     purchased: opts.purchased,
     isOwn: opts.isOwn,
-    isPublic: remix.isPublic === true,
+    isPublic: remix.isPublic !== false,
   });
 }
 
@@ -230,7 +233,42 @@ function buildAdTextSummary(
     createdAt: doc.createdAt,
     purchased,
     isOwn,
-    isPublic: doc.isPublic === true,
+    isPublic: doc.isPublic !== false,
+  });
+}
+
+function buildBrandSummary(
+  sourceId: string,
+  brand: BrandProfile,
+  purchased: boolean,
+  isOwn: boolean,
+  createdAt: string,
+): LibraryItemSummary {
+  const itemKey = `brand_${sourceId}`;
+  const rawTeaser = sanitizeText(brand.productServiceDescription || "");
+  const teaser =
+    rawTeaser.length > 160 ? `${rawTeaser.slice(0, 157)}…` : rawTeaser || "Brand profile & positioning blueprint.";
+  const urlCount =
+    brand.landingPageUrls && brand.landingPageUrls.length > 0 ? brand.landingPageUrls.length : 1;
+
+  return LibraryItemSummarySchema.parse({
+    itemKey,
+    sourceId,
+    kind: "BRAND_CARD",
+    kindLabel: "Brand Card",
+    title: brand.brandName,
+    subtitle: `Tone: ${brand.toneOfVoice.replace(/_/g, " ")} · ${brand.destinationUrl}`,
+    teaser,
+    tags: [
+      brand.toneOfVoice,
+      ...(brand.version ? [brand.version] : []),
+      `${urlCount} ${urlCount === 1 ? "URL" : "URLs"}`,
+    ],
+    metricsLabel: `${brand.corePainPoints.length} pain points · Brand .txt`,
+    createdAt,
+    purchased,
+    isOwn,
+    isPublic: brand.isGlobal !== false,
   });
 }
 
@@ -253,9 +291,8 @@ async function getDocsMap<T>(
 }
 
 /**
- * Remixes or remixed ad texts the caller may see in the Library: the ones their creators have made public, the
- * caller's own (public or private), and any the caller has bought (a purchase stays available even if the
- * creator later makes it private).
+ * Remixes or remixed ad texts the caller may see in the Library: all items that haven't been explicitly marked
+ * private (`isPublic !== false`), the caller's own (public or private), and any the caller has bought.
  */
 async function visibleCreations(
   collection: "remixes" | "remixed_ad_texts",
@@ -263,12 +300,35 @@ async function visibleCreations(
   purchasedIds: string[],
 ): Promise<DocumentSnapshot[]> {
   const col = db.collection(collection);
-  const [publicSnap, ownSnap] = await Promise.all([
-    col.where("isPublic", "==", true).limit(MAX_LISTED_PER_SOURCE).get(),
+  const purchasedSet = new Set(purchasedIds);
+  const [recentSnap, ownSnap] = await Promise.all([
+    col
+      .orderBy("createdAt", "desc")
+      .limit(MAX_LISTED_PER_SOURCE)
+      .get()
+      .catch(() => col.limit(MAX_LISTED_PER_SOURCE).get()),
     col.where("uid", "==", uid).limit(MAX_LISTED_PER_SOURCE).get(),
   ]);
   const byId = new Map<string, DocumentSnapshot>();
-  for (const snap of [...publicSnap.docs, ...ownSnap.docs]) byId.set(snap.id, snap);
+  const backfills: Promise<unknown>[] = [];
+  for (const snap of recentSnap.docs) {
+    const isExplicitPrivate = snap.get("isPublic") === false;
+    if (!isExplicitPrivate || snap.get("uid") === uid || purchasedSet.has(snap.id)) {
+      byId.set(snap.id, snap);
+    }
+    if (snap.get("isPublic") === undefined) {
+      backfills.push(
+        snap.ref.update({
+          isPublic: true,
+          publishedAt: snap.get("createdAt") || new Date().toISOString(),
+        }),
+      );
+    }
+  }
+  for (const snap of ownSnap.docs) byId.set(snap.id, snap);
+  if (backfills.length > 0) {
+    await Promise.allSettled(backfills);
+  }
   const missing = purchasedIds.filter((id) => !byId.has(id));
   for (let i = 0; i < missing.length; i += GET_ALL_CHUNK) {
     const snaps = await db.getAll(...missing.slice(i, i + GET_ALL_CHUNK).map((id) => col.doc(id)));
@@ -287,10 +347,10 @@ async function visibleCreations(
 export async function listLibraryItems(uid: string, query: LibraryListQuery) {
   const purchasesSnap = await db.collection("users").doc(uid).collection("library_purchases").get();
   const purchasedSet = new Set(purchasesSnap.docs.map((d) => d.id));
-  const purchasedIds = (prefix: "search" | "remix" | "adtext") =>
+  const purchasedIds = (prefix: "search" | "remix" | "adtext" | "brand") =>
     [...purchasedSet].filter((key) => key.startsWith(`${prefix}_`)).map((key) => key.slice(prefix.length + 1));
 
-  const [searchesSnap, cacheSnap, remixSnaps, adTextSnaps] = await Promise.all([
+  const [searchesSnap, cacheSnap, remixSnaps, adTextSnaps, globalBrandsSnap, ownBrandsSnap] = await Promise.all([
     db
       .collection("library_searches")
       .orderBy("updatedAt", "desc")
@@ -305,6 +365,8 @@ export async function listLibraryItems(uid: string, query: LibraryListQuery) {
       .catch(() => db.collection("radar_cache").limit(MAX_SOURCE_SCAN).get()),
     visibleCreations("remixes", uid, purchasedIds("remix")),
     visibleCreations("remixed_ad_texts", uid, purchasedIds("adtext")),
+    db.collection("global_brands").limit(MAX_LISTED_PER_SOURCE).get(),
+    db.collection("users").doc(uid).collection("brands").limit(MAX_LISTED_PER_SOURCE).get(),
   ]);
 
   const seenSearchDocIds = new Set([
@@ -427,6 +489,46 @@ export async function listLibraryItems(uid: string, query: LibraryListQuery) {
     items.push(buildAdTextSummary(id, doc, ad?.platform, purchasedSet.has(key), doc.uid === uid));
   }
 
+  // 4. Brand Cards (created brands default to Global / in Library + caller's own + caller's purchased brands)
+  const brandSnapById = new Map<string, DocumentSnapshot>();
+  for (const snap of globalBrandsSnap.docs) brandSnapById.set(snap.id, snap);
+  const missingGlobalSyncs: Promise<unknown>[] = [];
+  for (const snap of ownBrandsSnap.docs) {
+    const raw = snap.data() as Partial<BrandProfile> | undefined;
+    if (raw?.isGlobal === true && !brandSnapById.has(snap.id)) {
+      const community = { ...raw };
+      delete community.authorEmail;
+      missingGlobalSyncs.push(db.collection("global_brands").doc(snap.id).set(community, { merge: true }));
+    }
+    // Caller's own copy overrides global listing so `isOwn` / `isPublic` always reflect live visibility
+    brandSnapById.set(snap.id, snap);
+  }
+  if (missingGlobalSyncs.length > 0) {
+    await Promise.allSettled(missingGlobalSyncs);
+  }
+  const missingPurchasedBrands = purchasedIds("brand").filter((id) => !brandSnapById.has(id));
+  for (let i = 0; i < missingPurchasedBrands.length; i += GET_ALL_CHUNK) {
+    const chunk = missingPurchasedBrands.slice(i, i + GET_ALL_CHUNK);
+    const snaps = await db.getAll(...chunk.map((id) => db.collection("global_brands").doc(id)));
+    for (const snap of snaps) if (snap.exists) brandSnapById.set(snap.id, snap);
+  }
+
+  for (const [id, snap] of brandSnapById) {
+    const raw = snap.data() as Record<string, unknown> | undefined;
+    if (!raw) continue;
+    const parsedBrand = BrandProfileSchema.safeParse({ ...raw, brandId: raw.brandId || id });
+    if (!parsedBrand.success) continue;
+    const brand = parsedBrand.data;
+    const key = `brand_${id}`;
+    const purchased = purchasedSet.has(key);
+    const isOwn = snap.ref.parent.parent?.id === uid || brand.authorUid === uid;
+    const createdAt = toIsoString(
+      brand.updatedAt ?? brand.createdAt,
+      snap.updateTime?.toDate().toISOString() ?? snap.createTime?.toDate().toISOString(),
+    );
+    items.push(buildBrandSummary(id, brand, purchased, isOwn, createdAt));
+  }
+
   items.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 
   // Filter by search keyword and platform before computing category counts
@@ -443,6 +545,7 @@ export async function listLibraryItems(uid: string, query: LibraryListQuery) {
     previousSearch: preKindFiltered.filter((i) => i.kind === "PREVIOUS_SEARCH").length,
     remixStudio: preKindFiltered.filter((i) => i.kind === "REMIX_STUDIO").length,
     remixedAdText: preKindFiltered.filter((i) => i.kind === "REMIXED_AD_TEXT").length,
+    brandCard: preKindFiltered.filter((i) => i.kind === "BRAND_CARD").length,
   };
 
   const finalItems =
@@ -516,12 +619,12 @@ function buildRemixedAdTextFileContent(doc: RemixedAdTextDoc): string {
   return lines.join("\n");
 }
 
-function parseItemKey(itemKey: string): { prefix: "search" | "remix" | "adtext"; sourceId: string } {
+function parseItemKey(itemKey: string): { prefix: "search" | "remix" | "adtext" | "brand"; sourceId: string } {
   const idx = itemKey.indexOf("_");
   if (idx <= 0) throw new ApiError("INVALID_INPUT", "Invalid Library item key", 400);
   const prefix = itemKey.slice(0, idx);
   const sourceId = itemKey.slice(idx + 1);
-  if ((prefix !== "search" && prefix !== "remix" && prefix !== "adtext") || !sourceId) {
+  if ((prefix !== "search" && prefix !== "remix" && prefix !== "adtext" && prefix !== "brand") || !sourceId) {
     throw new ApiError("INVALID_INPUT", "Invalid Library item key", 400);
   }
   return { prefix, sourceId };
@@ -607,6 +710,33 @@ export async function getUnlockedLibraryItem(
     };
   }
 
+  if (prefix === "brand") {
+    let snap = await db.collection("users").doc(uid).collection("brands").doc(sourceId).get();
+    if (!snap.exists) {
+      snap = await db.collection("global_brands").doc(sourceId).get();
+    }
+    if (!snap.exists) throw new ApiError("NOT_FOUND", "Brand card not found in Library.", 404);
+    const raw = (snap.data() ?? {}) as Record<string, unknown>;
+    const parsedBrand = BrandProfileSchema.safeParse({ ...raw, brandId: raw.brandId || sourceId });
+    if (!parsedBrand.success) throw new ApiError("NOT_FOUND", "Brand card is unreadable.", 404);
+    const brand = parsedBrand.data;
+    const isOwn = snap.ref.parent.parent?.id === uid || brand.authorUid === uid;
+    const createdAt = toIsoString(
+      brand.updatedAt ?? brand.createdAt,
+      snap.updateTime?.toDate().toISOString() ?? snap.createTime?.toDate().toISOString(),
+    );
+
+    return {
+      summary: buildBrandSummary(sourceId, brand, purchased, isOwn, createdAt),
+      detail: {
+        kind: "BRAND_CARD",
+        brand,
+      },
+      fileName: getBrandTextFileName(brand),
+      txtContent: buildBrandTextFileContent(brand),
+    };
+  }
+
   const snap = await db.collection("remixed_ad_texts").doc(sourceId).get();
   if (!snap.exists) throw new ApiError("NOT_FOUND", "Remixed Ad Text item not found in Library.", 404);
   const parsed = RemixedAdTextDocSchema.safeParse(snap.data());
@@ -642,16 +772,60 @@ export async function getLibraryItemAccess(
   const { prefix, sourceId } = parseItemKey(itemKey);
   const purchased = await hasPurchasedLibraryItem(uid, itemKey);
   if (prefix === "search") return { purchased, isOwn: false, isPublic: true };
+  if (prefix === "brand") {
+    const [ownSnap, globalSnap] = await Promise.all([
+      db.collection("users").doc(uid).collection("brands").doc(sourceId).get(),
+      db.collection("global_brands").doc(sourceId).get(),
+    ]);
+    if (!ownSnap.exists && !globalSnap.exists) {
+      throw new ApiError("NOT_FOUND", "That Library brand card no longer exists.", 404);
+    }
+    const isOwn = ownSnap.exists || globalSnap.get("authorUid") === uid;
+    const isPublic = globalSnap.exists || ownSnap.get("isGlobal") === true;
+    return { purchased, isOwn, isPublic };
+  }
   const snap = await db.collection(creationsCollection(prefix)).doc(sourceId).get();
   if (!snap.exists) throw new ApiError("NOT_FOUND", "That Library item no longer exists.", 404);
-  return { purchased, isOwn: snap.get("uid") === uid, isPublic: snap.get("isPublic") === true };
+  return { purchased, isOwn: snap.get("uid") === uid, isPublic: snap.get("isPublic") !== false };
 }
 
-/** The creator makes one of their remixes / remixed ad texts public (offered for sale in the Library) or private. */
+/** The creator makes one of their remixes / remixed ad texts / brand cards public or private. */
 export async function setLibraryItemVisibility(uid: string, itemKey: string, isPublic: boolean): Promise<void> {
   const { prefix, sourceId } = parseItemKey(itemKey);
   if (prefix === "search") {
-    throw new ApiError("INVALID_INPUT", "Only remixes and remixed ad texts can be made public or private.", 400);
+    throw new ApiError("INVALID_INPUT", "Only remixes, remixed ad texts, and brand cards can be made public or private.", 400);
+  }
+  if (prefix === "brand") {
+    const brandRef = db.collection("users").doc(uid).collection("brands").doc(sourceId);
+    const globalRef = db.collection("global_brands").doc(sourceId);
+    await db.runTransaction(async (t) => {
+      const snap = await t.get(brandRef);
+      if (!snap.exists) {
+        throw new ApiError("FORBIDDEN", "Only the person who created this brand can change whether it's public.", 403);
+      }
+      const raw = (snap.data() ?? {}) as BrandProfile;
+      const now = new Date().toISOString();
+      const updatedBrand: BrandProfile = {
+        ...raw,
+        brandId: raw.brandId || sourceId,
+        isGlobal: isPublic,
+        authorUid: raw.authorUid || uid,
+        updatedAt: now,
+      };
+      t.set(brandRef, updatedBrand);
+      if (isPublic) {
+        const community = {
+          ...updatedBrand,
+          brandTextFileName: getBrandTextFileName(updatedBrand),
+          brandTextFileContent: buildBrandTextFileContent(updatedBrand),
+        };
+        delete community.authorEmail;
+        t.set(globalRef, community);
+      } else {
+        t.delete(globalRef);
+      }
+    });
+    return;
   }
   const ref = db.collection(creationsCollection(prefix)).doc(sourceId);
   await db.runTransaction(async (t) => {

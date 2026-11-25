@@ -100,7 +100,7 @@ export async function createBrand(
     const landingPageUrls =
       input.landingPageUrls && input.landingPageUrls.length > 0 ? input.landingPageUrls : [input.destinationUrl];
     const destinationUrl = input.destinationUrl || landingPageUrls[0];
-    const isGlobal = Boolean(input.isGlobal);
+    const isGlobal = input.isGlobal !== undefined ? Boolean(input.isGlobal) : true;
 
     const brand = withBrandTextAttachment({
       brandId: ref.id,
@@ -234,7 +234,7 @@ export async function duplicateBrand(
   const input: Omit<BrandProfile, "brandId"> = {
     ...rest,
     brandName: duplicateName,
-    isGlobal: false, // Duplicates are personal by default
+    isGlobal: true, // Every brand created or duplicated is placed in the Library by default
     clonedFromBrandId: brandId,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -249,6 +249,7 @@ export async function searchGlobalBrands(options: {
   query?: string;
   tone?: string;
   limit?: number;
+  callerUid?: string;
 }): Promise<BrandProfile[]> {
   const maxLimit = Math.min(options.limit ?? 50, 100);
   const globalSnap = await globalBrandsCol.limit(maxLimit * 2).get();
@@ -265,6 +266,34 @@ export async function searchGlobalBrands(options: {
   }
   if (emailCleanups.length > 0) {
     await Promise.allSettled(emailCleanups);
+  }
+
+  // Ensure the caller's own `isGlobal: true` brands are synced to `global_brands` even without collection-group index
+  if (options.callerUid) {
+    try {
+      const ownSnap = await brandsCol(options.callerUid).where("isGlobal", "==", true).limit(MAX_BRANDS_PER_USER).get();
+      const ownSyncs: Promise<unknown>[] = [];
+      for (const bDoc of ownSnap.docs) {
+        const bData = bDoc.data() as BrandProfile;
+        if (!bData) continue;
+        const normalized: BrandProfile = {
+          ...bData,
+          brandId: bData.brandId || bDoc.id,
+          isGlobal: true,
+          authorUid: bData.authorUid || options.callerUid,
+        };
+        if (!byId.has(normalized.brandId)) {
+          const shared = communityCopy(normalized);
+          byId.set(normalized.brandId, shared);
+          ownSyncs.push(globalBrandsCol.doc(normalized.brandId).set(shared, { merge: true }));
+        }
+      }
+      if (ownSyncs.length > 0) {
+        await Promise.allSettled(ownSyncs);
+      }
+    } catch {
+      // Non-fatal sync fallback
+    }
   }
 
   // Also pick up brands marked `isGlobal: true` that never synced to global_brands (created before the sync

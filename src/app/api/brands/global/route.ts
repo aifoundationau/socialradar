@@ -42,6 +42,7 @@ async function handleGlobalBrands(req: Request) {
         query: parsed.q,
         tone: parsed.tone,
         limit: parsed.limit,
+        callerUid: caller.uid,
       }),
       getSystemConfig(),
       db.collection("users").doc(caller.uid).get().catch(() => null),

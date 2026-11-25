@@ -16,6 +16,7 @@ import {
   type RadarSearchResponse,
 } from "./contracts";
 import { searchApi } from "./searchapi";
+import { searchAdsWithGeminiGrounding } from "./gemini";
 import { calculateMatrixScore } from "./radar-matrix";
 import {
   buildTikTokHeadline,
@@ -198,19 +199,20 @@ async function recoverRealCachedDrafts(req: RadarSearchRequest, intent: Resolved
   const primaryWord = queryLower.split(/\s+/)[0] || queryLower;
 
   try {
-    const snap = await db
-      .collection("radar_cache")
-      .where("platform", "==", req.platform)
-      .limit(25)
-      .get();
+    const [archiveSnap, cacheSnap] = await Promise.all([
+      db.collection("library_searches").where("platform", "==", req.platform).limit(40).get(),
+      db.collection("radar_cache").where("platform", "==", req.platform).limit(40).get(),
+    ]);
 
+    const seenAdIds = new Set<string>();
     const candidates: Draft[] = [];
-    for (const docSnap of snap.docs) {
+    for (const docSnap of [...archiveSnap.docs, ...cacheSnap.docs]) {
       const data = docSnap.data();
       for (const rawAd of list(data.ads)) {
         const parsed = NormalizedAdSchema.safeParse(rawAd);
         if (!parsed.success) continue;
         const ad = parsed.data;
+        if (seenAdIds.has(ad.adId)) continue;
         // Strictly reject any synthetic/benchmark entries or stock images — ONLY real upstream ads allowed
         if (ad.adId.includes("_verified_") || ad.thumbnailUrl.includes("images.unsplash.com")) continue;
         const corpus = `${ad.advertiserName} ${ad.headline} ${ad.primaryCopy} ${ad.landingPageUrl}`.toLowerCase();
@@ -219,6 +221,7 @@ async function recoverRealCachedDrafts(req: RadarSearchRequest, intent: Resolved
           ? intent.positiveTerms.some((pos) => pos.test(corpus))
           : matchesQuery;
         if (matchesPositive && ad.platform === req.platform) {
+          seenAdIds.add(ad.adId);
           candidates.push({ ...ad, duplicates: 1 });
         }
       }
@@ -229,8 +232,41 @@ async function recoverRealCachedDrafts(req: RadarSearchRequest, intent: Resolved
   }
 }
 
+function mergeDraftsUnique(primary: Draft[], secondary: Draft[]): Draft[] {
+  const seen = new Set<string>(primary.map((d) => d.adId));
+  const merged = [...primary];
+  for (const d of secondary) {
+    if (!seen.has(d.adId)) {
+      seen.add(d.adId);
+      merged.push(d);
+    }
+  }
+  return merged;
+}
+
 async function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
   const intent = resolveSearchIntent(req.query);
+  const preferGemini =
+    process.env.RADAR_SEARCH_PROVIDER?.trim().toLowerCase() === "gemini" ||
+    !process.env.SEARCHAPI_API_KEY?.trim();
+
+  if (preferGemini) {
+    const [grounded, archived] = await Promise.all([
+      searchAdsWithGeminiGrounding(req, intent.googleDomains),
+      recoverRealCachedDrafts(req, intent),
+    ]);
+    const combined = enforcePlatformIsolation(
+      filterRelevantDrafts(mergeDraftsUnique(grounded, archived), intent),
+      req.platform,
+    );
+    if (combined.length > 0) {
+      return {
+        drafts: combined,
+        notice: `Fetched via Gemini Google Search Grounding & Ad Radar Archive (${combined.length} ${req.platform} ads).`,
+      };
+    }
+  }
+
   try {
     let rawResult: LibraryResult;
     switch (req.platform) {
@@ -249,14 +285,40 @@ async function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
       filterRelevantDrafts(rawResult.drafts, intent),
       req.platform,
     );
+    if (filtered.length > 0) {
+      return { drafts: filtered, notice: rawResult.notice };
+    }
+
+    // If SearchApi returned zero matches, try Firestore Archive + Gemini Search Grounding
+    const [archived, grounded] = await Promise.all([
+      recoverRealCachedDrafts(req, intent),
+      searchAdsWithGeminiGrounding(req, intent.googleDomains),
+    ]);
+    const fallbackCombined = enforcePlatformIsolation(
+      filterRelevantDrafts(mergeDraftsUnique(archived, grounded), intent),
+      req.platform,
+    );
+    if (fallbackCombined.length > 0) {
+      return {
+        drafts: fallbackCombined,
+        notice: `Showing ${fallbackCombined.length} ${req.platform} ads via Ad Radar Archive & Gemini Search Grounding.`,
+      };
+    }
     return { drafts: filtered, notice: rawResult.notice };
   } catch (err) {
-    // Only serve previously cached REAL ads if available; otherwise rethrow so token is refunded and quota message shown
-    const realCached = await recoverRealCachedDrafts(req, intent);
-    if (realCached.length > 0) {
+    // Low-cost recovery: serve real Firestore archived ads and/or Gemini Google Search Grounding before failing
+    const [realCached, grounded] = await Promise.all([
+      recoverRealCachedDrafts(req, intent),
+      searchAdsWithGeminiGrounding(req, intent.googleDomains),
+    ]);
+    const recovered = enforcePlatformIsolation(
+      filterRelevantDrafts(mergeDraftsUnique(realCached, grounded), intent),
+      req.platform,
+    );
+    if (recovered.length > 0) {
       return {
-        drafts: realCached,
-        notice: `Showing previously found real ${req.platform} ads matching "${req.query}" (live search is temporarily unavailable).`,
+        drafts: recovered,
+        notice: `Showing ${recovered.length} ${req.platform} ads matching "${req.query}" via Ad Radar Archive & Gemini Search Grounding.`,
       };
     }
     throw err;

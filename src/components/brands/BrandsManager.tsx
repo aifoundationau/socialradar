@@ -541,16 +541,16 @@ export function BrandsManager() {
             </summary>
             <div className="mt-3.5 space-y-3 border-t border-white/[0.08] pt-3 text-compact text-on-surface-variant">
               <p className="leading-relaxed">
-                Brand cards are personal to your account by default. You can create different campaign versions by clicking <strong>&ldquo;Duplicate&rdquo;</strong>, or share your brand publicly with the community by clicking <strong>&ldquo;Make Global&rdquo;</strong>.
+                Every brand card created is placed in the Library by default so community users can discover and copy frameworks. You can create campaign iterations by clicking <strong>&ldquo;Duplicate&rdquo;</strong>, or toggle any brand between <strong>Global (in Library)</strong> and <strong>Private</strong> anytime.
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 pt-1">
                 <div className="rounded-xl border border-white/[0.06] bg-surface-container p-3 space-y-1">
                   <strong className="text-body font-semibold text-on-surface flex items-center gap-1.5">
                     <span className="size-2 rounded-full bg-primary" />
-                    1. Personal & Private
+                    1. In Library by Default
                   </strong>
                   <p className="text-[12px] leading-relaxed">
-                    All your brands, offers, and audience personas are kept strictly confidential by default.
+                    New brands are automatically listed in the Global Brand Library &amp; main Library. Toggle &ldquo;Make Private&rdquo; anytime if you want a card hidden.
                   </p>
                 </div>
                 <div className="rounded-xl border border-white/[0.06] bg-surface-container p-3 space-y-1">

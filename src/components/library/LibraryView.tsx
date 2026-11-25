@@ -29,6 +29,7 @@ const KIND_BADGE_CLASS: Record<LibraryItemKind, string> = {
   PREVIOUS_SEARCH: "border-sky-400/35 bg-sky-500/15 text-sky-300",
   REMIX_STUDIO: "border-primary/40 bg-primary/15 text-primary",
   REMIXED_AD_TEXT: "border-emerald-400/35 bg-emerald-500/15 text-emerald-300",
+  BRAND_CARD: "border-amber-400/35 bg-amber-500/15 text-amber-300",
 };
 
 const formatDateShort = (iso: string) =>
@@ -298,6 +299,7 @@ export function LibraryView() {
       PREVIOUS_SEARCH: scopedItems.filter((i) => i.kind === "PREVIOUS_SEARCH").length,
       REMIX_STUDIO: scopedItems.filter((i) => i.kind === "REMIX_STUDIO").length,
       REMIXED_AD_TEXT: scopedItems.filter((i) => i.kind === "REMIXED_AD_TEXT").length,
+      BRAND_CARD: scopedItems.filter((i) => i.kind === "BRAND_CARD").length,
     }),
     [scopedItems],
   );
@@ -340,10 +342,9 @@ export function LibraryView() {
             </span>
           </div>
           <p className="text-body text-on-surface-variant max-w-2xl">
-            Unlock saved <strong>Previous Searches</strong>, plus the <strong>Remix Studio</strong> blueprints and{" "}
-            <strong>Remixed Ad Text</strong> builds their creators have made public, for instant viewing and{" "}
-            <code>.txt</code> download. Your own remixes are listed here too: they stay private until you make
-            them public.
+            Unlock saved <strong>Previous Searches</strong>, community <strong>Brand Cards</strong> (added by default when created),{" "}
+            <strong>Remix Studio</strong> blueprints, and <strong>Remixed Ad Text</strong> builds for instant viewing and{" "}
+            <code>.txt</code> download. You can make any of your own items private anytime.
           </p>
         </div>
 
@@ -369,6 +370,7 @@ export function LibraryView() {
           {(
             [
               { id: "ALL", label: "All Items", count: counts.ALL },
+              { id: "BRAND_CARD", label: "Brand Cards", count: counts.BRAND_CARD },
               { id: "PREVIOUS_SEARCH", label: "Previous Searches", count: counts.PREVIOUS_SEARCH },
               { id: "REMIX_STUDIO", label: "Remix Studio", count: counts.REMIX_STUDIO },
               { id: "REMIXED_AD_TEXT", label: "Remixed Ad Text", count: counts.REMIXED_AD_TEXT },
@@ -810,6 +812,73 @@ export function LibraryView() {
                           </div>
                         </article>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeUnlocked.detail.kind === "BRAND_CARD" && (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-white/[0.08] bg-surface-container p-4 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <h3 className="text-title-sm font-semibold text-on-surface">
+                            {activeUnlocked.detail.brand.brandName}
+                          </h3>
+                          <p className="font-mono text-[11px] text-secondary">
+                            Tone: {activeUnlocked.detail.brand.toneOfVoice.replace(/_/g, " ")}
+                            {activeUnlocked.detail.brand.version ? ` · ${activeUnlocked.detail.brand.version}` : ""}
+                          </p>
+                        </div>
+                        <a
+                          href={activeUnlocked.detail.brand.destinationUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
+                        >
+                          <span>{activeUnlocked.detail.brand.destinationUrl}</span>
+                          <Icon name="externalLink" className="size-3" />
+                        </a>
+                      </div>
+                      <div>
+                        <p className="font-mono text-[10px] uppercase tracking-wider text-outline">Product or Service</p>
+                        <p className="mt-1 text-compact leading-relaxed text-on-surface-variant whitespace-pre-line">
+                          {activeUnlocked.detail.brand.productServiceDescription}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-mono text-[10px] uppercase tracking-wider text-outline">Target Audience Avatar</p>
+                        <p className="mt-1 text-compact leading-relaxed text-on-surface-variant whitespace-pre-line">
+                          {activeUnlocked.detail.brand.targetAudienceAvatar}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-mono text-[10px] uppercase tracking-wider text-outline">Core Pain Points</p>
+                        <ul className="mt-1 list-disc pl-5 text-compact text-on-surface-variant space-y-0.5">
+                          {activeUnlocked.detail.brand.corePainPoints.map((pt, idx) => (
+                            <li key={idx}>{pt}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-mono text-[10px] uppercase tracking-wider text-outline">Unique Mechanism or Offer</p>
+                        <p className="mt-1 text-compact leading-relaxed text-on-surface-variant whitespace-pre-line">
+                          {activeUnlocked.detail.brand.uniqueMechanismOrOffer}
+                        </p>
+                      </div>
+                      {activeUnlocked.detail.brand.landingPageUrls && activeUnlocked.detail.brand.landingPageUrls.length > 0 && (
+                        <div>
+                          <p className="font-mono text-[10px] uppercase tracking-wider text-outline">Landing Page URLs</p>
+                          <ul className="mt-1 space-y-1 font-mono text-xs text-primary">
+                            {activeUnlocked.detail.brand.landingPageUrls.map((u, idx) => (
+                              <li key={idx} className="truncate">
+                                <a href={u} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                                  {u}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

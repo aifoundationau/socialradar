@@ -25,7 +25,7 @@ const EMPTY: Omit<BrandProfile, "brandId"> = {
   toneOfVoice: "DIRECT_RESPONSE",
   destinationUrl: "https://",
   landingPageUrls: ["https://"],
-  isGlobal: false,
+  isGlobal: true,
   version: "",
 };
 
@@ -41,7 +41,7 @@ export function BrandForm({ brand, onDone, onCancel }: { brand?: BrandProfile; o
 
   const [values, setValues] = useState({
     ...initial,
-    isGlobal: initial.isGlobal ?? false,
+    isGlobal: initial.isGlobal ?? true,
     version: initial.version ?? "",
     corePainPoints: initial.corePainPoints.join("\n"),
   });
@@ -381,10 +381,10 @@ export function BrandForm({ brand, onDone, onCancel }: { brand?: BrandProfile; o
               <div className="min-w-0">
                 <span className="text-xs font-semibold text-on-surface flex items-center gap-1.5">
                   <Icon name="globe" className="size-3.5 text-primary" />
-                  Make this Brand Global (Community Discovery)
+                  Include in Library by Default (Global Brand Discovery)
                 </span>
                 <p className="text-[11px] text-on-surface-variant mt-0.5 leading-snug">
-                  Allows community users to discover and clone frameworks. Your brand stays private and editable in your account.
+                  Every brand created is placed in the Library by default so community users can discover and copy it. Uncheck to keep private to your account.
                 </p>
               </div>
             </label>
