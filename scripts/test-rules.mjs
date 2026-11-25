@@ -30,6 +30,7 @@ const agentOfA = { data: { uid: "userA", email: "a@example.com", bankOrPayIdDeta
 const agentOfDNoUid = { data: { email: "d@example.com", bankOrPayIdDetails: "PayID d@example.com" } };
 const contractorOfA = { data: { agentUid: "userA", agentEmail: "a@example.com", payIdPaymentDetails: "PayID 0400 000 000" } };
 const contractorOfDNoUid = { data: { agentEmail: "d@example.com", payIdPaymentDetails: "PayID 0400 000 001" } };
+const globalBrandOfA = { data: { authorUid: "userA" } };
 
 // get() of a users/{uid} record in this database, i.e. the roles Super Admin recorded for that user.
 const usersRecord = (uid, data) => ({
@@ -117,9 +118,12 @@ const cases = [
   ["signed in user: update ad agent contractor", "DENY", { auth: U, path: P("ad_agent_contractors/c1"), method: "update" }, { data: { name: "Contractor" } }],
   ["signed in user: delete ad agent contractor", "DENY", { auth: U, path: P("ad_agent_contractors/c1"), method: "delete" }],
   ["signed out: create ad agent contractor", "DENY", { path: P("ad_agent_contractors/c1"), method: "create" }, { data: { name: "Contractor" } }],
-  ["signed in user: get global brand", "ALLOW", { auth: U, path: P("global_brands/gb1"), method: "get" }],
-  ["other user: get global brand", "ALLOW", { auth: V, path: P("global_brands/gb1"), method: "get" }],
-  ["signed out: get global brand", "DENY", { path: P("global_brands/gb1"), method: "get" }],
+  ["author: get own global brand", "ALLOW", { auth: U, path: P("global_brands/gb1"), method: "get" }, globalBrandOfA],
+  ["other user: get unredacted global brand (must use /api/brands/global)", "DENY", { auth: V, path: P("global_brands/gb1"), method: "get" }, globalBrandOfA, supporter("userB")],
+  ["appointed main admin: get global brand", "ALLOW", { auth: Admin, path: P("global_brands/gb1"), method: "get" }, globalBrandOfA, appointedAdmin],
+  ["superadmin: get global brand", "ALLOW", { auth: SuperAdmin, path: P("global_brands/gb1"), method: "get" }, globalBrandOfA],
+  ["other app's role:admin claim: get global brand", "DENY", { auth: ForeignRoleAdmin, path: P("global_brands/gb1"), method: "get" }, globalBrandOfA, foreignUsers],
+  ["signed out: get global brand", "DENY", { path: P("global_brands/gb1"), method: "get" }, globalBrandOfA],
   ["signed in user: create global brand", "DENY", { auth: U, path: P("global_brands/gb1"), method: "create" }, { data: { name: "Nike" } }],
   ["signed in user: update global brand", "DENY", { auth: U, path: P("global_brands/gb1"), method: "update" }, { data: { name: "Nike" } }],
   ["signed in user: delete global brand", "DENY", { auth: U, path: P("global_brands/gb1"), method: "delete" }],

@@ -108,10 +108,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Global shared brands catalog: any signed-in user can read.
-    // Mutations are server-only via Firebase Admin SDK.
+    // Global shared brands catalog: unredacted documents contain full .txt attachments, offers and author
+    // emails, so direct client reads are restricted to the brand's author or an admin. Other users browse
+    // the redacted listing via GET /api/brands/global and unlock via token-gated clone/download routes.
     match /global_brands/{brandId} {
-      allow read: if signedIn();
+      allow read: if (signedIn() && resource.data.get('authorUid', '') == request.auth.uid) || isAdmin();
       allow write: if false;
     }
 
