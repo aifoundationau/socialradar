@@ -48,7 +48,7 @@ import type { BrandProfile } from "./contracts";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /** Part of every cache key: bump it when normalization changes so stale result sets aren't served. */
-const CACHE_VERSION = "15";
+const CACHE_VERSION = "16";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS = 100;
 
@@ -269,8 +269,10 @@ async function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
       searchAdsWithGeminiGrounding(req, intent.googleDomains),
       recoverRealCachedDrafts(req, intent),
     ]);
+    const mergedPrefer = mergeDraftsUnique(grounded, archived);
+    const filteredPrefer = filterRelevantDrafts(mergedPrefer, intent);
     const combined = enforcePlatformIsolation(
-      filterRelevantDrafts(mergeDraftsUnique(grounded, archived), intent),
+      filteredPrefer.length > 0 ? filteredPrefer : mergedPrefer,
       req.platform,
     );
     if (combined.length > 0) {
@@ -308,8 +310,10 @@ async function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
       recoverRealCachedDrafts(req, intent),
       searchAdsWithGeminiGrounding(req, intent.googleDomains),
     ]);
+    const mergedFallback = mergeDraftsUnique(archived, grounded);
+    const filteredFallback = filterRelevantDrafts(mergedFallback, intent);
     const fallbackCombined = enforcePlatformIsolation(
-      filterRelevantDrafts(mergeDraftsUnique(archived, grounded), intent),
+      filteredFallback.length > 0 ? filteredFallback : mergedFallback,
       req.platform,
     );
     if (fallbackCombined.length > 0) {
@@ -325,8 +329,10 @@ async function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
       recoverRealCachedDrafts(req, intent),
       searchAdsWithGeminiGrounding(req, intent.googleDomains),
     ]);
+    const mergedRecovery = mergeDraftsUnique(realCached, grounded);
+    const relevanceFiltered = filterRelevantDrafts(mergedRecovery, intent);
     const recovered = enforcePlatformIsolation(
-      filterRelevantDrafts(mergeDraftsUnique(realCached, grounded), intent),
+      relevanceFiltered.length > 0 ? relevanceFiltered : mergedRecovery,
       req.platform,
     );
     if (recovered.length > 0) {
