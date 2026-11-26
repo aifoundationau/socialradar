@@ -360,8 +360,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
   const [composeBody, setComposeBody] = useState("");
   const [composeSending, setComposeSending] = useState(false);
   const [composeCustomizeRequestId, setComposeCustomizeRequestId] = useState<string | undefined>(undefined);
-  const [aiStaffNotes, setAiStaffNotes] = useState("");
-  const [aiDrafting, setAiDrafting] = useState(false);
 
   const composeHasLinks = LINK_URL_PATTERN.test(composeSubject) || LINK_URL_PATTERN.test(composeBody);
 
@@ -2178,67 +2176,11 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
       setComposeSubject("");
       setComposeBody("");
       setComposeCustomizeRequestId(undefined);
-      setAiStaffNotes("");
       setStatusMsg(`Message delivered to ${data.message.recipientEmail} and recorded under 7-year statutory retention.`);
     } catch (err) {
       setErrorMsg(errorMessage(err));
     } finally {
       setComposeSending(false);
-    }
-  }
-
-  async function handleGenerateAiWorkReply(targetMsg?: AdminMessage) {
-    const msg = targetMsg || selectedMessage;
-    const resolvedMsgEmail = msg
-      ? msg.direction === "admin_to_user" && msg.recipientEmail
-        ? msg.recipientEmail
-        : msg.senderEmail
-      : "";
-    const targetEmail = (resolvedMsgEmail || composeRecipientEmail).trim();
-    if (!targetEmail) {
-      setErrorMsg("Select a customer message or enter a recipient email before running the AI reply designer.");
-      return;
-    }
-
-    setAiDrafting(true);
-    setErrorMsg(null);
-    setStatusMsg(null);
-    try {
-      const data = await apiFetch<{
-        success: boolean;
-        draft: { subject: string; body: string; isFallback?: boolean; fallbackReason?: string };
-      }>("/api/admin/messages/ai-draft", {
-        method: "POST",
-        body: {
-          messageId: msg?.messageId,
-          customizeRequestId: msg?.customizeRequestId || composeCustomizeRequestId,
-          customerEmail: targetEmail,
-          subject: msg?.subject || composeSubject,
-          customerBriefText: msg?.body || composeBody || composeSubject || "Customer customize request",
-          staffNotes: aiStaffNotes.trim() || undefined,
-        },
-      });
-
-      setComposeRecipientEmail(targetEmail);
-      setComposeSubject(data.draft.subject);
-      setComposeBody(data.draft.body);
-      if (msg?.customizeRequestId) {
-        setComposeCustomizeRequestId(msg.customizeRequestId);
-      }
-      setShowComposeMessage(true);
-      if (selectedMessage) {
-        setShowInlineReplyBox(true);
-      }
-      setStatusMsg(
-        data.draft.isFallback
-          ? data.draft.fallbackReason ||
-              "Template fallback draft loaded (live AI was unavailable) — please tailor before sending."
-          : "AI Customized Reply Work Message generated! Review or edit below, then click Send Message.",
-      );
-    } catch (err) {
-      setErrorMsg(errorMessage(err));
-    } finally {
-      setAiDrafting(false);
     }
   }
 
@@ -6417,38 +6359,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                           </div>
                         </div>
 
-                        <div className="rounded-xl border border-primary/35 bg-primary/10 p-3.5 space-y-2.5">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex items-center gap-2">
-                              <Icon name="sparkles" className="size-4 text-primary" />
-                              <span className="text-compact font-bold text-primary">
-                                Automated AI Work Reply Designer (Staff Assistant)
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              disabled={aiDrafting}
-                              onClick={() => handleGenerateAiWorkReply(selectedMessage || undefined)}
-                              data-testid="generate-ai-work-reply-btn"
-                              data-agent-id="generate-ai-work-reply-btn"
-                              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 font-mono text-xs font-semibold text-on-primary hover:bg-primary-fixed disabled:opacity-50 transition"
-                            >
-                              <Icon name="sparkles" className={`size-3.5 ${aiDrafting ? "animate-spin" : ""}`} />
-                              {aiDrafting ? "Designing AI Reply…" : "Generate AI Work Reply ✨"}
-                            </button>
-                          </div>
-                          <input
-                            type="text"
-                            maxLength={500}
-                            value={aiStaffNotes}
-                            onChange={(e) => setAiStaffNotes(e.target.value)}
-                            placeholder="Optional staff notes / strategic direction for AI to include in the customer reply..."
-                            data-testid="ai-staff-notes-input"
-                            data-agent-id="ai-staff-notes-input"
-                            className={`${field} bg-surface-container-lowest text-compact`}
-                          />
-                        </div>
-
                         <div>
                           <div className="flex items-center justify-between mb-1">
                             <label className={label}>Message Body (Plain Text Only)</label>
@@ -6878,17 +6788,6 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                     >
                                       <Icon name={copiedMessageId === `viewer-footer-${selectedMessage.messageId}` ? "checkCircle" : "copy"} className="size-3.5" />
                                       <span>{copiedMessageId === `viewer-footer-${selectedMessage.messageId}` ? "Copied ✓" : "Copy Text"}</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={aiDrafting}
-                                      onClick={() => handleGenerateAiWorkReply(selectedMessage)}
-                                      data-testid="viewer-generate-ai-work-reply-btn"
-                                      data-agent-id="viewer-generate-ai-work-reply-btn"
-                                      className="inline-flex items-center gap-1.5 rounded-xl border border-secondary/40 bg-secondary/15 px-3 py-2 font-mono text-xs font-bold text-secondary hover:bg-secondary/25 disabled:opacity-50 transition"
-                                    >
-                                      <Icon name="sparkles" className={`size-3.5 ${aiDrafting ? "animate-spin" : ""}`} />
-                                      {aiDrafting ? "Designing AI Reply…" : "Design AI Work Reply ✨"}
                                     </button>
                                     <button
                                       type="button"

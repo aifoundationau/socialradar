@@ -4,13 +4,16 @@ import { ApiError, errorResponse, readJson } from "@/lib/api";
 import {
   DEFAULT_SUPERADMIN_LOCATION,
   activateAdAgentInLedger,
+  claimSearchLeadForAdAgent,
   deleteAdAgent,
   formatAgentLocationLabel,
   getAdAgentDistributionLedger,
   getAdAgents,
   getAssignedCustomizeRequests,
+  getSearchLeadsForViewer,
   registerOrUpdateAdAgent,
   resetAdAgentRedistributionToZero,
+  sendSearchLeadOutreachToCustomer,
   superAdminUpsertAdAgent,
   toggleAdAgentStatus,
   updateAdAgentBankDetails,
@@ -18,7 +21,9 @@ import {
 } from "@/lib/ad-agents";
 import { getCustomizeRequestById, getSystemConfig, sendSuperadminMessage } from "@/lib/admin";
 import {
+  ClaimSearchLeadRequestSchema,
   RegisterAdAgentRequestSchema,
+  SendSearchLeadOutreachRequestSchema,
   SuperAdminActivateAdAgentRequestSchema,
   SuperAdminAddAdAgentRequestSchema,
   SuperAdminRemoveAdAgentFromActiveRequestSchema,
@@ -156,9 +161,14 @@ export async function GET(req: Request) {
 
     // Admins see every request and the whole ledger (one read of each collection). An Ad Agent only
     // needs their own requests and ledger row, fetched with indexed queries.
-    const assignedRequests = isAdmin
-      ? (await db.collection("customize_requests").get()).docs.map((d) => d.data() as CustomizeRequestDoc)
-      : await getAssignedCustomizeRequests({ email: viewer.email, uid: viewer.uid, agentId: ownProfile?.agentId });
+    const [assignedRequests, searchLeads] = await Promise.all([
+      isAdmin
+        ? db.collection("customize_requests").get().then((s) => s.docs.map((d) => d.data() as CustomizeRequestDoc))
+        : getAssignedCustomizeRequests({ email: viewer.email, uid: viewer.uid, agentId: ownProfile?.agentId }),
+      isAdmin || ownProfile || (await isApprovedAdAgent(caller))
+        ? getSearchLeadsForViewer({ ...viewer, agentId: ownProfile?.agentId })
+        : Promise.resolve([]),
+    ]);
     assignedRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const ledgerAgents = isAdmin ? agents : ownProfile ? [ownProfile] : [];
@@ -188,6 +198,7 @@ export async function GET(req: Request) {
       myAgentProfile,
       ...(await profilesFor(viewer, agents)),
       assignedRequests,
+      searchLeads,
       adAgentLedger: ledger,
       ledger,
       pricingMeta,
@@ -341,6 +352,79 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         message,
+      });
+    }
+
+    // 2b. First-to-Respond Search Lead Claim & Direct Customer Customization Outreach
+    if (action === "CLAIM_SEARCH_LEAD") {
+      if (!viewer.isSuper && !viewer.isMainAdmin && !(await isApprovedAdAgent(caller))) {
+        throw new ApiError("FORBIDDEN", "Only active Ad Agents can respond to search leads.", 403);
+      }
+      const parsed = ClaimSearchLeadRequestSchema.parse(body);
+      const agents = await getAdAgents();
+      const ownProfile = findOwnProfile(agents, viewer) ?? {
+        agentId: `agent_${caller.uid.slice(0, 16)}`,
+        uid: caller.uid,
+        name: viewer.email.split("@")[0] || "Ad Agent",
+        phone: "Not specified",
+        email: viewer.email,
+        location: DEFAULT_SUPERADMIN_LOCATION,
+        redistributionPercentage: 30,
+        status: "active" as const,
+        inActiveLedger: true,
+        isSuperAdminBuiltIn: viewer.isSuper,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const lead = await claimSearchLeadForAdAgent({
+        leadId: parsed.leadId,
+        agent: ownProfile,
+        callerUid: caller.uid,
+        callerEmail: viewer.email,
+        outreachMessage: parsed.outreachMessage,
+      });
+      const searchLeads = await getSearchLeadsForViewer({ ...viewer, agentId: ownProfile.agentId });
+      return NextResponse.json({
+        success: true,
+        lead,
+        searchLeads,
+      });
+    }
+
+    if (action === "SEND_SEARCH_LEAD_OUTREACH") {
+      if (!viewer.isSuper && !viewer.isMainAdmin && !(await isApprovedAdAgent(caller))) {
+        throw new ApiError("FORBIDDEN", "Only active Ad Agents can message claimed leads.", 403);
+      }
+      const parsed = SendSearchLeadOutreachRequestSchema.parse(body);
+      const agents = await getAdAgents();
+      const ownProfile = findOwnProfile(agents, viewer) ?? {
+        agentId: `agent_${caller.uid.slice(0, 16)}`,
+        uid: caller.uid,
+        name: viewer.email.split("@")[0] || "Ad Agent",
+        phone: "Not specified",
+        email: viewer.email,
+        location: DEFAULT_SUPERADMIN_LOCATION,
+        redistributionPercentage: 30,
+        status: "active" as const,
+        inActiveLedger: true,
+        isSuperAdminBuiltIn: viewer.isSuper,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const message = await sendSearchLeadOutreachToCustomer({
+        leadId: parsed.leadId,
+        agent: ownProfile,
+        callerUid: caller.uid,
+        callerEmail: viewer.email,
+        isSuper: viewer.isSuper,
+        subject: parsed.subject,
+        body: parsed.body,
+      });
+      const searchLeads = await getSearchLeadsForViewer({ ...viewer, agentId: ownProfile.agentId });
+      return NextResponse.json({
+        success: true,
+        message,
+        searchLeads,
       });
     }
 

@@ -61,14 +61,40 @@ function HighlightedText({ text, keywords }: { text: string; keywords: string[] 
   );
 }
 
+function isLikelyVideoAsset(url: string): boolean {
+  return /\.(?:mp4|webm|mov|m3u8)(?:$|\?)/i.test(url);
+}
+
 function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
   const [playing, setPlaying] = useState(false);
   const [videoErrored, setVideoErrored] = useState(false);
-  const [imgErrored, setImgErrored] = useState(false);
+  const [failedSrcCount, setFailedSrcCount] = useState<{ adId: string; idx: number }>({
+    adId: ad.adId,
+    idx: 0,
+  });
   const video = useRef<HTMLVideoElement>(null);
 
-  const isVideo = ad.mediaType === "VIDEO" && Boolean(ad.mediaUrls[0]);
-  const imageSrc = ad.thumbnailUrl || ad.mediaUrls[0] || "";
+  const primaryMediaUrl = ad.mediaUrls[0] || "";
+  const isVideo = ad.mediaType === "VIDEO" && isLikelyVideoAsset(primaryMediaUrl);
+  const candidateImages: string[] = [];
+  const pushImage = (url?: string | null) => {
+    const clean = (url || "").trim();
+    if (!clean || !/^https:\/\//i.test(clean) || isLikelyVideoAsset(clean)) return;
+    if (!candidateImages.includes(clean)) candidateImages.push(clean);
+  };
+
+  // Always prioritize the actual image captured from the social media ad first
+  pushImage(ad.thumbnailUrl);
+  for (const mediaUrl of ad.mediaUrls) {
+    pushImage(mediaUrl);
+  }
+  if (ad.landingPageUrl && ad.mediaType !== "TEXT") {
+    pushImage(`https://api.microlink.io/?url=${encodeURIComponent(ad.landingPageUrl)}&embed=image.url`);
+    pushImage(`https://s.wordpress.com/mshots/v1/${encodeURIComponent(ad.landingPageUrl)}?w=800&h=450`);
+  }
+
+  const candidateIndex = failedSrcCount.adId === ad.adId ? failedSrcCount.idx : 0;
+  const imageSrc = candidateImages[candidateIndex] || "";
   const isImage = ad.mediaType !== "TEXT" && Boolean(imageSrc);
   const isText = ad.mediaType === "TEXT";
   const topRank = rank <= 3;
@@ -99,7 +125,7 @@ function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
         <>
           <video
             ref={video}
-            src={ad.mediaUrls[0]}
+            src={primaryMediaUrl}
             poster={ad.thumbnailUrl || undefined}
             playsInline
             loop
@@ -122,7 +148,7 @@ function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
             </span>
           </button>
         </>
-      ) : isImage && !imgErrored ? (
+      ) : isImage ? (
         <>
           <Image
             src={imageSrc}
@@ -131,7 +157,12 @@ function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
             unoptimized
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="object-cover"
-            onError={() => setImgErrored(true)}
+            onError={() =>
+              setFailedSrcCount((prev) => ({
+                adId: ad.adId,
+                idx: (prev.adId === ad.adId ? prev.idx : 0) + 1,
+              }))
+            }
           />
           {ad.mediaType === "VIDEO" && (
             <span className="pointer-events-none absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white backdrop-blur-sm">
@@ -301,11 +332,12 @@ export function AdWinnerCard({
                 rel="noopener noreferrer nofollow"
                 data-agent-id={`ad-landing-link-${ad.adId}`}
                 data-testid={`ad-landing-link-${ad.adId}`}
-                aria-label={`Open landing page for ${ad.advertiserName || "advertiser"}`}
-                className="flex items-center gap-1 self-start font-mono text-[11px] text-on-surface-variant hover:text-primary"
+                aria-label={`View Target Link for ${ad.advertiserName || "advertiser"}`}
+                title={ad.landingPageUrl}
+                className="flex max-w-full items-center gap-1 self-start font-mono text-[11px] text-on-surface-variant hover:text-primary"
               >
-                <span className="truncate">{hostname(ad.landingPageUrl)}</span>
-                <Icon name="externalLink" className="size-3" />
+                <span className="truncate">{hostname(ad.landingPageUrl)} · View Target Link</span>
+                <Icon name="externalLink" className="size-3 shrink-0" />
               </a>
             )}
           </div>

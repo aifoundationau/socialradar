@@ -128,6 +128,7 @@ export const NormalizedAdSchema = z
     headline: z.string().max(500),
     ctaText: z.string().max(100),
     landingPageUrl: z.union([z.literal(""), httpsUrl]),
+    socialPostUrl: z.union([z.literal(""), httpsUrl]).optional(),
     countryCode: z.string().regex(/^[A-Z]{2}$/),
     firstSeenDate: isoDate,
     lastSeenDate: isoDate,
@@ -272,6 +273,7 @@ export const RemixedAdTextDraftSchema = z
   .object({
     headline: z.string().min(2).max(160),
     adText: z.string().min(5).max(2000),
+    hashtags: z.array(z.string().min(1).max(60)).max(12).optional(),
     cta: z.string().min(2).max(80),
   })
   .strict();
@@ -296,10 +298,16 @@ export const RemixedAdTextItemSchema = z
     platform: RemixedAdTextPlatformSchema,
     platformLabel: safeText(2, 40),
     headline: safeText(2, 160),
-    adText: safeText(5, 2000).refine(
-      (val) => countAdWords(val) <= 150,
-      "Ad text description must not exceed 150 words",
-    ),
+    adText: safeText(5, 2000)
+      .refine((val) => countAdWords(val) <= 150, "Ad text description must not exceed 150 words")
+      .refine(
+        (val) => !/(?:^|\s)#[A-Za-z0-9_]{2,}/.test(val),
+        "Ad text description must not contain hashtags",
+      ),
+    hashtags: z
+      .array(z.string().regex(/^#[A-Za-z0-9_]{2,48}$/))
+      .max(12)
+      .default([]),
     cta: safeText(2, 80),
     wordCount: tokenInt.min(1).max(150),
   })
@@ -797,6 +805,16 @@ export type AdminResetRedistributiveLedgerRequest = z.infer<typeof AdminResetRed
  */
 export const LINK_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|\bwww\.[a-z0-9-]+\.[a-z]{2,}|\bdata:[a-z]+\/[a-z0-9.+-]+|\[[^\]]+\]\(\s*(?:https?:\/\/|ftp:\/\/|www\.)[^)]+\))/i;
 
+export const AdminMessageRequestTypeSchema = z.enum([
+  "general",
+  "customize_request",
+  "customize_reply",
+  "search_lead_alert",
+  "search_lead_claim",
+  "search_lead_outreach",
+]);
+export type AdminMessageRequestType = z.infer<typeof AdminMessageRequestTypeSchema>;
+
 export const AdminMessageSchema = z
   .object({
     messageId: z.string().min(1).max(128),
@@ -808,8 +826,9 @@ export const AdminMessageSchema = z
     subject: z.string().trim().min(1).max(150),
     body: z.string().trim().min(1).max(10000), // strictly plain text only, no attachments, no upload links
     status: z.enum(["unread", "read", "archived"]).default("unread"),
-    requestType: z.enum(["general", "customize_request", "customize_reply"]).optional(),
+    requestType: AdminMessageRequestTypeSchema.optional(),
     customizeRequestId: z.string().max(128).optional(),
+    searchLeadId: z.string().max(128).optional(),
     createdAt: isoDate,
     retentionUntil: isoDate, // strictly 7 years from createdAt for statutory compliance
   })
@@ -841,8 +860,9 @@ export type CreateAdminMessageRequest = z.infer<typeof CreateAdminMessageRequest
 export const SendAdminMessageRequestSchema = z
   .object({
     recipientEmail: z.string().trim().toLowerCase().email("Valid recipient email is required").max(254),
-    requestType: z.enum(["general", "customize_request", "customize_reply"]).optional(),
+    requestType: AdminMessageRequestTypeSchema.optional(),
     customizeRequestId: z.string().max(128).optional(),
+    searchLeadId: z.string().max(128).optional(),
     subject: z
       .string()
       .trim()
@@ -1272,6 +1292,59 @@ export const AdAgentMoaDocumentSchema = z
   })
   .strict();
 export type AdAgentMoaDocument = z.infer<typeof AdAgentMoaDocumentSchema>;
+
+export const AdAgentSearchLeadDocSchema = z
+  .object({
+    leadId: z.string().min(1).max(128),
+    txId: z.string().min(1).max(160),
+    customerUid: z.string().max(128),
+    customerEmail: z.string().trim().toLowerCase().email().max(254),
+    customerMask: z.string().min(1).max(160),
+    customerRole: z.string().max(40).default("supporter"),
+    customerCountry: z.string().max(12).default("AU"),
+    platform: PlatformSchema,
+    query: safeText(1, 100),
+    searchCountry: z.string().min(2).max(8),
+    mediaType: z.enum(["ALL", "VIDEO", "IMAGE"]).default("ALL"),
+    provenWinnersOnly: z.boolean().default(true),
+    extendedLongevity: z.boolean().default(false),
+    eliteWinnersOnly: z.boolean().default(false),
+    resultsCount: tokenInt.min(0),
+    tokensCharged: tokenInt.min(0),
+    brandId: z.string().max(128).default(""),
+    brandName: z.string().max(100).default(""),
+    brandSummary: z.string().max(1500).default(""),
+    status: z.enum(["open", "claimed"]).default("open"),
+    notifiedAgentEmails: z.array(z.string().max(254)).max(200).default([]),
+    claimedByAgentId: z.string().max(128).optional(),
+    claimedByAgentUid: z.string().max(128).optional(),
+    claimedByAgentName: z.string().max(120).optional(),
+    claimedByAgentEmail: z.string().max(254).optional(),
+    claimedByAgentPhone: z.string().max(60).optional(),
+    claimedAt: isoDate.optional(),
+    initialOutreachMessageId: z.string().max(128).optional(),
+    createdAt: isoDate,
+    updatedAt: isoDate,
+  })
+  .strict();
+export type AdAgentSearchLeadDoc = z.infer<typeof AdAgentSearchLeadDocSchema>;
+
+export const ClaimSearchLeadRequestSchema = z
+  .object({
+    action: z.literal("CLAIM_SEARCH_LEAD"),
+    leadId: z.string().trim().min(1).max(128),
+    outreachMessage: safeText(0, 2000).optional(),
+  })
+  .strict();
+
+export const SendSearchLeadOutreachRequestSchema = z
+  .object({
+    action: z.literal("SEND_SEARCH_LEAD_OUTREACH"),
+    leadId: z.string().trim().min(1).max(128),
+    subject: safeText(1, 150),
+    body: safeText(1, 8000),
+  })
+  .strict();
 
 // ---------- 11. Professional Customize Service & Staff AI Reply ----------
 export const CustomizeRequestInputSchema = z

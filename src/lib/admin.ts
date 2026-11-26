@@ -744,8 +744,15 @@ export async function createAdminMessage(params: {
   senderEmail: string;
   subject: string;
   body: string;
-  requestType?: "general" | "customize_request" | "customize_reply";
+  requestType?:
+    | "general"
+    | "customize_request"
+    | "customize_reply"
+    | "search_lead_alert"
+    | "search_lead_claim"
+    | "search_lead_outreach";
   customizeRequestId?: string;
+  searchLeadId?: string;
 }): Promise<AdminMessage> {
   const cleanSubject = params.subject.trim().slice(0, 150);
   const cleanBody = params.body.trim().slice(0, 10000);
@@ -770,6 +777,7 @@ export async function createAdminMessage(params: {
     status: "unread",
     ...(params.requestType ? { requestType: params.requestType } : {}),
     ...(params.customizeRequestId ? { customizeRequestId: params.customizeRequestId } : {}),
+    ...(params.searchLeadId ? { searchLeadId: params.searchLeadId } : {}),
     createdAt: now.toISOString(),
     retentionUntil: retentionDate.toISOString(),
   };
@@ -798,8 +806,15 @@ export async function sendSuperadminMessage(params: {
   recipientEmail: string;
   subject: string;
   body: string;
-  requestType?: "general" | "customize_request" | "customize_reply";
+  requestType?:
+    | "general"
+    | "customize_request"
+    | "customize_reply"
+    | "search_lead_alert"
+    | "search_lead_claim"
+    | "search_lead_outreach";
   customizeRequestId?: string;
+  searchLeadId?: string;
 }): Promise<AdminMessage> {
   const cleanEmail = params.recipientEmail.toLowerCase().trim();
   const cleanSubject = params.subject.trim().slice(0, 150);
@@ -843,6 +858,7 @@ export async function sendSuperadminMessage(params: {
     status: "unread",
     ...(params.requestType ? { requestType: params.requestType } : {}),
     ...(params.customizeRequestId ? { customizeRequestId: params.customizeRequestId } : {}),
+    ...(params.searchLeadId ? { searchLeadId: params.searchLeadId } : {}),
     createdAt: now.toISOString(),
     retentionUntil: retentionDate.toISOString(),
   };

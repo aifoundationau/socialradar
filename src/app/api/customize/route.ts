@@ -23,12 +23,16 @@ export async function GET(req: Request) {
       getAdAgents(),
     ]);
 
-    // Customizations are never free and are excluded from Timed Free Access Windows.
-    const costTokens = Math.max(1, Math.round(config.serviceCosts?.customizeService ?? 55));
-    const customizeAiFeeTokens = Math.max(
-      0,
-      Math.round(config.serviceCosts?.customizeAiAssistant ?? 1),
-    );
+    // SuperAdmin Free Rule: SuperAdmin never pays for Customize or AI Assistant.
+    // For all other users, Customizations are excluded from Timed Free Access Windows.
+    const costTokens = caller.claims.isSuperAdmin
+      ? 0
+      : Math.max(1, Math.round(config.serviceCosts?.customizeService ?? 55));
+    const customizeAiFeeTokens = caller.claims.isSuperAdmin
+      ? 0
+      : config.isTokenSystemEnabled === false
+        ? 0
+        : Math.max(0, Math.round(config.serviceCosts?.customizeAiAssistant ?? 1));
 
     const activeAgents = agents
       .filter((a) => a.status === "active")
@@ -64,8 +68,6 @@ export async function POST(req: Request) {
     const body = await readJson(req);
     const input = CustomizeRequestInputSchema.parse(body);
     const config = await getSystemConfig();
-    // Customizations are never free and are excluded from Timed Free Access Windows.
-    const costTokens = Math.max(1, Math.round(config.serviceCosts?.customizeService ?? 55));
 
     return await withTokenGate(
       req,
@@ -90,7 +92,7 @@ export async function POST(req: Request) {
         const result = await submitCustomizeRequest({
           uid: caller.uid,
           userEmail: caller.email,
-          // What the token gate actually charged (always >= 1 token; Customizations are never free).
+          // What the token gate actually charged (0 for SuperAdmin, >= 1 for other users).
           tokensCharged: cost,
           input,
           requestId,
@@ -111,7 +113,10 @@ export async function POST(req: Request) {
           balanceAfter,
         });
       },
-      costTokens
+      (caller) =>
+        caller.claims.isSuperAdmin
+          ? 0
+          : Math.max(1, Math.round(config.serviceCosts?.customizeService ?? 55))
     );
   } catch (err) {
     return errorResponse(err);

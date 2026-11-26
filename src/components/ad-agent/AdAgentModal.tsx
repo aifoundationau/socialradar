@@ -21,6 +21,7 @@ import type {
   AdAgentContractor,
   AdAgentLocation,
   AdAgentProfile,
+  AdAgentSearchLeadDoc,
   AiCustomizeReplyDraftResponse,
   CustomizeRequestDoc,
 } from "@/lib/contracts";
@@ -62,6 +63,7 @@ export type AdAgentSectionKey =
   | "reg_personal_info"
   | "reg_geolocation"
   | "reg_bank_payouts"
+  | "orders_search_leads"
   | "orders_guide"
   | "orders_list"
   | "contractors_guide"
@@ -126,6 +128,12 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
   const [myAgentProfile, setMyAgentProfile] = useState<AdAgentProfile | null>(null);
   const [allAgentProfiles, setAllAgentProfiles] = useState<AdAgentProfile[]>([]);
   const [assignedRequests, setAssignedRequests] = useState<CustomizeRequestDoc[]>([]);
+  const [searchLeads, setSearchLeads] = useState<AdAgentSearchLeadDoc[]>([]);
+  const [claimingLeadId, setClaimingLeadId] = useState<string | null>(null);
+  const [activeOutreachLeadId, setActiveOutreachLeadId] = useState<string | null>(null);
+  const [outreachSubject, setOutreachSubject] = useState("");
+  const [outreachBody, setOutreachBody] = useState("");
+  const [sendingOutreach, setSendingOutreach] = useState(false);
 
   // Registration Form State (unique personal details per Ad Agent email)
   const [agentEmail, setAgentEmail] = useState("");
@@ -544,6 +552,7 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
         myAgentProfile: AdAgentProfile | null;
         allAgentProfiles?: AdAgentProfile[];
         assignedRequests: CustomizeRequestDoc[];
+        searchLeads?: AdAgentSearchLeadDoc[];
       }>(`/api/ad-agent${query}`, { method: "GET" });
 
       const profiles = Array.isArray(data.allAgentProfiles)
@@ -556,6 +565,9 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
 
       if (Array.isArray(data.assignedRequests)) {
         setAssignedRequests(data.assignedRequests);
+      }
+      if (Array.isArray(data.searchLeads)) {
+        setSearchLeads(data.searchLeads);
       }
     } catch (err) {
       setErrorMsg(errorMessage(err));
@@ -829,6 +841,78 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
       setErrorMsg(errorMessage(err));
     } finally {
       setSendingReply(false);
+    }
+  }
+
+  async function handleClaimSearchLead(lead: AdAgentSearchLeadDoc) {
+    setClaimingLeadId(lead.leadId);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const res = await apiFetch<{
+        success: boolean;
+        lead: AdAgentSearchLeadDoc;
+        searchLeads?: AdAgentSearchLeadDoc[];
+      }>("/api/ad-agent", {
+        method: "POST",
+        body: {
+          action: "CLAIM_SEARCH_LEAD",
+          leadId: lead.leadId,
+        },
+      });
+      if (Array.isArray(res.searchLeads)) {
+        setSearchLeads(res.searchLeads);
+      } else if (res.lead) {
+        setSearchLeads((prev) => prev.map((x) => (x.leadId === res.lead.leadId ? res.lead : x)));
+      }
+      setActiveOutreachLeadId(res.lead.leadId);
+      setOutreachSubject(`Customization & Ad Strategy for your "${res.lead.query}" search`);
+      setOutreachBody(
+        `Hi there,\n\nI saw you just researched ${res.lead.platform} ads for "${res.lead.query}" (${res.lead.searchCountry}). I can customize a creative strategy, tailored ad variations, or production assets specifically for ${res.lead.brandName || "your brand"}.\n\nReply here and tell me what goals you're targeting!`,
+      );
+      setStatusMsg(
+        `You responded first! Customer details unlocked for ${res.lead.customerEmail}. Send them a customization message below.`,
+      );
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+      await loadAgentData();
+    } finally {
+      setClaimingLeadId(null);
+    }
+  }
+
+  async function handleSendLeadOutreach(lead: AdAgentSearchLeadDoc) {
+    if (!outreachSubject.trim() || !outreachBody.trim()) {
+      setErrorMsg("Enter a subject and message before contacting the customer.");
+      return;
+    }
+    setSendingOutreach(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const res = await apiFetch<{
+        success: boolean;
+        searchLeads?: AdAgentSearchLeadDoc[];
+      }>("/api/ad-agent", {
+        method: "POST",
+        body: {
+          action: "SEND_SEARCH_LEAD_OUTREACH",
+          leadId: lead.leadId,
+          subject: outreachSubject.trim(),
+          body: outreachBody.trim(),
+        },
+      });
+      if (Array.isArray(res.searchLeads)) {
+        setSearchLeads(res.searchLeads);
+      }
+      setActiveOutreachLeadId(null);
+      setOutreachSubject("");
+      setOutreachBody("");
+      setStatusMsg(`Sent customization message to ${lead.customerEmail}!`);
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setSendingOutreach(false);
     }
   }
 
@@ -1644,8 +1728,12 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                   <button
                     type="button"
                     onClick={() => {
-                      const allOpen = isSectionExpanded("orders_guide") && isSectionExpanded("orders_list");
+                      const allOpen =
+                        isSectionExpanded("orders_search_leads") &&
+                        isSectionExpanded("orders_guide") &&
+                        isSectionExpanded("orders_list");
                       const next = !allOpen;
+                      setSectionExpanded("orders_search_leads", next);
                       setSectionExpanded("orders_guide", next);
                       setSectionExpanded("orders_list", next);
                     }}
@@ -1657,11 +1745,17 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                     <Icon
                       name="chevronDown"
                       className={`size-3.5 transition-transform ${
-                        isSectionExpanded("orders_guide") && isSectionExpanded("orders_list") ? "rotate-180" : ""
+                        isSectionExpanded("orders_search_leads") &&
+                        isSectionExpanded("orders_guide") &&
+                        isSectionExpanded("orders_list")
+                          ? "rotate-180"
+                          : ""
                       }`}
                     />
                     <span>
-                      {isSectionExpanded("orders_guide") && isSectionExpanded("orders_list")
+                      {isSectionExpanded("orders_search_leads") &&
+                      isSectionExpanded("orders_guide") &&
+                      isSectionExpanded("orders_list")
                         ? "Collapse All"
                         : "Expand All"}
                     </span>
@@ -1677,6 +1771,203 @@ export function AdAgentModal({ isOpen, onClose, initialTab = "REGISTRATION" }: A
                     <span>Refresh</span>
                   </button>
                 </div>
+              </div>
+
+              {/* Section 0: Completed Customer Search Leads (First to Respond Claims Customer Details) */}
+              <div className={`${card} border border-secondary/35 bg-surface-container-high/60 overflow-hidden`}>
+                <div className="p-3.5 sm:p-4">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionExpanded("orders_search_leads")}
+                    aria-expanded={isSectionExpanded("orders_search_leads")}
+                    data-agent-id="toggle-section-orders_search_leads"
+                    data-testid="toggle-section-orders_search_leads"
+                    className="w-full flex items-center justify-between text-left gap-2"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-secondary/20 text-secondary">
+                        <Icon name="search" className="size-4" />
+                      </span>
+                      <div>
+                        <h4 className="font-mono text-sm font-bold text-on-surface">
+                          Customer Search Leads (First to Respond)
+                        </h4>
+                        <p className="text-[11px] text-on-surface-variant font-mono">
+                          Australia &amp; global searches notify Ad Agents — first to respond unlocks customer details to discuss customizations
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold border bg-secondary/15 border-secondary/35 text-secondary">
+                        {searchLeads.length} {searchLeads.length === 1 ? "Lead" : "Leads"} ·{" "}
+                        {searchLeads.filter((l) => l.status === "open").length} Open
+                      </span>
+                      <Icon
+                        name="chevronDown"
+                        className={`size-4 text-on-surface-variant transition-transform duration-200 ${
+                          isSectionExpanded("orders_search_leads") ? "rotate-180" : ""
+                        }`}
+                      />
+                    </div>
+                  </button>
+                </div>
+                {isSectionExpanded("orders_search_leads") && (
+                  <div className="border-t border-white/10 p-4 sm:p-5 space-y-3 bg-surface-container-low/50">
+                    {searchLeads.length === 0 ? (
+                      <div className="p-6 text-center text-on-surface-variant text-xs font-mono">
+                        No completed search leads recorded yet. When customers run Radar searches (e.g. Australia `AU`), alerts appear here automatically.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {searchLeads.map((lead) => {
+                          const viewerEmail = (agentEmail || registeredEmail).trim().toLowerCase();
+                          const claimedByViewer =
+                            lead.status === "claimed" &&
+                            (isSuper ||
+                              (lead.claimedByAgentEmail &&
+                                lead.claimedByAgentEmail.toLowerCase() === viewerEmail) ||
+                              (myAgentProfile && lead.claimedByAgentId === myAgentProfile.agentId));
+                          const isComposingOutreach = activeOutreachLeadId === lead.leadId;
+
+                          return (
+                            <div
+                              key={lead.leadId}
+                              data-testid={`ad-agent-search-lead-${lead.leadId}`}
+                              data-agent-id={`ad-agent-search-lead-${lead.leadId}`}
+                              className="rounded-xl border border-white/10 bg-surface-container p-4 space-y-2.5"
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="rounded bg-primary/20 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
+                                      {lead.platform}
+                                    </span>
+                                    <span className="font-semibold text-sm text-on-surface">
+                                      &ldquo;{lead.query}&rdquo;
+                                    </span>
+                                    <span className="rounded bg-white/10 px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
+                                      Market: {lead.searchCountry} · Customer: {lead.customerCountry}
+                                    </span>
+                                    <span
+                                      className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
+                                        lead.status === "open"
+                                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/35"
+                                          : claimedByViewer
+                                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/35"
+                                            : "bg-white/10 text-on-surface-variant"
+                                      }`}
+                                    >
+                                      {lead.status === "open"
+                                        ? "OPEN — FIRST TO RESPOND"
+                                        : claimedByViewer
+                                          ? "CLAIMED BY YOU ✓"
+                                          : `CLAIMED BY ${lead.claimedByAgentName || "ANOTHER AGENT"}`}
+                                    </span>
+                                  </div>
+                                  <p className="font-mono text-xs text-on-surface-variant">
+                                    Results: <strong className="text-on-surface">{lead.resultsCount}</strong> · Customer Preview:{" "}
+                                    <strong className="text-secondary">{lead.customerMask}</strong>
+                                    {lead.brandName ? ` · Brand: ${lead.brandName}` : ""}
+                                  </p>
+                                </div>
+
+                                {lead.status === "open" && (
+                                  <button
+                                    type="button"
+                                    disabled={claimingLeadId === lead.leadId}
+                                    onClick={() => void handleClaimSearchLead(lead)}
+                                    data-testid={`claim-search-lead-btn-${lead.leadId}`}
+                                    data-agent-id={`claim-search-lead-btn-${lead.leadId}`}
+                                    className={`${btnPrimary} text-xs py-1.5 px-3 shrink-0`}
+                                  >
+                                    <Icon name="sparkles" className="size-3.5" />
+                                    <span>
+                                      {claimingLeadId === lead.leadId
+                                        ? "Claiming..."
+                                        : "Respond First & Claim Customer Details"}
+                                    </span>
+                                  </button>
+                                )}
+                              </div>
+
+                              {(claimedByViewer || isSuper) && (
+                                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-2 text-xs">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="space-y-0.5 font-mono">
+                                      <p className="font-bold text-emerald-300">
+                                        Unlocked Customer Contact Details:
+                                      </p>
+                                      <p className="text-on-surface">
+                                        Email: <strong>{lead.customerEmail}</strong> · Role: {lead.customerRole} · Country:{" "}
+                                        {lead.customerCountry}
+                                      </p>
+                                      {lead.brandSummary && (
+                                        <p className="text-on-surface-variant text-[11px]">{lead.brandSummary}</p>
+                                      )}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (isComposingOutreach) {
+                                          setActiveOutreachLeadId(null);
+                                        } else {
+                                          setActiveOutreachLeadId(lead.leadId);
+                                          setOutreachSubject(
+                                            `Customizations & Ad Strategy Help for "${lead.query}"`,
+                                          );
+                                          setOutreachBody(
+                                            `Hi there,\n\nI saw your ${lead.platform} search for "${lead.query}" (${lead.searchCountry}). I can help customize winning ad variations and campaign strategy for ${lead.brandName || "your business"}. Would you like to discuss custom options?`,
+                                          );
+                                        }
+                                      }}
+                                      data-testid={`toggle-lead-outreach-btn-${lead.leadId}`}
+                                      data-agent-id={`toggle-lead-outreach-btn-${lead.leadId}`}
+                                      className={`${btnSecondary} text-xs py-1 px-2.5 shrink-0`}
+                                    >
+                                      {isComposingOutreach ? "Close Message" : "Talk About Customizations"}
+                                    </button>
+                                  </div>
+
+                                  {isComposingOutreach && (
+                                    <div className="border-t border-emerald-500/20 pt-2.5 space-y-2">
+                                      <input
+                                        type="text"
+                                        value={outreachSubject}
+                                        onChange={(e) => setOutreachSubject(e.target.value)}
+                                        placeholder="Subject"
+                                        className={`${field} py-1.5 text-xs`}
+                                      />
+                                      <textarea
+                                        rows={4}
+                                        value={outreachBody}
+                                        onChange={(e) => setOutreachBody(e.target.value)}
+                                        data-testid={`lead-outreach-body-${lead.leadId}`}
+                                        data-agent-id={`lead-outreach-body-${lead.leadId}`}
+                                        className={`${field} text-xs`}
+                                      />
+                                      <div className="flex justify-end gap-2">
+                                        <button
+                                          type="button"
+                                          disabled={sendingOutreach}
+                                          onClick={() => void handleSendLeadOutreach(lead)}
+                                          data-testid={`send-lead-outreach-btn-${lead.leadId}`}
+                                          data-agent-id={`send-lead-outreach-btn-${lead.leadId}`}
+                                          className={`${btnPrimary} text-xs py-1.5 px-3`}
+                                        >
+                                          {sendingOutreach ? "Sending..." : `Message ${lead.customerEmail}`}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Section 1: Orders Dispatch Guide */}

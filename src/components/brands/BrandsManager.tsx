@@ -162,7 +162,7 @@ type SlideOverState =
 type BrandsTab = "personal" | "global";
 
 export function BrandsManager() {
-  const { brands, profile, isAdmin, role } = useSession();
+  const { brands, profile, isSuperAdmin, role } = useSession();
   const [activeTab, setActiveTab] = useState<BrandsTab>("personal");
   const [slideOver, setSlideOver] = useState<SlideOverState>({ isOpen: false });
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -195,7 +195,7 @@ export function BrandsManager() {
     { isTokenSystemEnabled, freeAccessWindow },
     nowMs,
     profile,
-    isAdmin,
+    isSuperAdmin,
     userCountry
   );
   const resolvedRoleCosts = resolveServiceCostsForRole(
@@ -306,9 +306,9 @@ export function BrandsManager() {
   }
 
   async function handleCloneGlobalBrand(globalBrand: BrandProfile) {
-    const isSuperAdmin = Boolean(isAdmin);
+    const superFree = Boolean(isSuperAdmin);
     const balance = profile?.tokenBalance ?? 0;
-    if (!isSuperAdmin && cloneFee > 0 && balance < cloneFee) {
+    if (!superFree && cloneFee > 0 && balance < cloneFee) {
       setError(
         `Insufficient tokens: copying a global brand card requires ${cloneFee} tokens (your balance: ${balance} tokens). Please top up in your Wallet.`
       );
@@ -325,7 +325,7 @@ export function BrandsManager() {
       });
       setSuccessMsg(
         `Successfully copied "${globalBrand.brandName}" into your personal brands${
-          cloneFee > 0 && !isSuperAdmin ? ` (-${cloneFee} tokens)` : ""
+          cloneFee > 0 && !superFree ? ` (-${cloneFee} tokens)` : ""
         }!`
       );
       setActiveTab("personal");
@@ -337,9 +337,9 @@ export function BrandsManager() {
   }
 
   async function handleDownloadBrandTxt(targetBrand: BrandProfile, isGlobalSource = false) {
-    const isSuperAdmin = Boolean(isAdmin);
+    const superFree = Boolean(isSuperAdmin);
     const balance = profile?.tokenBalance ?? 0;
-    if (!isSuperAdmin && txtDownloadFee > 0 && balance < txtDownloadFee) {
+    if (!superFree && txtDownloadFee > 0 && balance < txtDownloadFee) {
       setError(
         `Insufficient tokens: downloading the brand .txt file requires ${txtDownloadFee} ${
           txtDownloadFee === 1 ? "token" : "tokens"
@@ -382,7 +382,7 @@ export function BrandsManager() {
       setUnlockedTxtIds((prev) => ({ ...prev, [targetBrand.brandId]: true }));
       setSuccessMsg(
         `Downloaded "${res.fileName}"${
-          txtDownloadFee > 0 && !isSuperAdmin ? ` (-${txtDownloadFee} ${txtDownloadFee === 1 ? "token" : "tokens"})` : ""
+          txtDownloadFee > 0 && !superFree ? ` (-${txtDownloadFee} ${txtDownloadFee === 1 ? "token" : "tokens"})` : ""
         }!`
       );
     } catch (err) {
@@ -807,7 +807,7 @@ export function BrandsManager() {
                       audRate={audRate}
                       isGlobalSource={false}
                       isDownloading={downloadingTxtId === b.brandId}
-                      isUnlocked={Boolean(isAdmin) || Boolean(unlockedTxtIds[b.brandId])}
+                      isUnlocked={Boolean(isSuperAdmin) || Boolean(unlockedTxtIds[b.brandId])}
                       onDownload={handleDownloadBrandTxt}
                     />
 
@@ -1098,7 +1098,7 @@ export function BrandsManager() {
                       audRate={audRate}
                       isGlobalSource={true}
                       isDownloading={downloadingTxtId === gb.brandId}
-                      isUnlocked={Boolean(isAdmin) || Boolean(unlockedTxtIds[gb.brandId])}
+                      isUnlocked={Boolean(isSuperAdmin) || Boolean(unlockedTxtIds[gb.brandId])}
                       onDownload={handleDownloadBrandTxt}
                     />
 

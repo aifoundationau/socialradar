@@ -97,6 +97,7 @@ export function isFreeAccessWindowActive(
 
 /**
  * Returns true if paid token charging is active for the given user.
+ * - SuperAdmin Free Rule: SuperAdmin never pays for use — everything is free (`0` tokens) for SuperAdmin.
  * - If `isTokenSystemEnabled === false`, charging is disabled for all users.
  * - If a Timed Free Access Window (15m/30m/60m/1440m) is active, charging is disabled for ALL Subscribers
  *   whose country is included in `freeAccessWindow.allowedCountries`.
@@ -108,11 +109,11 @@ export function isChargingEnabled(
   } | null,
   nowMs?: number,
   _user?: Partial<Pick<UserDoc, "subscriptionStatus" | "subscriptionPackId">> | null,
-  _isSuperAdmin = false,
+  isSuperAdmin = false,
   userCountry?: string | null
 ): boolean {
   void _user;
-  void _isSuperAdmin;
+  if (isSuperAdmin) return false;
   if (!config) return true;
   if (config.isTokenSystemEnabled === false) return false;
   if (

@@ -12,6 +12,7 @@ import {
   type RemixDoc,
 } from "@/lib/contracts";
 import { assertRemixConfigured, generateRemixedAdTexts } from "@/lib/gemini";
+import { parseNormalizedRemixedAdTextDoc } from "@/lib/library";
 import { enrichGoogleAd, needsGoogleDetails } from "@/lib/radar";
 import { withTokenGate } from "@/lib/token-ledger";
 import { getSystemConfig } from "@/lib/admin";
@@ -48,8 +49,12 @@ export async function POST(req: Request) {
         if (!snap.exists) {
           throw new ApiError("INVALID_INPUT", "That ad text build didn't finish. Please try again.", 409);
         }
+        const normalized = parseNormalizedRemixedAdTextDoc(snap.data());
+        if (!normalized.success) {
+          throw new ApiError("INVALID_INPUT", "That ad text build could not be read. Please generate again.", 409);
+        }
         return NextResponse.json({
-          remixedAdText: RemixedAdTextDocSchema.parse(snap.data()),
+          remixedAdText: normalized.data,
           balanceAfter,
         } satisfies BuildRemixedAdTextResponse);
       }

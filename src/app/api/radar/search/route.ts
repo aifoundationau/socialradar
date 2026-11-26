@@ -11,6 +11,8 @@ import {
   resolveServiceCostsForRole,
 } from "@/lib/pricing";
 import { getSystemConfig } from "@/lib/admin";
+import { dispatchCompletedSearchLeadToAdAgents } from "@/lib/ad-agents";
+import { resolveRequestCountry } from "@/lib/request-geo";
 
 /**
  * Searches one ad library using SuperAdmin-configurable token costs. Body: RadarSearchRequest.
@@ -50,7 +52,7 @@ export async function POST(req: Request) {
     req,
     "RADAR_SEARCH",
     searchLabel,
-    async ({ caller, replayed, balanceAfter }) => {
+    async ({ caller, txId, cost, replayed, balanceAfter }) => {
       let brand = null;
       if (caller && input.brandId) {
         brand = await getBrand(caller.uid, input.brandId);
@@ -58,6 +60,26 @@ export async function POST(req: Request) {
       const result = replayed
         ? await replayRadarSearch(input, queryHash)
         : await runRadarSearch(input, queryHash, brand);
+
+      if (!replayed) {
+        try {
+          const detectedCountry = await resolveRequestCountry(req).catch(() => "");
+          await dispatchCompletedSearchLeadToAdAgents({
+            txId,
+            customerUid: caller.uid,
+            customerEmail: caller.email,
+            customerRole: caller.claims.role,
+            customerCountry: detectedCountry || input.country,
+            search: input,
+            resultsCount: result.ads.length,
+            tokensCharged: cost,
+            brand,
+          });
+        } catch (dispatchErr) {
+          console.warn("[radar] non-fatal search lead dispatch error:", dispatchErr);
+        }
+      }
+
       return NextResponse.json({ ...result, balanceAfter } satisfies RadarSearchResponse);
     },
     resolveSearchCost,

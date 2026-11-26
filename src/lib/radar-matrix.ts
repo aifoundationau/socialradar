@@ -97,35 +97,39 @@ export function calculateMatrixScore(
   const headlineBonus = ad.headline.trim().length > 10 ? 20 : 5;
   const ctaBonus = ad.ctaText.trim().length > 0 ? 15 : 5;
   const copyDepthBonus = ad.primaryCopy.length > 120 ? 15 : ad.primaryCopy.length > 45 ? 10 : 5;
+  const creativeProofBonus =
+    (ad.activeDaysCount >= 60 ? 22 : ad.activeDaysCount >= 28 ? 16 : 8) +
+    Math.min(16, duplicates * 4);
   const hookStrengthScore = Math.min(
     100,
     Math.max(
       28,
       Math.round(
-        15 + hookPatternBonus + headlineBonus + ctaBonus + copyDepthBonus
+        15 + hookPatternBonus + headlineBonus + ctaBonus + copyDepthBonus + creativeProofBonus
+      )
+    )
+  );
+
+  const defaultMarketFit = Math.min(
+    100,
+    Math.max(
+      35,
+      Math.round(
+        52 +
+          (ad.activeDaysCount >= 60 ? 24 : ad.activeDaysCount >= 28 ? 18 : 8) +
+          (viewsPerDay >= 5_000 ? 12 : viewsPerDay >= 1_500 ? 8 : 0) +
+          Math.min(18, duplicates * 5)
       )
     )
   );
 
   // Baseline if no brand profile is provided
   if (!brand) {
-    const defaultBrand = Math.min(
-      100,
-      Math.max(
-        35,
-        Math.round(
-          52 +
-            (ad.activeDaysCount >= 28 ? 20 : 8) +
-            (viewsPerDay >= 5_000 ? 12 : 0) +
-            Math.min(16, duplicates * 5)
-        )
-      )
-    );
     const compositeScore = Math.min(
       100,
       Math.max(
         0,
-        Math.round(0.4 * defaultBrand + 0.3 * hookStrengthScore + 0.3 * longevityScore)
+        Math.round(0.4 * defaultMarketFit + 0.3 * hookStrengthScore + 0.3 * longevityScore)
       )
     );
     const genericKeywords = extractTokens(adText).slice(0, 5);
@@ -133,7 +137,7 @@ export function calculateMatrixScore(
       viewsPerDay >= 2_500 ? ` (${viewsPerDay.toLocaleString("en-AU")} views/day velocity)` : "";
 
     return {
-      brandFitScore: defaultBrand,
+      brandFitScore: defaultMarketFit,
       hookStrengthScore,
       longevityScore,
       compositeScore,
@@ -197,10 +201,12 @@ export function calculateMatrixScore(
 
   const keywordMatchBonus = Math.min(45, matchedKeywordsCount * 8);
   const baseBrandScore = 30; // base relevance for being in the same market search
-  const brandFitScore = Math.min(
+  const brandKeywordFit = Math.min(
     100,
     Math.max(20, Math.round(baseBrandScore + keywordMatchBonus + toneBonus))
   );
+  // Never let an unrelated active Brand Card drag an established market winner below its proven market fit
+  const brandFitScore = Math.max(defaultMarketFit, brandKeywordFit);
 
   // Composite Matrix Score: 40% Brand, 30% Hook, 30% Scale (Longevity + Views)
   const compositeScore = Math.min(

@@ -1,20 +1,27 @@
 import "server-only";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { ApiError } from "./api";
 import { adminAuth, db, isDatabaseAdminEmail } from "./firebase-admin";
 import { normalizeUserRoles } from "./rbac";
 import { audToUsdCents, netAudCentsAfterStripeFee } from "./pricing";
 import {
   AD_AGENT_REDISTRIBUTION_PERCENTS,
+  AdAgentSearchLeadDocSchema,
   type AdAgentDistributionItem,
+  type AdAgentDistributionPricingMeta,
   type AdAgentLocation,
   type AdAgentProfile,
   type AdAgentRedistributionPercent,
+  type AdAgentSearchLeadDoc,
+  type BrandProfile,
   type CustomizeRequestDoc,
+  type RadarSearchRequest,
   type RbacRole,
 } from "./contracts";
 
 const AD_AGENTS_COL = "ad_agents";
 const CUSTOMIZE_REQUESTS_COL = "customize_requests";
+const SEARCH_LEADS_COL = "ad_agent_search_leads";
 
 export const DEFAULT_SUPERADMIN_LOCATION: AdAgentLocation = {
   suburb: "Sydney",
@@ -854,5 +861,344 @@ export async function getAdAgentDistributionLedger(
       lastResetAt: agent.lastResetAt,
     };
   });
+}
+
+// ============================================================================
+// COMPLETED SEARCH LEAD NOTIFICATIONS & FIRST-TO-RESPOND CLAIM SYSTEM
+// ============================================================================
+
+export function maskCustomerEmail(email: string): string {
+  const clean = (email || "").trim().toLowerCase();
+  const [local, domain] = clean.split("@");
+  if (!local || !domain) return "Customer Account";
+  const prefix = local.slice(0, Math.min(2, local.length));
+  return `${prefix}***@${domain}`;
+}
+
+export function isLeadClaimedByViewer(
+  lead: Pick<AdAgentSearchLeadDoc, "status" | "claimedByAgentEmail" | "claimedByAgentUid" | "claimedByAgentId">,
+  viewer: { uid: string; email: string; isSuper: boolean; agentId?: string },
+): boolean {
+  if (viewer.isSuper) return true;
+  if (lead.status !== "claimed") return false;
+  const cleanEmail = viewer.email.trim().toLowerCase();
+  return Boolean(
+    (lead.claimedByAgentUid && lead.claimedByAgentUid === viewer.uid) ||
+      (lead.claimedByAgentEmail && lead.claimedByAgentEmail.trim().toLowerCase() === cleanEmail) ||
+      (viewer.agentId && lead.claimedByAgentId && lead.claimedByAgentId === viewer.agentId),
+  );
+}
+
+/**
+ * First-to-Respond Privacy Gate:
+ * Unclaimed leads hide full customer email/UID and brand details. Once claimed, only the first
+ * responding Ad Agent (and Super Admin) sees full customer details; all other agents see masked status.
+ */
+export function redactSearchLeadForViewer(
+  lead: AdAgentSearchLeadDoc,
+  viewer: { uid: string; email: string; isSuper: boolean; agentId?: string },
+): AdAgentSearchLeadDoc {
+  if (isLeadClaimedByViewer(lead, viewer)) {
+    return lead;
+  }
+  return {
+    ...lead,
+    customerUid: "",
+    customerEmail: "hidden-until-claimed@adradarhq.com",
+    brandSummary: "",
+  };
+}
+
+/**
+ * Dispatches a completed Radar search lead to active Ad Agents (for Australia, sends to Australian Ad Agents).
+ * Full customer contact details stay hidden until the first Ad Agent responds and claims the lead.
+ */
+export async function dispatchCompletedSearchLeadToAdAgents(params: {
+  txId: string;
+  customerUid: string;
+  customerEmail: string;
+  customerRole: string;
+  customerCountry: string;
+  search: RadarSearchRequest;
+  resultsCount: number;
+  tokensCharged: number;
+  brand?: BrandProfile | null;
+}): Promise<AdAgentSearchLeadDoc> {
+  const leadId = `lead_${createHash("sha256").update(params.txId).digest("hex").slice(0, 24)}`;
+  const ref = db.collection(SEARCH_LEADS_COL).doc(leadId);
+  const existingSnap = await ref.get();
+  if (existingSnap.exists) {
+    return existingSnap.data() as AdAgentSearchLeadDoc;
+  }
+
+  const now = new Date().toISOString();
+  const cleanCustomerEmail = params.customerEmail.trim().toLowerCase();
+  const customerMask = maskCustomerEmail(cleanCustomerEmail);
+  const targetMarket = (params.search.country || params.customerCountry || "AU").toUpperCase();
+  const customerCountry = (params.customerCountry || targetMarket || "AU").toUpperCase();
+
+  const allAgents = await getAdAgents();
+  const activeAgents = allAgents.filter((a) => a.status === "active" && a.inActiveLedger !== false);
+
+  // For Australia searches/customers, target active Australian Ad Agents specifically
+  const isAustraliaTarget = targetMarket === "AU" || customerCountry === "AU";
+  let targetAgents = isAustraliaTarget
+    ? activeAgents.filter((a) => (a.location?.country || "AU").toUpperCase() === "AU")
+    : activeAgents.filter((a) => (a.location?.country || "").toUpperCase() === targetMarket);
+
+  if (targetAgents.length === 0) {
+    targetAgents = activeAgents;
+  }
+
+  const notifiedAgentEmails = Array.from(
+    new Set(targetAgents.map((a) => a.email.trim().toLowerCase()).filter(Boolean)),
+  );
+
+  const brandSummary = params.brand
+    ? [
+        `Product/Service: ${params.brand.productServiceDescription}`,
+        `Target Audience: ${params.brand.targetAudienceAvatar}`,
+        `Offer/Mechanism: ${params.brand.uniqueMechanismOrOffer}`,
+      ].join(" | ")
+    : "";
+
+  const lead = AdAgentSearchLeadDocSchema.parse({
+    leadId,
+    txId: params.txId,
+    customerUid: params.customerUid,
+    customerEmail: cleanCustomerEmail,
+    customerMask,
+    customerRole: params.customerRole || "supporter",
+    customerCountry,
+    platform: params.search.platform,
+    query: params.search.query,
+    searchCountry: targetMarket,
+    mediaType: params.search.mediaType,
+    provenWinnersOnly: params.search.provenWinnersOnly,
+    extendedLongevity: params.search.extendedLongevity,
+    eliteWinnersOnly: params.search.eliteWinnersOnly,
+    resultsCount: Math.max(0, Math.round(params.resultsCount)),
+    tokensCharged: Math.max(0, Math.round(params.tokensCharged)),
+    brandId: params.brand?.brandId || params.search.brandId || "",
+    brandName: params.brand?.brandName || "",
+    brandSummary: brandSummary.slice(0, 1500),
+    status: "open",
+    notifiedAgentEmails,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await ref.set(lead);
+
+  if (notifiedAgentEmails.length > 0) {
+    const { sendSuperadminMessage, sanitizeForPlainTextArchive } = await import("./admin");
+    const subject = sanitizeForPlainTextArchive(
+      `[SEARCH LEAD - ${lead.searchCountry}] ${lead.platform}: "${lead.query}" (${lead.resultsCount} ads) - First to Respond Claims`,
+    ).slice(0, 150);
+
+    const body = sanitizeForPlainTextArchive(
+      [
+        `COMPLETED AD SEARCH ALERT (${lead.leadId})`,
+        ``,
+        `A customer in ${lead.customerCountry} (${lead.customerMask}, Role: ${lead.customerRole}) just completed a live Ad Radar search:`,
+        `- Platform:       ${lead.platform}`,
+        `- Search Query:   "${lead.query}"`,
+        `- Target Market:  ${lead.searchCountry}`,
+        `- Ads Returned:   ${lead.resultsCount}`,
+        lead.brandName ? `- Brand Context:  ${lead.brandName}` : `- Brand Context:  General Market Search`,
+        ``,
+        `FIRST-TO-RESPOND RULE:`,
+        `Customer contact details stay private until claimed. Open your Ad Agent Panel -> Orders & Leads tab and click "Respond First & Claim Customer Details" on ${lead.leadId}.`,
+        `The FIRST Ad Agent to respond receives the customer's email and full brand details so you can message them directly about Customizations.`,
+      ].join("\n"),
+    ).slice(0, 9800);
+
+    await Promise.allSettled(
+      notifiedAgentEmails.map((agentEmail) =>
+        sendSuperadminMessage({
+          superadminUid: "system_search_lead_dispatch",
+          superadminEmail: "support@aifoundation.net.au",
+          recipientEmail: agentEmail,
+          subject,
+          body,
+          requestType: "search_lead_alert",
+          searchLeadId: lead.leadId,
+        }),
+      ),
+    );
+  }
+
+  return lead;
+}
+
+/** Lists recent completed search leads, redacting unclaimed or rival-claimed customer details. */
+export async function getSearchLeadsForViewer(
+  viewer: { uid: string; email: string; isSuper: boolean; agentId?: string },
+  limit = 40,
+): Promise<AdAgentSearchLeadDoc[]> {
+  try {
+    const snap = await db
+      .collection(SEARCH_LEADS_COL)
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
+    return snap.docs.flatMap((doc) => {
+      const parsed = AdAgentSearchLeadDocSchema.safeParse(doc.data());
+      return parsed.success ? [redactSearchLeadForViewer(parsed.data, viewer)] : [];
+    });
+  } catch (err) {
+    console.warn("[ad-agents] failed to list search leads", err);
+    return [];
+  }
+}
+
+/**
+ * Atomically claims an open search lead for the first Ad Agent to respond.
+ * Returns the full unredacted customer details to that Ad Agent; rejects subsequent agents with 409.
+ */
+export async function claimSearchLeadForAdAgent(params: {
+  leadId: string;
+  agent: AdAgentProfile;
+  callerUid: string;
+  callerEmail: string;
+  outreachMessage?: string;
+}): Promise<AdAgentSearchLeadDoc> {
+  const ref = db.collection(SEARCH_LEADS_COL).doc(params.leadId.trim());
+  const cleanEmail = params.callerEmail.trim().toLowerCase();
+  const now = new Date().toISOString();
+
+  const claimedLead = await db.runTransaction(async (t) => {
+    const snap = await t.get(ref);
+    if (!snap.exists) {
+      throw new ApiError("NOT_FOUND", "Search lead not found.", 404);
+    }
+    const existing = AdAgentSearchLeadDocSchema.parse(snap.data());
+    if (existing.status === "claimed") {
+      const alreadyClaimedByCaller =
+        (existing.claimedByAgentUid && existing.claimedByAgentUid === params.callerUid) ||
+        (existing.claimedByAgentEmail && existing.claimedByAgentEmail.toLowerCase() === cleanEmail) ||
+        (existing.claimedByAgentId && existing.claimedByAgentId === params.agent.agentId);
+      if (alreadyClaimedByCaller) {
+        return existing;
+      }
+      throw new ApiError(
+        "INVALID_INPUT",
+        `Another Ad Agent (${existing.claimedByAgentName || "Ad Agent"}) responded first and claimed this customer lead.`,
+        409,
+      );
+    }
+
+    const updated: AdAgentSearchLeadDoc = {
+      ...existing,
+      status: "claimed",
+      claimedByAgentId: params.agent.agentId,
+      claimedByAgentUid: params.callerUid,
+      claimedByAgentName: params.agent.name,
+      claimedByAgentEmail: params.agent.email.trim().toLowerCase(),
+      claimedByAgentPhone: params.agent.phone,
+      claimedAt: now,
+      updatedAt: now,
+    };
+    t.set(ref, updated);
+    return updated;
+  });
+
+  const { sendSuperadminMessage, sanitizeForPlainTextArchive } = await import("./admin");
+
+  // Send the claiming Ad Agent a Message Panel copy with complete unlocked customer details
+  const claimSubject = sanitizeForPlainTextArchive(
+    `[LEAD CLAIMED] Customer Details for "${claimedLead.query}" (${claimedLead.platform})`,
+  ).slice(0, 150);
+  const claimBody = sanitizeForPlainTextArchive(
+    [
+      `YOU RESPONDED FIRST — CUSTOMER DETAILS UNLOCKED (${claimedLead.leadId})`,
+      ``,
+      `Customer Email:   ${claimedLead.customerEmail}`,
+      `Customer Role:    ${claimedLead.customerRole}`,
+      `Customer Country: ${claimedLead.customerCountry}`,
+      `Completed Search: ${claimedLead.platform} — "${claimedLead.query}" (${claimedLead.resultsCount} ads in ${claimedLead.searchCountry})`,
+      claimedLead.brandName ? `Brand Name:       ${claimedLead.brandName}` : null,
+      claimedLead.brandSummary ? `Brand Context:    ${claimedLead.brandSummary}` : null,
+      ``,
+      `NEXT STEP:`,
+      `You can message ${claimedLead.customerEmail} directly from your Ad Agent Panel to offer bespoke ad strategy, video creative hooks, or brand customization services.`,
+    ]
+      .filter((line): line is string => line !== null)
+      .join("\n"),
+  ).slice(0, 9800);
+
+  await sendSuperadminMessage({
+    superadminUid: "system_search_lead_dispatch",
+    superadminEmail: "support@aifoundation.net.au",
+    recipientEmail: cleanEmail,
+    subject: claimSubject,
+    body: claimBody,
+    requestType: "search_lead_claim",
+    searchLeadId: claimedLead.leadId,
+  }).catch(() => undefined);
+
+  if (params.outreachMessage && params.outreachMessage.trim()) {
+    await sendSearchLeadOutreachToCustomer({
+      leadId: claimedLead.leadId,
+      agent: params.agent,
+      callerUid: params.callerUid,
+      callerEmail: cleanEmail,
+      isSuper: false,
+      subject: `Customizations & Ad Strategy Help for "${claimedLead.query}"`,
+      body: params.outreachMessage.trim(),
+    });
+  }
+
+  return claimedLead;
+}
+
+/** Sends a direct customization message from the claiming Ad Agent to the customer's Message Panel. */
+export async function sendSearchLeadOutreachToCustomer(params: {
+  leadId: string;
+  agent: AdAgentProfile;
+  callerUid: string;
+  callerEmail: string;
+  isSuper: boolean;
+  subject: string;
+  body: string;
+}) {
+  const ref = db.collection(SEARCH_LEADS_COL).doc(params.leadId.trim());
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new ApiError("NOT_FOUND", "Search lead not found.", 404);
+  }
+  const lead = AdAgentSearchLeadDocSchema.parse(snap.data());
+  if (lead.status !== "claimed") {
+    throw new ApiError("FORBIDDEN", "Respond and claim this lead first to unlock customer messaging.", 403);
+  }
+
+  const cleanEmail = params.callerEmail.trim().toLowerCase();
+  const isOwner =
+    params.isSuper ||
+    (lead.claimedByAgentUid && lead.claimedByAgentUid === params.callerUid) ||
+    (lead.claimedByAgentEmail && lead.claimedByAgentEmail.toLowerCase() === cleanEmail) ||
+    (lead.claimedByAgentId && lead.claimedByAgentId === params.agent.agentId);
+
+  if (!isOwner) {
+    throw new ApiError("FORBIDDEN", "Another Ad Agent claimed this customer lead.", 403);
+  }
+
+  const { sendSuperadminMessage, sanitizeForPlainTextArchive } = await import("./admin");
+  const msg = await sendSuperadminMessage({
+    superadminUid: params.callerUid,
+    superadminEmail: cleanEmail,
+    recipientEmail: lead.customerEmail,
+    subject: sanitizeForPlainTextArchive(params.subject).slice(0, 150),
+    body: sanitizeForPlainTextArchive(params.body).slice(0, 9800),
+    requestType: "search_lead_outreach",
+    searchLeadId: lead.leadId,
+  });
+
+  await ref.update({
+    initialOutreachMessageId: msg.messageId,
+    updatedAt: new Date().toISOString(),
+  });
+
+  return msg;
 }
 

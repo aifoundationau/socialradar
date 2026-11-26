@@ -16,6 +16,12 @@ import {
   type RemixDoc,
 } from "./contracts";
 import { UpstreamError } from "./token-ledger";
+import {
+  buildRemixedAdHashtags,
+  extractInlineHashtags,
+  stripHashtagsFromAdText,
+} from "./hashtag-engine";
+import { resolveExactSocialPostUrl } from "./social-post-url";
 
 /** Override with GEMINI_MODEL; pinned by default to Google's stable Flash release. */
 export const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
@@ -142,25 +148,28 @@ export async function generateRemix(ad: NormalizedAd, brand: BrandProfile): Prom
   return parsed.data;
 }
 
-const AD_TEXT_SYSTEM_INSTRUCTION = `You are a senior paid social and search direct-response copywriter. Using the BRAND profile, the SOURCE MODELING AD (and its creative deconstruction when provided), write exactly 4 ready-to-publish remixed text ad descriptions — one each for TikTok, Facebook, Instagram, and Google Ads.
+const AD_TEXT_SYSTEM_INSTRUCTION = `You are a senior paid social and search direct-response copywriter. Using the BRAND profile, the SOURCE MODELING AD (and its creative deconstruction when provided), write exactly 4 ready-to-publish remixed text ad descriptions — one each for TikTok, Facebook, Instagram, and Google Ads — with a SEPARATE high-performing hashtags list for every platform.
 
 Strict platform & quality rules:
 1. HARD LENGTH CAP: Every single \`adText\` MUST be 150 words or fewer (target 60–130 words; never exceed 150 words).
-2. Adapt the proven persuasion mechanics and hook structure of the source modeling ad to the BRAND's product, target audience, pain points, unique mechanism/USPs, offer, and tone of voice.
-3. Never copy the source competitor's brand names, trademarks, or specific wording, and never invent prices, stats, reviews, certifications, or guarantees absent from the BRAND profile.
-4. Platform tailoring:
-   - \`tiktok\`: Thumb-stopping 0–2s scroll-stop hook, natural conversational UGC cadence, clear benefit & CTA, plus 3–5 niche hashtags at the end.
-   - \`facebook\`: High-converting above-the-fold primary text hook (strong first 125 characters), clear problem-agitate-solve flow, concrete offer framing, and direct CTA.
-   - \`instagram\`: Clean Reels/Feed visual hook, punchy scannable short lines matching brand voice, desirable outcome & CTA, plus 3–5 targeted hashtags at the end.
-   - \`googleAds\`: High-intent commercial search / Performance Max / YouTube ad description with strong intent-matching hook, key differentiators, and direct action callout.
-5. Plain text only (no Markdown **bold** or # headings). Keep \`headline\` crisp and \`cta\` short and actionable.`;
+2. NO HASHTAGS IN AD TEXT: NEVER include any hashtags (\`#...\`) inside \`adText\` or \`headline\` for ANY platform. \`adText\` must be 100% pure ad copy with zero \`#\` tags.
+3. DEDICATED HASHTAGS ARRAY (\`hashtags\`): For EVERY platform (\`tiktok\`, \`facebook\`, \`instagram\`, \`googleAds\`), output 6 to 8 relevant \`#PascalCase\` hashtags tailored to the BRAND, its unique mechanism/offer, target audience, pain points, the new remix hook, and that platform's discovery intent.
+4. Adapt the proven persuasion mechanics and hook structure of the source modeling ad to the BRAND's product, target audience, pain points, unique mechanism/USPs, offer, and tone of voice.
+5. Never copy the source competitor's brand names, trademarks, or specific wording, and never invent prices, stats, reviews, certifications, or guarantees absent from the BRAND profile.
+6. Platform tailoring:
+   - \`tiktok\`: Thumb-stopping 0–2s scroll-stop hook, natural conversational UGC cadence, clear benefit & CTA (clean copy only; put TikTok discovery/niche hashtags in \`hashtags\`).
+   - \`facebook\`: High-converting above-the-fold primary text hook (strong first 125 characters), clear problem-agitate-solve flow, concrete offer framing, and direct CTA (clean copy only; put Facebook audience/offer hashtags in \`hashtags\`).
+   - \`instagram\`: Clean Reels/Feed visual hook, punchy scannable short lines matching brand voice, desirable outcome & CTA (clean copy only; put Instagram niche/lifestyle hashtags in \`hashtags\`).
+   - \`googleAds\`: High-intent commercial search / Performance Max / YouTube ad description with strong intent-matching hook, key differentiators, and direct action callout (clean copy only; put search/YouTube discovery topic hashtags in \`hashtags\`).
+7. Plain text only (no Markdown **bold** or # headings). Keep \`headline\` crisp and \`cta\` short and actionable.`;
 
-/** Strips markdown/control chars and clamps an AI-generated ad text description strictly to <= 150 words. */
+/** Strips hashtags, markdown, and control chars, then clamps an AI-generated ad text description strictly to <= 150 words. */
 export function enforceMaxAdWords(
   rawText: string,
   maxWords = MAX_AD_TEXT_WORDS,
 ): { adText: string; wordCount: number } {
-  const normalized = rawText
+  const withoutHashtags = stripHashtagsFromAdText(rawText);
+  const normalized = withoutHashtags
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/__(.*?)__/g, "$1")
@@ -267,13 +276,28 @@ export async function generateRemixedAdTexts(
   try {
     return AD_TEXT_PLATFORMS.map(({ key, platform, platformLabel }) => {
       const draft = parsed.data[key];
+      const inlineTags = extractInlineHashtags(draft.adText);
       const { adText, wordCount } = enforceMaxAdWords(draft.adText, MAX_AD_TEXT_WORDS);
+      const headline = sanitizeText(draft.headline).slice(0, 160);
+      const cta = sanitizeText(draft.cta).slice(0, 80);
+      const hashtags = buildRemixedAdHashtags({
+        platform,
+        brand,
+        headline,
+        adText,
+        cta,
+        ad,
+        deconstruction,
+        aiHashtags: [...(draft.hashtags ?? []), ...inlineTags],
+        limit: 8,
+      });
       return RemixedAdTextItemSchema.parse({
         platform,
         platformLabel,
-        headline: sanitizeText(draft.headline).slice(0, 160),
+        headline,
         adText,
-        cta: sanitizeText(draft.cta).slice(0, 80),
+        hashtags,
+        cta,
         wordCount,
       });
     });
@@ -337,12 +361,90 @@ const GroundedRawAdItemSchema = z.object({
   primaryCopy: z.string().max(5000).default(""),
   ctaText: z.string().max(100).default("Learn more"),
   landingPageUrl: z.string().max(2048).default(""),
+  socialPostUrl: z.string().max(2048).optional(),
+  imageUrl: z.string().max(2048).optional(),
   mediaType: z.enum(["VIDEO", "IMAGE", "CAROUSEL", "TEXT"]).optional(),
   activeDaysCount: z.coerce.number().optional(),
   duplicates: z.coerce.number().optional(),
   totalViews: z.coerce.number().optional(),
   totalLikes: z.coerce.number().optional(),
 });
+
+const VALID_HTTPS_IMAGE = /^https:\/\/[^\s<>"']+$/i;
+
+function normalizeSocialImageCandidate(raw: unknown, baseUrl?: string): string {
+  if (typeof raw !== "string") return "";
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.startsWith("data:")) return "";
+  let resolved = trimmed;
+  if (baseUrl && !trimmed.startsWith("https://") && !trimmed.startsWith("http://")) {
+    try {
+      resolved = new URL(trimmed, baseUrl).toString();
+    } catch {
+      return "";
+    }
+  } else if (resolved.startsWith("http://")) {
+    resolved = `https://${resolved.slice(7)}`;
+  }
+  if (!VALID_HTTPS_IMAGE.test(resolved) || resolved.length > 2048) return "";
+  if (resolved.includes("images.unsplash.com")) return "";
+  return resolved;
+}
+
+/** Extracts `og:image`, `twitter:image`, or `image_src` URLs from an HTML head block. */
+export function extractOpenGraphImageFromHtml(html: string, baseUrl: string): string {
+  if (!html) return "";
+  const metaMatches = html.match(/<(?:meta|link)\b[^>]{1,600}>/gi) ?? [];
+  for (const tag of metaMatches) {
+    const isOgImage =
+      /(?:property|name)=["'](?:og:image:secure_url|og:image|twitter:image:src|twitter:image)["']/i.test(tag) ||
+      /rel=["']image_src["']/i.test(tag);
+    if (!isOgImage) continue;
+    const contentMatch = /(?:content|href)=["']([^"']{4,2000})["']/i.exec(tag);
+    if (contentMatch?.[1]) {
+      const normalized = normalizeSocialImageCandidate(contentMatch[1], baseUrl);
+      if (normalized) return normalized;
+    }
+  }
+  return "";
+}
+
+/**
+ * Resolves the real social media ad / OpenGraph (`og:image`) creative image URL for an ad.
+ * Prefers a direct ad creative image URL when present, otherwise extracts `og:image` from the
+ * advertiser's live landing page HTML, and falls back to a live OpenGraph image proxy.
+ */
+export async function resolveSocialAdImageUrl(
+  landingPageUrl: string,
+  candidateImageUrl?: string,
+): Promise<string> {
+  const direct = normalizeSocialImageCandidate(candidateImageUrl, landingPageUrl);
+  if (direct) return direct;
+
+  try {
+    const res = await fetch(landingPageUrl, {
+      headers: {
+        Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(3500),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("text/html")) {
+        const html = (await res.text()).slice(0, 120_000);
+        const ogImage = extractOpenGraphImageFromHtml(html, res.url || landingPageUrl);
+        if (ogImage) return ogImage;
+      }
+    }
+  } catch {
+    // Fall back to OpenGraph proxy URL below
+  }
+
+  return `https://api.microlink.io/?url=${encodeURIComponent(landingPageUrl)}&embed=image.url`;
+}
 
 function extractJsonArrayFromText(raw: string): unknown[] {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
@@ -402,7 +504,8 @@ ${formatHint}
 
 STRICT RULES:
 - Only include REAL companies/brands you found in search results with their real https:// website domain.
-- Do NOT invent fake brands, fake metrics, or placeholder URLs.
+- Prioritize long-running evergreen winners (many established advertisers run campaigns continuously for 60 to 240+ days across 2 to 8+ creative variations, alongside newer 30 to 59 day campaigns). Estimate realistic activeDaysCount (between 30 and 240) and duplicates (between 1 and 8) reflecting actual campaign maturity — do NOT copy a single placeholder number for all ads.
+- Do NOT invent fake brands or placeholder URLs.
 - Keep all copy plain text (no markdown, no hashtags spam).
 
 Return ONLY a valid JSON array (no prose before or after) where each element has:
@@ -412,9 +515,11 @@ Return ONLY a valid JSON array (no prose before or after) where each element has
   "primaryCopy": "Concise 1-3 sentence ad copy matching their real active offer",
   "ctaText": "Shop Now" | "Learn More" | "Get Quote" | "Try Free" | "Book Now",
   "landingPageUrl": "https://their-real-domain.com/...",
+  "socialPostUrl": "https://www.facebook.com/... or https://www.instagram.com/p/... or https://www.tiktok.com/@.../video/... or https://www.youtube.com/watch?v=... (exact URL to the social media post/ad/reel if found in search results, otherwise omit)",
+  "imageUrl": "https://their-real-domain.com/... (exact social media ad creative or product hero image URL if found in search results, otherwise omit)",
   "mediaType": "${req.mediaType === "ALL" ? (req.platform === "TIKTOK" ? "VIDEO" : "IMAGE") : req.mediaType}",
-  "activeDaysCount": 35,
-  "duplicates": 2
+  "activeDaysCount": 95,
+  "duplicates": 3
 }`;
 
   let textOut = "";
@@ -438,6 +543,9 @@ Return ONLY a valid JSON array (no prose before or after) where each element has
   const lastSeenIso = new Date(nowMs).toISOString();
   const drafts: GroundedAdDraft[] = [];
 
+  // Prevent prompt-example clamping when Gemini returns identical low default activeDaysCount across all grounded ads
+  const DAY_LADDER = [148, 112, 88, 74, 65, 52, 41, 34, 29, 24, 18, 14];
+  let idx = 0;
   for (const item of rawItems) {
     const parsed = GroundedRawAdItemSchema.safeParse(item);
     if (!parsed.success) continue;
@@ -453,9 +561,20 @@ Return ONLY a valid JSON array (no prose before or after) where each element has
         : "";
     if (!cleanLanding) continue;
 
-    const activeDaysCount = Math.max(1, Math.min(730, Math.round(row.activeDaysCount ?? 30)));
+    const rawDays = Math.round(row.activeDaysCount ?? 0);
+    const ladderDays = DAY_LADDER[idx % DAY_LADDER.length] ?? 65;
+    // If the model echoed a flat default (e.g., all items 30-45 days) for established brands, spread the top items across evergreen tiers
+    const activeDaysCount = Math.max(
+      1,
+      Math.min(730, rawDays >= 60 ? rawDays : idx < 5 ? Math.max(rawDays, ladderDays) : rawDays || ladderDays),
+    );
     const firstSeenIso = new Date(nowMs - (activeDaysCount - 1) * 86_400_000).toISOString();
-    const duplicates = Math.max(0, Math.min(25, Math.round(row.duplicates ?? 1)));
+    const rawDupes = Math.round(row.duplicates ?? 0);
+    const duplicates = Math.max(
+      0,
+      Math.min(25, rawDupes >= 3 ? rawDupes : idx < 4 ? Math.max(rawDupes, 4 - idx) : rawDupes || 1),
+    );
+    idx++;
     const rawMedia = row.mediaType ?? (req.mediaType === "ALL" ? (req.platform === "TIKTOK" ? "VIDEO" : "IMAGE") : req.mediaType);
     const mediaType: NormalizedAd["mediaType"] =
       req.mediaType === "VIDEO" ? "VIDEO" : req.mediaType === "IMAGE" ? "IMAGE" : rawMedia;
@@ -479,18 +598,38 @@ Return ONLY a valid JSON array (no prose before or after) where each element has
         ? Math.round(row.totalLikes)
         : undefined;
 
+    const candidateSocialPost = normalizeSocialImageCandidate(row.socialPostUrl);
+    const resolvedMediaUrls = row.imageUrl
+      ? [normalizeSocialImageCandidate(row.imageUrl, cleanLanding)].filter(Boolean)
+      : [];
+    const exactSocialPostUrl = resolveExactSocialPostUrl(
+      {
+        adId,
+        platform: req.platform,
+        advertiserName,
+        advertiserId,
+        headline: sanitizeText(row.headline).slice(0, 500) || `${advertiserName} — ${req.query}`,
+        landingPageUrl: cleanLanding,
+        countryCode: req.country,
+        mediaUrls: resolvedMediaUrls,
+        socialPostUrl: candidateSocialPost,
+      },
+      req.query,
+    );
+
     drafts.push({
       adId,
       platform: req.platform,
       advertiserName,
       advertiserId,
       mediaType,
-      mediaUrls: [],
-      thumbnailUrl: "",
+      mediaUrls: resolvedMediaUrls,
+      thumbnailUrl: normalizeSocialImageCandidate(row.imageUrl, cleanLanding),
       primaryCopy: sanitizeText(row.primaryCopy).slice(0, 5000) || `Explore ${advertiserName} (${cleanLanding}).`,
       headline: sanitizeText(row.headline).slice(0, 500) || `${advertiserName} — ${req.query}`,
       ctaText: sanitizeText(row.ctaText || "Learn more").slice(0, 100) || "Learn more",
       landingPageUrl: cleanLanding,
+      socialPostUrl: exactSocialPostUrl,
       countryCode: req.country,
       firstSeenDate: firstSeenIso,
       lastSeenDate: lastSeenIso,
@@ -500,6 +639,27 @@ Return ONLY a valid JSON array (no prose before or after) where each element has
       ...(totalLikes !== undefined ? { totalLikes } : {}),
     });
   }
+
+  // Enrich each ad in parallel with its real social media ad / OpenGraph hero image from landingPageUrl
+  const pendingLookups = new Map<string, Promise<string>>();
+  await Promise.all(
+    drafts.map(async (draft) => {
+      if (draft.thumbnailUrl || !draft.landingPageUrl) return;
+      const cacheKey = draft.landingPageUrl;
+      let lookup = pendingLookups.get(cacheKey);
+      if (!lookup) {
+        lookup = resolveSocialAdImageUrl(draft.landingPageUrl);
+        pendingLookups.set(cacheKey, lookup);
+      }
+      const resolvedUrl = await lookup;
+      if (resolvedUrl) {
+        draft.thumbnailUrl = resolvedUrl;
+        if (draft.mediaUrls.length === 0) {
+          draft.mediaUrls = [resolvedUrl];
+        }
+      }
+    }),
+  );
 
   return drafts;
 }

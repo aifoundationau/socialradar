@@ -42,6 +42,8 @@ const stripeLib = await load("lib/stripe.ts");
 const brandsLib = await load("lib/brands.ts");
 const adAgentsLib = await load("lib/ad-agents.ts");
 const adAgentDisplay = await load("lib/ad-agent-display.ts");
+const hashtagEngine = await load("lib/hashtag-engine.ts");
+const geminiLib = await load("lib/gemini.ts");
 const routes = {
   me: await load("app/api/me/route.ts"),
   brands: await load("app/api/brands/route.ts"),
@@ -52,6 +54,9 @@ const routes = {
   contractors: await load("app/api/contractors/route.ts"),
   customize: await load("app/api/customize/route.ts"),
   customizeAiAssist: await load("app/api/customize/ai-assist/route.ts"),
+  library: await load("app/api/library/route.ts"),
+  brandsGlobal: await load("app/api/brands/global/route.ts"),
+  adAgent: await load("app/api/ad-agent/route.ts"),
 };
 const Stripe = require("stripe");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -85,10 +90,12 @@ const key = (label) => `e2e_${label}_${Date.now()}`;
 const stamp = Date.now().toString(36);
 const UID = `e2eUser${stamp}`;
 const OTHER = `e2eOther${stamp}`;
-const created = { sessions: [], ragIds: [] };
+const AGENT2 = `e2eAgentTwo${stamp}`;
+const SUPER_UID = `e2eSuper${stamp}`;
+const created = { sessions: [], ragIds: [], leadIds: [], messageIds: [], agentIds: [] };
 
-async function idTokenFor(uid, email) {
-  await adminAuth.createUser({ uid, email }).catch((e) => {
+async function idTokenFor(uid, email, emailVerified = false) {
+  await adminAuth.createUser({ uid, email, emailVerified }).catch((e) => {
     if (e.code !== "auth/uid-already-exists") throw e;
   });
   const custom = await adminAuth.createCustomToken(uid);
@@ -602,6 +609,52 @@ try {
     { status: custZeroCostGate.status },
   );
 
+  // SuperAdmin Free Rule: isChargingEnabled & withTokenGate always treat SuperAdmin as 0 tokens (Free)
+  check(
+    "superadmin free rule: isChargingEnabled(..., isSuperAdmin=true) always returns false",
+    pricing.isChargingEnabled({ isTokenSystemEnabled: true, freeAccessWindow: null }, Date.now(), { tokenBalance: 0 }, true, "US") === false,
+  );
+  const superToken = await idTokenFor(SUPER_UID, "davidrobertson.info@gmail.com", true);
+  await db.doc(`users/${SUPER_UID}`).set({ uid: SUPER_UID, email: "davidrobertson.info@gmail.com", role: "superadmin", roles: ["superadmin"], tokenBalance: 0 }, { merge: true });
+  const [superCustomizeGet, superLibraryGet, superBrandsGet, superGateRes] = await Promise.all([
+    callUrl(routes.customize, "GET", "http://localhost:3000/api/customize", { token: superToken }),
+    callUrl(routes.library, "GET", "http://localhost:3000/api/library", { token: superToken }),
+    callUrl(routes.brandsGlobal, "GET", "http://localhost:3000/api/brands/global", { token: superToken }),
+    ledger.withTokenGate(
+      new Request("http://localhost/api/customize", {
+        headers: { Authorization: `Bearer ${superToken}`, "x-idempotency-key": key("super_free") },
+      }),
+      "CUSTOMIZE_SERVICE",
+      "super_free_ref",
+      async (ctx) => Response.json({ ok: true, cost: ctx.cost, balanceAfter: ctx.balanceAfter }),
+      55,
+    ),
+  ]);
+  const superGateJson = await superGateRes.json();
+  check(
+    "superadmin free rule: 0 tokens charged across GET /api/customize, /api/library, /api/brands/global & withTokenGate(CUSTOMIZE_SERVICE) even with balance 0",
+    superCustomizeGet.status === 200 &&
+      superCustomizeGet.json?.costTokens === 0 &&
+      superCustomizeGet.json?.customizeAiFeeTokens === 0 &&
+      superLibraryGet.status === 200 &&
+      superLibraryGet.json?.libraryItemFee === 0 &&
+      superBrandsGet.status === 200 &&
+      superBrandsGet.json?.brandCloneFee === 0 &&
+      superBrandsGet.json?.brandTxtDownloadFee === 0 &&
+      superGateRes.status === 200 &&
+      superGateJson?.cost === 0 &&
+      superGateJson?.balanceAfter === 0,
+    {
+      custCost: superCustomizeGet.json?.costTokens,
+      custAi: superCustomizeGet.json?.customizeAiFeeTokens,
+      libFee: superLibraryGet.json?.libraryItemFee,
+      cloneFee: superBrandsGet.json?.brandCloneFee,
+      txtFee: superBrandsGet.json?.brandTxtDownloadFee,
+      gateStatus: superGateRes.status,
+      gateJson: superGateJson,
+    },
+  );
+
   const netAud55 = pricing.netAudCentsAfterStripeFee(5500, 1);
   const sampleAgent = {
     agentId: "agent_e2e_h1",
@@ -718,6 +771,156 @@ try {
       (await userDoc(UID)).tokenBalance === balAfterAi,
     { status: aiRes.status, parsedOk: aiParsed.success, balAfterAi, expectedBal: startBal - aiFee, replayed: aiReplay.json?.replayed },
   );
+
+  // ---------- Remixed Social Media Ad Text: Hashtag Separation & Algorithm ----------
+  const dirtyAdCopy =
+    "Upgrade your morning brew in 30 seconds with slow-steeped concentrate. Zero bitterness, café smoothness. #ColdBrew #CoffeeLover\n\nHashtags: #MorningRoutine #BaristaAtHome";
+  const extractedInline = hashtagEngine.extractInlineHashtags(dirtyAdCopy);
+  const { adText: cleanEnforcedCopy, wordCount: enforcedWords } = geminiLib.enforceMaxAdWords(dirtyAdCopy);
+  const hashtagPlatforms = [
+    { platform: "TIKTOK", label: "TikTok" },
+    { platform: "FACEBOOK", label: "Facebook" },
+    { platform: "INSTAGRAM", label: "Instagram" },
+    { platform: "GOOGLE_ADS", label: "Google Ads" },
+  ];
+  const hashtagChecks = hashtagPlatforms.map(({ platform, label }) => {
+    const tags = hashtagEngine.buildRemixedAdHashtags({
+      platform,
+      brand: brandInput("Acme Cold Brew"),
+      headline: "Cafe-Grade Cold Brew in 30 Seconds",
+      adText: cleanEnforcedCopy,
+      cta: "Shop now",
+      aiHashtags: extractedInline,
+      limit: 8,
+    });
+    const parsedItem = contracts.RemixedAdTextItemSchema.safeParse({
+      platform,
+      platformLabel: label,
+      headline: "Cafe-Grade Cold Brew in 30 Seconds",
+      adText: cleanEnforcedCopy,
+      hashtags: tags,
+      cta: "Shop now",
+      wordCount: enforcedWords,
+    });
+    return { platform, tags, ok: parsedItem.success && tags.length >= 6 && tags.length <= 8 };
+  });
+  check(
+    "remixedAdText hashtags: adText contains 0 hashtags and all 4 platforms generate 6-8 ranked hashtags",
+    !cleanEnforcedCopy.includes("#") &&
+      extractedInline.length === 4 &&
+      contracts.RemixedAdTextItemSchema.safeParse({
+        platform: "INSTAGRAM",
+        platformLabel: "Instagram",
+        headline: "Test Headline",
+        adText: "Copy with #forbiddenTag inside",
+        hashtags: ["#AcmeBrand"],
+        cta: "Learn more",
+        wordCount: 5,
+      }).success === false &&
+      hashtagChecks.every((c) => c.ok),
+    { cleanEnforcedCopy, extractedInline, hashtagChecks },
+  );
+
+  // ---------- Ad Agent Completed Search Leads (Australia + First to Respond Claims Customer Details) ----------
+  const agent1Email = "other@example.com";
+  const agent2Email = "agent2@example.com";
+  const agent2Token = await idTokenFor(AGENT2, agent2Email, true);
+  await call(routes.me, "POST", { token: agent2Token });
+  await db.doc(`users/${AGENT2}`).set({ role: "ad_agent", roles: ["ad_agent", "supporter"], isAdAgent: true }, { merge: true });
+  const auAgent1Id = `agent_e2e_au1_${stamp}`;
+  const auAgent2Id = `agent_e2e_au2_${stamp}`;
+  created.agentIds.push(auAgent1Id, auAgent2Id);
+  await Promise.all([
+    db.collection("ad_agents").doc(auAgent1Id).set({
+      agentId: auAgent1Id,
+      uid: OTHER,
+      name: "AU Agent One",
+      phone: "+61 400 111 111",
+      email: agent1Email,
+      location: { suburb: "Sydney", state: "NSW", country: "AU", latitude: -33.8688, longitude: 151.2093, label: "Sydney, NSW, AU" },
+      status: "active",
+      inActiveLedger: true,
+      redistributionPercentage: 30,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }),
+    db.collection("ad_agents").doc(auAgent2Id).set({
+      agentId: auAgent2Id,
+      uid: AGENT2,
+      name: "AU Agent Two",
+      phone: "+61 400 222 222",
+      email: agent2Email,
+      location: { suburb: "Melbourne", state: "VIC", country: "AU", latitude: -37.8136, longitude: 144.9631, label: "Melbourne, VIC, AU" },
+      status: "active",
+      inActiveLedger: true,
+      redistributionPercentage: 30,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }),
+  ]);
+  const e2eLead = await adAgentsLib.dispatchCompletedSearchLeadToAdAgents({
+    txId: `e2e_search_lead_${stamp}`,
+    customerUid: UID,
+    customerEmail: "e2e@example.com",
+    customerRole: "supporter",
+    customerCountry: "AU",
+    search: {
+      platform: "META",
+      query: "Solar Batteries Australia",
+      country: "AU",
+      mediaType: "ALL",
+      provenWinnersOnly: true,
+      extendedLongevity: false,
+      eliteWinnersOnly: false,
+      brandId: "",
+    },
+    resultsCount: 14,
+    tokensCharged: 4,
+    brand: brandInput("SunPeak Solar"),
+  });
+  created.leadIds.push(e2eLead.leadId);
+  const agent1BeforeClaimGet = await callUrl(routes.adAgent, "GET", "http://localhost:3000/api/ad-agent", { token: otherToken });
+  const maskedLeadView = agent1BeforeClaimGet.json?.searchLeads?.find((l) => l.leadId === e2eLead.leadId);
+  const firstClaimRes = await callUrl(routes.adAgent, "POST", "http://localhost:3000/api/ad-agent", {
+    token: otherToken,
+    body: { action: "CLAIM_SEARCH_LEAD", leadId: e2eLead.leadId },
+  });
+  const secondClaimRes = await callUrl(routes.adAgent, "POST", "http://localhost:3000/api/ad-agent", {
+    token: agent2Token,
+    body: { action: "CLAIM_SEARCH_LEAD", leadId: e2eLead.leadId },
+  });
+  const agent2AfterClaimGet = await callUrl(routes.adAgent, "GET", "http://localhost:3000/api/ad-agent", { token: agent2Token });
+  const rivalView = agent2AfterClaimGet.json?.searchLeads?.find((l) => l.leadId === e2eLead.leadId);
+  const outreachRes = await callUrl(routes.adAgent, "POST", "http://localhost:3000/api/ad-agent", {
+    token: otherToken,
+    body: {
+      action: "SEND_SEARCH_LEAD_OUTREACH",
+      leadId: e2eLead.leadId,
+      subject: "Custom Ad Package for SunPeak Solar",
+      body: "Hi e2e customer, I saw your AU Meta search and can customize a campaign strategy for SunPeak Solar.",
+    },
+  });
+  check(
+    "searchLeads: AU lead masks customer until first AU agent claims (unlocks email), blocks 2nd agent (409), allows outreach",
+    e2eLead.notifiedAgentEmails.includes(agent1Email) &&
+      e2eLead.notifiedAgentEmails.includes(agent2Email) &&
+      maskedLeadView?.customerEmail === "hidden-until-claimed@adradarhq.com" &&
+      firstClaimRes.status === 200 &&
+      firstClaimRes.json?.lead?.customerEmail === "e2e@example.com" &&
+      secondClaimRes.status === 409 &&
+      rivalView?.customerEmail === "hidden-until-claimed@adradarhq.com" &&
+      outreachRes.status === 200 &&
+      Boolean(outreachRes.json?.message?.messageId),
+    {
+      notified: e2eLead.notifiedAgentEmails.slice(0, 4),
+      maskedEmail: maskedLeadView?.customerEmail,
+      firstClaimStatus: firstClaimRes.status,
+      claimedEmail: firstClaimRes.json?.lead?.customerEmail,
+      secondClaimStatus: secondClaimRes.status,
+      rivalEmail: rivalView?.customerEmail,
+      outreachStatus: outreachRes.status,
+    },
+  );
 } catch (err) {
   failures.push(`harness crashed: ${err.stack ?? err}`);
   console.log("CRASH", err);
@@ -725,7 +928,17 @@ try {
   // ---------- cleanup ----------
   for (const id of created.sessions) await stripe.checkout.sessions.expire(id).catch(() => {});
   for (const ragId of created.ragIds) await ragEngine.deleteRagEntry(ragId).catch(() => {});
-  for (const uid of [UID, OTHER]) {
+  for (const leadId of created.leadIds) {
+    const msgs = await db.collection("admin_messages").where("searchLeadId", "==", leadId).get();
+    const batch = db.batch();
+    msgs.docs.forEach((d) => batch.delete(d.ref));
+    batch.delete(db.doc(`ad_agent_search_leads/${leadId}`));
+    await batch.commit();
+  }
+  for (const agentId of created.agentIds) {
+    await db.doc(`ad_agents/${agentId}`).delete().catch(() => {});
+  }
+  for (const uid of [UID, OTHER, AGENT2, SUPER_UID]) {
     const brands = await db.collection(`users/${uid}/brands`).listDocuments();
     const txs = await db.collection("token_transactions").where("uid", "==", uid).get();
     const aiDrafts = await db.collection("customize_ai_drafts").where("uid", "==", uid).get();
@@ -742,9 +955,9 @@ try {
   }
   const remainingCustomRag = await ragEngine.getCustomRagEntries();
   const ragLeftovers = remainingCustomRag.filter((e) => created.ragIds.includes(e.ragId)).length;
-  const leftovers = (await db.collection("token_transactions").where("uid", "in", [UID, OTHER]).get()).size +
-    (await db.collection("customize_ai_drafts").where("uid", "in", [UID, OTHER]).get()).size +
-    (await db.collection("users").where("uid", "in", [UID, OTHER]).get()).size +
+  const leftovers = (await db.collection("token_transactions").where("uid", "in", [UID, OTHER, AGENT2, SUPER_UID]).get()).size +
+    (await db.collection("customize_ai_drafts").where("uid", "in", [UID, OTHER, AGENT2, SUPER_UID]).get()).size +
+    (await db.collection("users").where("uid", "in", [UID, OTHER, AGENT2, SUPER_UID]).get()).size +
     ragLeftovers;
   console.log(`\ncleanup: ${created.sessions.length} Stripe session(s) expired, ${created.ragIds.length} RAG test entry deleted, test docs deleted (leftovers: ${leftovers})`);
   console.log(`${passed} passed, ${failures.length} failed`);

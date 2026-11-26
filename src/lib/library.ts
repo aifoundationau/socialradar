@@ -31,7 +31,65 @@ import {
 } from "./contracts";
 import { buildBrandTextFileContent, getBrandTextFileName } from "./brand-text-file";
 import { buildDeconstructTextFileContent, getDeconstructFileName } from "./deconstruct-text-file";
+import {
+  buildRemixedAdHashtags,
+  extractInlineHashtags,
+  stripHashtagsFromAdText,
+} from "./hashtag-engine";
 import { buildSearchMixTextFileContent } from "./searchmix-text-file";
+
+/**
+ * Normalizes legacy and current `remixed_ad_texts` documents so any historical hashtags inside `adText`
+ * are extracted out into the dedicated `hashtags` array before Zod parsing.
+ */
+export function parseNormalizedRemixedAdTextDoc(raw: unknown) {
+  if (!raw || typeof raw !== "object") {
+    return RemixedAdTextDocSchema.safeParse(raw);
+  }
+  const obj = raw as Record<string, unknown>;
+  const rawItems = Array.isArray(obj.items) ? obj.items : null;
+  if (!rawItems) {
+    return RemixedAdTextDocSchema.safeParse(raw);
+  }
+  const brandName = typeof obj.brandName === "string" ? obj.brandName : "";
+  const normalizedItems = rawItems.map((entry) => {
+    if (!entry || typeof entry !== "object") return entry;
+    const item = entry as Record<string, unknown>;
+    const rawCopy = typeof item.adText === "string" ? item.adText : "";
+    const inlineTags = extractInlineHashtags(rawCopy);
+    const cleanCopy = stripHashtagsFromAdText(rawCopy);
+    const wordCount = cleanCopy ? cleanCopy.split(/\s+/).length : 1;
+    const existingHashtags = Array.isArray(item.hashtags)
+      ? item.hashtags.filter((h): h is string => typeof h === "string")
+      : [];
+    const platform =
+      item.platform === "TIKTOK" ||
+      item.platform === "FACEBOOK" ||
+      item.platform === "INSTAGRAM" ||
+      item.platform === "GOOGLE_ADS"
+        ? item.platform
+        : "INSTAGRAM";
+    const hashtags =
+      existingHashtags.length > 0 && inlineTags.length === 0
+        ? existingHashtags
+        : buildRemixedAdHashtags({
+            platform,
+            brandName,
+            headline: typeof item.headline === "string" ? item.headline : "",
+            adText: cleanCopy,
+            cta: typeof item.cta === "string" ? item.cta : "",
+            aiHashtags: [...existingHashtags, ...inlineTags],
+            limit: 8,
+          });
+    return {
+      ...item,
+      adText: cleanCopy,
+      hashtags,
+      wordCount: Math.max(1, Math.min(150, wordCount)),
+    };
+  });
+  return RemixedAdTextDocSchema.safeParse({ ...obj, items: normalizedItems });
+}
 
 const MAX_SOURCE_SCAN = 80;
 /** Most public / own remixes (and, separately, ad texts) listed per request. */
@@ -411,7 +469,7 @@ export async function listLibraryItems(uid: string, query: LibraryListQuery) {
 
   const parsedAdTexts: Array<{ id: string; doc: RemixedAdTextDoc }> = [];
   for (const snap of adTextSnaps) {
-    const parsed = RemixedAdTextDocSchema.safeParse(snap.data());
+    const parsed = parseNormalizedRemixedAdTextDoc(snap.data());
     if (!parsed.success) continue;
     parsedAdTexts.push({ id: snap.id, doc: parsed.data });
   }
@@ -598,6 +656,18 @@ function buildRemixedAdTextFileContent(doc: RemixedAdTextDoc): string {
   ];
 
   for (const item of doc.items) {
+    const cleanCopy = stripHashtagsFromAdText(item.adText);
+    const hashtags =
+      item.hashtags && item.hashtags.length > 0
+        ? item.hashtags
+        : buildRemixedAdHashtags({
+            platform: item.platform,
+            brandName: doc.brandName,
+            headline: item.headline,
+            adText: cleanCopy,
+            cta: item.cta,
+            limit: 8,
+          });
     lines.push(
       "",
       `[${item.platformLabel.toUpperCase()}] (${item.wordCount} / 150 words)`,
@@ -605,7 +675,9 @@ function buildRemixedAdTextFileContent(doc: RemixedAdTextDoc): string {
       `Headline: ${item.headline}`,
       `CTA:      ${item.cta}`,
       "",
-      item.adText,
+      cleanCopy,
+      "",
+      `Hashtags: ${hashtags.join(" ")}`,
     );
   }
 
@@ -739,7 +811,7 @@ export async function getUnlockedLibraryItem(
 
   const snap = await db.collection("remixed_ad_texts").doc(sourceId).get();
   if (!snap.exists) throw new ApiError("NOT_FOUND", "Remixed Ad Text item not found in Library.", 404);
-  const parsed = RemixedAdTextDocSchema.safeParse(snap.data());
+  const parsed = parseNormalizedRemixedAdTextDoc(snap.data());
   if (!parsed.success) throw new ApiError("NOT_FOUND", "Remixed Ad Text item is unreadable.", 404);
   const remixedAdText = parsed.data;
   const adSnap = await db.collection("normalized_ads").doc(remixedAdText.sourceAdId).get();

@@ -185,6 +185,7 @@ export function RadarView() {
   const [adTextJob, setAdTextJob] = useState<{ adId: string; loading: boolean; error: RemixError | null } | null>(null);
   const [downloadingAdId, setDownloadingAdId] = useState<string | null>(null);
   const [downloadSuccessMsg, setDownloadSuccessMsg] = useState<string | null>(null);
+  const [confirmingShowAll, setConfirmingShowAll] = useState<boolean>(false);
   const [liveServiceCosts, setLiveServiceCosts] = useState<ServiceCosts | undefined>(undefined);
   const [liveAdAgentServiceCosts, setLiveAdAgentServiceCosts] = useState<AdAgentServiceCosts | undefined>(undefined);
   const [audRate, setAudRate] = useState<number>(100);
@@ -287,14 +288,29 @@ export function RadarView() {
   const pageAds = ads.slice(pageStart, pageStart + PAGE_SIZE);
   const selected = ads.find((ad) => ad.adId === selectedAdId) ?? null;
   const winners = ads.filter((ad) => ad.activeDaysCount >= PROVEN_WINNER_DAYS).length;
-  // Ads the "proven winners" filter hid (results saved before this field existed count as none).
-  const hiddenNewer = result && searched?.provenWinnersOnly ? Math.max(0, (result.unfilteredCount ?? 0) - result.ads.length) : 0;
+  // Ads hidden by active longevity or elite match filters (results saved before unfilteredCount existed count as none).
+  const hasStrictFilters = Boolean(
+    searched?.provenWinnersOnly || searched?.extendedLongevity || searched?.eliteWinnersOnly,
+  );
+  const hiddenByFilters =
+    result && hasStrictFilters ? Math.max(0, (result.unfilteredCount ?? 0) - result.ads.length) : 0;
+  const activeFilterSummary = [
+    searched?.extendedLongevity
+      ? "60+ days"
+      : searched?.provenWinnersOnly
+        ? `${PROVEN_WINNER_DAYS}+ days`
+        : null,
+    searched?.eliteWinnersOnly ? "90%+ match" : null,
+  ]
+    .filter(Boolean)
+    .join(" & ");
 
   async function search(next: RadarFilters = filters) {
     if (next.query.trim().length < 2) {
       setSearchError({ message: "Type at least 2 characters to search.", code: "INVALID_INPUT" });
       return;
     }
+    setConfirmingShowAll(false);
     setSearching(true);
     setSearchError(null);
     try {
@@ -414,15 +430,7 @@ export function RadarView() {
         onChange={(patch) => {
           const next = { ...filters, ...patch };
           setFilters(next);
-          if (patch.platform && patch.platform !== filters.platform) {
-            if (next.query.trim().length >= 2) {
-              void search(next);
-            } else {
-              setResult(null);
-              setSearched(null);
-              setSelectedAdId(null);
-            }
-          }
+          setConfirmingShowAll(false);
         }}
         onSearch={() => search()}
         searching={searching}
@@ -510,34 +518,67 @@ export function RadarView() {
                 </span>
                 <div className="max-w-md space-y-1">
                   <h2 className="text-headline-md font-semibold text-on-surface">
-                    {hiddenNewer ? `No ads running ${PROVEN_WINNER_DAYS}+ days yet` : "No ads found"}
+                    {hiddenByFilters
+                      ? `No ads matching ${activeFilterSummary || `${PROVEN_WINNER_DAYS}+ days`}`
+                      : "No ads found"}
                   </h2>
                   <p className="text-body text-on-surface-variant">
-                    {hiddenNewer
-                      ? `${hiddenNewer} newer ${hiddenNewer === 1 ? "ad matches" : "ads match"} `
+                    {hiddenByFilters
+                      ? `${hiddenByFilters} ${hiddenByFilters === 1 ? "ad matches" : "ads match"} `
                       : `Nothing in the ${PLATFORMS[searched.platform].library} matched `}
                     <span className="font-mono text-secondary">“{searched.query}”</span>
-                    {hiddenNewer
-                      ? " but none has run long enough to count as a proven winner."
+                    {hiddenByFilters
+                      ? ` before the ${activeFilterSummary || `${PROVEN_WINNER_DAYS}+ days`} filter was applied.`
                       : ". Try other keywords or another platform."}
                   </p>
                 </div>
-                {hiddenNewer > 0 && (
-                  <button
-                    type="button"
-                    data-agent-id="radar-show-newer-ads-button"
-                    data-testid="radar-show-newer-ads-button"
-                    aria-label={`Show ${hiddenNewer} newer ads`}
-                    className={btnSecondary}
-                    onClick={() => {
-                      const next = { ...searched, provenWinnersOnly: false };
-                      setFilters(next);
-                      search(next);
-                    }}
-                  >
-                    Show {hiddenNewer} newer {hiddenNewer === 1 ? "ad" : "ads"}
-                    <CostTag action="RADAR_SEARCH" free={!chargingActive} cost={searchStandardFee} />
-                  </button>
+                {hiddenByFilters > 0 && (
+                  confirmingShowAll ? (
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        data-agent-id="radar-confirm-show-all-button"
+                        data-testid="radar-confirm-show-all-button"
+                        aria-label={`Confirm search for all ${hiddenByFilters} matching ads`}
+                        className={btnSecondary}
+                        onClick={() => {
+                          const next = {
+                            ...searched,
+                            provenWinnersOnly: false,
+                            extendedLongevity: false,
+                            eliteWinnersOnly: false,
+                          };
+                          setConfirmingShowAll(false);
+                          setFilters(next);
+                          search(next);
+                        }}
+                      >
+                        Confirm Search ({hiddenByFilters} {hiddenByFilters === 1 ? "ad" : "ads"})
+                        <CostTag action="RADAR_SEARCH" free={!chargingActive} cost={searchStandardFee} />
+                      </button>
+                      <button
+                        type="button"
+                        data-agent-id="radar-cancel-show-all-button"
+                        data-testid="radar-cancel-show-all-button"
+                        onClick={() => setConfirmingShowAll(false)}
+                        className="rounded-lg border border-white/15 bg-surface-container px-3 py-2 text-compact font-medium text-on-surface-variant hover:text-on-surface transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      data-agent-id="radar-show-newer-ads-button"
+                      data-testid="radar-show-newer-ads-button"
+                      aria-label={`Show all ${hiddenByFilters} matching ads`}
+                      className={btnSecondary}
+                      onClick={() => setConfirmingShowAll(true)}
+                    >
+                      Show all {hiddenByFilters} matching {hiddenByFilters === 1 ? "ad" : "ads"}
+                      <CostTag action="RADAR_SEARCH" free={!chargingActive} cost={searchStandardFee} />
+                    </button>
+                  )
                 )}
               </div>
             )}

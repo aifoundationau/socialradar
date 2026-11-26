@@ -9,6 +9,7 @@ import {
   triggerDeconstructFileDownload,
 } from "@/lib/deconstruct-text-file";
 import { formatTokenEstimateHover } from "@/lib/pricing";
+import { buildRemixedAdHashtags, stripHashtagsFromAdText } from "@/lib/hashtag-engine";
 import { TONE_LABELS } from "@/components/brands/BrandForm";
 import { CostTag } from "@/components/ui/CostTag";
 import { Icon } from "@/components/ui/Icon";
@@ -47,8 +48,30 @@ function scriptText(v: Variation, i: number) {
   return `Variation ${variationLetter(i)}: ${v.angleName}\nHeadline: ${v.headline}\nCTA: ${v.ctaButton}\n\n${v.primaryCopy}\n\n${beats}\n`;
 }
 
-function remixedAdTextBlock(item: RemixedAdTextItem) {
-  return `${item.platformLabel} (${item.wordCount}/150 words)\nHeadline: ${item.headline}\nCTA: ${item.cta}\n\n${item.adText}`;
+function resolveCardHashtags(
+  item: RemixedAdTextItem,
+  brand: BrandProfile | null,
+  brandName: string,
+  ad: NormalizedAd,
+  remix?: RemixDoc | null,
+): string[] {
+  if (item.hashtags && item.hashtags.length > 0) return item.hashtags;
+  return buildRemixedAdHashtags({
+    platform: item.platform,
+    brand,
+    brandName,
+    headline: item.headline,
+    adText: stripHashtagsFromAdText(item.adText),
+    cta: item.cta,
+    ad,
+    deconstruction: remix?.deconstruction,
+    limit: 8,
+  });
+}
+
+function remixedAdTextBlock(item: RemixedAdTextItem, hashtags: string[]) {
+  const cleanCopy = stripHashtagsFromAdText(item.adText);
+  return `${item.platformLabel} (${item.wordCount}/150 words)\nHeadline: ${item.headline}\nCTA: ${item.cta}\n\n${cleanCopy}\n\nHashtags: ${hashtags.join(" ")}`;
 }
 
 function Toast({ message }: { message: string | null }) {
@@ -203,10 +226,19 @@ export function RemixStudio({
     }
   }
 
-  async function copyAdTextItem(item: RemixedAdTextItem) {
+  async function copyAdTextItem(item: RemixedAdTextItem, hashtags: string[]) {
     try {
-      await navigator.clipboard.writeText(remixedAdTextBlock(item));
+      await navigator.clipboard.writeText(remixedAdTextBlock(item, hashtags));
       notify(`${item.platformLabel} remixed ad text copied`);
+    } catch {
+      notify("Couldn't reach the clipboard");
+    }
+  }
+
+  async function copyAdHashtags(platformLabel: string, hashtags: string[]) {
+    try {
+      await navigator.clipboard.writeText(hashtags.join(" "));
+      notify(`${platformLabel} hashtags copied`);
     } catch {
       notify("Couldn't reach the clipboard");
     }
@@ -214,7 +246,11 @@ export function RemixStudio({
 
   async function copyAllAdTexts() {
     if (!remixedAdText) return;
-    const full = remixedAdText.items.map(remixedAdTextBlock).join("\n\n---\n\n");
+    const full = remixedAdText.items
+      .map((item) =>
+        remixedAdTextBlock(item, resolveCardHashtags(item, brand, remixedAdText.brandName, ad, remix)),
+      )
+      .join("\n\n---\n\n");
     try {
       await navigator.clipboard.writeText(full);
       notify("All 4 remixed social media ad texts copied");
@@ -393,70 +429,6 @@ export function RemixStudio({
             </div>
             {brand && (
               <div className="flex flex-wrap items-center gap-2 shrink-0">
-                <div
-                  className="relative inline-flex"
-                  onMouseEnter={() => setAdTextTipOpen(true)}
-                  onMouseLeave={() => setAdTextTipOpen(false)}
-                  onFocus={() => setAdTextTipOpen(true)}
-                  onBlur={(e) => {
-                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-                      setAdTextTipOpen(false);
-                    }
-                  }}
-                >
-                  <button
-                    type="button"
-                    disabled={buildingAdText || !onBuildRemixedAdText}
-                    data-agent-id="remix-build-ad-text-button"
-                    data-testid="remix-build-ad-text-button"
-                    aria-label="Build Remixed Ad Text"
-                    aria-describedby="build-remixed-ad-text-tooltip"
-                    onClick={() => onBuildRemixedAdText?.()}
-                    className={`${btnSecondary} shrink-0`}
-                  >
-                    {buildingAdText ? (
-                      <span className="size-3.5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-                    ) : (
-                      <Icon name="fileText" />
-                    )}
-                    <span>{buildingAdText ? "Building Ad Text…" : "Build Remixed Ad Text"}</span>
-                    {buildRemixedAdTextFee > 0 ? (
-                      <span className="flex items-center font-mono text-mono-label text-primary opacity-90">
-                        <Icon name="zap" className="size-3" />
-                        {buildRemixedAdTextFee}
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
-                        Free (0)
-                      </span>
-                    )}
-                  </button>
-                  <div
-                    className={`absolute bottom-full left-0 z-30 w-72 max-w-[calc(100vw-2rem)] pb-2 transition-opacity duration-150 sm:left-auto sm:right-0 ${
-                      adTextTipOpen ? "opacity-100" : "pointer-events-none opacity-0"
-                    }`}
-                  >
-                    <div
-                      id="build-remixed-ad-text-tooltip"
-                      role="tooltip"
-                      data-agent-id="remix-build-ad-text-tooltip"
-                      data-testid="remix-build-ad-text-tooltip"
-                      className="rounded-xl border border-primary/30 bg-surface-container-highest p-3 text-left text-compact leading-relaxed text-on-surface shadow-2xl"
-                    >
-                      <p className="font-semibold text-on-surface">
-                        Remixed Social Media Ad Text Descriptions
-                      </p>
-                      <p className="mt-1 text-[12px] text-on-surface-variant">
-                        These are remixed text ad descriptions that can be used directly on social media platforms.
-                        Generates 4 AI ad descriptions (TikTok, Facebook, Instagram, and Google Ads — max 150 words
-                        each) using your brand and the current modeling ad.
-                      </p>
-                      <p className="mt-1.5 font-mono text-[11px] text-primary">
-                        {buildAdTextCostHover}
-                      </p>
-                    </div>
-                  </div>
-                </div>
                 <button
                   type="button"
                   data-agent-id="remix-regenerate-variations-button"
@@ -472,6 +444,99 @@ export function RemixStudio({
               </div>
             )}
           </footer>
+          {brand && (
+            <section
+              aria-labelledby="build-remixed-ad-text-heading"
+              data-agent-id="build-remixed-ad-text-callout"
+              data-testid="build-remixed-ad-text-callout"
+              className="border-t border-white/[0.06] bg-surface-container-low/40 px-3 py-4 sm:px-5 space-y-3"
+            >
+              <div className="max-w-3xl space-y-1.5">
+                <h3
+                  id="build-remixed-ad-text-heading"
+                  className="text-title-sm font-semibold text-on-surface flex items-center gap-2"
+                >
+                  <Icon name="fileText" className="size-4 text-primary" />
+                  <span>Build Remixed Social Media Ad Text (4 Platforms)</span>
+                </h3>
+                <p
+                  data-agent-id="build-remixed-ad-text-explanation"
+                  data-testid="build-remixed-ad-text-explanation"
+                  className="text-compact leading-relaxed text-on-surface-variant"
+                >
+                  Build Remixed Ad Text transforms the deconstructed hook, pacing, and persuasion framework of the
+                  modeled ad into four ready-to-publish ad copy packages tailored to{" "}
+                  <strong className="text-on-surface">{brand.brandName}</strong> — one each for TikTok, Facebook,
+                  Instagram, and Google Ads. Each platform card includes a custom headline, a clean direct-response Ad
+                  Text Description (strictly up to 150 words with zero hashtags in the copy), a separate Hashtags
+                  section powered by the Brand &amp; Remix Hashtag Algorithm, and a platform-matched call-to-action.
+                </p>
+              </div>
+              <div
+                className="relative inline-flex"
+                onMouseEnter={() => setAdTextTipOpen(true)}
+                onMouseLeave={() => setAdTextTipOpen(false)}
+                onFocus={() => setAdTextTipOpen(true)}
+                onBlur={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                    setAdTextTipOpen(false);
+                  }
+                }}
+              >
+                <button
+                  type="button"
+                  disabled={buildingAdText || !onBuildRemixedAdText}
+                  data-agent-id="remix-build-ad-text-button"
+                  data-testid="remix-build-ad-text-button"
+                  aria-label="Build Remixed Ad Text"
+                  aria-describedby="build-remixed-ad-text-tooltip"
+                  onClick={() => onBuildRemixedAdText?.()}
+                  className={`${btnSecondary} shrink-0`}
+                >
+                  {buildingAdText ? (
+                    <span className="size-3.5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+                  ) : (
+                    <Icon name="fileText" />
+                  )}
+                  <span>{buildingAdText ? "Building Ad Text…" : "Build Remixed Ad Text"}</span>
+                  {buildRemixedAdTextFee > 0 ? (
+                    <span className="flex items-center font-mono text-mono-label text-primary opacity-90">
+                      <Icon name="zap" className="size-3" />
+                      {buildRemixedAdTextFee}
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
+                      Free (0)
+                    </span>
+                  )}
+                </button>
+                <div
+                  className={`absolute bottom-full left-0 z-30 w-72 max-w-[calc(100vw-2rem)] pb-2 transition-opacity duration-150 ${
+                    adTextTipOpen ? "opacity-100" : "pointer-events-none opacity-0"
+                  }`}
+                >
+                  <div
+                    id="build-remixed-ad-text-tooltip"
+                    role="tooltip"
+                    data-agent-id="remix-build-ad-text-tooltip"
+                    data-testid="remix-build-ad-text-tooltip"
+                    className="rounded-xl border border-primary/30 bg-surface-container-highest p-3 text-left text-compact leading-relaxed text-on-surface shadow-2xl"
+                  >
+                    <p className="font-semibold text-on-surface">
+                      Remixed Social Media Ad Text Descriptions
+                    </p>
+                    <p className="mt-1 text-[12px] text-on-surface-variant">
+                      Generates 4 ready-to-publish platform ad text packages (TikTok, Facebook, Instagram, and Google Ads
+                      — max 150 words each) with dedicated Brand &amp; Remix Hashtags below each description.
+                    </p>
+                    <p className="mt-1.5 font-mono text-[11px] text-primary">
+                      {buildAdTextCostHover}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
           {buildingAdText && !remixedAdText && (
             <div
               data-agent-id="remixed-ad-texts-loading"
@@ -526,6 +591,14 @@ export function RemixStudio({
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {remixedAdText.items.map((item) => {
                   const keySlug = item.platform.toLowerCase();
+                  const cleanAdText = stripHashtagsFromAdText(item.adText);
+                  const hashtags = resolveCardHashtags(
+                    item,
+                    brand,
+                    remixedAdText.brandName,
+                    ad,
+                    remix,
+                  );
                   return (
                     <article
                       key={item.platform}
@@ -548,7 +621,7 @@ export function RemixStudio({
                         </div>
                         <button
                           type="button"
-                          onClick={() => void copyAdTextItem(item)}
+                          onClick={() => void copyAdTextItem(item, hashtags)}
                           data-agent-id={`copy-remixed-ad-text-${keySlug}`}
                           data-testid={`copy-remixed-ad-text-${keySlug}`}
                           aria-label={`Copy ${item.platformLabel} remixed ad text`}
@@ -564,9 +637,45 @@ export function RemixStudio({
                       </div>
                       <div className="flex-1">
                         <p className="font-mono text-[10px] uppercase tracking-wider text-outline">Ad Text Description</p>
-                        <p className="mt-1 whitespace-pre-line text-compact leading-relaxed text-on-surface-variant">
-                          {item.adText}
+                        <p
+                          data-agent-id={`remixed-ad-text-body-${keySlug}`}
+                          data-testid={`remixed-ad-text-body-${keySlug}`}
+                          className="mt-1 whitespace-pre-line text-compact leading-relaxed text-on-surface-variant"
+                        >
+                          {cleanAdText}
                         </p>
+                      </div>
+                      <div
+                        data-agent-id={`remixed-ad-text-hashtags-${keySlug}`}
+                        data-testid={`remixed-ad-text-hashtags-${keySlug}`}
+                        className="border-t border-white/[0.06] pt-2.5 space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-mono text-[10px] uppercase tracking-wider text-outline">
+                            Hashtags ({hashtags.length})
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => void copyAdHashtags(item.platformLabel, hashtags)}
+                            data-agent-id={`copy-remixed-ad-hashtags-${keySlug}`}
+                            data-testid={`copy-remixed-ad-hashtags-${keySlug}`}
+                            aria-label={`Copy ${item.platformLabel} hashtags`}
+                            className="inline-flex items-center gap-1 rounded border border-white/10 bg-surface-container-high px-2 py-0.5 font-mono text-[10px] font-medium text-on-surface-variant transition hover:border-secondary/40 hover:text-secondary cursor-pointer"
+                          >
+                            <Icon name="copy" className="size-3" />
+                            <span>Copy Hashtags</span>
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {hashtags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-full border border-secondary/30 bg-secondary/10 px-2 py-0.5 font-mono text-[11px] font-medium text-secondary"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                       <div className="border-t border-white/[0.06] pt-2 flex items-center justify-between gap-2">
                         <span className="font-mono text-[10px] uppercase tracking-wider text-outline">CTA</span>

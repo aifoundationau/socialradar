@@ -135,6 +135,7 @@ export function RadarFilterBar({
   const [freeAccessWindow, setFreeAccessWindow] = useState<FreeAccessWindow | null>(null);
   const [userCountry, setUserCountry] = useState<string>("");
   const [nowMs, setNowMs] = useState<number>(0);
+  const [confirmingSearch, setConfirmingSearch] = useState<boolean>(false);
 
   useEffect(() => {
     let active = true;
@@ -195,8 +196,25 @@ export function RadarFilterBar({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  function updateFilters(patch: Partial<RadarFilters>) {
+    setConfirmingSearch(false);
+    onChange(patch);
+  }
+
   function submit(e: FormEvent) {
     e.preventDefault();
+    if (searching) return;
+    if (filters.query.trim().length < 2) {
+      setConfirmingSearch(false);
+      input.current?.blur();
+      onSearch();
+      return;
+    }
+    if (!confirmingSearch) {
+      setConfirmingSearch(true);
+      return;
+    }
+    setConfirmingSearch(false);
     input.current?.blur(); // closes the phone keyboard so results are visible
     onSearch();
   }
@@ -219,7 +237,7 @@ export function RadarFilterBar({
             <BrandSelectPill
               brands={brands}
               selectedBrandId={filters.brandId || ""}
-              onChange={(brandId) => onChange({ brandId })}
+              onChange={(brandId) => updateFilters({ brandId })}
             />
           </div>
           <div className="flex flex-wrap sm:flex-nowrap gap-2 min-w-0 lg:order-2 lg:flex-1">
@@ -235,7 +253,7 @@ export function RadarFilterBar({
                 aria-describedby="radar-search-input-tooltip"
                 placeholder={filters.platform === "GOOGLE" ? "Brand name or website, e.g. nike.com" : "Keywords, hooks or competitor brands…"}
                 value={filters.query}
-                onChange={(e) => onChange({ query: e.target.value })}
+                onChange={(e) => updateFilters({ query: e.target.value })}
                 maxLength={100}
                 className="h-11 w-full rounded-lg border border-white/10 bg-surface-container-low pr-3 pl-11 text-base text-on-surface transition placeholder:text-outline focus:border-primary-container focus:ring-1 focus:ring-primary-container focus:outline-none sm:pr-16"
               />
@@ -282,31 +300,74 @@ export function RadarFilterBar({
             </div>
 
             <div className="group relative flex shrink-0 items-center gap-2">
-              <button
-                type="submit"
-                data-agent-id="radar-search-submit-button"
-                data-testid="radar-search-submit-button"
-                aria-describedby="radar-search-button-tooltip"
-                className={`${btnPrimary} shrink-0 sm:h-11`}
-                disabled={searching}
-                aria-label={totalCost > 0 ? `Search (${totalCost} tokens)` : "Search (Free)"}
-              >
-                {searching ? (
-                  <span className="size-4 animate-spin rounded-full border-2 border-on-primary/30 border-t-on-primary" />
-                ) : (
-                  <Icon name="search" />
-                )}
-                <span className="hidden sm:inline">Search</span>
-                {totalCost > 0 ? (
-                  <span className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary">
-                    {totalCost} {totalCost === 1 ? "token" : "tokens"}
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-winner/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary">
-                    Free
-                  </span>
-                )}
-              </button>
+              {confirmingSearch ? (
+                <div
+                  className="flex shrink-0 items-center gap-1.5"
+                  data-agent-id="radar-search-confirm-group"
+                  data-testid="radar-search-confirm-group"
+                >
+                  <button
+                    type="submit"
+                    data-agent-id="radar-search-confirm-button"
+                    data-testid="radar-search-confirm-button"
+                    disabled={searching}
+                    aria-label={
+                      totalCost > 0
+                        ? `Confirm Search (${totalCost} ${totalCost === 1 ? "token" : "tokens"})`
+                        : "Confirm Search (Free)"
+                    }
+                    className={`${btnPrimary} shrink-0 border-2 border-secondary/70 shadow-[0_0_16px_rgba(245,158,11,0.3)] sm:h-11`}
+                  >
+                    <Icon name="checkCircle" className="size-4" />
+                    <span>Confirm Search</span>
+                    {totalCost > 0 ? (
+                      <span className="rounded-full bg-surface-container-lowest/30 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary">
+                        {totalCost} {totalCost === 1 ? "token" : "tokens"}
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-winner/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary">
+                        Free
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    data-agent-id="radar-search-cancel-button"
+                    data-testid="radar-search-cancel-button"
+                    aria-label="Cancel search confirmation"
+                    onClick={() => setConfirmingSearch(false)}
+                    className="inline-flex h-11 items-center justify-center rounded-lg border border-white/15 bg-surface-container-high px-3 font-mono text-xs font-semibold text-on-surface-variant hover:border-white/30 hover:text-on-surface transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="submit"
+                  data-agent-id="radar-search-submit-button"
+                  data-testid="radar-search-submit-button"
+                  aria-describedby="radar-search-button-tooltip"
+                  className={`${btnPrimary} shrink-0 sm:h-11`}
+                  disabled={searching}
+                  aria-label={totalCost > 0 ? `Search (${totalCost} tokens)` : "Search (Free)"}
+                >
+                  {searching ? (
+                    <span className="size-4 animate-spin rounded-full border-2 border-on-primary/30 border-t-on-primary" />
+                  ) : (
+                    <Icon name="search" />
+                  )}
+                  <span className="hidden sm:inline">Search</span>
+                  {totalCost > 0 ? (
+                    <span className="rounded-full bg-surface-container-lowest/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary">
+                      {totalCost} {totalCost === 1 ? "token" : "tokens"}
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-winner/25 px-2 py-0.5 font-mono text-[11px] font-bold text-on-primary">
+                      Free
+                    </span>
+                  )}
+                </button>
+              )}
 
               {/* Hover explanation for Search button */}
               <div
@@ -344,7 +405,7 @@ export function RadarFilterBar({
                     aria-label={`Select ${PLATFORMS[p].label} ad library`}
                     data-agent-id={`radar-platform-${p.toLowerCase()}`}
                     data-testid={`radar-platform-${p.toLowerCase()}`}
-                    onClick={() => onChange({ platform: p })}
+                    onClick={() => updateFilters({ platform: p })}
                     className={`flex h-9 items-center gap-2 rounded px-3 font-mono text-mono-code font-medium whitespace-nowrap transition sm:h-7 ${
                       active
                         ? "bg-surface-container-high text-on-surface shadow-sm ring-1 ring-white/[0.08]"
@@ -369,7 +430,7 @@ export function RadarFilterBar({
                 aria-describedby="radar-proven-winners-tooltip"
                 data-testid="radar-proven-winners-toggle"
                 data-agent-id="radar-proven-winners-toggle"
-                onClick={() => onChange({ provenWinnersOnly: !filters.provenWinnersOnly })}
+                onClick={() => updateFilters({ provenWinnersOnly: !filters.provenWinnersOnly })}
                 className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
                   filters.provenWinnersOnly
                     ? "border-winner/50 bg-winner/15 text-on-surface shadow-[0_0_12px_rgba(16,185,129,0.2)]"
@@ -416,7 +477,7 @@ export function RadarFilterBar({
                 aria-describedby="radar-extended-days-tooltip"
                 data-testid="radar-extended-days-toggle"
                 data-agent-id="radar-extended-days-toggle"
-                onClick={() => onChange({ extendedLongevity: !filters.extendedLongevity })}
+                onClick={() => updateFilters({ extendedLongevity: !filters.extendedLongevity })}
                 className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
                   filters.extendedLongevity
                     ? "border-secondary/50 bg-secondary/15 text-on-surface shadow-[0_0_12px_rgba(245,158,11,0.2)]"
@@ -463,7 +524,7 @@ export function RadarFilterBar({
                 aria-describedby="radar-elite-score-tooltip"
                 data-testid="radar-elite-score-toggle"
                 data-agent-id="radar-elite-score-toggle"
-                onClick={() => onChange({ eliteWinnersOnly: !filters.eliteWinnersOnly })}
+                onClick={() => updateFilters({ eliteWinnersOnly: !filters.eliteWinnersOnly })}
                 className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
                   filters.eliteWinnersOnly
                     ? "border-hot/50 bg-hot/15 text-on-surface shadow-[0_0_12px_rgba(239,68,68,0.2)]"
@@ -510,7 +571,7 @@ export function RadarFilterBar({
             icon="globe"
             value={filters.country}
             options={COUNTRIES}
-            onChange={(country) => onChange({ country })}
+            onChange={(country) => updateFilters({ country })}
           />
           <SelectPill
             label="Format"
@@ -518,7 +579,7 @@ export function RadarFilterBar({
             icon="film"
             value={filters.mediaType}
             options={MEDIA_FILTERS}
-            onChange={(mediaType) => onChange({ mediaType })}
+            onChange={(mediaType) => updateFilters({ mediaType })}
           />
           <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-white/10" />
           <div role="radiogroup" aria-label="Sort results" className="flex shrink-0 items-center gap-1">

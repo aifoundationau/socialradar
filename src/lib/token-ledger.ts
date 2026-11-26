@@ -298,8 +298,9 @@ export interface GateContext {
 /**
  * The three-step gate every paid API route uses:
  * 1. verify session & claims  2. atomic pre-flight deduction  3. auto-refund on failure.
- * Hard Rule: Nobody can have negative tokens. If an account is 0 (or < effectiveCost),
- * ALL users (including admins/superadmins) must buy more tokens.
+ * SuperAdmin Free Rule: SuperAdmin (`caller.claims.isSuperAdmin === true`) never pays for use —
+ * effective cost is always 0 (Free) across every endpoint and SuperAdmin is never blocked by 0 balance.
+ * For all other users: nobody can have negative tokens; if balance < effectiveCost, return 402.
  */
 export async function withTokenGate(
   req: Request,
@@ -322,11 +323,20 @@ export async function withTokenGate(
     const rawCost = resolvedCustomCost !== undefined ? resolvedCustomCost : roleDefaultCosts[action];
     let effectiveCost = Math.max(0, toInt(rawCost));
 
-    // Professional Customize Service orders are never free and are excluded from Timed Free Access Windows
-    // and global free-mode waivers. Customization AI Assistant also honors the configured Customization AI Fee directly.
-    if (action === "CUSTOMIZE_SERVICE") {
+    // SuperAdmin Free Rule: SuperAdmin never pays for use; every action is 0 tokens (Free).
+    if (caller.claims.isSuperAdmin) {
+      effectiveCost = 0;
+    } else if (action === "CUSTOMIZE_SERVICE") {
+      // Professional Customize Service orders are never free for non-SuperAdmin users and are excluded
+      // from Timed Free Access Windows and global free-mode waivers.
       effectiveCost = Math.max(1, effectiveCost || ACTION_COSTS.CUSTOMIZE_SERVICE);
-    } else if (effectiveCost > 0 && action !== "CUSTOMIZE_AI_ASSISTANT") {
+    } else if (action === "CUSTOMIZE_AI_ASSISTANT") {
+      const sysSnap = await sysConfigDoc().get().catch(() => null);
+      const sys = sysSnap?.exists ? sysSnap.data() : null;
+      if (sys?.isTokenSystemEnabled === false) {
+        effectiveCost = 0;
+      }
+    } else if (effectiveCost > 0) {
       const [sysSnap, userSnap] = await Promise.all([
         sysConfigDoc().get().catch(() => null),
         usersCol().doc(caller.uid).get().catch(() => null),

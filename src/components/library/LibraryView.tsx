@@ -19,6 +19,7 @@ import type {
   LibraryUnlockedDetail,
 } from "@/lib/contracts";
 import { triggerDeconstructFileDownload } from "@/lib/deconstruct-text-file";
+import { buildRemixedAdHashtags, stripHashtagsFromAdText } from "@/lib/hashtag-engine";
 import { loadDetectedGeoCountry } from "@/lib/geo";
 import { formatTokenEstimateHover } from "@/lib/pricing";
 
@@ -41,7 +42,7 @@ const formatDateShort = (iso: string) =>
 
 export function LibraryView() {
   const router = useRouter();
-  const { user, profile } = useSession();
+  const { user, profile, isSuperAdmin } = useSession();
 
   const [data, setData] = useState<LibraryListResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -274,7 +275,7 @@ export function LibraryView() {
     router.push("/radar");
   }
 
-  const libraryItemFee = data?.libraryItemFee ?? 1;
+  const libraryItemFee = isSuperAdmin ? 0 : (data?.libraryItemFee ?? 1);
   const audRate = data?.audCentsPerToken ?? 100;
   const isAuNz = userCountry === "AU" || userCountry === "NZ";
   const priceHover =
@@ -885,41 +886,91 @@ export function LibraryView() {
 
                 {activeUnlocked.detail.kind === "REMIXED_AD_TEXT" && (
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {activeUnlocked.detail.remixedAdText.items.map((adItem) => (
-                      <article
-                        key={adItem.platform}
-                        className="flex flex-col gap-2.5 rounded-xl border border-white/[0.08] bg-surface-container p-4"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="rounded-full border border-primary/35 bg-primary/15 px-2.5 py-0.5 font-mono text-[11px] font-bold text-primary uppercase">
-                              {adItem.platformLabel}
-                            </span>
-                            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
-                              {adItem.wordCount} / 150 words
-                            </span>
+                    {activeUnlocked.detail.remixedAdText.items.map((adItem) => {
+                      const cleanCopy = stripHashtagsFromAdText(adItem.adText);
+                      const hashtags =
+                        adItem.hashtags && adItem.hashtags.length > 0
+                          ? adItem.hashtags
+                          : buildRemixedAdHashtags({
+                              platform: adItem.platform,
+                              brandName: activeUnlocked.detail.kind === "REMIXED_AD_TEXT"
+                                ? activeUnlocked.detail.remixedAdText.brandName
+                                : "",
+                              headline: adItem.headline,
+                              adText: cleanCopy,
+                              cta: adItem.cta,
+                              ad: activeUnlocked.detail.kind === "REMIXED_AD_TEXT"
+                                ? activeUnlocked.detail.sourceAd
+                                : null,
+                              limit: 8,
+                            });
+                      return (
+                        <article
+                          key={adItem.platform}
+                          className="flex flex-col gap-2.5 rounded-xl border border-white/[0.08] bg-surface-container p-4"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="rounded-full border border-primary/35 bg-primary/15 px-2.5 py-0.5 font-mono text-[11px] font-bold text-primary uppercase">
+                                {adItem.platformLabel}
+                              </span>
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
+                                {adItem.wordCount} / 150 words
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void copyText(
+                                  `${adItem.platformLabel}\nHeadline: ${adItem.headline}\nCTA: ${adItem.cta}\n\n${cleanCopy}\n\nHashtags: ${hashtags.join(" ")}`,
+                                  adItem.platformLabel,
+                                )
+                              }
+                              className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-0.5 font-mono text-[11px] text-on-surface-variant hover:text-primary"
+                            >
+                              <Icon name="copy" className="size-3" />
+                              Copy
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void copyText(
-                                `${adItem.platformLabel}\nHeadline: ${adItem.headline}\nCTA: ${adItem.cta}\n\n${adItem.adText}`,
-                                adItem.platformLabel,
-                              )
-                            }
-                            className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-0.5 font-mono text-[11px] text-on-surface-variant hover:text-primary"
-                          >
-                            <Icon name="copy" className="size-3" />
-                            Copy
-                          </button>
-                        </div>
-                        <p className="text-compact font-semibold text-on-surface">{adItem.headline}</p>
-                        <p className="flex-1 whitespace-pre-line text-compact leading-relaxed text-on-surface-variant">
-                          {adItem.adText}
-                        </p>
-                        <p className="font-mono text-mono-code text-primary">CTA: {adItem.cta}</p>
-                      </article>
-                    ))}
+                          <div>
+                            <p className="font-mono text-[10px] uppercase tracking-wider text-outline">Headline</p>
+                            <p className="mt-0.5 text-compact font-semibold text-on-surface">{adItem.headline}</p>
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-mono text-[10px] uppercase tracking-wider text-outline">Ad Text Description</p>
+                            <p className="mt-1 whitespace-pre-line text-compact leading-relaxed text-on-surface-variant">
+                              {cleanCopy}
+                            </p>
+                          </div>
+                          <div className="border-t border-white/[0.06] pt-2.5 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="font-mono text-[10px] uppercase tracking-wider text-outline">
+                                Hashtags ({hashtags.length})
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => void copyText(hashtags.join(" "), `${adItem.platformLabel} hashtags`)}
+                                className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-0.5 font-mono text-[10px] text-on-surface-variant hover:text-secondary"
+                              >
+                                <Icon name="copy" className="size-3" />
+                                Copy Hashtags
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {hashtags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="rounded-full border border-secondary/30 bg-secondary/10 px-2 py-0.5 font-mono text-[11px] font-medium text-secondary"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <p className="font-mono text-mono-code text-primary">CTA: {adItem.cta}</p>
+                        </article>
+                      );
+                    })}
                   </div>
                 )}
               </div>

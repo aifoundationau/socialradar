@@ -17,6 +17,7 @@ import {
 } from "./contracts";
 import { searchApi } from "./searchapi";
 import { searchAdsWithGeminiGrounding } from "./gemini";
+import { resolveExactSocialPostUrl } from "./social-post-url";
 import { calculateMatrixScore } from "./radar-matrix";
 import {
   buildTikTokHeadline,
@@ -47,7 +48,7 @@ import type { BrandProfile } from "./contracts";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /** Part of every cache key: bump it when normalization changes so stale result sets aren't served. */
-const CACHE_VERSION = "12";
+const CACHE_VERSION = "15";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS = 100;
 
@@ -154,7 +155,20 @@ async function readCache(ref: DocumentReference): Promise<RadarCacheDoc | null> 
 }
 
 function serve(doc: RadarCacheDoc, req: RadarSearchRequest, cached: boolean): SearchResult {
-  const isolated = enforcePlatformIsolation(doc.ads, req.platform);
+  const isolated = enforcePlatformIsolation(doc.ads, req.platform).map((ad) => {
+    const withPostUrl = ad.socialPostUrl
+      ? ad
+      : { ...ad, socialPostUrl: resolveExactSocialPostUrl(ad, doc.query) };
+    if (!withPostUrl.thumbnailUrl && withPostUrl.mediaType !== "TEXT" && withPostUrl.landingPageUrl) {
+      const ogProxy = `https://api.microlink.io/?url=${encodeURIComponent(withPostUrl.landingPageUrl)}&embed=image.url`;
+      return {
+        ...withPostUrl,
+        thumbnailUrl: ogProxy,
+        mediaUrls: withPostUrl.mediaUrls.length > 0 ? withPostUrl.mediaUrls : [ogProxy],
+      };
+    }
+    return withPostUrl;
+  });
   let ads = isolated;
   if (req.extendedLongevity) {
     ads = ads.filter((ad) => ad.activeDaysCount >= EXTENDED_WINNER_DAYS);
@@ -415,9 +429,11 @@ async function searchMeta(req: RadarSearchRequest): Promise<LibraryResult> {
     const cards = list(snap.cards).map(obj);
     const card = cards[0] ?? {};
     const videos = [...list(snap.videos).map(obj), ...cards];
-    const images = [...list(snap.images).map(obj), ...cards];
+    const images = [...list(snap.images).map(obj), ...list(snap.extra_images).map(obj), ...cards];
     const videoUrls = videos.map((v) => https(v.video_hd_url) || https(v.video_sd_url)).filter(Boolean);
-    const imageUrls = images.map((i) => https(i.original_image_url) || https(i.resized_image_url)).filter(Boolean);
+    const imageUrls = images
+      .map((i) => https(i.original_image_url) || https(i.resized_image_url) || https(i.image_url))
+      .filter(Boolean);
 
     const advertiserName = text(ad.page_name, 300) || text(snap.page_name, 300);
     const advertiserId = idPart(ad.page_id ?? snap.page_id);
@@ -456,28 +472,33 @@ async function searchMeta(req: RadarSearchRequest): Promise<LibraryResult> {
       platformCount,
     });
 
-    return [
-      {
-        adId: `meta_${id}`,
-        platform: "META",
-        advertiserName,
-        advertiserId,
-        mediaType,
-        mediaUrls: (videoUrls.length ? videoUrls : imageUrls).slice(0, 20),
-        thumbnailUrl: videos.map((v) => https(v.video_preview_image_url)).find(Boolean) || imageUrls[0] || "",
-        primaryCopy,
-        headline,
-        ctaText,
-        landingPageUrl: https(snap.link_url) || https(card.link_url),
-        countryCode: req.country,
-        firstSeenDate: first,
-        lastSeenDate: last,
-        activeDaysCount,
-        totalViews,
-        totalLikes,
-        duplicates,
-      },
-    ];
+    const landingPageUrl = https(snap.link_url) || https(card.link_url);
+    const metaDraft: Draft = {
+      adId: `meta_${id}`,
+      platform: "META",
+      advertiserName,
+      advertiserId,
+      mediaType,
+      mediaUrls: (videoUrls.length ? videoUrls : imageUrls).slice(0, 20),
+      thumbnailUrl: videos.map((v) => https(v.video_preview_image_url)).find(Boolean) || imageUrls[0] || "",
+      primaryCopy,
+      headline,
+      ctaText,
+      landingPageUrl,
+      socialPostUrl:
+        https(ad.ad_library_url) ||
+        https(ad.url) ||
+        `https://www.facebook.com/ads/library/?id=${id}`,
+      countryCode: req.country,
+      firstSeenDate: first,
+      lastSeenDate: last,
+      activeDaysCount,
+      totalViews,
+      totalLikes,
+      duplicates,
+    };
+
+    return [metaDraft];
   });
 
   return { drafts: [...externalDrafts, ...libraryDrafts], notice: "" };
@@ -615,6 +636,11 @@ async function searchTikTok(req: RadarSearchRequest): Promise<LibraryResult> {
       headline,
       ctaText,
       landingPageUrl,
+      socialPostUrl:
+        https(ad.ad_url) ||
+        https(ad.post_url) ||
+        https(ad.share_url) ||
+        `https://library.tiktok.com/ads/detail/?ad_id=${id}`,
       countryCode: targetCountry,
       firstSeenDate: first,
       lastSeenDate: last,
@@ -872,6 +898,7 @@ async function searchGoogle(req: RadarSearchRequest, intent: ResolvedSearchInten
     });
     const ctaText = inferGoogleCta(c.call_to_action, primaryCopy, headline, mediaType);
 
+    const landingPageUrl = domain ? `https://${domain}` : "";
     return [
       {
         adId: `google_${id}`,
@@ -884,7 +911,20 @@ async function searchGoogle(req: RadarSearchRequest, intent: ResolvedSearchInten
         primaryCopy,
         headline,
         ctaText,
-        landingPageUrl: domain ? `https://${domain}` : "",
+        landingPageUrl,
+        socialPostUrl: resolveExactSocialPostUrl(
+          {
+            adId: `google_${id}`,
+            platform: "GOOGLE",
+            advertiserName,
+            advertiserId,
+            headline,
+            landingPageUrl,
+            countryCode: req.country,
+            mediaUrls: mediaType === "IMAGE" && previewImg ? [previewImg] : [],
+          },
+          req.query,
+        ),
         countryCode: req.country,
         firstSeenDate: first,
         lastSeenDate: last,
@@ -919,6 +959,7 @@ async function searchGoogle(req: RadarSearchRequest, intent: ResolvedSearchInten
           (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : "");
         if (videoUrl) {
           d.mediaUrls = [videoUrl];
+          d.socialPostUrl = videoUrl;
         } else if (d.mediaType === "IMAGE" && imgUrl) {
           d.mediaUrls = [imgUrl];
         }

@@ -371,7 +371,12 @@ export function CustomizeView() {
       </p>
     ) : null;
 
-  const hoverPrice = formatTokenEstimateHover(costTokens, false, audCentsPerToken);
+  const effectiveCostTokens = isSuperAdmin ? 0 : costTokens;
+  const effectiveAiFeeTokens = isSuperAdmin ? 0 : customizeAiFeeTokens;
+  const hoverPrice =
+    effectiveCostTokens <= 0
+      ? "Free for Super Admin (0 tokens)"
+      : formatTokenEstimateHover(effectiveCostTokens, false, audCentsPerToken);
 
   return (
     <div
@@ -419,12 +424,14 @@ export function CustomizeView() {
               className="cursor-help flex items-center gap-1.5 font-mono text-title-md font-bold text-secondary"
             >
               <Icon name="zap" className="size-5 text-secondary" />
-              <span>{costTokens} tokens</span>
+              <span>{effectiveCostTokens <= 0 ? "Free (0 tokens)" : `${effectiveCostTokens} tokens`}</span>
             </div>
             <span className="text-[11px] font-mono text-on-surface-variant">
-              Hover token badge for AUD / USD rate
+              {effectiveCostTokens <= 0
+                ? "Super Admin Free Access Active"
+                : "Hover token badge for AUD / USD rate"}
             </span>
-            {profile && profile.tokenBalance < costTokens && (
+            {profile && !isSuperAdmin && profile.tokenBalance < effectiveCostTokens && (
               <Link
                 href="/wallet#packs"
                 data-testid="customize-topup-link"
@@ -456,7 +463,13 @@ export function CustomizeView() {
               <button
                 type="button"
                 onClick={() => setIsAiAssistantOpen(true)}
-                title={formatTokenEstimateHover(customizeAiFeeTokens, false, audCentsPerToken)}
+                title={
+                  effectiveAiFeeTokens <= 0
+                    ? isSuperAdmin
+                      ? "Free for Super Admin (0 tokens)"
+                      : "Free (0 tokens)"
+                    : formatTokenEstimateHover(effectiveAiFeeTokens, false, audCentsPerToken)
+                }
                 data-testid="customize-open-ai-assistant-btn"
                 data-agent-id="customize-open-ai-assistant-btn"
                 aria-label="Open optional AI Agent Assistant to fill Customize brief"
@@ -466,9 +479,9 @@ export function CustomizeView() {
                 <span>AI Agent Assistant</span>
                 <span className="rounded-full bg-black/30 px-2 py-0.5 text-[10px] font-bold text-secondary">
                   ⚡{" "}
-                  {customizeAiFeeTokens <= 0
+                  {effectiveAiFeeTokens <= 0
                     ? "Free"
-                    : `${customizeAiFeeTokens} ${customizeAiFeeTokens === 1 ? "token" : "tokens"}`}
+                    : `${effectiveAiFeeTokens} ${effectiveAiFeeTokens === 1 ? "token" : "tokens"}`}
                 </span>
               </button>
 
@@ -985,7 +998,9 @@ export function CustomizeView() {
                     <Icon name="sparkles" className="size-4" />
                     <span>Submit Customize Request</span>
                     <span className="ml-1.5 rounded-full bg-black/25 px-2 py-0.5 font-mono text-xs font-bold text-secondary">
-                      ⚡ {costTokens} {costTokens === 1 ? "token" : "tokens"}
+                      {effectiveCostTokens <= 0
+                        ? "Free (0)"
+                        : `⚡ ${effectiveCostTokens} ${effectiveCostTokens === 1 ? "token" : "tokens"}`}
                     </span>
                   </>
                 )}
@@ -1162,7 +1177,7 @@ export function CustomizeView() {
       {isAiAssistantOpen && (
         <CustomizeAiAssistantModal
           onClose={() => setIsAiAssistantOpen(false)}
-          aiFeeTokens={customizeAiFeeTokens}
+          aiFeeTokens={effectiveAiFeeTokens}
           audCentsPerToken={audCentsPerToken}
           brands={brands}
           initialValues={{
