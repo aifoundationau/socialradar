@@ -64,7 +64,7 @@ The Firebase project, and so its Auth accounts and custom claims, is shared with
 |---|---|---|
 | `txId` | string | idempotency key / deterministic id |
 | `uid` | string | |
-| `type` | enum | `"TOPUP" \| "RADAR_SEARCH" \| "AI_REMIX" \| "REGENERATE_VARIATIONS" \| "REFUND" \| "BRAND_CLONE" \| "BRAND_TXT_DOWNLOAD" \| "SEARCHMIX_DOWNLOAD" \| "DECONSTRUCT_DOWNLOAD" \| "CUSTOMIZE_SERVICE" \| "CUSTOMIZE_AI_ASSISTANT"` |
+| `type` | enum | `"TOPUP" \| "RADAR_SEARCH" \| "SEARCH_IMAGE_VIEW" \| "AI_REMIX" \| "REGENERATE_VARIATIONS" \| "REFUND" \| "BRAND_CLONE" \| "BRAND_TXT_DOWNLOAD" \| "SEARCHMIX_DOWNLOAD" \| "DECONSTRUCT_DOWNLOAD" \| "CUSTOMIZE_SERVICE" \| "CUSTOMIZE_AI_ASSISTANT"` |
 | `delta` | integer | non-zero (e.g. `-2`, `-5`, `+100`) |
 | `balanceAfter` | integer | `>= 0` |
 | `referenceId` | string | queryHash, adId, stripeSessionId, globalBrandId, or refunded txId; max 256 |
@@ -74,8 +74,8 @@ The Firebase project, and so its Auth accounts and custom claims, is shared with
 One-off Stripe Checkout purchases. Tokens never expire.
 - **Default Currency & Base Rate:** The default platform currency is **AUD** (`aud`), and the default token price is **1 Token = AUD $1** (`100 cents AUD`, stored in `audCentsPerToken`).
 - **SuperAdmin Customization (Role-Tiered Pricing):** From the SuperAdmin Control Panel (`system_config/global`), both `audCentsPerToken` and the token amounts for each product and service (`serviceCosts` for Supporters/standard users and `adAgentServiceCosts` for Ad Agents) are fully customizable.
-  - **12 Tiered Service Options** (`searchStandard`, `searchProvenWinners`, `searchExtendedDays`, `searchEliteScore`, `aiRemix`, `regenerateVariations`, `buildRemixedAdText`, `libraryItems`, `brandClone`, `brandTxtDownload`, `searchMixDownload`, `deconstructDownload`):
-    - **1. Supporters (`serviceCosts`):** Default is **`2` tokens** per option.
+  - **13 Tiered Service Options** (`searchStandard`, `searchProvenWinners`, `searchExtendedDays`, `searchEliteScore`, `searchImageView`, `aiRemix`, `regenerateVariations`, `buildRemixedAdText`, `libraryItems`, `brandClone`, `brandTxtDownload`, `searchMixDownload`, `deconstructDownload`):
+    - **1. Supporters (`serviceCosts`):** Default is **`2` tokens** per option (`searchImageView` defaults to **`1` token**).
     - **2. Ad Agents (`adAgentServiceCosts`):** Default is **`1` token** per option.
   - **Shared Non-Tiered Options (`serviceCosts`):** `customizeService` (default `55`) and `customizeAiAssistant` (default `1`).
 - **Base Currency & Invoicing:** All platform token fees and Stripe invoices operate strictly in Australian Dollars (**AUD**) with whole numbers.
@@ -113,6 +113,7 @@ Standard Paid Rates for all services, products, and surcharges across the platfo
 | `searchProvenWinners` | +1 token | Proven winners longevity filter (Active 28+ days) |
 | `searchExtendedDays` | +1 token | Extended longevity filter (Active 60+ days) |
 | `searchEliteScore` | +1 token | Top Winners composite score filter (90%+ score) |
+| `searchImageView` (`SEARCH_IMAGE_VIEW`) | 1 token | Optional click-to-view creative image preview on search result cards (`POST /api/radar/view-image`) |
 | `aiRemix` (AI Creative Remix) | 1 token | Multimodal AI remix deconstruction & script generation |
 | `regenerateVariations` (Regenerate Variations) | 1 token | Regenerate fresh angles & 3 script variations in Remix Studio |
 | `buildRemixedAdText` (`BUILD_REMIXED_AD_TEXT`) | 1 token | Build 4 AI remixed social media ad text descriptions (TikTok, Facebook, Instagram & Google Ads, max 150 words each) next to Regenerate Variations |

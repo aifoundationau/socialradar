@@ -246,7 +246,7 @@ export function SupporterModal({ isOpen, onClose, initialTab }: SupporterModalPr
 
     return rows.filter((rec) => {
       // Type filter
-      if (typeFilter === "RADAR_SEARCH" && rec.type !== "RADAR_SEARCH") return false;
+      if (typeFilter === "RADAR_SEARCH" && rec.type !== "RADAR_SEARCH" && rec.type !== "SEARCH_IMAGE_VIEW") return false;
       if (
         typeFilter === "AI_REMIX" &&
         rec.type !== "AI_REMIX" &&

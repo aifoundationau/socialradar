@@ -183,6 +183,11 @@ export const WEBSITE_UI_SENTENCES: Array<{
     section: "Website UI: Radar Search & Filter Bar",
     sentence: "Click any of the 24 most-searched trending consumer categories on the Radar home view to launch instant one-click competitor research.",
   },
+  {
+    id: "web_radar_08",
+    section: "Website UI: Radar Search & Filter Bar",
+    sentence: "Search result images are optional via Search Image View (default 1 token) because some images take a long time to upload and ad analytics, text descriptions, and hashtags matter more than the actual image.",
+  },
   // AI Creative Remix Studio & Variation Editor
   {
     id: "web_remix_01",

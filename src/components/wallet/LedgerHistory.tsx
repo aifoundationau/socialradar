@@ -12,6 +12,7 @@ const TYPE_LABELS: Record<TokenTxType, string> = {
   ADMIN_DEDUCT: "Admin token deduction",
   ADMIN_RESET: "Token refresh / reset to 0",
   RADAR_SEARCH: "Radar search",
+  SEARCH_IMAGE_VIEW: "Search Image View",
   AI_REMIX: "AI remix",
   REGENERATE_VARIATIONS: "Regenerate variations",
   BUILD_REMIXED_AD_TEXT: "Build remixed ad text (4 social platforms)",

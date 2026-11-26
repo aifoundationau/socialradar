@@ -65,6 +65,7 @@ export const TokenTxTypeSchema = z.enum([
   "TOPUP",
   "GIFT",
   "RADAR_SEARCH",
+  "SEARCH_IMAGE_VIEW",
   "AI_REMIX",
   "REGENERATE_VARIATIONS",
   "BUILD_REMIXED_AD_TEXT",
@@ -402,6 +403,15 @@ export const SearchMixDownloadRequestSchema = z
   .strict();
 export type SearchMixDownloadRequest = z.infer<typeof SearchMixDownloadRequestSchema>;
 
+export const SearchImageViewRequestSchema = z
+  .object({
+    adId: NormalizedAdSchema.shape.adId,
+    query: z.string().max(100).optional(),
+    advertiserName: z.string().max(300).optional(),
+  })
+  .strict();
+export type SearchImageViewRequest = z.infer<typeof SearchImageViewRequestSchema>;
+
 export const DeconstructDownloadRequestSchema = z
   .object({
     remixId: z.string().min(1).max(160),
@@ -509,6 +519,7 @@ export const TIERED_SERVICE_COST_KEYS = [
   "searchProvenWinners",
   "searchExtendedDays",
   "searchEliteScore",
+  "searchImageView",
   "aiRemix",
   "regenerateVariations",
   "buildRemixedAdText",
@@ -526,6 +537,7 @@ export const ServiceCostsSchema = z
     searchProvenWinners: tokenInt.min(0).default(2),
     searchExtendedDays: tokenInt.min(0).default(2),
     searchEliteScore: tokenInt.min(0).default(2),
+    searchImageView: tokenInt.min(0).default(1),
     aiRemix: tokenInt.min(0).default(2),
     regenerateVariations: tokenInt.min(0).default(2),
     buildRemixedAdText: tokenInt.min(0).default(2),
@@ -546,6 +558,7 @@ export const AdAgentServiceCostsSchema = z
     searchProvenWinners: tokenInt.min(0).default(1),
     searchExtendedDays: tokenInt.min(0).default(1),
     searchEliteScore: tokenInt.min(0).default(1),
+    searchImageView: tokenInt.min(0).default(1),
     aiRemix: tokenInt.min(0).default(1),
     regenerateVariations: tokenInt.min(0).default(1),
     buildRemixedAdText: tokenInt.min(0).default(1),
@@ -638,6 +651,7 @@ export const AdminConfigPatchSchema = z
         searchProvenWinners: serviceCostValue.optional(),
         searchExtendedDays: serviceCostValue.optional(),
         searchEliteScore: serviceCostValue.optional(),
+        searchImageView: serviceCostValue.optional(),
         aiRemix: serviceCostValue.optional(),
         regenerateVariations: serviceCostValue.optional(),
         buildRemixedAdText: serviceCostValue.optional(),
@@ -656,6 +670,7 @@ export const AdminConfigPatchSchema = z
         searchProvenWinners: serviceCostValue.optional(),
         searchExtendedDays: serviceCostValue.optional(),
         searchEliteScore: serviceCostValue.optional(),
+        searchImageView: serviceCostValue.optional(),
         aiRemix: serviceCostValue.optional(),
         regenerateVariations: serviceCostValue.optional(),
         buildRemixedAdText: serviceCostValue.optional(),

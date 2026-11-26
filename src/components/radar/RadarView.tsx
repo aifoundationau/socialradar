@@ -76,6 +76,7 @@ type Saved = {
   selectedAdId: string | null;
   remixes: Record<string, RemixDoc>;
   remixedAdTexts?: Record<string, RemixedAdTextDoc>;
+  viewedImageAdIds?: Record<string, boolean>;
 };
 const storageKey = (uid: string) => `adradar:radar:${uid}`;
 
@@ -183,6 +184,8 @@ export function RadarView() {
   const [searchError, setSearchError] = useState<RemixError | null>(null);
   const [remixJob, setRemixJob] = useState<{ adId: string; loading: boolean; error: RemixError | null } | null>(null);
   const [adTextJob, setAdTextJob] = useState<{ adId: string; loading: boolean; error: RemixError | null } | null>(null);
+  const [viewedImageAdIds, setViewedImageAdIds] = useState<Record<string, boolean>>(saved?.viewedImageAdIds ?? {});
+  const [viewingImageAdId, setViewingImageAdId] = useState<string | null>(null);
   const [downloadingAdId, setDownloadingAdId] = useState<string | null>(null);
   const [downloadSuccessMsg, setDownloadSuccessMsg] = useState<string | null>(null);
   const [confirmingShowAll, setConfirmingShowAll] = useState<boolean>(false);
@@ -259,17 +262,20 @@ export function RadarView() {
   const buildRemixedAdTextFee = chargingActive
     ? Math.max(0, Math.round(effectiveCosts.buildRemixedAdText))
     : 0;
+  const searchImageViewFee = chargingActive
+    ? Math.max(0, Math.round(effectiveCosts.searchImageView ?? 1))
+    : 0;
   const isAuNz = userCountry === "AU" || userCountry === "NZ";
 
   useEffect(() => {
     if (!uid) return;
     try {
-      const data: Saved = { filters, searched, result, selectedAdId, remixes, remixedAdTexts };
+      const data: Saved = { filters, searched, result, selectedAdId, remixes, remixedAdTexts, viewedImageAdIds };
       sessionStorage.setItem(storageKey(uid), JSON.stringify(data));
     } catch {
       // Storage full or disabled: results just won't survive a page change.
     }
-  }, [uid, filters, searched, result, selectedAdId, remixes, remixedAdTexts]);
+  }, [uid, filters, searched, result, selectedAdId, remixes, remixedAdTexts, viewedImageAdIds]);
 
   const selectedBrandId = filters.brandId || activeBrand?.brandId || brands?.[0]?.brandId || "";
 
@@ -336,6 +342,31 @@ export function RadarView() {
   function model(adId: string) {
     setSelectedAdId(adId);
     requestAnimationFrame(() => studio.current?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }));
+  }
+
+  async function handleViewSearchImage(ad: NormalizedAd) {
+    if (viewedImageAdIds[ad.adId]) return;
+    setViewingImageAdId(ad.adId);
+    setSearchError(null);
+    try {
+      await apiFetch<{
+        adId: string;
+        unlocked: boolean;
+        balanceAfter: number;
+      }>("/api/radar/view-image", {
+        method: "POST",
+        body: {
+          adId: ad.adId,
+          query: searched?.query,
+          advertiserName: ad.advertiserName,
+        },
+      });
+      setViewedImageAdIds((prev) => ({ ...prev, [ad.adId]: true }));
+    } catch (err) {
+      setSearchError(toError(err));
+    } finally {
+      setViewingImageAdId(null);
+    }
   }
 
   async function handleDownloadSearchMix(ad: NormalizedAd, rank: number) {
@@ -500,11 +531,16 @@ export function RadarView() {
                         searchQuery={searched.query}
                         fetchedAt={result.fetchedAt}
                         searchMixFee={searchMixFee}
+                        searchImageViewFee={searchImageViewFee}
+                        isAuNz={isAuNz}
                         audRate={audRate}
                         isDownloadingTxt={downloadingAdId === ad.adId}
                         onDownloadSearchMix={() =>
                           void handleDownloadSearchMix(ad, ranks.get(ad.adId) ?? 1)
                         }
+                        imageUnlocked={Boolean(viewedImageAdIds[ad.adId])}
+                        isViewingImage={viewingImageAdId === ad.adId}
+                        onViewImage={() => void handleViewSearchImage(ad)}
                       />
                     </li>
                   ))}

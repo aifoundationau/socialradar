@@ -44,6 +44,7 @@ const adAgentsLib = await load("lib/ad-agents.ts");
 const adAgentDisplay = await load("lib/ad-agent-display.ts");
 const hashtagEngine = await load("lib/hashtag-engine.ts");
 const geminiLib = await load("lib/gemini.ts");
+const faqsLib = await load("lib/faqs.ts");
 const routes = {
   me: await load("app/api/me/route.ts"),
   brands: await load("app/api/brands/route.ts"),
@@ -57,6 +58,7 @@ const routes = {
   library: await load("app/api/library/route.ts"),
   brandsGlobal: await load("app/api/brands/global/route.ts"),
   adAgent: await load("app/api/ad-agent/route.ts"),
+  viewImage: await load("app/api/radar/view-image/route.ts"),
 };
 const Stripe = require("stripe");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -919,6 +921,106 @@ try {
       secondClaimStatus: secondClaimRes.status,
       rivalEmail: rivalView?.customerEmail,
       outreachStatus: outreachRes.status,
+    },
+  );
+
+  // ---------- Optional Search Image View (default 1 token) & FAQs ----------
+  const imgSysSnap = await sysCfgRef.get();
+  const imgSysBefore = imgSysSnap.data() ?? null;
+  const imgHadFreeOverride =
+    imgSysBefore &&
+    (imgSysBefore.isTokenSystemEnabled === false || imgSysBefore.freeAccessWindow?.enabled === true);
+  if (imgHadFreeOverride) {
+    await sysCfgRef.set(
+      {
+        isTokenSystemEnabled: true,
+        freeAccessWindow: {
+          ...(imgSysBefore.freeAccessWindow ?? {}),
+          enabled: false,
+        },
+      },
+      { merge: true },
+    );
+  }
+  let imgUnlock1;
+  let imgReplay;
+  let imgPoor;
+  let imgSuper;
+  let expectedImgCost = 1;
+  try {
+    const liveImgCfg = (await sysCfgRef.get()).data() ?? {};
+    expectedImgCost = Math.max(0, Math.round(liveImgCfg?.serviceCosts?.searchImageView ?? 1));
+    if (expectedImgCost === 0) {
+      await sysCfgRef.set(
+        { serviceCosts: { ...(liveImgCfg.serviceCosts ?? {}), searchImageView: 1 } },
+        { merge: true },
+      );
+      expectedImgCost = 1;
+    }
+    await db.doc(`users/${UID}`).update({ tokenBalance: expectedImgCost + 1 });
+    const imgKey = key("view_img_ok");
+    const imgPayload = { adId: "meta_e2e_img_001", query: "Solar Batteries", advertiserName: "SunPeak Solar" };
+    imgUnlock1 = await callUrl(routes.viewImage, "POST", "http://localhost:3000/api/radar/view-image", {
+      token,
+      key: imgKey,
+      body: imgPayload,
+    });
+    imgReplay = await callUrl(routes.viewImage, "POST", "http://localhost:3000/api/radar/view-image", {
+      token,
+      key: imgKey,
+      body: imgPayload,
+    });
+    await db.doc(`users/${UID}`).update({ tokenBalance: 0 });
+    imgPoor = await callUrl(routes.viewImage, "POST", "http://localhost:3000/api/radar/view-image", {
+      token,
+      key: key("view_img_poor"),
+      body: imgPayload,
+    });
+    imgSuper = await callUrl(routes.viewImage, "POST", "http://localhost:3000/api/radar/view-image", {
+      token: superToken,
+      key: key("view_img_super"),
+      body: imgPayload,
+    });
+  } finally {
+    if (imgSysBefore) {
+      await sysCfgRef.set(
+        {
+          isTokenSystemEnabled: imgSysBefore.isTokenSystemEnabled,
+          freeAccessWindow: imgSysBefore.freeAccessWindow ?? null,
+          ...(imgSysBefore.serviceCosts ? { serviceCosts: imgSysBefore.serviceCosts } : {}),
+        },
+        { merge: true },
+      );
+    }
+  }
+  const imageFaq = faqsLib.DEFAULT_FAQS.find((f) => f.faqId === "faq_search_image_view_option");
+  check(
+    "searchImageView: default 1 token, idempotent replay, 402 at 0 bal, 0 for SuperAdmin, FAQ explains analytics > slow images",
+    pricing.DEFAULT_SUPPORTER_SERVICE_COSTS.searchImageView === 1 &&
+      pricing.DEFAULT_AD_AGENT_SERVICE_COSTS.searchImageView === 1 &&
+      imgUnlock1?.status === 200 &&
+      imgUnlock1?.json?.unlocked === true &&
+      imgUnlock1?.json?.balanceAfter === 1 &&
+      imgReplay?.status === 200 &&
+      imgReplay?.json?.balanceAfter === 1 &&
+      imgPoor?.status === 402 &&
+      imgPoor?.json?.error?.code === "INSUFFICIENT_TOKENS" &&
+      imgSuper?.status === 200 &&
+      imgSuper?.json?.balanceAfter === 0 &&
+      Boolean(imageFaq) &&
+      imageFaq.answer.includes("long time to upload") &&
+      imageFaq.answer.includes("text description") &&
+      imageFaq.answer.includes("hashtags") &&
+      imageFaq.answer.includes("analytics"),
+    {
+      expectedImgCost,
+      supporterDefault: pricing.DEFAULT_SUPPORTER_SERVICE_COSTS.searchImageView,
+      adAgentDefault: pricing.DEFAULT_AD_AGENT_SERVICE_COSTS.searchImageView,
+      unlock1: imgUnlock1,
+      replay: imgReplay,
+      poorStatus: imgPoor?.status,
+      superRes: imgSuper,
+      hasFaq: Boolean(imageFaq),
     },
   );
 } catch (err) {

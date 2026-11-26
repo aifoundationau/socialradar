@@ -256,6 +256,12 @@ export function TokenPacks() {
             </strong>
           </span>
           <span>
+            Search Image View:{" "}
+            <strong className="text-primary">
+              {(serviceCosts.searchImageView ?? 1) === 0 ? "Free (0)" : `+${serviceCosts.searchImageView ?? 1} tok`}
+            </strong>
+          </span>
+          <span>
             AI Creative Remix:{" "}
             <strong className="text-primary">
               {serviceCosts.aiRemix === 0 ? "Free (0)" : `+${serviceCosts.aiRemix} tok`}

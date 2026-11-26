@@ -20,6 +20,7 @@ export { ACTION_COSTS, type ChargeableAction };
 /** The Role Permissions entry each paid action needs (Customize is a purchase open to every role). */
 const ACTION_PERMISSIONS: Partial<Record<ChargeableAction, RbacPermission>> = {
   RADAR_SEARCH: "search_radar",
+  SEARCH_IMAGE_VIEW: "search_radar",
   AI_REMIX: "ai_remix",
   REGENERATE_VARIATIONS: "ai_remix",
   BUILD_REMIXED_AD_TEXT: "ai_remix",

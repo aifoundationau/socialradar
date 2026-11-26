@@ -65,9 +65,26 @@ function isLikelyVideoAsset(url: string): boolean {
   return /\.(?:mp4|webm|mov|m3u8)(?:$|\?)/i.test(url);
 }
 
-function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
+function AdMedia({
+  ad,
+  rank,
+  imageUnlocked,
+  isViewingImage,
+  searchImageViewFee,
+  viewImageHoverTitle,
+  onViewImage,
+}: {
+  ad: NormalizedAd;
+  rank: number;
+  imageUnlocked: boolean;
+  isViewingImage: boolean;
+  searchImageViewFee: number;
+  viewImageHoverTitle: string;
+  onViewImage?: () => void;
+}) {
   const [playing, setPlaying] = useState(false);
   const [videoErrored, setVideoErrored] = useState(false);
+  const [imageCollapsed, setImageCollapsed] = useState(false);
   const [failedSrcCount, setFailedSrcCount] = useState<{ adId: string; idx: number }>({
     adId: ad.adId,
     idx: 0,
@@ -88,14 +105,14 @@ function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
   for (const mediaUrl of ad.mediaUrls) {
     pushImage(mediaUrl);
   }
-  if (ad.landingPageUrl && ad.mediaType !== "TEXT") {
+  if (ad.landingPageUrl) {
     pushImage(`https://api.microlink.io/?url=${encodeURIComponent(ad.landingPageUrl)}&embed=image.url`);
     pushImage(`https://s.wordpress.com/mshots/v1/${encodeURIComponent(ad.landingPageUrl)}?w=800&h=450`);
   }
 
   const candidateIndex = failedSrcCount.adId === ad.adId ? failedSrcCount.idx : 0;
   const imageSrc = candidateImages[candidateIndex] || "";
-  const isImage = ad.mediaType !== "TEXT" && Boolean(imageSrc);
+  const isImage = Boolean(imageSrc);
   const isText = ad.mediaType === "TEXT";
   const topRank = rank <= 3;
 
@@ -121,68 +138,139 @@ function AdMedia({ ad, rank }: { ad: NormalizedAd; rank: number }) {
         </span>
       )}
 
-      {isVideo && !videoErrored ? (
-        <>
-          <video
-            ref={video}
-            src={primaryMediaUrl}
-            poster={ad.thumbnailUrl || undefined}
-            playsInline
-            loop
-            muted
-            preload="metadata"
-            onEnded={() => setPlaying(false)}
-            onError={() => setVideoErrored(true)}
-            className="size-full object-contain bg-black"
-          />
+      {!imageUnlocked || imageCollapsed ? (
+        <div
+          data-agent-id={`ad-media-optional-${ad.adId}`}
+          data-testid={`ad-media-optional-${ad.adId}`}
+          className="flex size-full flex-col items-center justify-center gap-2 border border-dashed border-white/10 p-4 text-center"
+        >
+          <div className="flex flex-wrap items-center justify-center gap-1.5 font-mono text-[10px] text-outline">
+            <span className="rounded bg-surface-container-high px-2 py-0.5 font-semibold text-on-surface-variant uppercase">
+              {ad.mediaType}
+            </span>
+            <span>
+              {formatDay(ad.firstSeenDate)} – {formatDay(ad.lastSeenDate)}
+            </span>
+          </div>
+          <p className="max-w-[260px] text-[11px] leading-snug text-on-surface-variant">
+            Analytics, text description &amp; hashtags loaded first
+          </p>
           <button
             type="button"
-            onClick={toggle}
-            data-agent-id={`ad-video-toggle-${ad.adId}`}
-            data-testid={`ad-video-toggle-${ad.adId}`}
-            aria-label={playing ? "Pause ad video" : "Play ad video"}
-            className="group absolute inset-0 flex items-center justify-center bg-black/25 transition hover:bg-black/40 focus:outline-none"
+            disabled={isViewingImage}
+            title={imageUnlocked ? "Show already unlocked Search Image (no extra charge)" : viewImageHoverTitle}
+            onClick={() => {
+              if (imageUnlocked) {
+                setImageCollapsed(false);
+              } else {
+                onViewImage?.();
+              }
+            }}
+            data-agent-id={`ad-view-image-button-${ad.adId}`}
+            data-testid={`ad-view-image-button-${ad.adId}`}
+            aria-label={`View Search Image for ${ad.advertiserName || "advertiser"}`}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 px-3 py-1.5 font-mono text-xs font-semibold text-primary transition hover:bg-primary/25 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <span className="flex size-11 items-center justify-center rounded-full bg-surface-container-lowest/85 text-on-surface shadow-lg backdrop-blur-sm transition group-hover:scale-105 group-hover:bg-primary group-hover:text-on-primary">
-              <Icon name={playing ? "play" : "play"} className={`size-5 ${playing ? "opacity-75" : "translate-x-0.5"}`} />
+            <Icon name={isViewingImage ? "refresh" : "eye"} className={`size-3.5 ${isViewingImage ? "animate-spin" : ""}`} />
+            <span>
+              {isViewingImage
+                ? "Loading Image…"
+                : imageUnlocked
+                  ? "Show Search Image"
+                  : "View Search Image"}
             </span>
+            {!imageUnlocked && (
+              searchImageViewFee > 0 ? (
+                <span className="ml-0.5 inline-flex items-center gap-0.5 rounded-full bg-black/30 px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary">
+                  <Icon name="zap" className="size-2.5" />
+                  {searchImageViewFee}
+                </span>
+              ) : (
+                <span className="ml-0.5 rounded-full bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
+                  Free
+                </span>
+              )
+            )}
           </button>
-        </>
-      ) : isImage ? (
+        </div>
+      ) : (
         <>
-          <Image
-            src={imageSrc}
-            alt={ad.headline || ad.advertiserName || "Ad creative"}
-            fill
-            unoptimized
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover"
-            onError={() =>
-              setFailedSrcCount((prev) => ({
-                adId: ad.adId,
-                idx: (prev.adId === ad.adId ? prev.idx : 0) + 1,
-              }))
-            }
-          />
-          {ad.mediaType === "VIDEO" && (
-            <span className="pointer-events-none absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white backdrop-blur-sm">
-              <Icon name="film" className="size-3" />
-              Video preview
-            </span>
+          <button
+            type="button"
+            onClick={() => setImageCollapsed(true)}
+            data-agent-id={`ad-hide-image-button-${ad.adId}`}
+            data-testid={`ad-hide-image-button-${ad.adId}`}
+            aria-label={`Hide Search Image for ${ad.advertiserName || "advertiser"}`}
+            className="absolute top-2 right-2 z-10 inline-flex cursor-pointer items-center gap-1 rounded bg-black/75 px-2 py-0.5 font-mono text-[10px] font-semibold text-white/90 backdrop-blur-sm transition hover:bg-black"
+          >
+            <Icon name="eyeOff" className="size-3" />
+            <span>Hide image</span>
+          </button>
+
+          {isVideo && !videoErrored ? (
+            <>
+              <video
+                ref={video}
+                src={primaryMediaUrl}
+                poster={ad.thumbnailUrl || undefined}
+                playsInline
+                loop
+                muted
+                preload="metadata"
+                onEnded={() => setPlaying(false)}
+                onError={() => setVideoErrored(true)}
+                className="size-full object-contain bg-black"
+              />
+              <button
+                type="button"
+                onClick={toggle}
+                data-agent-id={`ad-video-toggle-${ad.adId}`}
+                data-testid={`ad-video-toggle-${ad.adId}`}
+                aria-label={playing ? "Pause ad video" : "Play ad video"}
+                className="group absolute inset-0 flex items-center justify-center bg-black/25 transition hover:bg-black/40 focus:outline-none"
+              >
+                <span className="flex size-11 items-center justify-center rounded-full bg-surface-container-lowest/85 text-on-surface shadow-lg backdrop-blur-sm transition group-hover:scale-105 group-hover:bg-primary group-hover:text-on-primary">
+                  <Icon name={playing ? "play" : "play"} className={`size-5 ${playing ? "opacity-75" : "translate-x-0.5"}`} />
+                </span>
+              </button>
+            </>
+          ) : isImage ? (
+            <>
+              <Image
+                src={imageSrc}
+                alt={ad.headline || ad.advertiserName || "Ad creative"}
+                fill
+                unoptimized
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                className="object-cover"
+                onError={() =>
+                  setFailedSrcCount((prev) => ({
+                    adId: ad.adId,
+                    idx: (prev.adId === ad.adId ? prev.idx : 0) + 1,
+                  }))
+                }
+              />
+              {ad.mediaType === "VIDEO" && (
+                <span className="pointer-events-none absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white backdrop-blur-sm">
+                  <Icon name="film" className="size-3" />
+                  Video preview
+                </span>
+              )}
+            </>
+          ) : (
+            <div className="flex size-full flex-col items-center justify-center gap-1.5 p-4 text-center">
+              <span className="flex size-10 items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant">
+                <Icon name={isText ? "layers" : "film"} />
+              </span>
+              <p className="font-mono text-[11px] text-outline">
+                {isText ? "Search text ad · creative shown on Google" : "Creative unavailable upstream"}
+              </p>
+              <span className="font-mono text-[10px] text-outline-variant">
+                {formatDay(ad.firstSeenDate)} – {formatDay(ad.lastSeenDate)}
+              </span>
+            </div>
           )}
         </>
-      ) : (
-        <div className="flex size-full flex-col items-center justify-center gap-1.5 p-4 text-center">
-          <span className="flex size-10 items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant">
-            <Icon name={isText ? "layers" : "film"} />
-          </span>
-          <p className="font-mono text-[11px] text-outline">
-            {isText ? "Search text ad · creative shown on Google" : "Creative unavailable upstream"}
-          </p>
-          <span className="font-mono text-[10px] text-outline-variant">
-            {formatDay(ad.firstSeenDate)} – {formatDay(ad.lastSeenDate)}
-          </span>
-        </div>
       )}
     </div>
   );
@@ -221,9 +309,14 @@ export function AdWinnerCard({
   searchQuery,
   fetchedAt,
   searchMixFee = 1,
+  searchImageViewFee = 1,
+  isAuNz = true,
   audRate = 100,
   isDownloadingTxt = false,
   onDownloadSearchMix,
+  imageUnlocked = false,
+  isViewingImage = false,
+  onViewImage,
 }: {
   ad: NormalizedAd;
   rank: number;
@@ -232,9 +325,14 @@ export function AdWinnerCard({
   searchQuery?: string;
   fetchedAt?: string;
   searchMixFee?: number;
+  searchImageViewFee?: number;
+  isAuNz?: boolean;
   audRate?: number;
   isDownloadingTxt?: boolean;
   onDownloadSearchMix?: () => void;
+  imageUnlocked?: boolean;
+  isViewingImage?: boolean;
+  onViewImage?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const platform = PLATFORMS[ad.platform];
@@ -249,7 +347,11 @@ export function AdWinnerCard({
   const downloadHoverTitle =
     searchMixFee === 0
       ? "Free to download SearchMix .txt"
-      : formatTokenEstimateHover(searchMixFee, false, audRate);
+      : formatTokenEstimateHover(searchMixFee, isAuNz, audRate);
+  const viewImageHoverTitle =
+    searchImageViewFee === 0
+      ? "Free to view Search Image"
+      : formatTokenEstimateHover(searchImageViewFee, isAuNz, audRate);
 
   return (
     <article
@@ -299,7 +401,15 @@ export function AdWinnerCard({
           </div>
         </header>
 
-        <AdMedia ad={ad} rank={rank} />
+        <AdMedia
+          ad={ad}
+          rank={rank}
+          imageUnlocked={imageUnlocked}
+          isViewingImage={isViewingImage}
+          searchImageViewFee={searchImageViewFee}
+          viewImageHoverTitle={viewImageHoverTitle}
+          onViewImage={onViewImage}
+        />
 
         {(ad.primaryCopy || ad.landingPageUrl) && (
           <div className="flex flex-col gap-1 rounded border border-white/[0.04] bg-surface-container/70 p-2.5">

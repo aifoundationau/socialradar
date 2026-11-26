@@ -4,7 +4,7 @@ import { ApiError } from "./api";
 import type { CreateFaqRequest, FaqItem, UpdateFaqRequest } from "./contracts";
 
 const FAQS_DOC_PATH = "system_config/faqs";
-const FAQS_SCHEMA_VERSION = "customer_v2";
+const FAQS_SCHEMA_VERSION = "customer_v3";
 
 export const DEFAULT_FAQS: FaqItem[] = [
   // ---------- CATEGORY: RADAR SEARCH ----------
@@ -42,12 +42,24 @@ export const DEFAULT_FAQS: FaqItem[] = [
     updatedAt: "2026-11-03T00:00:00.000Z",
   },
   {
+    faqId: "faq_search_image_view_option",
+    question:
+      "Why are search images an option to view ('Search Image View'), and why are ad analytics, text descriptions, and hashtags more important than the image?",
+    answer:
+      "Some ad images and media assets take a long time to upload and download from upstream social networks. More importantly, the images are not as important as the analytics of the ad—when modeling winning campaigns, we want to know the text description, hashtags, and performance analytics (active days running, Matrix match score, estimated views, likes, hook power, and resonant keywords) much more than the actual image.\n\nTo keep your Radar searches fast and responsive, ad analytics and copy load immediately while images are an optional click-to-view feature ('Search Image View', default 1 token, configurable in the Super Admin Panel). Whenever you want to inspect an ad's visual creative, simply click 'View Search Image' on that card.",
+    category: "Radar Search",
+    order: 4,
+    enabled: true,
+    createdAt: "2026-11-26T00:00:00.000Z",
+    updatedAt: "2026-11-26T00:00:00.000Z",
+  },
+  {
     faqId: "faq_proven_winners",
     question: "What does 'Proven (28+d)' mean and why should I use it?",
     answer:
       "In performance marketing, unprofitable ads get turned off quickly. The 'Proven (28+d)' filter isolates ads that have run continuously for 28 days or longer across the ad libraries. This strips away short-lived split tests and noise, showing you only the high-converting, profitable creatives that brands continue to fund—ready to study and remix for your own campaigns.",
     category: "Radar Search",
-    order: 4,
+    order: 5,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -58,7 +70,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "The 'Extended (60+d)' filter uncovers rare 'evergreen' ads that have run continuously for more than two months. While most ad creatives suffer audience fatigue within a few weeks, 60+ day ads are high-performing flagship winners with proven, fatigue-resistant hooks and massive multi-month ad spend behind them.",
     category: "Radar Search",
-    order: 5,
+    order: 6,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -69,7 +81,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "The Radar Score (0–100%) evaluates an ad's continuous running duration, view reach, and multi-adset scaling (when an advertiser runs multiple duplicate collations of the same creative across massive budgets). The 'Top Winners (90%+)' filter isolates the elite top 1% of category-dominating ads with verified market conversion power.",
     category: "Radar Search",
-    order: 6,
+    order: 7,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -80,7 +92,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Google serves diverse ad formats depending on placement. Google Search ads are primarily high-intent text headlines and descriptions, while Google Display Network and YouTube ads feature image banners and video creatives. Social Radar renders the authentic ad creative format returned by Google's Transparency Center.",
     category: "Radar Search",
-    order: 7,
+    order: 8,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -91,7 +103,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Use the media type selector next to the search input. Select 'ALL' to see every ad format, 'VIDEO' to isolate dynamic video reels and UGC videos (ideal for TikTok and Instagram Reels), or 'IMAGE' for static display cards and product carousels.",
     category: "Radar Search",
-    order: 8,
+    order: 9,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -104,7 +116,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "On any ad card in your Radar results, click 'Model this ad ⚡'. The AI Remix Studio opens and deconstructs the competitor ad's core hook, emotional drivers, and pacing. Click 'Generate remix ✨' to automatically rewrite 3 complete script variations tailored specifically to your active brand profile.",
     category: "AI Creative Remix",
-    order: 9,
+    order: 10,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -115,7 +127,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Each remix blueprint delivers:\n1. Persuasion DNA Deconstruction: Hook analysis, pacing structure, and explanation of why the competitor ad converts.\n2. Three Complete Script Variations: Custom headlines, primary ad copy, call-to-action buttons, detailed multi-scene video storyboards (timestamps, visual action, spoken voiceover, on-screen text overlays), and Midjourney/Flux image generation prompts.",
     category: "AI Creative Remix",
-    order: 10,
+    order: 11,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -126,7 +138,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Inside any variation card in the Remix Studio, click 'Copy Variation' to copy the complete scene-by-scene script to your clipboard, or click 'Export CSV' to download a structured spreadsheet. You can send this directly to your videographers, video editors, or UGC creators for immediate production.",
     category: "AI Creative Remix",
-    order: 11,
+    order: 12,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -137,7 +149,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Yes. In the Remix Studio, click 'Regenerate Variations' (charged at the standard rate of 1 token) to generate 3 fresh marketing angles (such as PAS, AIDA, UGC Story, Us vs. Them, or Social Proof Stack) without losing your original deconstruction.",
     category: "AI Creative Remix",
-    order: 12,
+    order: 13,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -150,7 +162,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "The Customize service provides dedicated brand strategy assistance from our senior advertising strategists (SuperAdmin & Main Admin). Instead of running automated queries yourself, you submit your brand brief and strategic goals, and our strategists formulate a bespoke creative ad strategy sent directly back to your secure Message Panel.",
     category: "Customize Service",
-    order: 13,
+    order: 14,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -161,7 +173,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Click 'Customize' in the top header. You can pre-fill details from an existing Brand Card or type them in fresh: brand name, tone of voice, product description, customer avatar, pain points, offer, and landing page URLs. Use the 'Extra Details & Descriptions to Think About' box to explain specific campaign objectives, competitor angles to defeat, or brand guidelines you want the strategists to incorporate.",
     category: "Customize Service",
-    order: 14,
+    order: 15,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -172,7 +184,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "The Customize service is set in the platform pricing (default: 45 tokens). The tokens are debited from your wallet upon submitting the brief. If your request cannot be fulfilled, your tokens are refunded automatically.",
     category: "Customize Service",
-    order: 15,
+    order: 16,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -183,7 +195,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "You receive an instant confirmation message upon submission. Once the strategy team completes your brief, the customized strategy is delivered directly into your secure in-app Message Panel. You can view, read, and reference it at any time under our 7-year statutory archive.",
     category: "Customize Service",
-    order: 16,
+    order: 17,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -196,7 +208,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Your Brand Card stores your business identity: your core value proposition, tone of voice (e.g. Direct Response, UGC Casual, Authoritative), target customer pain points, and offer details. When you remix competitor ads, the AI pulls these exact parameters so your generated ads sound authentically like your brand, not a generic copy.",
     category: "Brand Cards",
-    order: 17,
+    order: 18,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -207,7 +219,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Click 'Brands' in the top navigation, click 'New Brand', and fill in your brand name, website URL, tone of voice, and customer avatar. Once saved, click 'Set Active' on the card. Your active brand is highlighted with a green badge and is automatically used across Radar searches and AI Remixes.",
     category: "Brand Cards",
-    order: 18,
+    order: 19,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -218,7 +230,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Yes! You can create as many Brand Cards as you need for different products, client accounts, or e-commerce stores. Switch between them with one click by clicking 'Set Active' on the brand you're currently working on.",
     category: "Brand Cards",
-    order: 19,
+    order: 20,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -229,12 +241,12 @@ export const DEFAULT_FAQS: FaqItem[] = [
     faqId: "faq_token_pricing",
     question: "How does the token system work, and what are the fees?",
     answer:
-      "Social Radar operates on a strict integer token ledger (no confusing fractions). Standard searches cost 1 token, AI creative remixes cost 1 token, and variation regenerations cost 1 token. Dedicated human Customize briefs cost 45 tokens. Free accounts receive complimentary onboarding tokens to test the platform.",
+      "Social Radar operates on a strict integer token ledger (no confusing fractions). Optional search image previews ('Search Image View') cost 1 token by default, while core search/remix options are configurable in the Super Admin Panel (with Supporter and Ad Agent rates). Free accounts receive complimentary onboarding tokens to test the platform.",
     category: "Tokens & Wallet",
-    order: 20,
+    order: 21,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
-    updatedAt: "2026-11-03T00:00:00.000Z",
+    updatedAt: "2026-11-26T00:00:00.000Z",
   },
   {
     faqId: "faq_buy_tokens",
@@ -242,7 +254,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Click 'Wallet' or the token badge in the top navigation, select the token pack that fits your needs (e.g. Starter, Growth, or Pro Pack), and checkout securely through Stripe. We accept all major credit cards, debit cards, Apple Pay, and Google Pay.",
     category: "Tokens & Wallet",
-    order: 21,
+    order: 22,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -253,7 +265,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Payment gateways may not allow new phone numbers, especially from low cost or pre-pay carriers, so it is best to not select save information for next time on Stripe or use a mobile phone from a contract carrier.",
     category: "Tokens & Wallet",
-    order: 22,
+    order: 23,
     enabled: true,
     createdAt: "2026-11-19T00:00:00.000Z",
     updatedAt: "2026-11-19T00:00:00.000Z",
@@ -264,7 +276,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Social Radar is headquartered in Australia and standardizes billing in Australian Dollars (AUD) for clear, non-volatile accounting. For international customers outside Australia and New Zealand, the platform displays live indicative USD prices alongside AUD amounts (e.g. 1 Token = $1 AUD ≈ $0.65 USD).",
     category: "Tokens & Wallet",
-    order: 23,
+    order: 24,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -275,7 +287,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "No, your purchased tokens never expire. You can view your live balance and complete ledger history (including every search deduction, remix, top-up, and refund) at any time by opening the 'Wallet' page.",
     category: "Tokens & Wallet",
-    order: 24,
+    order: 25,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -288,7 +300,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "No, you will never lose tokens on an incomplete action. If an upstream ad library encounters a timeout, connection issue, or monthly quota limitation, our token gate detects the error and automatically refunds your token back to your wallet instantly.",
     category: "Refunds & Support",
-    order: 25,
+    order: 26,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -299,7 +311,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "All digital token purchases and subscriptions are final and strictly non-refundable once processed through Stripe. Because digital tokens are delivered immediately upon checkout and never expire, change-of-mind refunds or cash redemptions for unused tokens are not provided. If a search or remix encounters an upstream technical failure, spent tokens are automatically credited back to your ledger instantly. For questions regarding statutory non-excludable guarantees under the Australian Consumer Law (ACL), you can send a free message directly to the Super Admin via 'Message Admin'.",
     category: "Refunds & Support",
-    order: 26,
+    order: 27,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-07T00:00:00.000Z",
@@ -310,7 +322,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Yes. Your account data, brand profiles, customized briefs, and generated remixes are isolated to your authenticated account and protected by strict database security rules. We comply with Australian Privacy Act standards and never share or resell your private advertising research.",
     category: "Refunds & Support",
-    order: 27,
+    order: 28,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -321,7 +333,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "The bottom bar is your local Geo & Time status widget. It displays your current suburb, local weather temperature, active currency indicator, and live real-time clock. Clicking the bar opens a settings popup where you can customize your suburb, state, date format, or toggle between 12-hour and 24-hour clock formats.",
     category: "Refunds & Support",
-    order: 28,
+    order: 29,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-03T00:00:00.000Z",
@@ -332,7 +344,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "Ad Agents are independent contractors, with no official employment by Ad Radar or AI Foundation. Their role is purely in an outsourced capacity and has no long-term contractual arrangement. Their individual pricing structure is theirs alone, and Ad Radar HQ does not have any control over their specialization and expert services. All advice, strategies, recommendations, and opinions expressed by Ad Agents are strictly their own independent views and do not represent Ad Radar HQ.",
     category: "Refunds & Support",
-    order: 29,
+    order: 30,
     enabled: true,
     createdAt: "2026-11-03T00:00:00.000Z",
     updatedAt: "2026-11-11T00:00:00.000Z",
@@ -343,7 +355,7 @@ export const DEFAULT_FAQS: FaqItem[] = [
     answer:
       "All development, software architecture, code, algorithms, and design assets remain the sole proprietary ownership of AI Foundation, ABN 36 339 516 584. No part of this web app may be used, reproduced, copied, distributed, modified, or exploited without the express written prior consent of the developer and AI Foundation.",
     category: "Refunds & Support",
-    order: 30,
+    order: 31,
     enabled: true,
     createdAt: "2026-11-09T00:00:00.000Z",
     updatedAt: "2026-11-09T00:00:00.000Z",

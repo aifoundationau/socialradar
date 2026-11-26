@@ -107,6 +107,7 @@ function normalizeConfig(data: DocumentData): AdminSystemConfig {
     TIERED_SERVICE_COST_KEYS.every((k) => {
       const val = rawServiceCosts[k];
       if (k === "deconstructDownload") return val === undefined || val === 0 || val === 1;
+      if (k === "searchImageView") return val === undefined || val === 1;
       return val === undefined || val === 1;
     });
 
@@ -119,6 +120,9 @@ function normalizeConfig(data: DocumentData): AdminSystemConfig {
       normalizedServiceCosts[k] = DEFAULT_SUPPORTER_SERVICE_COSTS[k];
     }
   } else {
+    if (rawServiceCosts.searchImageView === undefined) {
+      normalizedServiceCosts.searchImageView = DEFAULT_SUPPORTER_SERVICE_COSTS.searchImageView;
+    }
     if (rawAdAgentCosts.searchMixDownload === undefined && rawServiceCosts.searchMixDownload === 1) {
       normalizedServiceCosts.searchMixDownload = DEFAULT_SUPPORTER_SERVICE_COSTS.searchMixDownload;
     }

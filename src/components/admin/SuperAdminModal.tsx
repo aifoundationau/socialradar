@@ -169,6 +169,7 @@ interface ServiceCosts {
   searchProvenWinners?: number;
   searchExtendedDays: number;
   searchEliteScore: number;
+  searchImageView?: number;
   aiRemix: number;
   regenerateVariations?: number;
   buildRemixedAdText?: number;
@@ -3027,7 +3028,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                             Customizable Product &amp; Service Token Amounts
                           </h4>
                           <span className="rounded-full bg-surface-container-highest px-2 py-0.5 font-mono text-[10px] text-on-surface-variant">
-                            12 Tiered Services (Supporters / Ad Agents) · Customize: ⚡ {config.serviceCosts?.customizeService ?? 55}
+                            13 Tiered Services (Supporters / Ad Agents) · Customize: ⚡ {config.serviceCosts?.customizeService ?? 55}
                           </span>
                         </div>
                         <p className="mt-0.5 text-[11px] text-on-surface-variant">
@@ -3075,6 +3076,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                           searchProvenWinners: 0,
                                           searchExtendedDays: 0,
                                           searchEliteScore: 0,
+                                          searchImageView: 0,
                                           aiRemix: 0,
                                           regenerateVariations: 0,
                                           buildRemixedAdText: 0,
@@ -3093,6 +3095,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                           searchProvenWinners: 0,
                                           searchExtendedDays: 0,
                                           searchEliteScore: 0,
+                                          searchImageView: 0,
                                           aiRemix: 0,
                                           regenerateVariations: 0,
                                           buildRemixedAdText: 0,
@@ -3172,6 +3175,12 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                 key: "searchEliteScore",
                                 label: "Top Winners (90%+) Surcharge",
                                 desc: "Additional tokens for elite tier ads with composite score >= 90%",
+                                tiered: true,
+                              },
+                              {
+                                key: "searchImageView",
+                                label: "Search Image View",
+                                desc: "Optional click-to-view creative image preview on search result cards (Default: 1 token — prioritizes fast ad analytics, text descriptions & hashtags)",
                                 tiered: true,
                               },
                               {
@@ -3479,7 +3488,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                                   <div className="space-y-2.5">
                                     {renderCostControl({
                                       tier: "supporter",
-                                      tierHeading: "1. Supporters (Default: 2 tokens)",
+                                      tierHeading: `1. Supporters (Default: ${DEFAULT_SUPPORTER_SERVICE_COSTS[key as TieredServiceCostKey]} ${DEFAULT_SUPPORTER_SERVICE_COSTS[key as TieredServiceCostKey] === 1 ? "token" : "tokens"})`,
                                       tok: supporterTok,
                                       testId: `service-cost-input-${key}`,
                                       ariaTarget: `${serviceLabel} Supporters`,
@@ -6036,7 +6045,7 @@ export function SuperAdminModal({ isOpen, onClose, initialTab }: SuperAdminModal
                     {(() => {
                       const q = orderSearch.trim().toLowerCase();
                       const filteredOrders = orderLedger.filter((tx) => {
-                        if (orderFilter === "SEARCH" && tx.type !== "RADAR_SEARCH") return false;
+                        if (orderFilter === "SEARCH" && tx.type !== "RADAR_SEARCH" && tx.type !== "SEARCH_IMAGE_VIEW") return false;
                         if (orderFilter === "STRIPE" && tx.type !== "TOPUP") return false;
                         if (
                           orderFilter === "SERVICES" &&
