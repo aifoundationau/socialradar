@@ -48,7 +48,7 @@ import type { BrandProfile } from "./contracts";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /** Part of every cache key: bump it when normalization changes so stale result sets aren't served. */
-const CACHE_VERSION = "16";
+const CACHE_VERSION = "17";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS = 100;
 
@@ -227,8 +227,16 @@ async function recoverRealCachedDrafts(req: RadarSearchRequest, intent: Resolved
         if (!parsed.success) continue;
         const ad = parsed.data;
         if (seenAdIds.has(ad.adId)) continue;
-        // Strictly reject any synthetic/benchmark entries or stock images — ONLY real upstream ads allowed
-        if (ad.adId.includes("_verified_") || ad.thumbnailUrl.includes("images.unsplash.com")) continue;
+        // Strictly reject any synthetic/benchmark entries or legacy deterministic fallback headlines
+        if (
+          ad.adId.includes("_verified_") ||
+          ad.thumbnailUrl.includes("images.unsplash.com") ||
+          /— (?:Flagship Offer|Evergreen Collection|Direct Response Feature|Customer Favorites|Creator Spotlight|Seasonal Campaign)$/.test(
+            ad.headline,
+          )
+        ) {
+          continue;
+        }
         const corpus = `${ad.advertiserName} ${ad.headline} ${ad.primaryCopy} ${ad.landingPageUrl}`.toLowerCase();
         const matchesQuery = corpus.includes(queryLower) || (primaryWord.length >= 4 && corpus.includes(primaryWord));
         const matchesPositive = intent.isCategoryQuery
@@ -324,12 +332,12 @@ async function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
     }
     return { drafts: filtered, notice: rawResult.notice };
   } catch (err) {
-    // Low-cost recovery: serve real Firestore archived ads and/or Gemini Google Search Grounding before failing
-    const [realCached, grounded] = await Promise.all([
-      recoverRealCachedDrafts(req, intent),
+    // Low-cost recovery: prioritize live platform-specific Gemini Search Grounding, then real cached ads
+    const [grounded, realCached] = await Promise.all([
       searchAdsWithGeminiGrounding(req, intent.googleDomains),
+      recoverRealCachedDrafts(req, intent),
     ]);
-    const mergedRecovery = mergeDraftsUnique(realCached, grounded);
+    const mergedRecovery = mergeDraftsUnique(grounded, realCached);
     const relevanceFiltered = filterRelevantDrafts(mergedRecovery, intent);
     const recovered = enforcePlatformIsolation(
       relevanceFiltered.length > 0 ? relevanceFiltered : mergedRecovery,
@@ -338,7 +346,7 @@ async function searchLibrary(req: RadarSearchRequest): Promise<LibraryResult> {
     if (recovered.length > 0) {
       return {
         drafts: recovered,
-        notice: `Showing ${recovered.length} ${req.platform} ads matching "${req.query}" via Ad Radar Archive & Gemini Search Grounding.`,
+        notice: `Showing ${recovered.length} ${req.platform} ads matching "${req.query}" via Gemini Search Grounding & Ad Radar Archive.`,
       };
     }
     throw err;

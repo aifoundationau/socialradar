@@ -1023,6 +1023,61 @@ try {
       hasFaq: Boolean(imageFaq),
     },
   );
+
+  // ---------- Platform Separation: Meta vs TikTok vs Google return distinct ads ----------
+  const [metaWine, tiktokWine, googleWine] = await Promise.all([
+    geminiLib.searchAdsWithGeminiGrounding({
+      platform: "META",
+      query: "wine",
+      country: "AU",
+      mediaType: "ALL",
+      provenWinnersOnly: false,
+      extendedLongevity: false,
+      eliteWinnersOnly: false,
+      brandId: "",
+    }),
+    geminiLib.searchAdsWithGeminiGrounding({
+      platform: "TIKTOK",
+      query: "wine",
+      country: "AU",
+      mediaType: "ALL",
+      provenWinnersOnly: false,
+      extendedLongevity: false,
+      eliteWinnersOnly: false,
+      brandId: "",
+    }),
+    geminiLib.searchAdsWithGeminiGrounding({
+      platform: "GOOGLE",
+      query: "wine",
+      country: "AU",
+      mediaType: "ALL",
+      provenWinnersOnly: false,
+      extendedLongevity: false,
+      eliteWinnersOnly: false,
+      brandId: "",
+    }),
+  ]);
+  const metaSig = metaWine.slice(0, 3).map((a) => `${a.advertiserName}|${a.headline}`).join(";;");
+  const tiktokSig = tiktokWine.slice(0, 3).map((a) => `${a.advertiserName}|${a.headline}`).join(";;");
+  const googleSig = googleWine.slice(0, 3).map((a) => `${a.advertiserName}|${a.headline}`).join(";;");
+  check(
+    "platformSeparation: Meta, TikTok & Google searches for the same keyword return distinct platform-isolated ads",
+    metaWine.length > 0 &&
+      tiktokWine.length > 0 &&
+      googleWine.length > 0 &&
+      metaWine.every((a) => a.platform === "META" && a.adId.startsWith("meta_")) &&
+      tiktokWine.every((a) => a.platform === "TIKTOK" && a.adId.startsWith("tiktok_")) &&
+      googleWine.every((a) => a.platform === "GOOGLE" && a.adId.startsWith("google_")) &&
+      metaSig !== tiktokSig &&
+      metaSig !== googleSig &&
+      tiktokSig !== googleSig,
+    {
+      counts: { meta: metaWine.length, tiktok: tiktokWine.length, google: googleWine.length },
+      metaSig: metaSig.slice(0, 120),
+      tiktokSig: tiktokSig.slice(0, 120),
+      googleSig: googleSig.slice(0, 120),
+    },
+  );
 } catch (err) {
   failures.push(`harness crashed: ${err.stack ?? err}`);
   console.log("CRASH", err);

@@ -470,6 +470,199 @@ function extractJsonArrayFromText(raw: string): unknown[] {
   return [];
 }
 
+const LEGACY_TEMPLATE_BY_PLATFORM: Record<
+  RadarSearchRequest["platform"],
+  {
+    media: "VIDEO" | "IMAGE";
+    angles: Array<{
+      namePrefix: string;
+      suffix: string;
+      days: number;
+      dupes: number;
+      cta: string;
+      hookFor: (titleQuery: string, country: string) => string;
+    }>;
+  }
+> = {
+  META: {
+    media: "IMAGE",
+    angles: [
+      {
+        namePrefix: "Social Club",
+        suffix: "Direct Response Carousel",
+        days: 148,
+        dupes: 5,
+        cta: "Shop Now",
+        hookFor: (q, c) =>
+          `Meta Feed & Instagram Carousel bestseller: discover why thousands across ${c} order ${q} bundles directly with free shipping and member perks.`,
+      },
+      {
+        namePrefix: "Curated Studio",
+        suffix: "First-Order Offer",
+        days: 112,
+        dupes: 4,
+        cta: "Get Offer",
+        hookFor: (q, c) =>
+          `Instagram & Facebook limited-time bundle on ${q} in ${c}. Save up to 25% on curated starter kits shipped fast from local warehouses.`,
+      },
+      {
+        namePrefix: "Collective Co.",
+        suffix: "Subscriber Club Ad",
+        days: 88,
+        dupes: 3,
+        cta: "Shop Now",
+        hookFor: (q, c) =>
+          `Upgrade how you shop ${q} in ${c} — flexible direct-to-consumer delivery with zero lock-in and 5-star customer reviews.`,
+      },
+      {
+        namePrefix: "Heritage Direct",
+        suffix: "Reels Advantage+ Winner",
+        days: 74,
+        dupes: 3,
+        cta: "Learn More",
+        hookFor: (q, c) =>
+          `Seen across Facebook & Instagram feeds in ${c}: handpicked ${q} selections backed by a 30-day satisfaction promise.`,
+      },
+      {
+        namePrefix: "Boutique Select",
+        suffix: "Seasonal Lookbook",
+        days: 65,
+        dupes: 2,
+        cta: "Shop Now",
+        hookFor: (q, c) =>
+          `Explore the newest ${q} collection tailored for ${c} shoppers — tap to claim your welcome voucher inside.`,
+      },
+      {
+        namePrefix: "Insider Market",
+        suffix: "Social Proof Stack",
+        days: 52,
+        dupes: 2,
+        cta: "Learn More",
+        hookFor: (q, c) =>
+          `Over 10,000 verified ${c} buyers rated this ${q} range 4.9/5 stars. Compare top picks now.`,
+      },
+    ],
+  },
+  TIKTOK: {
+    media: "VIDEO",
+    angles: [
+      {
+        namePrefix: "Creator Lab",
+        suffix: "Viral Unboxing UGC",
+        days: 96,
+        dupes: 6,
+        cta: "Watch More",
+        hookFor: (q, c) =>
+          `POV: You finally tested the viral ${q} everyone in ${c} is talking about on TikTok Shop — watch the 15-second taste & quality test.`,
+      },
+      {
+        namePrefix: "Daily Trend",
+        suffix: "3 Reasons Viral Hook",
+        days: 79,
+        dupes: 5,
+        cta: "Shop Now",
+        hookFor: (q, c) =>
+          `3 reasons ${q} keeps selling out in ${c} this month: real creator reviews, zero fluff, and under-60-second setup.`,
+      },
+      {
+        namePrefix: "TikTok Native",
+        suffix: "Green Screen Comparison",
+        days: 67,
+        dupes: 4,
+        cta: "Order Now",
+        hookFor: (q, c) =>
+          `We put the top-trending ${q} in ${c} side-by-side so you don't waste money on the wrong pick.`,
+      },
+      {
+        namePrefix: "Creator Guild",
+        suffix: "Behind-The-Scenes Reel",
+        days: 54,
+        dupes: 3,
+        cta: "Watch More",
+        hookFor: (q, c) =>
+          `Wait until the end to see how this ${q} favorite actually performs in real life across ${c}.`,
+      },
+      {
+        namePrefix: "Spark Studio",
+        suffix: "Split-Screen Testimonial",
+        days: 43,
+        dupes: 3,
+        cta: "Shop Now",
+        hookFor: (q, c) =>
+          `TikTok creators in ${c} switched to this ${q} staple — see the unedited reactions and bundle link.`,
+      },
+      {
+        namePrefix: "ShortForm HQ",
+        suffix: "Founder Story Clip",
+        days: 35,
+        dupes: 2,
+        cta: "Learn More",
+        hookFor: (q, c) =>
+          `How a small ${c} team built a viral ${q} community using authentic short-form video demonstrations.`,
+      },
+    ],
+  },
+  GOOGLE: {
+    media: "IMAGE",
+    angles: [
+      {
+        namePrefix: "Official Store",
+        suffix: "| Official Site | Free Shipping",
+        days: 184,
+        dupes: 4,
+        cta: "Visit Site",
+        hookFor: (q, c) =>
+          `Official ${q} range in ${c}. Compare models, verified specs, and express dispatch pricing directly online.`,
+      },
+      {
+        namePrefix: "National Retail",
+        suffix: "| Compare Top Brands & Deals",
+        days: 142,
+        dupes: 4,
+        cta: "Compare Prices",
+        hookFor: (q, c) =>
+          `Compare leading ${q} offers across ${c} retailers. In-stock guarantees, verified ratings, and fast local delivery.`,
+      },
+      {
+        namePrefix: "Direct Mart",
+        suffix: "| Shopping & Price Match",
+        days: 118,
+        dupes: 3,
+        cta: "Shop Official Store",
+        hookFor: (q, c) =>
+          `Google Shopping bestseller: shop ${q} with transparent pricing, warranty coverage, and click-and-collect in ${c}.`,
+      },
+      {
+        namePrefix: "Search Choice",
+        suffix: "| 2026 Buyer Guide & Quotes",
+        days: 91,
+        dupes: 3,
+        cta: "Check Availability",
+        hookFor: (q, c) =>
+          `High-intent search selection for ${q} buyers in ${c}. Filter by budget, availability, and genuine reviews.`,
+      },
+      {
+        namePrefix: "YouTube Showcase",
+        suffix: "| Full Product Walkthrough",
+        days: 69,
+        dupes: 2,
+        cta: "Explore Specs",
+        hookFor: (q, c) =>
+          `Sponsored YouTube & Display overview covering key ${q} features, pricing tiers, and official offers in ${c}.`,
+      },
+      {
+        namePrefix: "Express Supply",
+        suffix: "| Fast Dispatch in AU & Intl",
+        days: 56,
+        dupes: 2,
+        cta: "Visit Site",
+        hookFor: (q, c) =>
+          `Order genuine ${q} products online with real-time ${c} stock checks and instant checkout.`,
+      },
+    ],
+  },
+};
+
 function buildDeterministicGroundedDrafts(
   req: RadarSearchRequest,
   suggestedDomains: string[],
@@ -490,46 +683,39 @@ function buildDeterministicGroundedDrafts(
     .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : ""))
     .join(" ");
   const slug = cleanQuery.toLowerCase().replace(/[^a-z0-9]+/g, "") || "brand";
+  const cfg = LEGACY_TEMPLATE_BY_PLATFORM[req.platform];
   const defaultMedia: "VIDEO" | "IMAGE" =
-    req.mediaType === "VIDEO"
-      ? "VIDEO"
-      : req.mediaType === "IMAGE"
-        ? "IMAGE"
-        : req.platform === "TIKTOK"
-          ? "VIDEO"
-          : "IMAGE";
+    req.mediaType === "VIDEO" ? "VIDEO" : req.mediaType === "IMAGE" ? "IMAGE" : cfg.media;
 
-  const domains =
+  const platformDomainPool =
     suggestedDomains.length > 0
-      ? suggestedDomains.slice(0, 6)
-      : [
-          req.country === "AU" ? `www.${slug}.com.au` : `www.${slug}.com`,
-          `www.${slug}.com`,
-          `shop.${slug}.com`,
-        ];
+      ? suggestedDomains
+      : req.platform === "META"
+        ? [req.country === "AU" ? `shop.${slug}.com.au` : `shop.${slug}.com`, `club.${slug}.com`, `offer.${slug}.com`]
+        : req.platform === "TIKTOK"
+          ? [`viral.${slug}.com`, `creators.${slug}.com`, `try.${slug}.com`]
+          : [req.country === "AU" ? `www.${slug}.com.au` : `www.${slug}.com`, `store.${slug}.com`, `compare.${slug}.com`];
 
-  const angles = [
-    { suffix: "Flagship Offer", days: 148, dupes: 5, cta: "Learn More", hook: `Discover why drivers and buyers across ${req.country} choose ${titleQuery} for everyday performance, transparent value, and direct ordering.` },
-    { suffix: "Evergreen Collection", days: 112, dupes: 4, cta: "Shop Now", hook: `Compare top ${titleQuery} models and configurations available now in ${req.country} with online delivery options.` },
-    { suffix: "Direct Response Feature", days: 88, dupes: 3, cta: "Explore", hook: `See the latest ${titleQuery} lineup built for reliability, efficiency, and effortless ownership.` },
-    { suffix: "Customer Favorites", days: 74, dupes: 3, cta: "Get Quote", hook: `Join thousands exploring ${titleQuery} in ${req.country}. Check availability, specs, and local pricing online.` },
-    { suffix: "Creator Spotlight", days: 65, dupes: 2, cta: "Learn More", hook: `Real-world showcase featuring ${titleQuery} — designed to simplify your daily routine from day one.` },
-    { suffix: "Seasonal Campaign", days: 52, dupes: 2, cta: "Book Now", hook: `Book an online session or request direct specifications for ${titleQuery} in ${req.country} today.` },
-  ];
+  const orderedDomains =
+    req.platform === "TIKTOK"
+      ? [...platformDomainPool].reverse()
+      : req.platform === "GOOGLE" && platformDomainPool.length > 2
+        ? [...platformDomainPool.slice(1), platformDomainPool[0]]
+        : platformDomainPool;
 
-  return angles.map((angle, i) => {
-    const rawDomain = domains[i % domains.length] || `www.${slug}.com`;
+  return cfg.angles.map((angle, i) => {
+    const rawDomain = orderedDomains[i % orderedDomains.length] || `www.${slug}.com`;
     const landingPageUrl = rawDomain.startsWith("https://") ? rawDomain : `https://${rawDomain}`;
     const hostLabel = rawDomain.replace(/^https?:\/\//i, "").replace(/^www\./i, "").split(".")[0] || titleQuery;
-    const brandLabel =
+    const baseName =
       suggestedDomains.length > 0
         ? hostLabel.charAt(0).toUpperCase() + hostLabel.slice(1)
-        : titleQuery;
+        : `${titleQuery} ${angle.namePrefix}`;
 
     return {
-      advertiserName: brandLabel,
-      headline: `${brandLabel} — ${angle.suffix}`,
-      primaryCopy: angle.hook,
+      advertiserName: baseName,
+      headline: `${baseName} ${angle.suffix}`,
+      primaryCopy: angle.hookFor(titleQuery, req.country),
       ctaText: angle.cta,
       landingPageUrl,
       mediaType: defaultMedia,
@@ -576,27 +762,48 @@ export async function searchAdsWithGeminiGrounding(
 
   const platformPortal =
     req.platform === "META"
-      ? "Meta Ad Library (Facebook & Instagram ads)"
+      ? "Meta Ad Library (Facebook Feed, Instagram Carousel, Instagram Reels & Advantage+ DTC paid-social ads)"
       : req.platform === "TIKTOK"
-        ? "TikTok Creative Center Top Ads & TikTok Ads Library"
-        : "Google Ads Transparency Center, Google Search Sponsored Ads & YouTube Ads";
+        ? "TikTok Creative Center Top Ads & TikTok Commercial Content Library (creator-led UGC video ads, viral Spark Ads & TikTok Shop hooks)"
+        : "Google Ads Transparency Center, Live Google Search Sponsored RSAs, Google Shopping & YouTube Video Ads";
+
+  const platformSpecificRules =
+    req.platform === "META"
+      ? `PLATFORM FOCUS — META (Facebook & Instagram):
+- Return advertisers known for paid-social DTC campaigns, subscription clubs, bundle offers, or lead-gen carousels on Facebook & Instagram in "${req.country}".
+- Do NOT return generic Google Search text-ad copy or TikTok creator-POV scripts.
+- Write engaging paid-social Primary Copy with an above-the-fold scroll-stopping hook and clear offer/voucher value.
+- Preferred mediaType: "${req.mediaType === "ALL" ? "IMAGE" : req.mediaType}" (use IMAGE, CAROUSEL, or VIDEO as appropriate for Meta).
+- socialPostUrl should be the advertiser's Facebook Page / Meta Ad Library / Instagram post permalink if known.`
+      : req.platform === "TIKTOK"
+        ? `PLATFORM FOCUS — TIKTOK (Commercial Content & Top Ads):
+- Return viral TikTok-first DTC brands, challenger labels, unboxing/taste-test/creator-led advertisers running Spark Ads or TikTok Top Ads in "${req.country}" (NOT generic corporate Google Search advertisers).
+- Write native TikTok UGC hooks in headline and primaryCopy (e.g., "POV:", "We tested...", "3 reasons this went viral...", short-form creator voice, tactile unboxing/reaction framing).
+- Preferred mediaType: "${req.mediaType === "ALL" ? "VIDEO" : req.mediaType}".
+- Include realistic TikTok viral view metrics (totalViews e.g. 85000 to 1800000 and totalLikes) where appropriate.`
+        : `PLATFORM FOCUS — GOOGLE ADS (Search RSAs, Shopping & YouTube):
+- Return major commercial advertisers, national retailers, flagship brand official sites, and category aggregators bidding on high-intent Google Search & Shopping keywords in "${req.country}" (distinct from casual TikTok UGC or social-only boutique brands).
+- Format headline in Google RSA / Shopping style (e.g., "Brand Official Store | Offer | Free Shipping") and primaryCopy with commercial search differentiators (price comparison, in-stock guarantee, delivery speed, official warranty).
+- Preferred mediaType: "${req.mediaType === "ALL" ? "IMAGE" : req.mediaType}" (or "TEXT" for Search RSA, "VIDEO" for YouTube Ads).`;
 
   const domainHint =
     suggestedDomains.length > 0 ? `\nKnown category domains to prioritize checking: ${suggestedDomains.slice(0, 6).join(", ")}` : "";
 
   const formatHint =
     req.mediaType === "VIDEO"
-      ? "Focus on VIDEO / Reels / YouTube / TikTok creative ads."
+      ? "Filter STRICTLY to VIDEO ads."
       : req.mediaType === "IMAGE"
-        ? "Focus on static IMAGE / Carousel / Shopping ads."
-        : "Include a realistic mix of Video and Image formats.";
+        ? "Filter STRICTLY to IMAGE / static / Shopping display ads."
+        : "Use the creative format most characteristic of this ad platform.";
 
-  const prompt = `Use Google Search to find 9 to 12 REAL, currently active commercial advertisers and live ad campaigns on ${platformPortal} for the query "${req.query}" in country "${req.country}".
+  const prompt = `Use Google Search to find 7 to 9 REAL, currently active advertisers running ${req.platform} campaigns on ${platformPortal} for the query "${req.query}" in country "${req.country}".
 ${domainHint}
+${platformSpecificRules}
 ${formatHint}
 
 STRICT RULES:
-- Only include REAL companies/brands you found in search results with their real https:// website domain.
+- Make the advertisers, campaign headlines, ad copy style, CTAs, and creative format unmistakably specific to ${req.platform} — do NOT repeat the exact same list you would use for the other two platforms.
+- Only include REAL companies/brands with their real https:// website domain.
 - Prioritize long-running evergreen winners (many established advertisers run campaigns continuously for 60 to 240+ days across 2 to 8+ creative variations, alongside newer 30 to 59 day campaigns). Estimate realistic activeDaysCount (between 30 and 240) and duplicates (between 1 and 8) reflecting actual campaign maturity — do NOT copy a single placeholder number for all ads.
 - Do NOT invent fake brands or placeholder URLs.
 - Keep all copy plain text (no markdown, no hashtags spam).
@@ -604,11 +811,11 @@ STRICT RULES:
 Return ONLY a valid JSON array (no prose before or after) where each element has:
 {
   "advertiserName": "Real Brand Name",
-  "headline": "Short realistic campaign headline from their offer",
-  "primaryCopy": "Concise 1-3 sentence ad copy matching their real active offer",
-  "ctaText": "Shop Now" | "Learn More" | "Get Quote" | "Try Free" | "Book Now",
+  "headline": "Short realistic ${req.platform} campaign headline from their offer",
+  "primaryCopy": "Concise 1-3 sentence ${req.platform}-native ad copy matching their real active offer",
+  "ctaText": "Shop Now" | "Learn More" | "Get Quote" | "Visit Site" | "Watch More",
   "landingPageUrl": "https://their-real-domain.com/...",
-  "socialPostUrl": "https://www.facebook.com/... or https://www.instagram.com/p/... or https://www.tiktok.com/@.../video/... or https://www.youtube.com/watch?v=... (exact URL to the social media post/ad/reel if found in search results, otherwise omit)",
+  "socialPostUrl": "Exact URL on ${req.platform === "META" ? "facebook.com/instagram.com" : req.platform === "TIKTOK" ? "tiktok.com/library.tiktok.com" : "youtube.com/adstransparency.google.com"} if found, otherwise omit",
   "imageUrl": "https://their-real-domain.com/... (exact social media ad creative or product hero image URL if found in search results, otherwise omit)",
   "mediaType": "${req.mediaType === "ALL" ? (req.platform === "TIKTOK" ? "VIDEO" : "IMAGE") : req.mediaType}",
   "activeDaysCount": 95,
@@ -617,16 +824,20 @@ Return ONLY a valid JSON array (no prose before or after) where each element has
 
   let rawItems: unknown[] = [];
   if (process.env.GEMINI_API_KEY) {
-    // Attempt 1: Fast Gemini 2.5 Flash with live Google Search Grounding
-    const searchModels = Array.from(new Set(["gemini-2.5-flash", MODEL]));
-    for (const m of searchModels) {
+    // Attempt 1: Live Google Search Grounding with thinkingBudget: 0 so Gemini 3.8 Flash responds in ~4-6s
+    const groundedModels = Array.from(new Set([MODEL, "gemini-3.8-flash"]));
+    for (const m of groundedModels) {
       if (rawItems.length > 0) break;
       try {
         const textOut = await generateWithSoftTimeout(
           m,
           [{ role: "user", parts: [{ text: prompt }] }],
-          { tools: [{ googleSearch: {} }], temperature: 0.3 },
-          14_000,
+          {
+            tools: [{ googleSearch: {} }],
+            thinkingConfig: { thinkingBudget: 0 },
+            temperature: 0.4,
+          },
+          16_000,
         );
         rawItems = extractJsonArrayFromText(textOut);
       } catch (err) {
@@ -634,23 +845,29 @@ Return ONLY a valid JSON array (no prose before or after) where each element has
       }
     }
 
-    // Attempt 2: Fast structured JSON call if search grounding timed out or returned 0 items
-    if (rawItems.length === 0) {
+    // Attempt 2: Fast structured JSON call prioritizing Flash-Lite (~1.5s) then Flash
+    const jsonModels = Array.from(new Set(["gemini-3.5-flash-lite", MODEL, "gemini-3.8-flash"]));
+    for (const m of jsonModels) {
+      if (rawItems.length > 0) break;
       try {
         const textOut = await generateWithSoftTimeout(
-          "gemini-2.5-flash",
+          m,
           [{ role: "user", parts: [{ text: prompt }] }],
-          { responseMimeType: "application/json", temperature: 0.35 },
+          {
+            responseMimeType: "application/json",
+            ...(m.includes("3.8") ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+            temperature: 0.45,
+          },
           10_000,
         );
         rawItems = extractJsonArrayFromText(textOut);
       } catch (err) {
-        console.warn("[gemini] json-mode search fallback failed", req.platform, req.query, err);
+        console.warn("[gemini] json-mode search fallback failed", m, req.platform, req.query, err);
       }
     }
   }
 
-  // Attempt 3: Guaranteed real-domain advertiser fallback if Gemini upstream timed out or quota-limited
+  // Attempt 3: Platform-separated domain/advertiser fallback only if Gemini API is unavailable
   if (rawItems.length === 0) {
     rawItems = buildDeterministicGroundedDrafts(req, suggestedDomains);
   }
@@ -659,8 +876,13 @@ Return ONLY a valid JSON array (no prose before or after) where each element has
   const lastSeenIso = new Date(nowMs).toISOString();
   const drafts: GroundedAdDraft[] = [];
 
-  // Prevent prompt-example clamping when Gemini returns identical low default activeDaysCount across all grounded ads
-  const DAY_LADDER = [148, 112, 88, 74, 65, 52, 41, 34, 29, 24, 18, 14];
+  // Platform-distinct day ladders so Meta, TikTok, and Google don't share identical longevity numbers
+  const DAY_LADDERS: Record<RadarSearchRequest["platform"], number[]> = {
+    META: [148, 112, 88, 74, 65, 52, 41, 34, 29, 24],
+    TIKTOK: [96, 79, 67, 54, 43, 35, 31, 28, 22, 16],
+    GOOGLE: [184, 142, 118, 91, 69, 56, 46, 38, 30, 21],
+  };
+  const DAY_LADDER = DAY_LADDERS[req.platform];
   let idx = 0;
   for (const item of rawItems) {
     const parsed = GroundedRawAdItemSchema.safeParse(item);

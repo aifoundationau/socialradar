@@ -2,6 +2,7 @@ import "server-only";
 import { UpstreamError } from "./token-ledger";
 
 const ENDPOINT = "https://www.searchapi.io/api/v1/search";
+let quotaExhaustedUntilMs = 0;
 
 export type SearchApiJson = Record<string, unknown>;
 
@@ -10,6 +11,10 @@ export type SearchApiJson = Record<string, unknown>;
  * caller. The API key travels in the Authorization header, never in the logged URL.
  */
 export async function searchApi(engine: string, params: Record<string, string | undefined>): Promise<SearchApiJson> {
+  if (Date.now() < quotaExhaustedUntilMs) {
+    throw new UpstreamError("Live ad search is temporarily unavailable. Please try again later.");
+  }
+
   const key = process.env.SEARCHAPI_API_KEY;
   if (!key) {
     console.error("[searchapi] SEARCHAPI_API_KEY is not set");
@@ -40,7 +45,8 @@ export async function searchApi(engine: string, params: Record<string, string | 
   if (!res.ok || !json || typeof json.error === "string") {
     console.error("[searchapi] error response", engine, res.status, json?.error);
     if (res.status === 429 || (typeof json?.error === "string" && /used all of the searches|quota|limit/i.test(json.error))) {
-      // Operators: the SearchApi.io quota is used up (logged above); raise the plan or rotate SEARCHAPI_API_KEY.
+      // Circuit-break for 15 minutes so subsequent searches fail fast to Gemini instead of timing out on repeated 429s
+      quotaExhaustedUntilMs = Date.now() + 15 * 60 * 1000;
       throw new UpstreamError("Live ad search is temporarily unavailable. Please try again later.");
     }
     throw new UpstreamError("The ad library search failed. Please try again.");
