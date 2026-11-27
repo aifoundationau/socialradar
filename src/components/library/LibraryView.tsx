@@ -19,7 +19,7 @@ import type {
   LibraryUnlockedDetail,
 } from "@/lib/contracts";
 import { triggerDeconstructFileDownload } from "@/lib/deconstruct-text-file";
-import { buildRemixedAdHashtags, stripHashtagsFromAdText } from "@/lib/hashtag-engine";
+import { buildRemixedAdHashtags, buildRemixedAdImagePrompt, stripHashtagsFromAdText } from "@/lib/hashtag-engine";
 import { loadDetectedGeoCountry } from "@/lib/geo";
 import { formatTokenEstimateHover } from "@/lib/pricing";
 
@@ -888,6 +888,18 @@ export function LibraryView() {
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     {activeUnlocked.detail.remixedAdText.items.map((adItem) => {
                       const cleanCopy = stripHashtagsFromAdText(adItem.adText);
+                      const imagePrompt = buildRemixedAdImagePrompt({
+                        platform: adItem.platform,
+                        platformLabel: adItem.platformLabel,
+                        brandName:
+                          activeUnlocked.detail.kind === "REMIXED_AD_TEXT"
+                            ? activeUnlocked.detail.remixedAdText.brandName
+                            : "",
+                        headline: adItem.headline,
+                        adText: cleanCopy,
+                        cta: adItem.cta,
+                        existingPrompt: adItem.aiImagePrompt,
+                      });
                       const hashtags =
                         adItem.hashtags && adItem.hashtags.length > 0
                           ? adItem.hashtags
@@ -922,7 +934,7 @@ export function LibraryView() {
                               type="button"
                               onClick={() =>
                                 void copyText(
-                                  `${adItem.platformLabel}\nHeadline: ${adItem.headline}\nCTA: ${adItem.cta}\n\n${cleanCopy}\n\nHashtags: ${hashtags.join(" ")}`,
+                                  `${adItem.platformLabel}\nHeadline: ${adItem.headline}\nCTA: ${adItem.cta}\n\n${cleanCopy}\n\nAI Image Prompt (Use in Google Gemini):\n${imagePrompt}\n\nHashtags: ${hashtags.join(" ")}`,
                                   adItem.platformLabel,
                                 )
                               }
@@ -940,6 +952,24 @@ export function LibraryView() {
                             <p className="font-mono text-[10px] uppercase tracking-wider text-outline">Ad Text Description</p>
                             <p className="mt-1 whitespace-pre-line text-compact leading-relaxed text-on-surface-variant">
                               {cleanCopy}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-primary/25 bg-primary/5 p-3 space-y-1.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="font-mono text-[10px] font-semibold uppercase tracking-wider text-primary">
+                                AI Image Prompt (Use in Google Gemini)
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => void copyText(imagePrompt, `${adItem.platformLabel} AI image prompt`)}
+                                className="inline-flex items-center gap-1 rounded border border-primary/30 px-2 py-0.5 font-mono text-[10px] text-primary hover:bg-primary/10"
+                              >
+                                <Icon name="copy" className="size-3" />
+                                Copy Prompt
+                              </button>
+                            </div>
+                            <p className="whitespace-pre-line text-compact leading-relaxed text-on-surface">
+                              {imagePrompt}
                             </p>
                           </div>
                           <div className="border-t border-white/[0.06] pt-2.5 space-y-1.5">

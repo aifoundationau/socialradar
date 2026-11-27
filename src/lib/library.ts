@@ -33,6 +33,7 @@ import { buildBrandTextFileContent, getBrandTextFileName } from "./brand-text-fi
 import { buildDeconstructTextFileContent, getDeconstructFileName } from "./deconstruct-text-file";
 import {
   buildRemixedAdHashtags,
+  buildRemixedAdImagePrompt,
   extractInlineHashtags,
   stripHashtagsFromAdText,
 } from "./hashtag-engine";
@@ -81,9 +82,19 @@ export function parseNormalizedRemixedAdTextDoc(raw: unknown) {
             aiHashtags: [...existingHashtags, ...inlineTags],
             limit: 8,
           });
+    const aiImagePrompt = buildRemixedAdImagePrompt({
+      platform,
+      platformLabel: typeof item.platformLabel === "string" ? item.platformLabel : undefined,
+      brandName,
+      headline: typeof item.headline === "string" ? item.headline : "",
+      adText: cleanCopy,
+      cta: typeof item.cta === "string" ? item.cta : "",
+      existingPrompt: typeof item.aiImagePrompt === "string" ? item.aiImagePrompt : null,
+    });
     return {
       ...item,
       adText: cleanCopy,
+      aiImagePrompt,
       hashtags,
       wordCount: Math.max(1, Math.min(150, wordCount)),
     };
@@ -657,6 +668,15 @@ function buildRemixedAdTextFileContent(doc: RemixedAdTextDoc): string {
 
   for (const item of doc.items) {
     const cleanCopy = stripHashtagsFromAdText(item.adText);
+    const aiImagePrompt = buildRemixedAdImagePrompt({
+      platform: item.platform,
+      platformLabel: item.platformLabel,
+      brandName: doc.brandName,
+      headline: item.headline,
+      adText: cleanCopy,
+      cta: item.cta,
+      existingPrompt: item.aiImagePrompt,
+    });
     const hashtags =
       item.hashtags && item.hashtags.length > 0
         ? item.hashtags
@@ -676,6 +696,9 @@ function buildRemixedAdTextFileContent(doc: RemixedAdTextDoc): string {
       `CTA:      ${item.cta}`,
       "",
       cleanCopy,
+      "",
+      "AI Image Prompt (Use in Google Gemini):",
+      aiImagePrompt,
       "",
       `Hashtags: ${hashtags.join(" ")}`,
     );

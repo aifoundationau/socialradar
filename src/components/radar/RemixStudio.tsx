@@ -9,7 +9,7 @@ import {
   triggerDeconstructFileDownload,
 } from "@/lib/deconstruct-text-file";
 import { formatTokenEstimateHover } from "@/lib/pricing";
-import { buildRemixedAdHashtags, stripHashtagsFromAdText } from "@/lib/hashtag-engine";
+import { buildRemixedAdHashtags, buildRemixedAdImagePrompt, stripHashtagsFromAdText } from "@/lib/hashtag-engine";
 import { TONE_LABELS } from "@/components/brands/BrandForm";
 import { CostTag } from "@/components/ui/CostTag";
 import { Icon } from "@/components/ui/Icon";
@@ -69,9 +69,9 @@ function resolveCardHashtags(
   });
 }
 
-function remixedAdTextBlock(item: RemixedAdTextItem, hashtags: string[]) {
+function remixedAdTextBlock(item: RemixedAdTextItem, hashtags: string[], aiImagePrompt: string) {
   const cleanCopy = stripHashtagsFromAdText(item.adText);
-  return `${item.platformLabel} (${item.wordCount}/150 words)\nHeadline: ${item.headline}\nCTA: ${item.cta}\n\n${cleanCopy}\n\nHashtags: ${hashtags.join(" ")}`;
+  return `${item.platformLabel} (${item.wordCount}/150 words)\nHeadline: ${item.headline}\nCTA: ${item.cta}\n\n${cleanCopy}\n\nAI Image Prompt (Use in Google Gemini):\n${aiImagePrompt}\n\nHashtags: ${hashtags.join(" ")}`;
 }
 
 function Toast({ message }: { message: string | null }) {
@@ -156,8 +156,16 @@ export function RemixStudio({
   const [downloadingDeconstruct, setDownloadingDeconstruct] = useState(false);
   const [deconstructError, setDeconstructError] = useState<string | null>(null);
   const [adTextTipOpen, setAdTextTipOpen] = useState(false);
+  const [copiedPromptPlatform, setCopiedPromptPlatform] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
+  const promptTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current);
+      clearTimeout(promptTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!adTextTipOpen) return;
@@ -226,10 +234,22 @@ export function RemixStudio({
     }
   }
 
-  async function copyAdTextItem(item: RemixedAdTextItem, hashtags: string[]) {
+  async function copyAdTextItem(item: RemixedAdTextItem, hashtags: string[], aiImagePrompt: string) {
     try {
-      await navigator.clipboard.writeText(remixedAdTextBlock(item, hashtags));
+      await navigator.clipboard.writeText(remixedAdTextBlock(item, hashtags, aiImagePrompt));
       notify(`${item.platformLabel} remixed ad text copied`);
+    } catch {
+      notify("Couldn't reach the clipboard");
+    }
+  }
+
+  async function copyAdImagePrompt(item: RemixedAdTextItem, promptText: string) {
+    try {
+      await navigator.clipboard.writeText(promptText);
+      setCopiedPromptPlatform(item.platform);
+      clearTimeout(promptTimer.current);
+      promptTimer.current = setTimeout(() => setCopiedPromptPlatform(null), 1800);
+      notify(`${item.platformLabel} AI image prompt copied`);
     } catch {
       notify("Couldn't reach the clipboard");
     }
@@ -247,9 +267,24 @@ export function RemixStudio({
   async function copyAllAdTexts() {
     if (!remixedAdText) return;
     const full = remixedAdText.items
-      .map((item) =>
-        remixedAdTextBlock(item, resolveCardHashtags(item, brand, remixedAdText.brandName, ad, remix)),
-      )
+      .map((item) => {
+        const cleanAdText = stripHashtagsFromAdText(item.adText);
+        const imagePrompt = buildRemixedAdImagePrompt({
+          platform: item.platform,
+          platformLabel: item.platformLabel,
+          brandName: remixedAdText.brandName || brand?.brandName || "",
+          headline: item.headline,
+          adText: cleanAdText,
+          cta: item.cta,
+          brand,
+          existingPrompt: item.aiImagePrompt,
+        });
+        return remixedAdTextBlock(
+          item,
+          resolveCardHashtags(item, brand, remixedAdText.brandName, ad, remix),
+          imagePrompt,
+        );
+      })
       .join("\n\n---\n\n");
     try {
       await navigator.clipboard.writeText(full);
@@ -451,7 +486,7 @@ export function RemixStudio({
               data-testid="build-remixed-ad-text-callout"
               className="border-t border-white/[0.06] bg-surface-container-low/40 px-3 py-4 sm:px-5 space-y-3"
             >
-              <div className="max-w-3xl space-y-1.5">
+              <div className="w-full space-y-2">
                 <h3
                   id="build-remixed-ad-text-heading"
                   className="text-title-sm font-semibold text-on-surface flex items-center gap-2"
@@ -462,76 +497,86 @@ export function RemixStudio({
                 <p
                   data-agent-id="build-remixed-ad-text-explanation"
                   data-testid="build-remixed-ad-text-explanation"
-                  className="text-compact leading-relaxed text-on-surface-variant"
+                  className="w-full text-justify text-compact leading-relaxed text-on-surface-variant"
                 >
-                  Build Remixed Ad Text transforms the deconstructed hook, pacing, and persuasion framework of the
-                  modeled ad into four ready-to-publish ad copy packages tailored to{" "}
-                  <strong className="text-on-surface">{brand.brandName}</strong> — one each for TikTok, Facebook,
-                  Instagram, and Google Ads. Each platform card includes a custom headline, a clean direct-response Ad
-                  Text Description (strictly up to 150 words with zero hashtags in the copy), a separate Hashtags
-                  section powered by the Brand &amp; Remix Hashtag Algorithm, and a platform-matched call-to-action.
+                  <strong className="text-on-surface">Build Remixed Ad Text</strong> transforms the deconstructed hook,
+                  pacing, and persuasion framework of the modeled ad into four ready-to-publish ad copy packages
+                  tailored to <strong className="text-on-surface">{brand.brandName}</strong> — one each for TikTok,
+                  Facebook, Instagram, and Google Ads. Each platform card includes a custom headline, a clean
+                  direct-response <strong className="text-on-surface">Ad Text Description</strong> (strictly up to 150
+                  words with zero hashtags in the copy), a dedicated{" "}
+                  <strong className="text-on-surface">AI Image Prompt</strong> you can use in Google Gemini to generate
+                  an advertisement image, a separate <strong className="text-on-surface">Hashtags</strong> section
+                  powered by the Brand &amp; Remix Hashtag Algorithm, and a platform-matched call-to-action.
                 </p>
               </div>
-              <div
-                className="relative inline-flex"
-                onMouseEnter={() => setAdTextTipOpen(true)}
-                onMouseLeave={() => setAdTextTipOpen(false)}
-                onFocus={() => setAdTextTipOpen(true)}
-                onBlur={(e) => {
-                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-                    setAdTextTipOpen(false);
-                  }
-                }}
-              >
-                <button
-                  type="button"
-                  disabled={buildingAdText || !onBuildRemixedAdText}
-                  data-agent-id="remix-build-ad-text-button"
-                  data-testid="remix-build-ad-text-button"
-                  aria-label="Build Remixed Ad Text"
-                  aria-describedby="build-remixed-ad-text-tooltip"
-                  onClick={() => onBuildRemixedAdText?.()}
-                  className={`${btnSecondary} shrink-0`}
-                >
-                  {buildingAdText ? (
-                    <span className="size-3.5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-                  ) : (
-                    <Icon name="fileText" />
-                  )}
-                  <span>{buildingAdText ? "Building Ad Text…" : "Build Remixed Ad Text"}</span>
-                  {buildRemixedAdTextFee > 0 ? (
-                    <span className="flex items-center font-mono text-mono-label text-primary opacity-90">
-                      <Icon name="zap" className="size-3" />
-                      {buildRemixedAdTextFee}
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
-                      Free (0)
-                    </span>
-                  )}
-                </button>
+              <div className="flex w-full justify-center pt-1">
                 <div
-                  className={`absolute bottom-full left-0 z-30 w-72 max-w-[calc(100vw-2rem)] pb-2 transition-opacity duration-150 ${
-                    adTextTipOpen ? "opacity-100" : "pointer-events-none opacity-0"
-                  }`}
+                  className="relative inline-flex max-w-full justify-center"
+                  onMouseEnter={() => setAdTextTipOpen(true)}
+                  onMouseLeave={() => setAdTextTipOpen(false)}
+                  onFocus={() => setAdTextTipOpen(true)}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                      setAdTextTipOpen(false);
+                    }
+                  }}
                 >
-                  <div
-                    id="build-remixed-ad-text-tooltip"
-                    role="tooltip"
-                    data-agent-id="remix-build-ad-text-tooltip"
-                    data-testid="remix-build-ad-text-tooltip"
-                    className="rounded-xl border border-primary/30 bg-surface-container-highest p-3 text-left text-compact leading-relaxed text-on-surface shadow-2xl"
+                  <button
+                    type="button"
+                    disabled={buildingAdText || !onBuildRemixedAdText}
+                    data-agent-id="remix-build-ad-text-button"
+                    data-testid="remix-build-ad-text-button"
+                    aria-label="Build Remixed Ad Text (Facebook, Instagram, TikTok, Google)"
+                    aria-describedby="build-remixed-ad-text-tooltip"
+                    onClick={() => onBuildRemixedAdText?.()}
+                    className={`${btnSecondary} flex-wrap justify-center text-center`}
                   >
-                    <p className="font-semibold text-on-surface">
-                      Remixed Social Media Ad Text Descriptions
-                    </p>
-                    <p className="mt-1 text-[12px] text-on-surface-variant">
-                      Generates 4 ready-to-publish platform ad text packages (TikTok, Facebook, Instagram, and Google Ads
-                      — max 150 words each) with dedicated Brand &amp; Remix Hashtags below each description.
-                    </p>
-                    <p className="mt-1.5 font-mono text-[11px] text-primary">
-                      {buildAdTextCostHover}
-                    </p>
+                    {buildingAdText ? (
+                      <span className="size-3.5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+                    ) : (
+                      <Icon name="fileText" />
+                    )}
+                    <span>
+                      {buildingAdText
+                        ? "Building Ad Text (Facebook, Instagram, TikTok, Google)…"
+                        : "Build Remixed Ad Text (Facebook, Instagram, TikTok, Google)"}
+                    </span>
+                    {buildRemixedAdTextFee > 0 ? (
+                      <span className="flex items-center font-mono text-mono-label text-primary opacity-90">
+                        <Icon name="zap" className="size-3" />
+                        {buildRemixedAdTextFee}
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
+                        Free (0)
+                      </span>
+                    )}
+                  </button>
+                  <div
+                    className={`absolute bottom-full left-1/2 -translate-x-1/2 z-30 w-72 max-w-[calc(100vw-2rem)] pb-2 transition-opacity duration-150 ${
+                      adTextTipOpen ? "opacity-100" : "pointer-events-none opacity-0"
+                    }`}
+                  >
+                    <div
+                      id="build-remixed-ad-text-tooltip"
+                      role="tooltip"
+                      data-agent-id="remix-build-ad-text-tooltip"
+                      data-testid="remix-build-ad-text-tooltip"
+                      className="rounded-xl border border-primary/30 bg-surface-container-highest p-3 text-left text-compact leading-relaxed text-on-surface shadow-2xl"
+                    >
+                      <p className="font-semibold text-on-surface">
+                        Remixed Social Media Ad Text Descriptions
+                      </p>
+                      <p className="mt-1 text-[12px] text-on-surface-variant">
+                        Generates 4 ready-to-publish platform ad text packages (TikTok, Facebook, Instagram, and Google
+                        Ads — max 150 words each) with a Google Gemini AI Image Prompt and dedicated Brand &amp; Remix
+                        Hashtags.
+                      </p>
+                      <p className="mt-1.5 font-mono text-[11px] text-primary">
+                        {buildAdTextCostHover}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -592,6 +637,16 @@ export function RemixStudio({
                 {remixedAdText.items.map((item) => {
                   const keySlug = item.platform.toLowerCase();
                   const cleanAdText = stripHashtagsFromAdText(item.adText);
+                  const imagePrompt = buildRemixedAdImagePrompt({
+                    platform: item.platform,
+                    platformLabel: item.platformLabel,
+                    brandName: remixedAdText.brandName || brand?.brandName || "",
+                    headline: item.headline,
+                    adText: cleanAdText,
+                    cta: item.cta,
+                    brand,
+                    existingPrompt: item.aiImagePrompt,
+                  });
                   const hashtags = resolveCardHashtags(
                     item,
                     brand,
@@ -621,7 +676,7 @@ export function RemixStudio({
                         </div>
                         <button
                           type="button"
-                          onClick={() => void copyAdTextItem(item, hashtags)}
+                          onClick={() => void copyAdTextItem(item, hashtags, imagePrompt)}
                           data-agent-id={`copy-remixed-ad-text-${keySlug}`}
                           data-testid={`copy-remixed-ad-text-${keySlug}`}
                           aria-label={`Copy ${item.platformLabel} remixed ad text`}
@@ -643,6 +698,34 @@ export function RemixStudio({
                           className="mt-1 whitespace-pre-line text-compact leading-relaxed text-on-surface-variant"
                         >
                           {cleanAdText}
+                        </p>
+                      </div>
+                      <div
+                        data-agent-id={`remixed-ad-text-image-prompt-${keySlug}`}
+                        data-testid={`remixed-ad-text-image-prompt-${keySlug}`}
+                        className="rounded-lg border border-primary/25 bg-primary/5 p-3 space-y-1.5"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-mono text-[10px] font-semibold uppercase tracking-wider text-primary">
+                            AI Image Prompt (Use in Google Gemini)
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => void copyAdImagePrompt(item, imagePrompt)}
+                            data-agent-id={`copy-remixed-ad-image-prompt-${keySlug}`}
+                            data-testid={`copy-remixed-ad-image-prompt-${keySlug}`}
+                            aria-label={`Copy ${item.platformLabel} AI image prompt`}
+                            className="inline-flex items-center gap-1 rounded border border-primary/30 bg-surface-container-high px-2 py-0.5 font-mono text-[10px] font-medium text-primary transition hover:border-primary/60 hover:bg-primary/10 cursor-pointer"
+                          >
+                            <Icon
+                              name={copiedPromptPlatform === item.platform ? "checkCircle" : "copy"}
+                              className={`size-3 ${copiedPromptPlatform === item.platform ? "text-secondary" : ""}`}
+                            />
+                            <span>{copiedPromptPlatform === item.platform ? "Copied Prompt" : "Copy Prompt"}</span>
+                          </button>
+                        </div>
+                        <p className="whitespace-pre-line text-compact leading-relaxed text-on-surface">
+                          {imagePrompt}
                         </p>
                       </div>
                       <div

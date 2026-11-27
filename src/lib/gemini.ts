@@ -18,6 +18,7 @@ import {
 import { UpstreamError } from "./token-ledger";
 import {
   buildRemixedAdHashtags,
+  buildRemixedAdImagePrompt,
   extractInlineHashtags,
   stripHashtagsFromAdText,
 } from "./hashtag-engine";
@@ -148,20 +149,21 @@ export async function generateRemix(ad: NormalizedAd, brand: BrandProfile): Prom
   return parsed.data;
 }
 
-const AD_TEXT_SYSTEM_INSTRUCTION = `You are a senior paid social and search direct-response copywriter. Using the BRAND profile, the SOURCE MODELING AD (and its creative deconstruction when provided), write exactly 4 ready-to-publish remixed text ad descriptions — one each for TikTok, Facebook, Instagram, and Google Ads — with a SEPARATE high-performing hashtags list for every platform.
+const AD_TEXT_SYSTEM_INSTRUCTION = `You are a senior paid social and search direct-response copywriter. Using the BRAND profile, the SOURCE MODELING AD (and its creative deconstruction when provided), write exactly 4 ready-to-publish remixed text ad descriptions — one each for TikTok, Facebook, Instagram, and Google Ads — with a tailored Google Gemini AI image prompt and a SEPARATE high-performing hashtags list for every platform.
 
 Strict platform & quality rules:
 1. HARD LENGTH CAP: Every single \`adText\` MUST be 150 words or fewer (target 60–130 words; never exceed 150 words).
-2. NO HASHTAGS IN AD TEXT: NEVER include any hashtags (\`#...\`) inside \`adText\` or \`headline\` for ANY platform. \`adText\` must be 100% pure ad copy with zero \`#\` tags.
-3. DEDICATED HASHTAGS ARRAY (\`hashtags\`): For EVERY platform (\`tiktok\`, \`facebook\`, \`instagram\`, \`googleAds\`), output 6 to 8 relevant \`#PascalCase\` hashtags tailored to the BRAND, its unique mechanism/offer, target audience, pain points, the new remix hook, and that platform's discovery intent.
-4. Adapt the proven persuasion mechanics and hook structure of the source modeling ad to the BRAND's product, target audience, pain points, unique mechanism/USPs, offer, and tone of voice.
-5. Never copy the source competitor's brand names, trademarks, or specific wording, and never invent prices, stats, reviews, certifications, or guarantees absent from the BRAND profile.
-6. Platform tailoring:
+2. NO HASHTAGS IN AD TEXT: NEVER include any hashtags (\`#...\`) inside \`adText\`, \`headline\`, or \`aiImagePrompt\` for ANY platform. \`adText\` must be 100% pure ad copy with zero \`#\` tags.
+3. DEDICATED GOOGLE GEMINI IMAGE PROMPT (\`aiImagePrompt\`): For EVERY platform (\`tiktok\`, \`facebook\`, \`instagram\`, \`googleAds\`), write a descriptive 2–3 sentence visual prompt (40–110 words, plain text, zero hashtags) that the user can paste into Google Gemini to generate a high-converting advertisement image matching that platform's framing/style (9:16 vertical UGC/creator hero for TikTok, 4:5 Feed hero for Facebook, 4:5/9:16 editorial visual for Instagram, 16:9/1.91:1 clean commercial display hero for Google Ads), illustrating the BRAND's product/service and the remixed headline and copy without gibberish text overlays or watermarks.
+4. DEDICATED HASHTAGS ARRAY (\`hashtags\`): For EVERY platform (\`tiktok\`, \`facebook\`, \`instagram\`, \`googleAds\`), output 6 to 8 relevant \`#PascalCase\` hashtags tailored to the BRAND, its unique mechanism/offer, target audience, pain points, the new remix hook, and that platform's discovery intent.
+5. Adapt the proven persuasion mechanics and hook structure of the source modeling ad to the BRAND's product, target audience, pain points, unique mechanism/USPs, offer, and tone of voice.
+6. Never copy the source competitor's brand names, trademarks, or specific wording, and never invent prices, stats, reviews, certifications, or guarantees absent from the BRAND profile.
+7. Platform tailoring:
    - \`tiktok\`: Thumb-stopping 0–2s scroll-stop hook, natural conversational UGC cadence, clear benefit & CTA (clean copy only; put TikTok discovery/niche hashtags in \`hashtags\`).
    - \`facebook\`: High-converting above-the-fold primary text hook (strong first 125 characters), clear problem-agitate-solve flow, concrete offer framing, and direct CTA (clean copy only; put Facebook audience/offer hashtags in \`hashtags\`).
    - \`instagram\`: Clean Reels/Feed visual hook, punchy scannable short lines matching brand voice, desirable outcome & CTA (clean copy only; put Instagram niche/lifestyle hashtags in \`hashtags\`).
    - \`googleAds\`: High-intent commercial search / Performance Max / YouTube ad description with strong intent-matching hook, key differentiators, and direct action callout (clean copy only; put search/YouTube discovery topic hashtags in \`hashtags\`).
-7. Plain text only (no Markdown **bold** or # headings). Keep \`headline\` crisp and \`cta\` short and actionable.`;
+8. Plain text only (no Markdown **bold** or # headings). Keep \`headline\` crisp and \`cta\` short and actionable.`;
 
 /** Strips hashtags, markdown, and control chars, then clamps an AI-generated ad text description strictly to <= 150 words. */
 export function enforceMaxAdWords(
@@ -291,11 +293,22 @@ export async function generateRemixedAdTexts(
         aiHashtags: [...(draft.hashtags ?? []), ...inlineTags],
         limit: 8,
       });
+      const aiImagePrompt = buildRemixedAdImagePrompt({
+        platform,
+        platformLabel,
+        brandName: brand.brandName,
+        headline,
+        adText,
+        cta,
+        brand,
+        existingPrompt: draft.aiImagePrompt ? sanitizeText(draft.aiImagePrompt) : null,
+      });
       return RemixedAdTextItemSchema.parse({
         platform,
         platformLabel,
         headline,
         adText,
+        aiImagePrompt,
         hashtags,
         cta,
         wordCount,

@@ -108,7 +108,7 @@ function Pager({ page, pageCount, onPage }: { page: number; pageCount: number; o
   if (pageCount <= 1) return null;
   const step = "flex size-11 items-center justify-center rounded border border-white/[0.08] bg-white/[0.03] text-on-surface transition-colors hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40 sm:size-9";
   return (
-    <nav aria-label="Result pages" className="flex items-center justify-center gap-1.5">
+    <nav aria-label="Result pages" className="flex flex-wrap items-center justify-center gap-1.5">
       <button
         type="button"
         data-agent-id="radar-page-prev"
@@ -155,12 +155,15 @@ function Pager({ page, pageCount, onPage }: { page: number; pageCount: number; o
 
 function SkeletonGrid() {
   return (
-    <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Searching">
+    <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3" aria-busy="true" aria-label="Searching">
       {[0, 1, 2].map((i) => (
-        <li key={i} className="space-y-3 rounded-xl border border-white/[0.08] bg-surface-container-low p-3">
-          <div className="h-10 w-2/3 animate-pulse rounded bg-surface-container-high" />
-          <div className="aspect-[4/5] animate-pulse rounded-lg bg-surface-container-high sm:aspect-[9/13]" />
-          <div className="h-16 animate-pulse rounded bg-surface-container-high" />
+        <li
+          key={i}
+          className="mx-auto w-full min-w-0 max-w-[390px] space-y-2.5 rounded-[22px] border border-white/[0.08] bg-surface-container-low p-2.5 sm:max-w-none sm:space-y-3 sm:rounded-xl sm:p-3"
+        >
+          <div className="h-9 w-2/3 animate-pulse rounded bg-surface-container-high sm:h-10" />
+          <div className="h-24 animate-pulse rounded-lg bg-surface-container-high sm:h-auto sm:aspect-[9/13]" />
+          <div className="h-14 animate-pulse rounded bg-surface-container-high sm:h-16" />
         </li>
       ))}
     </ul>
@@ -327,6 +330,11 @@ export function RadarView() {
       setSearched(searchPayload);
       setSelectedAdId(res.ads[0]?.adId ?? null);
       setPage(0);
+      if (typeof window !== "undefined" && window.innerWidth < 768) {
+        requestAnimationFrame(() =>
+          resultsTop.current?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }),
+        );
+      }
     } catch (err) {
       setSearchError(toError(err));
     } finally {
@@ -474,7 +482,7 @@ export function RadarView() {
         brands={brands}
       />
 
-      <div className="relative mx-auto w-full max-w-[1600px] space-y-5 px-3 py-5 sm:space-y-6 sm:px-6 sm:py-6">
+      <div className="relative mx-auto w-full min-w-0 max-w-[1600px] space-y-4 overflow-x-hidden px-2.5 py-4 sm:space-y-6 sm:px-6 sm:py-6">
         {searchError && (
           <p className={alertError} role="alert" data-agent-id="radar-search-error" data-testid="radar-search-error">
             {searchError.message}{" "}
@@ -520,9 +528,9 @@ export function RadarView() {
 
             {ads.length > 0 ? (
               <>
-                <ul className="grid gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
+                <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-6 lg:grid-cols-3">
                   {pageAds.map((ad) => (
-                    <li key={ad.adId}>
+                    <li key={ad.adId} className="min-w-0 max-w-full">
                       <AdWinnerCard
                         ad={ad}
                         rank={ranks.get(ad.adId) ?? Infinity}

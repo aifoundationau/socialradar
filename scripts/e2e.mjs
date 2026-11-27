@@ -795,16 +795,36 @@ try {
       aiHashtags: extractedInline,
       limit: 8,
     });
+    const aiImagePrompt = hashtagEngine.buildRemixedAdImagePrompt({
+      platform,
+      platformLabel: label,
+      brandName: "Acme Cold Brew",
+      headline: "Cafe-Grade Cold Brew in 30 Seconds",
+      adText: cleanEnforcedCopy,
+      cta: "Shop now",
+      brand: brandInput("Acme Cold Brew"),
+    });
     const parsedItem = contracts.RemixedAdTextItemSchema.safeParse({
       platform,
       platformLabel: label,
       headline: "Cafe-Grade Cold Brew in 30 Seconds",
       adText: cleanEnforcedCopy,
+      aiImagePrompt,
       hashtags: tags,
       cta: "Shop now",
       wordCount: enforcedWords,
     });
-    return { platform, tags, ok: parsedItem.success && tags.length >= 6 && tags.length <= 8 };
+    return {
+      platform,
+      tags,
+      aiImagePrompt,
+      ok:
+        parsedItem.success &&
+        tags.length >= 6 &&
+        tags.length <= 8 &&
+        aiImagePrompt.length >= 40 &&
+        !aiImagePrompt.includes("#"),
+    };
   });
   check(
     "remixedAdText hashtags: adText contains 0 hashtags and all 4 platforms generate 6-8 ranked hashtags",

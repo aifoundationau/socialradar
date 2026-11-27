@@ -274,6 +274,7 @@ export const RemixedAdTextDraftSchema = z
   .object({
     headline: z.string().min(2).max(160),
     adText: z.string().min(5).max(2000),
+    aiImagePrompt: z.string().min(10).max(1500).optional(),
     hashtags: z.array(z.string().min(1).max(60)).max(12).optional(),
     cta: z.string().min(2).max(80),
   })
@@ -305,6 +306,7 @@ export const RemixedAdTextItemSchema = z
         (val) => !/(?:^|\s)#[A-Za-z0-9_]{2,}/.test(val),
         "Ad text description must not contain hashtags",
       ),
+    aiImagePrompt: safeText(10, 1500).optional(),
     hashtags: z
       .array(z.string().regex(/^#[A-Za-z0-9_]{2,48}$/))
       .max(12)

@@ -260,3 +260,75 @@ export function buildRemixedAdHashtags(params: BuildRemixedAdHashtagsParams): st
     .slice(0, limit)
     .map((entry) => entry.tag);
 }
+
+export interface BuildRemixedAdImagePromptParams {
+  platform: RemixedAdTextPlatform;
+  platformLabel?: string;
+  brandName: string;
+  headline: string;
+  adText: string;
+  cta?: string | null;
+  brand?: Partial<BrandProfile> | null;
+  existingPrompt?: string | null;
+}
+
+const TONE_VISUAL_STYLE: Record<string, string> = {
+  DIRECT_RESPONSE: "bold direct-response commercial photography with high contrast subject focus",
+  UGC_CASUAL: "authentic handheld creator lifestyle photography with warm natural lighting",
+  FOUNDER_STORY: "editorial behind-the-scenes studio craftsmanship photography with honest warm tones",
+  LUXURY_MINIMAL: "minimalist luxury editorial product photography with soft directional studio shadows",
+  URGENT: "energetic high-contrast action composition with dynamic foreground depth",
+  EDUCATIONAL: "crisp instructional split-scene visual clarity with clean step-by-step staging",
+};
+
+/**
+ * Normalizes an AI-generated Google Gemini image prompt or synthesizes a deterministic
+ * platform-tailored prompt from the brand, headline, ad copy, and CTA so every card
+ * always provides a ready-to-paste visual prompt under Ad Text Description.
+ */
+export function buildRemixedAdImagePrompt(params: BuildRemixedAdImagePromptParams): string {
+  const cleanExisting = stripHashtagsFromAdText(params.existingPrompt ?? "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (cleanExisting.length >= 15) {
+    return cleanExisting.slice(0, 1500);
+  }
+
+  const brandName = (params.brand?.brandName || params.brandName || "this brand").trim();
+  const cleanHeadline = stripHashtagsFromAdText(params.headline).replace(/\s+/g, " ").trim();
+  const cleanCopy = stripHashtagsFromAdText(params.adText).replace(/\s+/g, " ").trim();
+  const firstSentenceMatch = cleanCopy.match(/^(.{15,180}?[.!?])(?:\s|$)/);
+  const copyHook = (firstSentenceMatch?.[1] ?? cleanCopy.slice(0, 160)).trim();
+  const productContext = (
+    params.brand?.productServiceDescription ||
+    params.brand?.uniqueMechanismOrOffer ||
+    "featured product or service"
+  )
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 140);
+  const visualStyle =
+    (params.brand?.toneOfVoice && TONE_VISUAL_STYLE[params.brand.toneOfVoice]) ||
+    "clean photorealistic commercial advertising photography";
+  const ctaNote = params.cta ? ` leading viewers cleanly toward a "${params.cta.trim()}" call to action` : "";
+
+  let prompt: string;
+  switch (params.platform) {
+    case "TIKTOK":
+      prompt = `Create a scroll-stopping 9:16 vertical TikTok advertisement image for ${brandName} showcasing ${productContext}. Visually capture the hook "${cleanHeadline}" and story "${copyHook}" using ${visualStyle}, expressive close-up subject framing, and clean upper and lower negative space safe zones for native overlays${ctaNote}. No embedded watermarks or distorted text.`;
+      break;
+    case "FACEBOOK":
+      prompt = `Create a high-converting 4:5 vertical Facebook Feed advertisement image for ${brandName} featuring ${productContext}. Illustrate "${cleanHeadline}" and the core promise "${copyHook}" with ${visualStyle}, strong above-the-fold focal clarity, relatable customer or product outcome framing${ctaNote}, and balanced composition. Photorealistic, clean, no cluttered baked-in text or watermarks.`;
+      break;
+    case "INSTAGRAM":
+      prompt = `Create a polished 4:5 Instagram Feed and Reels cover advertisement image for ${brandName} highlighting ${productContext}. Translate the concept "${cleanHeadline}" and "${copyHook}" through ${visualStyle}, cohesive modern color grading, tactile depth of field, and an aspirational hero composition${ctaNote}. High-resolution commercial finish without logos glitches or watermarks.`;
+      break;
+    case "GOOGLE_ADS":
+    default:
+      prompt = `Create a crisp 16:9 widescreen Google Performance Max and Display advertisement image for ${brandName} presenting ${productContext}. Communicate "${cleanHeadline}" and "${copyHook}" using ${visualStyle}, sharp subject isolation on an uncluttered studio or real-world backdrop, and trustworthy high-intent visual hierarchy${ctaNote}. Clean commercial asset without watermarks or unreadable text.`;
+      break;
+  }
+
+  return prompt.replace(/\s+/g, " ").trim().slice(0, 1500);
+}
